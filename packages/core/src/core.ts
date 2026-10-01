@@ -36,6 +36,44 @@ export interface TelemetryChannel {
   unit: string;
 }
 
+/** Who integrates the chassis pose (ADR-0002). */
+export type HostMode = "builtin" | "external";
+
+/** A body-frame ray an external host casts to find the ground under a wheel. */
+export interface WheelRay {
+  /** Ray origin in the body frame (top of suspension travel), m. */
+  origin: [number, number, number];
+  /** Unit ray direction in the body frame (−z). */
+  direction: [number, number, number];
+  /** Ray length beyond which the wheel is airborne, m. */
+  length: number;
+  /** Tire radius, m. */
+  radius: number;
+}
+
+/** Ground under one wheel for the coming host step, world frame. */
+export interface WheelContact {
+  /** A point on the contact plane, m. */
+  point: [number, number, number];
+  /** Unit normal of the contact plane. */
+  normal: [number, number, number];
+  /** Velocity of the surface at the contact, m/s. Defaults to zero. */
+  surfaceVelocity?: [number, number, number];
+  /** Surface identifier for the surface table (milestone 6). Defaults to 0. */
+  surfaceId?: number;
+}
+
+/** The impulses an external host applies after a step, world frame. */
+export interface HostImpulse {
+  /** Net impulse of everything except gravity over the step, N·s. */
+  impulse: [number, number, number];
+  /** Net angular impulse over the step, N·m·s. */
+  angularImpulse: [number, number, number];
+}
+
+/** Wheel order used by every per-wheel buffer and channel suffix. */
+export const WHEEL_ORDER = ["FL", "FR", "RL", "RR"] as const;
+
 export interface TireInput {
   fz: number;
   slipRatio: number;
@@ -145,6 +183,22 @@ export class Skidpad {
   readonly telemetryStride: number;
   readonly telemetryLayout: readonly TelemetryChannel[];
   private readonly channelIndex: Map<string, number>;
+  /** Wheels per vehicle in the four-wheel model. */
+  readonly wheelCount: number;
+  /** @internal Host-sync layout (see `skidpad_core::world`). */
+  readonly hostInStride: number;
+  /** @internal */
+  readonly hostInBodyLen: number;
+  /** @internal */
+  readonly hostContactStride: number;
+  /** @internal */
+  readonly hostOutStride: number;
+  /** @internal */
+  readonly hostOutBodyLen: number;
+  /** @internal */
+  readonly hostOutWheelStride: number;
+  /** @internal */
+  readonly wheelRayStride: number;
 
   /** @internal */
   constructor(readonly exports: CpExports) {
@@ -167,6 +221,19 @@ export class Skidpad {
     this.channelIndex = new Map(this.telemetryLayout.map((c, i) => [c.name, i]));
     this.tireOutStride = exports.sp_tire_out_stride();
     this.tireScratchPtr = exports.sp_alloc(this.tireOutStride * 8 * 1024);
+    this.wheelCount = exports.sp_wheel_count();
+    this.hostInStride = exports.sp_host_in_stride();
+    this.hostInBodyLen = exports.sp_host_in_body_len();
+    this.hostContactStride = exports.sp_host_contact_stride();
+    this.hostOutStride = exports.sp_host_out_stride();
+    this.hostOutBodyLen = exports.sp_host_out_body_len();
+    this.hostOutWheelStride = exports.sp_host_out_wheel_stride();
+    this.wheelRayStride = exports.sp_wheel_ray_stride();
+  }
+
+  /** @internal Scratch area shared by tire sweeps and wheel-ray reads. */
+  get scratchPtr(): number {
+    return this.tireScratchPtr;
   }
 
   /** Refresh typed-array views if the memory grew. Cheap; call before reads. */
@@ -293,6 +360,8 @@ export class World {
   private freed = false;
   private readonly inputsPtr: number;
   private readonly telemetryPtr: number;
+  private readonly hostInPtr: number;
+  private readonly hostOutPtr: number;
   readonly capacity: number;
 
   /** @internal */
@@ -303,6 +372,8 @@ export class World {
     this.capacity = sp.exports.sp_world_capacity(handle);
     this.inputsPtr = sp.exports.sp_world_inputs_ptr(handle);
     this.telemetryPtr = sp.exports.sp_world_telemetry_ptr(handle);
+    this.hostInPtr = sp.exports.sp_world_host_in_ptr(handle);
+    this.hostOutPtr = sp.exports.sp_world_host_out_ptr(handle);
   }
 
   get vehicleCount(): number {
@@ -386,6 +457,148 @@ export class World {
   /** Advance every vehicle by one host step of `dt` seconds. */
   step(dt: number): void {
     this.sp.check(this.sp.exports.sp_world_step(this.handle, dt));
+  }
+
+  // ---- external host contract (ADR-0002) ----------------------------------
+
+  /**
+   * Hand a vehicle to an external rigid-body host, or back to the built-in
+   * one. Only the four-wheel model can be hosted externally. In external
+   * mode call {@link writeHostBody} and {@link writeWheelContact} before each
+   * step and apply {@link readHostImpulse} after it.
+   */
+  setHostMode(vehicle: number, mode: HostMode): void {
+    this.sp.check(
+      this.sp.exports.sp_world_set_host_mode(this.handle, vehicle, mode === "external" ? 1 : 0),
+    );
+  }
+
+  /** Live view of a vehicle's host-sync input record. */
+  hostInView(vehicle: number): Float64Array {
+    const o = this.hostInPtr / 8 + vehicle * this.sp.hostInStride;
+    return this.sp.floats().subarray(o, o + this.sp.hostInStride);
+  }
+
+  /** Live view of a vehicle's host-sync output record. */
+  hostOutView(vehicle: number): Float64Array {
+    const o = this.hostOutPtr / 8 + vehicle * this.sp.hostOutStride;
+    return this.sp.floats().subarray(o, o + this.sp.hostOutStride);
+  }
+
+  /**
+   * Write the host body's state for the coming step: centre-of-mass
+   * position, orientation quaternion (body → world), linear velocity and
+   * world-frame angular velocity, all in the core's ISO frame (x forward,
+   * y left, z up). No allocation.
+   */
+  writeHostBody(
+    vehicle: number,
+    px: number,
+    py: number,
+    pz: number,
+    qx: number,
+    qy: number,
+    qz: number,
+    qw: number,
+    vx: number,
+    vy: number,
+    vz: number,
+    wx: number,
+    wy: number,
+    wz: number,
+  ): void {
+    const f = this.sp.floats();
+    const o = this.hostInPtr / 8 + vehicle * this.sp.hostInStride;
+    f[o] = px;
+    f[o + 1] = py;
+    f[o + 2] = pz;
+    f[o + 3] = qx;
+    f[o + 4] = qy;
+    f[o + 5] = qz;
+    f[o + 6] = qw;
+    f[o + 7] = vx;
+    f[o + 8] = vy;
+    f[o + 9] = vz;
+    f[o + 10] = wx;
+    f[o + 11] = wy;
+    f[o + 12] = wz;
+  }
+
+  /** Write the ground found under a wheel for the coming step (world frame). */
+  writeWheelContact(vehicle: number, wheel: number, contact: WheelContact): void {
+    const f = this.sp.floats();
+    const o =
+      this.hostInPtr / 8 +
+      vehicle * this.sp.hostInStride +
+      this.sp.hostInBodyLen +
+      wheel * this.sp.hostContactStride;
+    const sv = contact.surfaceVelocity;
+    f[o] = 1;
+    f[o + 1] = contact.point[0];
+    f[o + 2] = contact.point[1];
+    f[o + 3] = contact.point[2];
+    f[o + 4] = contact.normal[0];
+    f[o + 5] = contact.normal[1];
+    f[o + 6] = contact.normal[2];
+    f[o + 7] = sv ? sv[0] : 0;
+    f[o + 8] = sv ? sv[1] : 0;
+    f[o + 9] = sv ? sv[2] : 0;
+    f[o + 10] = contact.surfaceId ?? 0;
+  }
+
+  /** Mark a wheel as airborne for the coming step. */
+  clearWheelContact(vehicle: number, wheel: number): void {
+    const o =
+      this.hostInPtr / 8 +
+      vehicle * this.sp.hostInStride +
+      this.sp.hostInBodyLen +
+      wheel * this.sp.hostContactStride;
+    this.sp.floats()[o] = 0;
+  }
+
+  /**
+   * The impulses accumulated over the last step for the host to apply to
+   * its body before integrating. Pass `out` to avoid allocation.
+   */
+  readHostImpulse(vehicle: number, out?: HostImpulse): HostImpulse {
+    const f = this.sp.floats();
+    const o = this.hostOutPtr / 8 + vehicle * this.sp.hostOutStride;
+    const r = out ?? { impulse: [0, 0, 0], angularImpulse: [0, 0, 0] };
+    r.impulse[0] = f[o]!;
+    r.impulse[1] = f[o + 1]!;
+    r.impulse[2] = f[o + 2]!;
+    r.angularImpulse[0] = f[o + 3]!;
+    r.angularImpulse[1] = f[o + 4]!;
+    r.angularImpulse[2] = f[o + 5]!;
+    return r;
+  }
+
+  /**
+   * World-frame hub centre and contact point of each wheel after the last
+   * step, as `[hx, hy, hz, cx, cy, cz]` per wheel. A live view.
+   */
+  wheelPositionsView(vehicle: number): Float64Array {
+    const o = this.hostOutPtr / 8 + vehicle * this.sp.hostOutStride + this.sp.hostOutBodyLen;
+    return this.sp.floats().subarray(o, o + this.sp.wheelCount * this.sp.hostOutWheelStride);
+  }
+
+  /** Body-frame suspension rays for an external host to cast each step. */
+  wheelRays(vehicle: number): WheelRay[] {
+    const n = this.sp.wheelCount * this.sp.wheelRayStride;
+    const ptr = this.sp.scratchPtr;
+    this.sp.check(this.sp.exports.sp_world_wheel_rays(this.handle, vehicle, ptr, n));
+    const f = this.sp.floats();
+    const rays: WheelRay[] = [];
+    for (let w = 0; w < this.sp.wheelCount; w++) {
+      const o = ptr / 8 + w * this.sp.wheelRayStride;
+      rays.push({
+        origin: [f[o]!, f[o + 1]!, f[o + 2]!],
+        direction: [f[o + 3]!, f[o + 4]!, f[o + 5]!],
+        length: f[o + 6]!,
+        radius: f[o + 7]!,
+      });
+    }
+    return rays;
   }
 
   /** Per-vehicle state hash as a 16-hex-digit string. */

@@ -7,14 +7,17 @@
 //! Each axle carries one tire that sees the whole axle load. Longitudinal load
 //! transfer comes from the centre-of-mass height; there is no lateral load
 //! transfer in a single-track model. The chassis is the proxy of ADR-0002: the
-//! substep integrates velocities, the "host" (this struct, in milestone 1)
-//! integrates the pose.
+//! substep integrates velocities, the "host" (this struct) integrates the
+//! pose. Since milestone 2 this is the level-of-detail model; the four-wheel
+//! model in `four_wheel.rs` is the default.
 
 use crate::definition::VehicleDefinition;
 use crate::input::VehicleInput;
 use crate::snapshot::Snapshottable;
 use crate::telemetry as t;
-use crate::tire::{kinematic_slip, TireInput, TireOutput, TireTransient};
+use crate::tire::{
+    clamp_to_friction, kinematic_slip, low_speed_fade, TireInput, TireOutput, TireTransient,
+};
 use crate::GRAVITY;
 use skidpad_math as m;
 
@@ -25,6 +28,8 @@ pub struct AxleState {
     pub omega: f64,
     /// Transient slip state (ADR-0005).
     pub transient: TireTransient,
+    /// Wheel spin angle for rendering, rad, wrapped to (−π, π].
+    pub spin_angle: f64,
     // --- derived per substep, not part of the snapshot ---
     pub load: f64,
     pub kinematic_ratio: f64,
@@ -210,13 +215,23 @@ impl BicycleVehicle {
             st.kinematic_angle = alpha;
             st.transient
                 .relax(kappa, alpha, wx, dt, sigma_x, sigma_y, floor);
-            let one = tire.eval(&TireInput {
+            let mut one = tire.eval(&TireInput {
                 fz: fz_tire,
                 slip_ratio: st.transient.slip_ratio,
                 slip_angle: st.transient.slip_angle,
                 camber,
                 vx: wx,
             });
+            // Low-speed damping (ADR-0005), per tire, fading out at the floor.
+            let fade = low_speed_fade(wx, floor);
+            let k_low = tire.low_speed_damping_coefficient(fz_tire, axle_def.wheel_inertia) * fade;
+            {
+                let fx = one.fx + k_low * (st.omega * radius - wx);
+                let fy = one.fy - k_low * wy;
+                let (fx, fy) = clamp_to_friction(fx, fy, m::max(one.fx_max, one.fy_max));
+                one.fx = fx;
+                one.fy = fy;
+            }
             let out = TireOutput {
                 fx: 2.0 * one.fx,
                 fy: 2.0 * one.fy,
@@ -258,7 +273,8 @@ impl BicycleVehicle {
             let inertia = 2.0 * axle_def.wheel_inertia;
             let v_eff = m::max(m::abs(wx), floor);
             let frac = TireTransient::response_fraction(wx, dt, sigma_x, floor);
-            let dfx_domega = 2.0 * tire.longitudinal_stiffness(fz_tire) * radius / v_eff * frac;
+            let dfx_domega = 2.0
+                * (tire.longitudinal_stiffness(fz_tire) * radius / v_eff * frac + k_low * radius);
             let i_eff = inertia + dt * radius * dfx_domega;
             let net = drive - radius * out.fx + out.my;
             let omega_free = st.omega + dt * net / i_eff;
@@ -273,6 +289,13 @@ impl BicycleVehicle {
             } else {
                 st.omega = omega_free - m::signum(omega_free) * impulse_cap / i_eff;
                 st.locked = false;
+            }
+
+            st.spin_angle += st.omega * dt;
+            if st.spin_angle > m::PI {
+                st.spin_angle -= m::TAU;
+            } else if st.spin_angle < -m::PI {
+                st.spin_angle += m::TAU;
             }
 
             // --- tire forces into the body frame -----------------------------
@@ -380,12 +403,45 @@ impl BicycleVehicle {
         rec[t::BRAKE_TORQUE_R] = r.brake_torque;
         rec[t::WHEEL_LOCKED_F] = if f.locked { 1.0 } else { 0.0 };
         rec[t::WHEEL_LOCKED_R] = if r.locked { 1.0 } else { 0.0 };
+        // Out-of-plane channels: the planar model sits level at ride height.
+        rec[t::POS_Z] = self.def.chassis.cg_height;
+        rec[t::ROLL] = 0.0;
+        rec[t::PITCH] = 0.0;
+        rec[t::ROLL_RATE] = 0.0;
+        rec[t::PITCH_RATE] = 0.0;
+        rec[t::VEL_Z] = 0.0;
+        rec[t::VERT_ACCEL] = 0.0;
+        let q = crate::geom::Quat::from_yaw(self.yaw);
+        rec[t::QUAT_X] = q.x;
+        rec[t::QUAT_Y] = q.y;
+        rec[t::QUAT_Z] = q.z;
+        rec[t::QUAT_W] = q.w;
+        // Per-wheel channels: each wheel of an axle carries half the axle.
+        for i in 0..4 {
+            let ax = &self.axles[i / 2];
+            let steered = self.def.axles[i / 2].steered;
+            rec[t::WHEEL_SPEED_FL + i] = ax.omega;
+            rec[t::LOAD_FL + i] = 0.5 * ax.load;
+            rec[t::SLIP_RATIO_FL + i] = ax.transient.slip_ratio;
+            rec[t::SLIP_ANGLE_FL + i] = ax.transient.slip_angle;
+            rec[t::FX_FL + i] = 0.5 * ax.out.fx;
+            rec[t::FY_FL + i] = 0.5 * ax.out.fy;
+            rec[t::MZ_FL + i] = 0.5 * ax.out.mz;
+            rec[t::CAMBER_FL + i] = 0.0;
+            rec[t::SUSP_TRAVEL_FL + i] = 0.0;
+            rec[t::SUSP_RATE_FL + i] = 0.0;
+            rec[t::SUSP_FORCE_FL + i] = 0.5 * ax.load;
+            rec[t::WHEEL_STEER_FL + i] = if steered { self.steer_angle } else { 0.0 };
+            rec[t::WHEEL_CONTACT_FL + i] = 1.0;
+            rec[t::WHEEL_LOCKED_FL + i] = if ax.locked { 1.0 } else { 0.0 };
+            rec[t::SPIN_ANGLE_FL + i] = ax.spin_angle;
+        }
     }
 }
 
 impl Snapshottable for BicycleVehicle {
     fn state_len(&self) -> usize {
-        8 + 2 * 3
+        8 + 2 * 4
     }
 
     fn write_state(&self, out: &mut [f64]) {
@@ -398,10 +454,11 @@ impl Snapshottable for BicycleVehicle {
         out[6] = self.yaw_rate;
         out[7] = self.ax_prev;
         for (i, ax) in self.axles.iter().enumerate() {
-            let o = 8 + 3 * i;
+            let o = 8 + 4 * i;
             out[o] = ax.omega;
             out[o + 1] = ax.transient.slip_ratio;
             out[o + 2] = ax.transient.slip_angle;
+            out[o + 3] = ax.spin_angle;
         }
     }
 
@@ -415,10 +472,11 @@ impl Snapshottable for BicycleVehicle {
         self.yaw_rate = v[6];
         self.ax_prev = v[7];
         for (i, ax) in self.axles.iter_mut().enumerate() {
-            let o = 8 + 3 * i;
+            let o = 8 + 4 * i;
             ax.omega = v[o];
             ax.transient.slip_ratio = v[o + 1];
             ax.transient.slip_angle = v[o + 2];
+            ax.spin_angle = v[o + 3];
         }
         self.compute_static_loads();
     }

@@ -97,6 +97,32 @@ impl TireModel {
         }
     }
 
+    /// Damping ratio of the wheel-tire mode below the speed floor (ADR-0005).
+    #[inline]
+    pub fn low_speed_damping(&self) -> f64 {
+        match self {
+            TireModel::Feel(p) => p.low_speed_damping,
+            TireModel::MagicFormula(p) => p.low_speed_damping,
+        }
+    }
+
+    /// Low-speed damping coefficient, N·s/m, for a wheel of spin inertia
+    /// `wheel_inertia` at load `fz` (ADR-0005; Pacejka §8.6). The wheel-tire
+    /// mode has stiffness `C_κ / σ_x` and effective mass `I / R²`, so a
+    /// damping ratio `ζ` needs `k = 2 ζ √(C_κ I / (σ_x R²))`. The same
+    /// coefficient damps the lateral contact-patch spring.
+    #[inline]
+    pub fn low_speed_damping_coefficient(&self, fz: f64, wheel_inertia: f64) -> f64 {
+        let zeta = self.low_speed_damping();
+        if zeta <= 0.0 || fz <= 0.0 {
+            return 0.0;
+        }
+        let (sigma_x, _) = self.relaxation_lengths();
+        let r = m::max(self.unloaded_radius(), 1e-3);
+        let c = m::max(self.longitudinal_stiffness(fz), 0.0);
+        2.0 * zeta * m::sqrt(c * wheel_inertia / (m::max(sigma_x, 1e-6) * r * r))
+    }
+
     /// Slope of `fx` with respect to slip ratio at the origin for the given
     /// load, N. Used by the implicit wheel-spin integration as a conservative
     /// (upper-bound) stiffness.
@@ -145,6 +171,25 @@ impl TireModel {
             TireModel::Feel(p) => p.validate(prefix, errors),
             TireModel::MagicFormula(p) => p.validate(prefix, errors),
         }
+    }
+}
+
+/// Low-speed damping fade: 1 at rest, 0 at and above the speed floor
+/// (ADR-0005).
+#[inline]
+pub fn low_speed_fade(vx: f64, floor: f64) -> f64 {
+    m::clamp(1.0 - m::abs(vx) / m::max(floor, 1e-6), 0.0, 1.0)
+}
+
+/// Clamp a planar force to the friction limit `f_max` (friction circle).
+#[inline]
+pub fn clamp_to_friction(fx: f64, fy: f64, f_max: f64) -> (f64, f64) {
+    let mag = m::hypot(fx, fy);
+    if mag > f_max && mag > 1e-12 {
+        let s = f_max / mag;
+        (fx * s, fy * s)
+    } else {
+        (fx, fy)
     }
 }
 

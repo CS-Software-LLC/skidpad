@@ -7,6 +7,8 @@ const SERIES: Array<{ channel: string; color: string; scale: number; label: stri
   { channel: "SlipRatio_R", color: "#4fd1c5", scale: 1, label: "Slip ratio R (±1)" },
   { channel: "LatAccel", color: "#8ab4ff", scale: 12, label: "Lat accel (±12 m/s²)" },
   { channel: "SteeringTorque", color: "#c3a6ff", scale: 20, label: "Steering torque (±20 N·m)" },
+  { channel: "Roll", color: "#f6a6c1", scale: 0.1, label: "Roll (±0.1 rad)" },
+  { channel: "SuspTravel_FL", color: "#9be7a1", scale: 0.1, label: "Susp travel FL (±0.1 m)" },
 ];
 
 /** Scrolling multi-channel graph drawn straight from the ring buffer. */

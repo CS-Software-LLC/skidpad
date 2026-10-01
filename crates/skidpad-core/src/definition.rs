@@ -50,13 +50,19 @@ pub struct ChassisDef {
     pub mass: f64,
     /// Yaw inertia about the centre of mass, kg·m².
     pub yaw_inertia: f64,
+    /// Roll inertia about the centre of mass (x axis), kg·m². Four-wheel
+    /// model only.
+    pub roll_inertia: f64,
+    /// Pitch inertia about the centre of mass (y axis), kg·m². Four-wheel
+    /// model only.
+    pub pitch_inertia: f64,
     /// Wheelbase, m.
     pub wheelbase: f64,
     /// Distance from the front axle to the centre of mass, m.
     pub cg_to_front_axle: f64,
     /// Centre-of-mass height above ground, m. Drives longitudinal load transfer.
     pub cg_height: f64,
-    /// Track width, m. Unused by the single-track model; kept for M2.
+    /// Track width, m. Both axles share it until per-axle tracks land.
     pub track_width: f64,
 }
 
@@ -65,6 +71,8 @@ impl Default for ChassisDef {
         Self {
             mass: 1300.0,
             yaw_inertia: 2000.0,
+            roll_inertia: 500.0,
+            pitch_inertia: 1800.0,
             wheelbase: 2.6,
             cg_to_front_axle: 1.15,
             cg_height: 0.5,
@@ -86,8 +94,95 @@ pub struct AxleDef {
     pub steered: bool,
     /// Maximum service-brake torque for the whole axle, N·m.
     pub max_brake_torque: f64,
-    /// Static camber, degrees (positive leaning to +y).
+    /// Static camber, degrees. Negative leans the top of each wheel toward
+    /// the centreline (the usual road-car setting); the single-track model
+    /// ignores it because the mirrored thrust cancels.
     pub static_camber_deg: f64,
+    /// Independent suspension at each wheel of this axle. Four-wheel model
+    /// only.
+    pub suspension: SuspensionDef,
+}
+
+/// One corner's spring, damper, travel limits and the axle's anti-roll bar.
+/// Modelled as a raycast strut on the chassis proxy (ADR-0009): no unsprung
+/// mass, so there is no wheel-hop mode to destabilise low substep rates.
+#[derive(Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "camelCase", default))]
+pub struct SuspensionDef {
+    /// Spring rate at the wheel, N/m, per wheel.
+    pub spring_rate: f64,
+    /// Damping in bump (compression), N·s/m, per wheel.
+    pub bump_damping: f64,
+    /// Damping in rebound (extension), N·s/m, per wheel.
+    pub rebound_damping: f64,
+    /// Compression travel available from the static ride height, m.
+    pub travel_bump: f64,
+    /// Extension travel available from the static ride height, m.
+    pub travel_droop: f64,
+    /// Anti-roll bar stiffness at the wheel, N/m: force on each wheel per
+    /// metre of left-right travel difference.
+    pub anti_roll_stiffness: f64,
+    /// Bump-stop stiffness beyond the bump travel, N/m.
+    pub bump_stop_stiffness: f64,
+}
+
+impl Default for SuspensionDef {
+    fn default() -> Self {
+        SuspensionDef::front_default()
+    }
+}
+
+impl SuspensionDef {
+    pub fn front_default() -> Self {
+        Self {
+            spring_rate: 28000.0,
+            bump_damping: 2500.0,
+            rebound_damping: 3500.0,
+            travel_bump: 0.08,
+            travel_droop: 0.10,
+            anti_roll_stiffness: 15000.0,
+            bump_stop_stiffness: 300000.0,
+        }
+    }
+
+    pub fn rear_default() -> Self {
+        Self {
+            spring_rate: 24000.0,
+            bump_damping: 2200.0,
+            rebound_damping: 3000.0,
+            travel_bump: 0.09,
+            travel_droop: 0.11,
+            anti_roll_stiffness: 8000.0,
+            bump_stop_stiffness: 300000.0,
+        }
+    }
+
+    pub fn validate(&self, prefix: &str, errors: &mut Vec<String>) {
+        for (name, v) in [
+            ("springRate", self.spring_rate),
+            ("travelBump", self.travel_bump),
+            ("travelDroop", self.travel_droop),
+        ] {
+            if !(v > 0.0) || !v.is_finite() {
+                errors.push(format!(
+                    "{prefix}.{name} must be a positive number (got {v})"
+                ));
+            }
+        }
+        for (name, v) in [
+            ("bumpDamping", self.bump_damping),
+            ("reboundDamping", self.rebound_damping),
+            ("antiRollStiffness", self.anti_roll_stiffness),
+            ("bumpStopStiffness", self.bump_stop_stiffness),
+        ] {
+            if !(v >= 0.0) || !v.is_finite() {
+                errors.push(format!(
+                    "{prefix}.{name} must be zero or positive (got {v})"
+                ));
+            }
+        }
+    }
 }
 
 impl Default for AxleDef {
@@ -105,6 +200,7 @@ impl AxleDef {
             steered: true,
             max_brake_torque: 3600.0,
             static_camber_deg: 0.0,
+            suspension: SuspensionDef::front_default(),
         }
     }
 
@@ -116,6 +212,7 @@ impl AxleDef {
             steered: false,
             max_brake_torque: 2000.0,
             static_camber_deg: 0.0,
+            suspension: SuspensionDef::rear_default(),
         }
     }
 }
@@ -128,6 +225,10 @@ pub struct SteeringDef {
     pub max_wheel_angle_deg: f64,
     /// Steering ratio (hand-wheel degrees per road-wheel degree).
     pub ratio: f64,
+    /// Ackermann fraction, 0 (parallel steer) to 1 (ideal Ackermann: the
+    /// inner wheel steers more so both roll about the same centre). Four-wheel
+    /// model only.
+    pub ackermann: f64,
 }
 
 impl Default for SteeringDef {
@@ -135,6 +236,7 @@ impl Default for SteeringDef {
         Self {
             max_wheel_angle_deg: 35.0,
             ratio: 14.0,
+            ackermann: 1.0,
         }
     }
 }
@@ -203,14 +305,33 @@ impl Default for AeroDef {
 pub struct SimulationDef {
     /// Internal substep rate, Hz.
     pub substep_rate_hz: f64,
+    /// Which vehicle model runs this definition.
+    pub model: VehicleModelKind,
 }
 
 impl Default for SimulationDef {
     fn default() -> Self {
         Self {
             substep_rate_hz: 1000.0,
+            model: VehicleModelKind::FourWheel,
         }
     }
+}
+
+/// The vehicle models, selectable per definition. Both read the same
+/// definition; the single-track model ignores suspension, inertia and
+/// Ackermann fields.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
+pub enum VehicleModelKind {
+    /// Planar bicycle model on flat ground: cheap, analytic, no load
+    /// transfer across the track. The level-of-detail model for traffic.
+    SingleTrack,
+    /// Four wheels on independent raycast suspension over a six-degree-of-
+    /// freedom chassis proxy. The player-car model and the one hosts drive.
+    #[default]
+    FourWheel,
 }
 
 impl VehicleDefinition {
@@ -231,6 +352,24 @@ impl VehicleDefinition {
             e.push(format!(
                 "chassis.yawInertia must be positive (got {})",
                 c.yaw_inertia
+            ));
+        }
+        if !(c.roll_inertia > 0.0) {
+            e.push(format!(
+                "chassis.rollInertia must be positive (got {})",
+                c.roll_inertia
+            ));
+        }
+        if !(c.pitch_inertia > 0.0) {
+            e.push(format!(
+                "chassis.pitchInertia must be positive (got {})",
+                c.pitch_inertia
+            ));
+        }
+        if !(c.track_width > 0.0) {
+            e.push(format!(
+                "chassis.trackWidth must be positive (got {})",
+                c.track_width
             ));
         }
         if !(c.wheelbase > 0.0) {
@@ -273,6 +412,14 @@ impl VehicleDefinition {
                     a.max_brake_torque
                 ));
             }
+            if !a.static_camber_deg.is_finite() || m::abs(a.static_camber_deg) > 45.0 {
+                e.push(format!(
+                    "axles[{i}] ({name}).staticCamberDeg must be within ±45 (got {})",
+                    a.static_camber_deg
+                ));
+            }
+            a.suspension
+                .validate(&format!("axles[{i}] ({name}).suspension"), &mut e);
         }
         if !self.axles.iter().any(|a| a.driven) {
             e.push(String::from("at least one axle must be driven"));
@@ -287,6 +434,12 @@ impl VehicleDefinition {
             e.push(format!(
                 "steering.ratio must be positive (got {})",
                 self.steering.ratio
+            ));
+        }
+        if !(0.0..=1.0).contains(&self.steering.ackermann) {
+            e.push(format!(
+                "steering.ackermann must be between 0 and 1 (got {})",
+                self.steering.ackermann
             ));
         }
         if !(self.drive.max_wheel_torque >= 0.0) {
@@ -318,9 +471,12 @@ impl VehicleDefinition {
         for v in [
             c.mass,
             c.yaw_inertia,
+            c.roll_inertia,
+            c.pitch_inertia,
             c.wheelbase,
             c.cg_to_front_axle,
             c.cg_height,
+            c.track_width,
         ] {
             if !v.is_finite() {
                 e.push(String::from("chassis contains a non-finite number"));
@@ -343,5 +499,18 @@ impl VehicleDefinition {
     #[inline]
     pub fn max_wheel_angle(&self) -> f64 {
         m::deg_to_rad(self.steering.max_wheel_angle_deg)
+    }
+
+    /// Static vertical load on one wheel of axle `axle` (0 front, 1 rear) on
+    /// level ground, N.
+    pub fn static_wheel_load(&self, axle: usize) -> f64 {
+        let c = &self.chassis;
+        let mg = c.mass * crate::GRAVITY;
+        let share = if axle == 0 {
+            self.cg_to_rear_axle() / c.wheelbase
+        } else {
+            c.cg_to_front_axle / c.wheelbase
+        };
+        0.5 * mg * share
     }
 }

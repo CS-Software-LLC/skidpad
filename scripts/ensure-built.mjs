@@ -15,7 +15,7 @@ import { fileURLToPath } from "node:url";
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const force = process.argv.includes("--force");
 const checkOnly = process.argv.includes("--check");
-const packages = ["core", "presets", "telemetry", "input"];
+const packages = ["core", "presets", "telemetry", "input", "rapier"];
 
 const problems = [];
 const log = (m) => console.log(`[ensure-built] ${m}`);

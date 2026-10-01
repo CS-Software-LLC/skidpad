@@ -43,6 +43,8 @@ export interface FeelTireParams {
   relaxationLengthLat?: number;
   /** Speed floor for slip computation, m/s (ADR-0005). */
   lowSpeedFloor?: number;
+  /** Damping ratio of the wheel-tire mode below the speed floor (ADR-0005). */
+  lowSpeedDamping?: number;
 }
 
 /**
@@ -58,6 +60,7 @@ export interface MagicFormulaParams {
   relaxationLengthLong?: number;
   relaxationLengthLat?: number;
   lowSpeedFloor?: number;
+  lowSpeedDamping?: number;
   [coefficient: string]: number | string | undefined;
 }
 
@@ -68,6 +71,10 @@ export interface ChassisDefinition {
   mass: number;
   /** Yaw inertia about the centre of mass, kg·m². */
   yawInertia: number;
+  /** Roll inertia about the centre of mass, kg·m² (four-wheel model). */
+  rollInertia: number;
+  /** Pitch inertia about the centre of mass, kg·m² (four-wheel model). */
+  pitchInertia: number;
   /** Wheelbase, m. */
   wheelbase: number;
   /** Distance from the front axle to the centre of mass, m. */
@@ -78,6 +85,27 @@ export interface ChassisDefinition {
   trackWidth: number;
 }
 
+/**
+ * One corner's spring, damper, travel limits and the axle's anti-roll bar
+ * (ADR-0009). Values are per wheel.
+ */
+export interface SuspensionDefinition {
+  /** Spring rate at the wheel, N/m. */
+  springRate: number;
+  /** Damping in compression, N·s/m. */
+  bumpDamping: number;
+  /** Damping in extension, N·s/m. */
+  reboundDamping: number;
+  /** Compression travel from the static ride height, m. */
+  travelBump: number;
+  /** Extension travel from the static ride height, m. */
+  travelDroop: number;
+  /** Anti-roll bar stiffness at the wheel, N/m of left-right travel difference. */
+  antiRollStiffness: number;
+  /** Bump-stop stiffness beyond the bump travel, N/m. */
+  bumpStopStiffness: number;
+}
+
 export interface AxleDefinition {
   tire: TireDefinition;
   /** Spin inertia of one wheel plus its share of the drivetrain, kg·m². */
@@ -86,8 +114,10 @@ export interface AxleDefinition {
   steered: boolean;
   /** Maximum service-brake torque for the whole axle, N·m. */
   maxBrakeTorque: number;
-  /** Static camber, degrees. */
+  /** Static camber, degrees; negative leans the top of each wheel inward. */
   staticCamberDeg: number;
+  /** Independent suspension at each wheel of this axle (four-wheel model). */
+  suspension: SuspensionDefinition;
 }
 
 export interface SteeringDefinition {
@@ -95,6 +125,8 @@ export interface SteeringDefinition {
   maxWheelAngleDeg: number;
   /** Hand-wheel degrees per road-wheel degree. */
   ratio: number;
+  /** Ackermann fraction: 0 parallel steer, 1 ideal Ackermann (four-wheel model). */
+  ackermann: number;
 }
 
 export interface BrakesDefinition {
@@ -117,9 +149,18 @@ export interface AeroDefinition {
   airDensity: number;
 }
 
+/** The vehicle models. Both read the same definition. */
+export type VehicleModelKind = "singleTrack" | "fourWheel";
+
 export interface SimulationDefinition {
   /** Internal substep rate, Hz. */
   substepRateHz: number;
+  /**
+   * `"fourWheel"` (default): independent suspension on a 6-DOF chassis
+   * proxy, host-drivable. `"singleTrack"`: the planar bicycle model, the
+   * level-of-detail model for traffic.
+   */
+  model: VehicleModelKind;
 }
 
 /** Sources and notes for a reference vehicle. */
@@ -148,7 +189,9 @@ export type PartialVehicleDefinition = {
   formatVersion?: number;
   name?: string;
   chassis?: Partial<ChassisDefinition>;
-  axles?: Array<Partial<AxleDefinition>>;
+  axles?: Array<
+    Partial<Omit<AxleDefinition, "suspension">> & { suspension?: Partial<SuspensionDefinition> }
+  >;
   steering?: Partial<SteeringDefinition>;
   brakes?: Partial<BrakesDefinition>;
   drive?: Partial<SimpleDriveDefinition>;

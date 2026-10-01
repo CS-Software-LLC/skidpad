@@ -13,12 +13,17 @@ use skidpad_core::input::VehicleInput;
 use skidpad_core::telemetry;
 use skidpad_core::tire::{tir, TireInput, TireModel};
 use skidpad_core::validation::{straight_line, understeer, StraightLineConfig, UndersteerConfig};
+use skidpad_core::vehicle::{HostMode, WHEEL_COUNT};
+use skidpad_core::world::{
+    HOST_CONTACT_STRIDE, HOST_IN_BODY_LEN, HOST_IN_STRIDE, HOST_OUT_BODY_LEN, HOST_OUT_STRIDE,
+    HOST_OUT_WHEEL_STRIDE, WHEEL_RAY_STRIDE,
+};
 use skidpad_core::{VehicleDefinition, World};
 use std::cell::RefCell;
 
 /// Bump this whenever an exported signature changes. The TypeScript loader
 /// refuses to run against a different ABI version.
-pub const ABI_VERSION: u32 = 1;
+pub const ABI_VERSION: u32 = 2;
 
 pub const OK: i32 = 0;
 pub const ERR_INVALID_HANDLE: i32 = -1;
@@ -29,6 +34,7 @@ pub const ERR_NO_SUCH_VEHICLE: i32 = -5;
 pub const ERR_SNAPSHOT: i32 = -6;
 pub const ERR_BUFFER_TOO_SMALL: i32 = -7;
 pub const ERR_SCENARIO: i32 = -8;
+pub const ERR_WRONG_MODEL: i32 = -9;
 
 thread_local! {
     static WORLDS: RefCell<Vec<Option<World>>> = const { RefCell::new(Vec::new()) };
@@ -195,6 +201,47 @@ pub extern "C" fn sp_telemetry_layout_len() -> usize {
     })
 }
 
+#[no_mangle]
+pub extern "C" fn sp_wheel_count() -> u32 {
+    WHEEL_COUNT as u32
+}
+
+/// Host-sync input record length per vehicle (see `skidpad_core::world`).
+#[no_mangle]
+pub extern "C" fn sp_host_in_stride() -> u32 {
+    HOST_IN_STRIDE as u32
+}
+
+#[no_mangle]
+pub extern "C" fn sp_host_in_body_len() -> u32 {
+    HOST_IN_BODY_LEN as u32
+}
+
+#[no_mangle]
+pub extern "C" fn sp_host_contact_stride() -> u32 {
+    HOST_CONTACT_STRIDE as u32
+}
+
+#[no_mangle]
+pub extern "C" fn sp_host_out_stride() -> u32 {
+    HOST_OUT_STRIDE as u32
+}
+
+#[no_mangle]
+pub extern "C" fn sp_host_out_body_len() -> u32 {
+    HOST_OUT_BODY_LEN as u32
+}
+
+#[no_mangle]
+pub extern "C" fn sp_host_out_wheel_stride() -> u32 {
+    HOST_OUT_WHEEL_STRIDE as u32
+}
+
+#[no_mangle]
+pub extern "C" fn sp_wheel_ray_stride() -> u32 {
+    WHEEL_RAY_STRIDE as u32
+}
+
 // ----------------------------------------------------------------- world ----
 
 #[no_mangle]
@@ -311,6 +358,84 @@ pub extern "C" fn sp_world_inputs_ptr(handle: u32) -> *mut f64 {
 #[no_mangle]
 pub extern "C" fn sp_world_telemetry_ptr(handle: u32) -> *const f64 {
     with_world(handle, |w| w.telemetry().as_ptr()).unwrap_or(std::ptr::null())
+}
+
+/// Pointer to the host-sync input buffer: `capacity × sp_host_in_stride()`
+/// f64 values. An external host writes body state and wheel contacts here
+/// before each step (ADR-0002).
+#[no_mangle]
+pub extern "C" fn sp_world_host_in_ptr(handle: u32) -> *mut f64 {
+    with_world(handle, |w| w.host_in_mut().as_mut_ptr()).unwrap_or(std::ptr::null_mut())
+}
+
+/// Pointer to the host-sync output buffer: `capacity × sp_host_out_stride()`
+/// f64 values with the impulses to apply after each step.
+#[no_mangle]
+pub extern "C" fn sp_world_host_out_ptr(handle: u32) -> *const f64 {
+    with_world(handle, |w| w.host_out().as_ptr()).unwrap_or(std::ptr::null())
+}
+
+/// Switch a vehicle between the built-in host (`0`) and an external host
+/// (`1`). Only the four-wheel model supports an external host.
+#[no_mangle]
+pub extern "C" fn sp_world_set_host_mode(handle: u32, vehicle: u32, mode: u32) -> i32 {
+    let mode = if mode == 0 {
+        HostMode::Builtin
+    } else {
+        HostMode::External
+    };
+    unwrap_code(
+        with_world(handle, |w| w.set_host_mode(vehicle as usize, mode)),
+        |r| match r {
+            Ok(()) => OK,
+            Err(e @ skidpad_core::world::WorldError::WrongModel(_)) => {
+                set_error(e.to_string());
+                ERR_WRONG_MODEL
+            }
+            Err(e) => {
+                set_error(e.to_string());
+                ERR_NO_SUCH_VEHICLE
+            }
+        },
+    )
+}
+
+/// Write the wheel rays (body frame, `sp_wheel_count() × sp_wheel_ray_stride()`
+/// values) into `out`. Returns the number of values written.
+///
+/// # Safety
+/// `out` must point to at least `cap` writable f64 values.
+#[no_mangle]
+pub unsafe extern "C" fn sp_world_wheel_rays(
+    handle: u32,
+    vehicle: u32,
+    out: *mut f64,
+    cap: usize,
+) -> i32 {
+    if out.is_null() {
+        set_error("null output buffer");
+        return ERR_BUFFER_TOO_SMALL;
+    }
+    let need = WHEEL_COUNT * WHEEL_RAY_STRIDE;
+    if cap < need {
+        set_error(format!("wheel rays need {need} values, buffer holds {cap}"));
+        return ERR_BUFFER_TOO_SMALL;
+    }
+    let buf = std::slice::from_raw_parts_mut(out, cap);
+    unwrap_code(
+        with_world(handle, |w| w.wheel_rays(vehicle as usize, buf)),
+        |r| match r {
+            Ok(n) => n as i32,
+            Err(e @ skidpad_core::world::WorldError::WrongModel(_)) => {
+                set_error(e.to_string());
+                ERR_WRONG_MODEL
+            }
+            Err(e) => {
+                set_error(e.to_string());
+                ERR_NO_SUCH_VEHICLE
+            }
+        },
+    )
 }
 
 #[no_mangle]

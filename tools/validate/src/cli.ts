@@ -34,12 +34,12 @@ const fmt = (v: number | null | undefined, d = 2): string =>
 console.log(`Skidpad validation (core ${report.coreVersion}, math ${report.mathSelftestHash})`);
 console.log("");
 console.log(
-  "| Vehicle | K_us sim (deg/g) | K_us linear theory (deg/g) | 0–100 km/h (s) | 100–0 km/h (m) | Scripted drive hash |",
+  "| Vehicle | K_us four-wheel (deg/g) | K_us single-track (deg/g) | K_us linear theory (deg/g) | 0–100 km/h (s) | 100–0 km/h (m) | Scripted drive hash |",
 );
-console.log("| --- | --- | --- | --- | --- | --- |");
+console.log("| --- | --- | --- | --- | --- | --- | --- |");
 for (const [id, v] of Object.entries(report.vehicles)) {
   console.log(
-    `| ${id} | ${fmt(v.understeer.gradientDegPerG)} | ${fmt(v.understeer.analyticGradientDegPerG)} | ${fmt(v.straightLine.accelTime)} | ${fmt(v.straightLine.brakingDistance, 1)} | ${v.scriptedDriveHash} |`,
+    `| ${id} | ${fmt(v.understeer.gradientDegPerG)} | ${fmt(v.understeerSingleTrack.gradientDegPerG)} | ${fmt(v.understeer.analyticGradientDegPerG)} | ${fmt(v.straightLine.accelTime)} | ${fmt(v.straightLine.brakingDistance, 1)} | ${v.scriptedDriveHash} |`,
   );
 }
 console.log("");

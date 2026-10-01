@@ -22,13 +22,24 @@ describe("validation scenarios", () => {
     const sp = await init();
     const report = runAll(sp);
     for (const [id, v] of Object.entries(report.vehicles)) {
+      expect(v.model, id).toBe("fourWheel");
       expect(v.understeer.gradientDegPerG, id).toBeGreaterThan(0);
       expect(v.understeer.gradientDegPerG, id).toBeLessThan(8);
-      const diff = Math.abs(v.understeer.gradientDegPerG - v.understeer.analyticGradientDegPerG);
+      // The single-track model has no lateral load transfer and sits on the
+      // linear theory; the four-wheel model adds the load-sensitivity effect
+      // of transferring load across each axle, a fraction of a degree per g.
+      const single = Math.abs(
+        v.understeerSingleTrack.gradientDegPerG - v.understeer.analyticGradientDegPerG,
+      );
       expect(
-        diff,
-        `${id}: sim ${v.understeer.gradientDegPerG} vs linear theory ${v.understeer.analyticGradientDegPerG} deg/g`,
+        single,
+        `${id}: single-track ${v.understeerSingleTrack.gradientDegPerG} vs linear theory ${v.understeer.analyticGradientDegPerG} deg/g`,
       ).toBeLessThan(0.3);
+      const four = Math.abs(v.understeer.gradientDegPerG - v.understeerSingleTrack.gradientDegPerG);
+      expect(
+        four,
+        `${id}: four-wheel ${v.understeer.gradientDegPerG} vs single-track ${v.understeerSingleTrack.gradientDegPerG} deg/g`,
+      ).toBeLessThan(0.6);
     }
   });
 });

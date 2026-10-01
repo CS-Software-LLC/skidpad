@@ -53,6 +53,7 @@ function validateTire(errors: string[], warnings: string[], path: string, tire: 
     ]) {
       positive(errors, `${path}.${k}`, t[k]);
     }
+    nonNegative(errors, `${path}.lowSpeedDamping`, t.lowSpeedDamping);
     for (const k of ["falloffLong", "falloffLat"]) {
       const v = t[k];
       if (v !== undefined && (!isNum(v) || v <= 0 || v > 1)) {
@@ -81,6 +82,7 @@ function validateTire(errors: string[], warnings: string[], path: string, tire: 
     ]) {
       positive(errors, `${path}.${k}`, t[k]);
     }
+    nonNegative(errors, `${path}.lowSpeedDamping`, t.lowSpeedDamping);
     const pky1 = t.pky1;
     if (isNum(pky1) && pky1 > 0) {
       errors.push(
@@ -120,9 +122,12 @@ export function validateDefinition(def: unknown): ValidationResult {
   const c = d.chassis ?? {};
   positive(errors, "chassis.mass", c.mass);
   positive(errors, "chassis.yawInertia", c.yawInertia);
+  positive(errors, "chassis.rollInertia", c.rollInertia);
+  positive(errors, "chassis.pitchInertia", c.pitchInertia);
   positive(errors, "chassis.wheelbase", c.wheelbase);
   positive(errors, "chassis.cgToFrontAxle", c.cgToFrontAxle);
   nonNegative(errors, "chassis.cgHeight", c.cgHeight);
+  positive(errors, "chassis.trackWidth", c.trackWidth);
   if (isNum(c.wheelbase) && isNum(c.cgToFrontAxle) && c.cgToFrontAxle >= c.wheelbase) {
     errors.push(
       `chassis.cgToFrontAxle (${c.cgToFrontAxle}) must be less than the wheelbase (${c.wheelbase}); the centre of mass has to sit between the axles`,
@@ -149,6 +154,45 @@ export function validateDefinition(def: unknown): ValidationResult {
         validateTire(errors, warnings, `${path}.tire`, a?.tire);
         positive(errors, `${path}.wheelInertia`, a?.wheelInertia);
         nonNegative(errors, `${path}.maxBrakeTorque`, a?.maxBrakeTorque);
+        const camber = a?.staticCamberDeg;
+        if (camber !== undefined && (!isNum(camber) || Math.abs(camber) > 45)) {
+          errors.push(`${path}.staticCamberDeg must be within ±45 degrees (got ${String(camber)})`);
+        }
+        const s = a?.suspension;
+        if (s !== undefined) {
+          if (typeof s !== "object" || s === null) {
+            errors.push(`${path}.suspension must be an object`);
+          } else {
+            positive(errors, `${path}.suspension.springRate`, s.springRate);
+            positive(errors, `${path}.suspension.travelBump`, s.travelBump);
+            positive(errors, `${path}.suspension.travelDroop`, s.travelDroop);
+            nonNegative(errors, `${path}.suspension.bumpDamping`, s.bumpDamping);
+            nonNegative(errors, `${path}.suspension.reboundDamping`, s.reboundDamping);
+            nonNegative(errors, `${path}.suspension.antiRollStiffness`, s.antiRollStiffness);
+            nonNegative(errors, `${path}.suspension.bumpStopStiffness`, s.bumpStopStiffness);
+            // Static compression beyond the bump travel means the car sits
+            // on its bump stops at rest; worth a warning, not an error.
+            const mass = c.mass;
+            const wb = c.wheelbase;
+            const cgf = c.cgToFrontAxle;
+            if (
+              isNum(mass) &&
+              isNum(wb) &&
+              isNum(cgf) &&
+              isNum(s.springRate) &&
+              isNum(s.travelBump)
+            ) {
+              const share = i === 0 ? (wb - cgf) / wb : cgf / wb;
+              const staticLoad = 0.5 * mass * 9.80665 * share;
+              const compression = staticLoad / s.springRate;
+              if (compression > s.travelBump) {
+                warnings.push(
+                  `${path}.suspension: the static load of ${staticLoad.toFixed(0)} N compresses the spring ${(compression * 1000).toFixed(0)} mm, more than the ${(s.travelBump * 1000).toFixed(0)} mm of bump travel; the car rests on its bump stops`,
+                );
+              }
+            }
+          }
+        }
       });
       if (d.axles.length === 2 && d.axles.every((a) => a?.driven === false)) {
         errors.push("at least one axle must be driven");
@@ -164,6 +208,9 @@ export function validateDefinition(def: unknown): ValidationResult {
     errors.push(`steering.maxWheelAngleDeg must be in (0, 90] (got ${String(s.maxWheelAngleDeg)})`);
   }
   positive(errors, "steering.ratio", s.ratio);
+  if (s.ackermann !== undefined && (!isNum(s.ackermann) || s.ackermann < 0 || s.ackermann > 1)) {
+    errors.push(`steering.ackermann must be between 0 and 1 (got ${String(s.ackermann)})`);
+  }
   nonNegative(errors, "brakes.handbrakeTorque", d.brakes?.handbrakeTorque);
   nonNegative(errors, "drive.maxWheelTorque", d.drive?.maxWheelTorque);
   positive(errors, "drive.maxWheelSpeed", d.drive?.maxWheelSpeed);
@@ -178,6 +225,10 @@ export function validateDefinition(def: unknown): ValidationResult {
     warnings.push(
       `simulation.substepRateHz of ${rate} is low for a player car; 1000 is the sim default`,
     );
+  }
+  const model = d.simulation?.model;
+  if (model !== undefined && model !== "singleTrack" && model !== "fourWheel") {
+    errors.push(`simulation.model must be "fourWheel" or "singleTrack" (got "${String(model)}")`);
   }
 
   return { ok: errors.length === 0, errors, warnings };

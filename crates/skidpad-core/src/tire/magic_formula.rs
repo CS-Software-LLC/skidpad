@@ -197,6 +197,9 @@ mf_params! {
         relaxation_length_lat: "SKIDPAD_RELAXATION_LENGTH_LAT" = 0.35,
         /// Speed floor for slip computation, m/s (ADR-0005).
         low_speed_floor: "SKIDPAD_LOW_SPEED_FLOOR" = 0.5,
+        /// Damping ratio of the wheel-tire mode below the speed floor
+        /// (ADR-0005, Pacejka §8.6 low-speed damping).
+        low_speed_damping: "SKIDPAD_LOW_SPEED_DAMPING" = 0.3,
     }
 }
 
@@ -377,7 +380,9 @@ impl MagicFormulaParams {
                 + self.qsy3 * m::abs(v_ratio)
                 + self.qsy4 * m::powi(v_ratio, 4))
             * self.lmy;
-        let my = -m::signum(i.vx) * my_mag;
+        // Smooth through zero below the speed floor so a parked car never
+        // sees a sign-switching torque (ADR-0005).
+        let my = -m::clamp(i.vx / m::max(self.low_speed_floor, 1e-6), -1.0, 1.0) * my_mag;
 
         TireOutput {
             fx,
@@ -410,6 +415,12 @@ impl MagicFormulaParams {
                     "{prefix}.{name} must be a positive number (got {v})"
                 ));
             }
+        }
+        if !(self.low_speed_damping >= 0.0) || !self.low_speed_damping.is_finite() {
+            errors.push(format!(
+                "{prefix}.lowSpeedDamping must be zero or positive (got {})",
+                self.low_speed_damping
+            ));
         }
         if self.pky1 == 0.0 || !self.pky1.is_finite() {
             errors.push(format!(

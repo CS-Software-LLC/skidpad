@@ -2,11 +2,22 @@ import { smoothWave, type Skidpad, type VehicleDefinition } from "@skidpad/core"
 import { presetIds, preset, type PresetId } from "@skidpad/presets";
 
 export interface VehicleResults {
+  /** Which model produced `understeer` and `straightLine`. */
+  model: string;
   understeer: ReturnType<Skidpad["runScenario"]> & {
     gradientDegPerG: number;
     analyticGradientDegPerG: number;
     ackermannAngle: number;
     fittedIntercept: number;
+  };
+  /**
+   * The same manoeuvre on the single-track model, as a cross-check: it has
+   * no lateral load transfer, so it should sit closest to linear theory,
+   * and the four-wheel result should differ from it only by the load
+   * sensitivity under lateral transfer.
+   */
+  understeerSingleTrack: {
+    gradientDegPerG: number;
   };
   straightLine: {
     accelTime: number | null;
@@ -51,8 +62,16 @@ export function runAll(sp: Skidpad, ids: PresetId[] = presetIds): ValidationRepo
     const def = preset(id);
     const understeer = sp.runScenario({ scenario: "understeerGradient", definition: def });
     const sl = sp.runScenario({ scenario: "straightLine", definition: def });
+    const single = structuredClone(def);
+    single.simulation.model = "singleTrack";
+    const understeerSingle = sp.runScenario({
+      scenario: "understeerGradient",
+      definition: single,
+    });
     vehicles[id] = {
+      model: def.simulation.model,
       understeer,
+      understeerSingleTrack: { gradientDegPerG: understeerSingle.gradientDegPerG },
       straightLine: {
         accelTime: sl.accelTime,
         quarterMileTime: sl.quarterMileTime,

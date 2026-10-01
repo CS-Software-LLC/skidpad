@@ -19,7 +19,7 @@
 use super::linear_fit;
 use crate::definition::VehicleDefinition;
 use crate::input::VehicleInput;
-use crate::vehicle::BicycleVehicle;
+use crate::vehicle::VehicleModel;
 use crate::GRAVITY;
 use skidpad_math as m;
 
@@ -91,9 +91,9 @@ pub fn run(def: &VehicleDefinition, cfg: &UndersteerConfig) -> Result<Understeer
         return Err(String::from("understeer: radius must be positive"));
     }
 
-    let mut car = BicycleVehicle::new(def.clone());
+    let mut car = VehicleModel::new(def.clone());
     car.set_speed(cfg.speeds[0]);
-    car.yaw_rate = cfg.speeds[0] / cfg.radius;
+    car.set_yaw_rate(cfg.speeds[0] / cfg.radius);
     let rate = def.simulation.substep_rate_hz;
     let n_sub = m::max(m::round(cfg.host_dt * rate), 1.0) as usize;
     let sub_dt = cfg.host_dt / n_sub as f64;
@@ -113,9 +113,9 @@ pub fn run(def: &VehicleDefinition, cfg: &UndersteerConfig) -> Result<Understeer
         let mut acc = [0.0f64; 6];
         let mut count = 0.0;
         for step in 0..settle_steps {
-            let speed = car.vx;
+            let speed = car.vx();
             let r_target = target / cfg.radius;
-            let err = r_target - car.yaw_rate;
+            let err = r_target - car.yaw_rate();
             steer_integral += ki_steer * err * cfg.host_dt;
             steer_integral = m::clamp(steer_integral, -max_angle, max_angle);
             let delta = m::clamp(kp_steer * err + steer_integral, -max_angle, max_angle);
@@ -130,12 +130,12 @@ pub fn run(def: &VehicleDefinition, cfg: &UndersteerConfig) -> Result<Understeer
                 car.substep(sub_dt, &input);
             }
             if step + measure_steps >= settle_steps {
-                acc[0] += car.vx;
-                acc[1] += car.steer_angle;
-                acc[2] += car.vx * car.yaw_rate;
-                acc[3] += car.yaw_rate;
-                acc[4] += car.axles[0].transient.slip_angle;
-                acc[5] += car.axles[1].transient.slip_angle;
+                acc[0] += car.vx();
+                acc[1] += car.steer_angle();
+                acc[2] += car.vx() * car.yaw_rate();
+                acc[3] += car.yaw_rate();
+                acc[4] += car.axle_slip_angle(0);
+                acc[5] += car.axle_slip_angle(1);
                 count += 1.0;
             }
         }

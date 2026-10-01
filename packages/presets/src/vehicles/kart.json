@@ -2,16 +2,18 @@
   "formatVersion": 1,
   "name": "Kart",
   "dataSheet": {
-    "description": "A racing kart with driver: about 160 kg all up, 1.05 m wheelbase, no suspension, solid rear axle. In the single-track model the solid axle simply means one undriven front and one driven rear tire.",
+    "description": "A racing kart with driver: about 160 kg all up, 1.05 m wheelbase, no suspension beyond frame and tire compliance, solid rear axle. The four-wheel model represents the frame and tire flex as a very stiff corner spring.",
     "sources": [
-      "Class-typical figures from kart homologation sheets (wheelbase 1040\u20131060 mm, track 1.2\u20131.4 m, dry mass with driver 155\u2013175 kg, 125 cc engines of 20\u201330 kW).",
+      "Class-typical figures from kart homologation sheets (wheelbase 1040–1060 mm, track 1.2–1.4 m, dry mass with driver 155–175 kg, 125 cc engines of 20–30 kW).",
       "Tire feel parameters tuned to a ~1.4 g skidpad on slick kart tires."
     ],
-    "notes": "Not a specific chassis. Solid-axle behaviour (inside-rear lift) requires the four-wheel model of milestone 6."
+    "notes": "Not a specific chassis. The solid rear axle (inside-rear lift under frame flex) arrives in milestone 6; until then the rear wheels are independent."
   },
   "chassis": {
     "mass": 165,
     "yawInertia": 30,
+    "rollInertia": 12,
+    "pitchInertia": 25,
     "wheelbase": 1.05,
     "cgToFrontAxle": 0.62,
     "cgHeight": 0.22,
@@ -37,7 +39,16 @@
       "driven": false,
       "steered": true,
       "maxBrakeTorque": 0,
-      "staticCamberDeg": 0
+      "staticCamberDeg": 0,
+      "suspension": {
+        "springRate": 60000,
+        "bumpDamping": 600,
+        "reboundDamping": 800,
+        "travelBump": 0.02,
+        "travelDroop": 0.02,
+        "antiRollStiffness": 0,
+        "bumpStopStiffness": 400000
+      }
     },
     {
       "tire": {
@@ -58,12 +69,22 @@
       "driven": true,
       "steered": false,
       "maxBrakeTorque": 320,
-      "staticCamberDeg": 0
+      "staticCamberDeg": 0,
+      "suspension": {
+        "springRate": 70000,
+        "bumpDamping": 700,
+        "reboundDamping": 900,
+        "travelBump": 0.02,
+        "travelDroop": 0.02,
+        "antiRollStiffness": 0,
+        "bumpStopStiffness": 400000
+      }
     }
   ],
   "steering": {
     "maxWheelAngleDeg": 25,
-    "ratio": 2.5
+    "ratio": 2.5,
+    "ackermann": 1.0
   },
   "brakes": {
     "handbrakeTorque": 0
@@ -78,6 +99,7 @@
     "airDensity": 1.225
   },
   "simulation": {
-    "substepRateHz": 1000
+    "substepRateHz": 1000,
+    "model": "fourWheel"
   }
 }

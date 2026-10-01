@@ -1,28 +1,41 @@
 import { useEffect, useRef, useState } from "react";
 import { Scene } from "./Scene.js";
 import { Graph } from "./Graph.js";
-import { Sim, presetIds, type PresetId } from "./sim.js";
+import { Sim, presetIds, hostKinds, type HostKind, type PresetId } from "./sim.js";
 import { ClipRecorder, download } from "./record.js";
+
+interface WheelHud {
+  load: number;
+  slipRatio: number;
+  slipAngle: number;
+  travel: number;
+  locked: boolean;
+  contact: boolean;
+}
 
 interface HudState {
   speedKmh: number;
   latG: number;
   longG: number;
+  rollDeg: number;
+  pitchDeg: number;
   slipF: number;
   slipR: number;
-  ratioR: number;
   steerDeg: number;
   torque: number;
-  lockedF: boolean;
-  lockedR: boolean;
   stepMs: number;
   hash: string;
+  wheels: WheelHud[];
+  staticLoad: number;
 }
+
+const WHEEL_NAMES = ["FL", "FR", "RL", "RR"] as const;
 
 export function App() {
   const [sim, setSim] = useState<Sim | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [presetId, setPresetId] = useState<PresetId>("hatchbackFwd");
+  const [hostKind, setHostKind] = useState<HostKind>("builtin");
   const [recording, setRecording] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const clip = useRef(new ClipRecorder());
@@ -63,7 +76,7 @@ export function App() {
 
   return (
     <>
-      <Scene sim={sim} canvasRef={canvasRef} />
+      <Scene sim={sim} hostKind={hostKind} canvasRef={canvasRef} />
       <Hud sim={sim} />
       <div className="controls">
         <select
@@ -77,6 +90,24 @@ export function App() {
           {presetIds.map((id) => (
             <option key={id} value={id}>
               {id}
+            </option>
+          ))}
+        </select>
+        <select
+          value={hostKind}
+          onChange={(e) => {
+            const kind = e.target.value as HostKind;
+            sim
+              .setHost(kind)
+              .then(() => setHostKind(kind))
+              .catch((err: unknown) => setError(String(err)));
+          }}
+        >
+          {hostKinds.map((k) => (
+            <option key={k} value={k}>
+              {k === "builtin"
+                ? "Host: built-in (flat ground)"
+                : "Host: Rapier (bumps, ramp, kerb)"}
             </option>
           ))}
         </select>
@@ -106,7 +137,8 @@ export function App() {
         </button>
       </div>
       <div className="help">
-        WASD / arrows to drive · Space handbrake · R reset · gamepad supported
+        WASD / arrows to drive · Space handbrake · R reset · gamepad supported · the ramp is 70 m
+        ahead under the Rapier host
       </div>
       <Graph recorder={sim.recorder} />
     </>
@@ -120,19 +152,28 @@ function Hud({ sim }: { sim: Sim }) {
     const id = setInterval(() => {
       const w = sim.world;
       const v = sim.vehicle;
+      const deg = 180 / Math.PI;
       setHud({
         speedKmh: w.read(v, "Speed") * 3.6,
         latG: w.read(v, "LatAccel") / 9.81,
         longG: w.read(v, "LongAccel") / 9.81,
-        slipF: (w.read(v, "SlipAngle_F") * 180) / Math.PI,
-        slipR: (w.read(v, "SlipAngle_R") * 180) / Math.PI,
-        ratioR: w.read(v, "SlipRatio_R"),
-        steerDeg: (w.read(v, "SteeringWheelAngle") * 180) / Math.PI,
+        rollDeg: w.read(v, "Roll") * deg,
+        pitchDeg: w.read(v, "Pitch") * deg,
+        slipF: w.read(v, "SlipAngle_F") * deg,
+        slipR: w.read(v, "SlipAngle_R") * deg,
+        steerDeg: w.read(v, "SteeringWheelAngle") * deg,
         torque: w.read(v, "SteeringTorque"),
-        lockedF: w.read(v, "WheelLocked_F") > 0.5,
-        lockedR: w.read(v, "WheelLocked_R") > 0.5,
         stepMs: sim.stepCostMs,
         hash: w.stateHash(v),
+        staticLoad: (sim.definition.chassis.mass * 9.80665) / 4,
+        wheels: WHEEL_NAMES.map((n) => ({
+          load: w.read(v, `TireLoad_${n}`),
+          slipRatio: w.read(v, `SlipRatio_${n}`),
+          slipAngle: w.read(v, `SlipAngle_${n}`) * deg,
+          travel: w.read(v, `SuspTravel_${n}`) * 1000,
+          locked: w.read(v, `WheelLocked_${n}`) > 0.5,
+          contact: w.read(v, `WheelContact_${n}`) > 0.5,
+        })),
       });
     }, 100);
     return () => clearInterval(id);
@@ -152,17 +193,15 @@ function Hud({ sim }: { sim: Sim }) {
                 </td>
               </tr>
               <tr>
-                <td>Slip angle F / R</td>
+                <td>Roll / pitch</td>
                 <td>
-                  {hud.slipF.toFixed(1)}° / {hud.slipR.toFixed(1)}°
+                  {hud.rollDeg.toFixed(1)}° / {hud.pitchDeg.toFixed(1)}°
                 </td>
               </tr>
               <tr>
-                <td>Slip ratio R</td>
+                <td>Slip angle F / R</td>
                 <td>
-                  {hud.ratioR.toFixed(3)}
-                  {hud.lockedR ? " (locked)" : ""}
-                  {hud.lockedF ? " F locked" : ""}
+                  {hud.slipF.toFixed(1)}° / {hud.slipR.toFixed(1)}°
                 </td>
               </tr>
               <tr>
@@ -181,6 +220,34 @@ function Hud({ sim }: { sim: Sim }) {
               </tr>
             </tbody>
           </table>
+          <div className="wheels">
+            {hud.wheels.map((wh, i) => (
+              <div key={i} className={`wheel${wh.contact ? "" : " airborne"}`}>
+                <div className="wheel-name">
+                  {WHEEL_NAMES[i]}
+                  {wh.locked ? " · locked" : ""}
+                  {wh.contact ? "" : " · air"}
+                </div>
+                <div className="bar">
+                  <div
+                    className="bar-fill"
+                    style={{ width: `${Math.min(100, (wh.load / hud.staticLoad) * 50)}%` }}
+                  />
+                </div>
+                <div className="wheel-row">
+                  <span>{wh.load.toFixed(0)} N</span>
+                  <span>
+                    {wh.travel >= 0 ? "+" : ""}
+                    {wh.travel.toFixed(0)} mm
+                  </span>
+                </div>
+                <div className="wheel-row">
+                  <span>κ {wh.slipRatio.toFixed(2)}</span>
+                  <span>α {wh.slipAngle.toFixed(1)}°</span>
+                </div>
+              </div>
+            ))}
+          </div>
         </>
       )}
     </div>
