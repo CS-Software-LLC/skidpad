@@ -3,6 +3,7 @@ import {
   type ParkedConfig,
   type ParkedResult,
   type Skidpad,
+  type SweepCell,
   type VehicleDefinition,
 } from "@skidpad/core";
 import { presetIds, preset, type PresetId } from "@skidpad/presets";
@@ -85,11 +86,59 @@ export interface VehicleResults {
     brakingDistance: number;
     meanDeceleration: number;
     wheelLocked: boolean;
+    /** Locked-brake behaviour (milestone 3): when the wheels lock they lock once … */
+    lockTime: number | null;
+    /** … and never release while moving (chatter), … */
+    lockReleases: number;
+    /** … the deceleration on sliding friction is smooth, … */
+    lockedDecelRipple: number;
+    /** … and the car springs back a few centimetres and comes to rest on the brake. */
+    restSpeed: number;
+    settledSpeed: number;
   };
   /** Standstill: at rest on flat ground and parked on slopes. */
   parked: ParkedResults;
+  /**
+   * Timestep sweep: the skidpad, a locked-wheel stop and a parked hold at
+   * 250 to 2000 Hz internally and 30 to 240 Hz host steps, against the
+   * reference cell the other scenarios run at.
+   */
+  timestepSweep: TimestepSweepSummary;
   /** State hash after a fixed scripted drive. Any physics change moves it. */
   scriptedDriveHash: string;
+}
+
+export interface TimestepSweepSummary {
+  /** Largest |cell − reference| of the understeer gradient, deg/g. */
+  gradientSpreadDegPerG: number;
+  /** Largest relative |cell − reference| of the braking distance. */
+  brakingDistanceSpread: number;
+  allFinite: boolean;
+  allHold: boolean;
+  cleanStops: boolean;
+  stable: boolean;
+  /** The cells, `"substep/host"` keyed, with their two headline numbers. */
+  cells: Record<string, { gradientDegPerG: number; brakingDistance: number }>;
+}
+
+export function runTimestepSweep(sp: Skidpad, def: VehicleDefinition): TimestepSweepSummary {
+  const r = sp.runScenario({ scenario: "timestepSweep", definition: def });
+  const cells: TimestepSweepSummary["cells"] = {};
+  for (const c of r.cells as SweepCell[]) {
+    cells[`${c.substepRateHz}/${c.hostRateHz}`] = {
+      gradientDegPerG: c.gradientDegPerG,
+      brakingDistance: c.brakingDistance,
+    };
+  }
+  return {
+    gradientSpreadDegPerG: r.gradientSpreadDegPerG,
+    brakingDistanceSpread: r.brakingDistanceSpread,
+    allFinite: r.allFinite,
+    allHold: r.allHold,
+    cleanStops: r.cleanStops,
+    stable: r.stable,
+    cells,
+  };
 }
 
 export interface ValidationReport {
@@ -140,8 +189,14 @@ export function runAll(sp: Skidpad, ids: PresetId[] = presetIds): ValidationRepo
         brakingDistance: sl.brakingDistance,
         meanDeceleration: sl.meanDeceleration,
         wheelLocked: sl.wheelLocked,
+        lockTime: sl.lockTime,
+        lockReleases: sl.lockReleases,
+        lockedDecelRipple: sl.lockedDecelRipple,
+        restSpeed: sl.restSpeed,
+        settledSpeed: sl.settledSpeed,
       },
       parked: runParked(sp, def),
+      timestepSweep: runTimestepSweep(sp, def),
       scriptedDriveHash: scriptedDriveHash(sp, def),
     };
   }

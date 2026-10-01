@@ -1,16 +1,20 @@
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { init } from "@skidpad/core";
 import { compare, DEFAULT_TOLERANCE, runAll, type ValidationReport } from "./scenarios.js";
 
 describe("validation scenarios", () => {
-  it("match the golden results within tolerance", async () => {
+  let report: ValidationReport;
+  beforeAll(async () => {
+    const sp = await init();
+    report = runAll(sp);
+  }, 120_000);
+
+  it("match the golden results within tolerance", () => {
     const golden = JSON.parse(
       readFileSync(fileURLToPath(new URL("../golden/results.json", import.meta.url)), "utf8"),
     ) as ValidationReport;
-    const sp = await init();
-    const report = runAll(sp);
     const diffs = compare(golden, report, DEFAULT_TOLERANCE);
     expect(
       diffs,
@@ -18,9 +22,7 @@ describe("validation scenarios", () => {
     ).toEqual([]);
   });
 
-  it("every preset stays put at rest and parked on slopes", async () => {
-    const sp = await init();
-    const report = runAll(sp);
+  it("every preset stays put at rest and parked on slopes", () => {
     for (const [id, v] of Object.entries(report.vehicles)) {
       for (const [name, c] of Object.entries(v.parked)) {
         if (c === null) continue;
@@ -32,9 +34,30 @@ describe("validation scenarios", () => {
     }
   });
 
-  it("every preset understeers mildly and agrees with linear theory", async () => {
-    const sp = await init();
-    const report = runAll(sp);
+  it("every preset locks its brakes once, without chatter, and stops cleanly", () => {
+    for (const [id, v] of Object.entries(report.vehicles)) {
+      const s = v.straightLine;
+      expect(s.wheelLocked, id).toBe(true);
+      expect(s.lockReleases, `${id}: lock chatter`).toBe(0);
+      expect(s.lockedDecelRipple, `${id}: deceleration ripple`).toBeLessThan(0.01);
+      expect(s.restSpeed, `${id}: spring-back`).toBeLessThan(0.5);
+      expect(s.settledSpeed, `${id}: not at rest after the stop`).toBeLessThan(1e-4);
+    }
+  });
+
+  it("every preset is stable across the timestep sweep", () => {
+    for (const [id, v] of Object.entries(report.vehicles)) {
+      const s = v.timestepSweep;
+      expect(s.allFinite, `${id}: non-finite cell`).toBe(true);
+      expect(s.allHold, `${id}: a cell crept while parked`).toBe(true);
+      expect(s.cleanStops, `${id}: a cell chattered or did not come to rest`).toBe(true);
+      expect(s.gradientSpreadDegPerG, `${id}: gradient spread`).toBeLessThan(0.05);
+      expect(s.brakingDistanceSpread, `${id}: braking distance spread`).toBeLessThan(0.01);
+      expect(s.stable, id).toBe(true);
+    }
+  });
+
+  it("every preset understeers mildly and agrees with linear theory", () => {
     for (const [id, v] of Object.entries(report.vehicles)) {
       expect(v.model, id).toBe("fourWheel");
       expect(v.understeer.gradientDegPerG, id).toBeGreaterThan(0);

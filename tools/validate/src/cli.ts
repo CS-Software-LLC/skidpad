@@ -44,6 +44,28 @@ for (const [id, v] of Object.entries(report.vehicles)) {
 }
 console.log("");
 console.log(
+  "| Vehicle | Wheels lock at (s) | Lock releases | Sliding decel ripple | Spring-back (m/s) | At rest after 2 s (m/s) |",
+);
+console.log("| --- | --- | --- | --- | --- | --- |");
+for (const [id, v] of Object.entries(report.vehicles)) {
+  const s = v.straightLine;
+  console.log(
+    `| ${id} | ${fmt(s.lockTime)} | ${s.lockReleases === 0 ? "none" : `${s.lockReleases} (CHATTER)`} | ${(100 * s.lockedDecelRipple).toFixed(2)} % | ${fmt(s.restSpeed)} | ${s.settledSpeed.toExponential(1)} |`,
+  );
+}
+console.log("");
+console.log(
+  "| Vehicle | Timestep sweep (250–2000 Hz × 30–240 Hz) | K_us spread (deg/g) | Braking distance spread |",
+);
+console.log("| --- | --- | --- | --- |");
+for (const [id, v] of Object.entries(report.vehicles)) {
+  const s = v.timestepSweep;
+  console.log(
+    `| ${id} | ${s.stable ? "stable" : "UNSTABLE"} | ${s.gradientSpreadDegPerG.toFixed(4)} | ${(100 * s.brakingDistanceSpread).toFixed(2)} % |`,
+  );
+}
+console.log("");
+console.log(
   "| Vehicle | Flat rest | 10 % brake | 20 % brake | 30 % brake | 10 % handbrake | 20 % handbrake | 20 % cross |",
 );
 console.log("| --- | --- | --- | --- | --- | --- | --- | --- |");

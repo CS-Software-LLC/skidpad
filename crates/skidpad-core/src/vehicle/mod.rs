@@ -189,6 +189,25 @@ impl VehicleModel {
         }
     }
 
+    /// Bit mask of the wheels currently held by their brakes: bits 0 and 1
+    /// for the single-track axles, bits 0 to 3 in `FL, FR, RL, RR` order for
+    /// the four-wheel model. Validation counts its transitions to detect
+    /// lock chatter.
+    pub fn locked_mask(&self) -> u32 {
+        match self {
+            VehicleModel::SingleTrack(v) => {
+                (v.axles[0].locked as u32) | ((v.axles[1].locked as u32) << 1)
+            }
+            VehicleModel::FourWheel(v) => {
+                let mut mask = 0;
+                for (i, w) in v.wheels.iter().enumerate() {
+                    mask |= (w.locked as u32) << i;
+                }
+                mask
+            }
+        }
+    }
+
     pub fn as_four_wheel(&self) -> Option<&FourWheelVehicle> {
         match self {
             VehicleModel::FourWheel(v) => Some(v),

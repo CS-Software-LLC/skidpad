@@ -38,11 +38,14 @@ win on specific, measurable axes, together:
 
 ## Status
 
-Milestones 0 to 2 are done. The core runs a four-wheel model with
+Milestones 0 to 3 are done. The core runs a four-wheel model with
 independent suspension on a six-degree-of-freedom chassis proxy, a Rapier
 adapter hosts that chassis in a real scene, and the planar single-track model
-stays as the level-of-detail model. Every number below comes from the
-validation runner that CI executes on each commit.
+stays as the level-of-detail model. Milestone 3 made stability a tested
+feature: parked cars hold on slopes, brakes lock once and stay locked, the
+manoeuvres agree across the supported timestep range, and snapshots restore
+the full model exactly. Every number below comes from the validation runner
+that CI executes on each commit.
 
 | Vehicle (preset)    | Understeer gradient, four-wheel | Single-track | Linear theory with trail | 0–100 km/h | 100–0 km/h, no ABS        |
 | ------------------- | ------------------------------- | ------------ | ------------------------ | ---------- | ------------------------- |
@@ -53,6 +56,15 @@ validation runner that CI executes on each commit.
 The four-wheel gradient sits above the single-track one by the load
 sensitivity cost of lateral load transfer, which the single-track model does
 not have.
+
+Stability, from the same runner (all three presets, both models):
+
+| Check                                                                         | Result                                                                      |
+| ----------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| Parked on 10, 20, 30 % grades (brake), 10, 20 % (handbrake), 20 % cross slope | holds, creep below 1e-10 m/s                                                |
+| 100–0 km/h without ABS                                                        | wheels lock once at 0.2–0.35 s, zero releases, deceleration ripple ≤ 0.01 % |
+| Stop on the held brake                                                        | spring-back ≤ 0.27 m/s and ≤ 5 cm, at rest (< 1e-4 m/s) after 2 s           |
+| Timestep sweep, 250–2000 Hz internal × 30–240 Hz host                         | understeer gradient within 0.001 deg/g, braking distance within 0.7 %       |
 
 Benchmarks on a Node 22 x64 container, 60 Hz host step, release build:
 
@@ -65,11 +77,13 @@ Benchmarks on a Node 22 x64 container, 60 Hz host step, release build:
 
 Targets: under 0.2 ms for one car and under 3 ms for twenty on M1-class
 hardware; under 2 ms for two hundred traffic cars; core WASM under 200 KB
-gzipped (currently 139 KB). `apps/bench/baseline` holds the committed
+gzipped (currently 148 KB). `apps/bench/baseline` holds the committed
 baseline the benchmark compares against.
 
-The determinism check runs a 50 s scripted drive of three vehicles in
-Chromium, Firefox, WebKit, and Node and asserts identical state hashes.
+The determinism check runs a 50 s scripted drive of three vehicles, then a
+recorded lap of the sandbox track for each preset (real driving inputs,
+replayed open-loop), in Chromium, Firefox, WebKit, and Node, and asserts
+identical state hashes.
 
 ## Quick start
 
@@ -120,7 +134,7 @@ apps/sandbox        Vite + React Three Fiber playground
 apps/docs           VitePress docs with interactive explainers
 apps/bench          benchmark page and Node runner
 tools/validate      headless validation CLI with golden results
-tests/determinism   cross-browser determinism harness (Playwright)
+tests/determinism   cross-browser determinism harness (Playwright), recorded laps
 docs/adr            architecture decision records
 ```
 

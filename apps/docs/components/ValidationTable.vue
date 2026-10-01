@@ -10,8 +10,15 @@ const rows = Object.entries(results.vehicles).map(([id, v]) => ({
   brake: v.straightLine.brakingDistance,
   decel: v.straightLine.meanDeceleration,
   locked: v.straightLine.wheelLocked,
+  lockTime: v.straightLine.lockTime,
+  chatter: v.straightLine.lockReleases > 0,
+  ripple: v.straightLine.lockedDecelRipple,
+  settled: v.straightLine.settledSpeed,
   parks: Object.values(v.parked).every((c) => c === null || c.holds),
   creep: Math.max(...Object.values(v.parked).map((c) => (c === null ? 0 : c.creepSpeed))),
+  sweepStable: v.timestepSweep.stable,
+  sweepKus: v.timestepSweep.gradientSpreadDegPerG,
+  sweepBrake: v.timestepSweep.brakingDistanceSpread,
   hash: v.scriptedDriveHash,
 }));
 const f = (v: number | null, d = 2) => (v === null ? "n/a" : v.toFixed(d));
@@ -34,8 +41,9 @@ const f = (v: number | null, d = 2) => (v === null ? "n/a" : v.toFixed(d));
         <th>0–100 km/h (s)</th>
         <th>100–0 km/h (m)</th>
         <th>Mean decel (m/s²)</th>
-        <th>Wheels locked</th>
+        <th>Wheels lock</th>
         <th>Parks on slopes</th>
+        <th>Timestep sweep</th>
         <th>Scripted drive hash</th>
       </tr>
     </thead>
@@ -48,8 +56,23 @@ const f = (v: number | null, d = 2) => (v === null ? "n/a" : v.toFixed(d));
         <td>{{ f(r.accel) }}</td>
         <td>{{ f(r.brake, 1) }}</td>
         <td>{{ f(r.decel) }}</td>
-        <td>{{ r.locked ? "yes" : "no" }}</td>
+        <td>
+          {{ r.locked ? `at ${f(r.lockTime)} s` : "no" }}
+          <template v-if="r.locked">
+            , {{ r.chatter ? "chatter" : "no chatter" }}, ripple
+            {{ (100 * r.ripple).toFixed(1) }} %, at rest after the stop ({{
+              r.settled.toExponential(0)
+            }}
+            m/s)
+          </template>
+        </td>
         <td>{{ r.parks ? "yes" : "no" }} (worst creep {{ r.creep.toExponential(1) }} m/s)</td>
+        <td>
+          {{ r.sweepStable ? "stable" : "unstable" }} (K<sub>us</sub> ±{{
+            r.sweepKus.toFixed(3)
+          }}
+          deg/g, braking ±{{ (100 * r.sweepBrake).toFixed(1) }} %)
+        </td>
         <td>
           <code>{{ r.hash }}</code>
         </td>

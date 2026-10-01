@@ -1,5 +1,6 @@
 import { smoothWave, type Skidpad } from "@skidpad/core";
 import { presets } from "@skidpad/presets";
+import { LAP_TRACES, replayLap, type LapReport } from "./lap.js";
 
 /** Everything the determinism check compares across platforms. */
 export interface DeterminismReport {
@@ -12,11 +13,19 @@ export interface DeterminismReport {
   worldHash: string;
   /** Hash checkpoints every 300 steps. */
   checkpoints: string[];
+  /**
+   * Recorded laps of the sandbox track, one per preset, replayed open-loop
+   * (milestone 3: a real drive, not just a scripted one).
+   */
+  laps: LapReport[];
 }
 
 export const SCENARIO_STEPS = 3000;
 
-/** Run the fixed scenario: three presets, scripted inputs, 3000 host steps. */
+/**
+ * Run the fixed scenario: three presets with scripted inputs for 3000 host
+ * steps, then each preset's recorded lap of the sandbox track.
+ */
 export function runScenario(sp: Skidpad, platform: string): DeterminismReport {
   const w = sp.createWorld(3);
   const ids = [
@@ -46,6 +55,7 @@ export function runScenario(sp: Skidpad, platform: string): DeterminismReport {
     vehicleHashes: ids.map((i) => w.stateHash(i)),
     worldHash: w.worldHash(),
     checkpoints,
+    laps: LAP_TRACES.map((trace) => replayLap(sp, trace)),
   };
   w.free();
   return report;

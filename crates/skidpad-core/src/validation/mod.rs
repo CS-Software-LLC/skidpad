@@ -4,10 +4,12 @@
 
 pub mod parked;
 pub mod straight_line;
+pub mod timestep_sweep;
 pub mod understeer;
 
 pub use parked::{ParkedConfig, ParkedResult};
 pub use straight_line::{StraightLineConfig, StraightLineResult};
+pub use timestep_sweep::{SweepCell, TimestepSweepConfig, TimestepSweepResult};
 pub use understeer::{UndersteerConfig, UndersteerPoint, UndersteerResult};
 
 /// Least-squares slope and intercept of `y` against `x`.

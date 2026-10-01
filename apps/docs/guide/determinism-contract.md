@@ -15,14 +15,22 @@ Firefox, WebKit, Node, on x86 and ARM.
   randomness inside the core. A clippy configuration enforces the math rules
   mechanically.
 - CI runs a fixed scenario in all three browser engines and Node and asserts
-  identical state hashes.
+  identical state hashes: a 50 s scripted drive of the three presets, then a
+  recorded lap of the sandbox track for each preset. The laps were driven
+  once by a closed-loop driver in Node (`tests/determinism/src/record-lap.ts`)
+  and stored as integer input traces; the harness replays them open-loop, so
+  every engine sees the same inputs and the test exercises forty seconds of
+  real cornering, braking and a handbrake stop rather than a synthetic
+  waveform.
 
 ## What you get
 
 - `world.stateHash(i)` and `world.worldHash()` for desync detection.
 - `world.snapshot(i)` / `world.restore(i, bytes)`: versioned binary snapshots
   that restore exactly. Continuing from a snapshot matches an uninterrupted
-  run.
+  run, on both models and in both host modes. A snapshot is state only: the
+  host mode, the ground slope and an external host's contacts are environment
+  and stay as they were on the vehicle being restored into.
 - Recorded inputs replay identically on any machine.
 
 ## What is not covered

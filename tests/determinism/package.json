@@ -7,6 +7,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "build:harness": "vite build",
     "hash:node": "tsx src/node.ts",
+    "record:lap": "tsx src/record-lap.ts",
     "test": "vitest run",
     "test:browsers": "pnpm build:harness && playwright test"
   },

@@ -13,7 +13,8 @@ use skidpad_core::input::VehicleInput;
 use skidpad_core::telemetry;
 use skidpad_core::tire::{tir, TireInput, TireModel};
 use skidpad_core::validation::{
-    parked, straight_line, understeer, ParkedConfig, StraightLineConfig, UndersteerConfig,
+    parked, straight_line, timestep_sweep, understeer, ParkedConfig, StraightLineConfig,
+    TimestepSweepConfig, UndersteerConfig,
 };
 use skidpad_core::vehicle::{HostMode, WHEEL_COUNT};
 use skidpad_core::world::{
@@ -779,6 +780,11 @@ enum ScenarioRequest {
         #[serde(default)]
         config: ParkedConfig,
     },
+    TimestepSweep {
+        definition: VehicleDefinition,
+        #[serde(default)]
+        config: TimestepSweepConfig,
+    },
 }
 
 /// Run a validation scenario described by JSON. The result JSON is available
@@ -808,6 +814,9 @@ pub unsafe extern "C" fn sp_run_scenario(ptr: *const u8, len: usize) -> i32 {
         }
         ScenarioRequest::ParkedOnSlope { definition, config } => {
             parked::run(&definition, &config).map(|r| serde_json::to_string(&r))
+        }
+        ScenarioRequest::TimestepSweep { definition, config } => {
+            timestep_sweep::run(&definition, &config).map(|r| serde_json::to_string(&r))
         }
     };
     match result {

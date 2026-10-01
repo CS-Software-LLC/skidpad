@@ -9,3 +9,6 @@ pnpm-lock.yaml
 CHANGELOG.md
 tools/validate/golden/*.json
 tests/determinism/out
+
+# Recorded input traces: one line of integers each
+tests/determinism/data/
