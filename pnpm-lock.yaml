@@ -223,6 +223,22 @@ importers:
         specifier: ^2.1.0
         version: 2.1.9(@types/node@22.20.4)
 
+  packages/worker:
+    dependencies:
+      '@skidpad/core':
+        specifier: workspace:*
+        version: link:../core
+    devDependencies:
+      '@skidpad/presets':
+        specifier: workspace:*
+        version: link:../presets
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
+      vitest:
+        specifier: ^2.1.0
+        version: 2.1.9(@types/node@22.20.4)
+
   tests/determinism:
     dependencies:
       '@skidpad/core':

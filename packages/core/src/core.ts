@@ -752,6 +752,22 @@ export class World {
     return this.sp.floats().subarray(o, o + this.sp.telemetryStride);
   }
 
+  /**
+   * Live view of the whole input buffer, `capacity × inputStride` values in
+   * vehicle order. For moving every vehicle's inputs at once (a worker, a
+   * network layer).
+   */
+  inputBuffer(): Float64Array {
+    const o = this.inputsPtr / 8;
+    return this.sp.floats().subarray(o, o + this.capacity * this.sp.inputStride);
+  }
+
+  /** Live view of the whole telemetry buffer, `capacity × telemetryStride` values. */
+  telemetryBuffer(): Float64Array {
+    const o = this.telemetryPtr / 8;
+    return this.sp.floats().subarray(o, o + this.capacity * this.sp.telemetryStride);
+  }
+
   /** Read one telemetry channel by name. */
   read(vehicle: number, channel: string): number {
     const i = this.sp.channel(channel);

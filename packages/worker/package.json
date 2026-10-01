@@ -1,0 +1,47 @@
+{
+  "name": "@skidpad/worker",
+  "version": "0.4.0",
+  "description": "Worker mode for Skidpad: run a world in a Web Worker (or a Node worker thread) and drive it from the main thread.",
+  "license": "MIT OR Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/csummers88/skidpad",
+    "directory": "packages/worker"
+  },
+  "type": "module",
+  "sideEffects": false,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./entry": {
+      "types": "./dist/entry.d.ts",
+      "import": "./dist/entry.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@skidpad/core": "workspace:*"
+  },
+  "devDependencies": {
+    "@skidpad/presets": "workspace:*",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
+  },
+  "keywords": [
+    "vehicle",
+    "physics",
+    "web worker",
+    "wasm"
+  ]
+}

@@ -28,3 +28,4 @@ Rejected.
 | [0019](0019-level-of-detail.md)                        | Level of detail by switching models at runtime                          | Accepted                  |
 | [0020](0020-path-following-driver.md)                  | A path-following driver inside the core                                 | Accepted                  |
 | [0021](0021-replays-and-ghosts.md)                     | Replays as inputs plus keyframes, ghosts as pose tracks                 | Accepted                  |
+| [0022](0022-worker-mode.md)                            | Worker mode by message passing, inputs out and telemetry back           | Accepted                  |
