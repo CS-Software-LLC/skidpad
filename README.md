@@ -39,7 +39,7 @@ win on specific, measurable axes, together:
 
 ## Status
 
-Milestones 0 to 4 are done. The core runs a four-wheel model with
+Milestones 0 to 6 are done. The core runs a four-wheel model with
 independent suspension on a six-degree-of-freedom chassis proxy, a Rapier
 adapter hosts that chassis in a real scene, and the planar single-track model
 stays as the level-of-detail model. Stability is a tested feature: parked
@@ -53,23 +53,51 @@ assist, jacking) so the steering torque is a force-feedback signal, a
 stateless assists layer (ABS, traction and stability control, speed-sensitive
 steering) that replays reproduce, and in `@skidpad/input` calibrated wheel
 profiles, touch controls and force-feedback sinks over WebHID, Logitech
-first. Every number below comes from the validation runner that CI executes
-on each commit.
+first. Milestone 6 added a surface table (grip, rolling resistance and
+ploughing drag per contact, looked up inside the tire models), aero lift per
+axle with the drag on a line above the centre of mass, solid axles that keep
+their wheels upright to the road, roll-centre heights that send part of the
+lateral load transfer through the links, the step-steer and double-lane-change
+manoeuvres, three more reference vehicles (a solid-axle pickup, an electric
+crossover, a winged open-wheeler) and a live tuning editor in the sandbox.
+Every number below comes from the validation runner that CI executes on each
+commit.
 
-| Vehicle (preset)    | Understeer gradient, four-wheel | Single-track | Linear theory with trail | 0–100 km/h | 100–0 km/h, no ABS        |
-| ------------------- | ------------------------------- | ------------ | ------------------------ | ---------- | ------------------------- |
-| Light FWD hatchback | 1.16 deg/g                      | 0.93 deg/g   | 0.93 deg/g               | 9.5 s      | 46.3 m (42.4 m with ABS)  |
-| RWD sports car      | 0.29 deg/g                      | 0.12 deg/g   | 0.10 deg/g               | 5.5 s      | 39.6 m (36.2 m with ABS)  |
-| Kart                | −0.27 deg/g (solid axle push)   | 0.29 deg/g   | 0.36 deg/g               | 10.9 s     | 58.8 m (rear brakes only) |
+| Vehicle (preset)       | Understeer gradient, four-wheel | Single-track | Linear theory with trail | 0–100 km/h | 100–0 km/h, no ABS        |
+| ---------------------- | ------------------------------- | ------------ | ------------------------ | ---------- | ------------------------- |
+| Light FWD hatchback    | 1.13 deg/g                      | 0.93 deg/g   | 0.93 deg/g               | 9.5 s      | 46.5 m (42.6 m with ABS)  |
+| RWD sports car         | 0.27 deg/g                      | 0.12 deg/g   | 0.10 deg/g               | 5.5 s      | 39.6 m (36.2 m with ABS)  |
+| Kart                   | -0.21 deg/g (solid axle push)   | 0.31 deg/g   | 0.36 deg/g               | 10.9 s     | 58.0 m (rear brakes only) |
+| Pickup 4x4             | 0.98 deg/g                      | 0.72 deg/g   | 0.71 deg/g               | 7.3 s      | 52.1 m (47.1 m with ABS)  |
+| Electric crossover AWD | 0.30 deg/g                      | 0.22 deg/g   | 0.21 deg/g               | 5.0 s      | 44.5 m (40.1 m with ABS)  |
+| Open-wheeler           | 0.15 deg/g                      | 0.11 deg/g   | 0.10 deg/g               | 3.2 s      | 24.8 m (23.3 m with ABS)  |
 
 The four-wheel gradient sits above the single-track one by the load
 sensitivity cost of lateral load transfer, which the single-track model does
-not have; the kart's solid rear axle pushes at low speed (no inner-wheel
-lift until the steering geometry of milestone 5), which the single-track
-model, with one wheel per axle, does not see. The 0–100 km/h times run
-through each preset's drivetrain: launch on the clutch, wheelspin, shifts.
+not have; the kart's solid rear axle on a locked differential pushes at low
+speed, which the single-track model, with one wheel per axle, does not see.
+The 0–100 km/h times run through each preset's drivetrain: launch on the
+clutch, wheelspin, shifts.
 
-Stability, from the same runner (all three presets, both models):
+Transient handling and surfaces, from the same runner: the ISO 7401 step
+steer at 80 km/h (yaw-rate response time to 90 % and overshoot), the highest
+entry speed at which the ISO 3888-1 double lane change keeps every wheel
+between the cones, and the 100–0 km/h stop with locked wheels on the
+reference surface table:
+
+| Vehicle (preset)       | Step steer response | Lane change passes up to | Wet asphalt | Gravel | Snow  | Ice   |
+| ---------------------- | ------------------- | ------------------------ | ----------- | ------ | ----- | ----- |
+| Light FWD hatchback    | 0.21 s, 5 %         | 100 km/h                 | 70 m        | 73 m   | 126 m | 331 m |
+| RWD sports car         | 0.25 s, 0 %         | 110 km/h                 | 59 m        | 62 m   | 110 m | 292 m |
+| Kart                   | 0.15 s, 2 %         | 80 km/h                  | 79 m        | 79 m   | 113 m | spins |
+| Pickup 4x4             | 0.21 s, 3 %         | 90 km/h                  | 78 m        | 80 m   | 137 m | 361 m |
+| Electric crossover AWD | 0.25 s, 0 %         | 90 km/h                  | 67 m        | 70 m   | 122 m | 330 m |
+| Open-wheeler           | 0.16 s, 0 %         | 100 km/h                 | 37 m        | 39 m   | 70 m  | 172 m |
+
+The kart brakes on its rear axle only, so on ice it swaps ends; the runner
+reports that rather than a distance.
+
+Stability, from the same runner (all six presets, both models):
 
 | Check                                                                         | Result                                                                      |
 | ----------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
@@ -89,13 +117,13 @@ Benchmarks on a Node 22 x64 container, 60 Hz host step, release build:
 
 Targets: under 0.2 ms for one car and under 3 ms for twenty on M1-class
 hardware; under 2 ms for two hundred traffic cars; core WASM under 200 KB
-gzipped (currently 172 KB). `apps/bench/baseline` holds the committed
+gzipped (currently 196 KB). `apps/bench/baseline` holds the committed
 baseline the benchmark compares against.
 
 The determinism check runs a 50 s scripted drive of three vehicles, then a
-recorded lap of the sandbox track for each preset (real driving inputs,
-replayed open-loop), in Chromium, Firefox, WebKit, and Node, and asserts
-identical state hashes.
+recorded lap of the sandbox track for each of the six presets (real driving
+inputs, replayed open-loop), in Chromium, Firefox, WebKit, and Node, and
+asserts identical state hashes.
 
 ## Quick start
 
@@ -135,10 +163,10 @@ scene.step();
 
 ```
 crates/skidpad-math      deterministic software math (ADR-0006)
-crates/skidpad-core      the simulation: tires, drivetrain, vehicle, world, snapshots, validation
+crates/skidpad-core      the simulation: tires, surfaces, drivetrain, vehicle, world, snapshots, validation
 crates/skidpad-wasm      plain C-style WASM ABI (ADR-0003)
 packages/core       @skidpad/core: loader, World, Tire, definitions, schema, migrations
-packages/presets    reference vehicles with data sheets
+packages/presets    reference vehicles with data sheets, the surface table
 packages/rapier     @skidpad/rapier: Rapier 3D host adapter
 packages/telemetry  ring-buffer recorder, CSV and JSON export
 packages/input      keyboard ramps, gamepad and wheel mapping
@@ -222,7 +250,10 @@ handbrake, Q and E shift (the presets are automatics; E from neutral is
 drive, Q below first is reverse), C is the clutch; gamepads, steering wheels
 and touch work, and the **Wheel setup** panel assigns and calibrates a
 wheel's controls, connects force feedback over WebHID (Chromium) and
-toggles the assists. The host selector switches between the built-in
+toggles the assists. The **Tuning** panel edits every definition parameter
+live, with units and ranges from the JSON schema, and exports or loads the
+definition as JSON. The surface selector puts the car on wet asphalt,
+gravel, grass, snow or ice. The host selector switches between the built-in
 flat-ground host and a Rapier scene where the speed bumps, the ramp and the
 kerb are real. The overlay shows speed, lateral g, roll and pitch, slip
 angles, steering torque, step cost, the live state hash, and per wheel the
@@ -254,11 +285,11 @@ change:
 | M0        | Monorepo, CI with cross-browser determinism, licences and community files, deterministic math, sandbox, docs, bench skeleton                                                             | done   |
 | M1        | Feel and Magic Formula tires with `.tir` import, combined slip, load sensitivity, aligning moment, single-track model, tire explorer, understeer validation                              | done   |
 | M2        | Four wheels, suspension, Rapier adapter, chassis proxy, R3F track, telemetry overlay, benchmark baseline                                                                                 | done   |
-| M3        | Standstill and slope stability, locked brakes, timestep sweep, snapshot and hash on the full model, cross-browser test on a real drive                                                   | next   |
-| M4        | Drivetrain graph with implicit solver: engine, clutch, gearboxes, differentials, AWD, electric                                                                                           |        |
+| M3        | Standstill and slope stability, locked brakes, timestep sweep, snapshot and hash on the full model, cross-browser test on a real drive                                                   | done   |
+| M4        | Drivetrain graph with implicit solver: engine, clutch, gearboxes, differentials, AWD, electric                                                                                           | done   |
 | M5        | Steering geometry, rack force and jacking; assists (ABS, traction and stability control, speed-sensitive steering); input calibration, wheel profiles, touch; force feedback over WebHID | done   |
-| M6        | Surfaces, aero, solid axles, tuning editor, full validation runner, reference vehicles                                                                                                   | next   |
-| M7        | LOD, batched stepping, worker mode, replays and ghosts, AI helper, Jolt, Babylon                                                                                                         |        |
+| M6        | Surfaces, aero, solid axles, tuning editor, full validation runner, reference vehicles                                                                                                   | done   |
+| M7        | LOD, batched stepping, worker mode, replays and ghosts, AI helper, Jolt, Babylon                                                                                                         | next   |
 | M8        | API freeze, docs complete, performance targets met, format version 1, release 1.0                                                                                                        |        |
 
 Not before 1.0: multibody suspension, tire thermals and wear, damage,

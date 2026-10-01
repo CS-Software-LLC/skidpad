@@ -193,7 +193,10 @@ impl FeelTireParams {
         if fz <= 0.0 {
             return TireOutput::default();
         }
-        let mu = self.friction_at_load(fz);
+        // The surface scales the friction the way the Magic Formula's `λμ`
+        // does (ADR-0014): the stiffness is unchanged, so a slippery surface
+        // peaks at a smaller slip, as a tire on ice does.
+        let mu = self.friction_at_load(fz) * m::max(i.grip, 0.0);
         let peak = mu * fz;
         let kx = self.longitudinal_stiffness(fz);
         let ky = self.cornering_stiffness(fz);
@@ -298,6 +301,7 @@ impl FeelTireParams {
         // sign-switching torque (ADR-0005).
         let my = -m::clamp(i.vx / m::max(self.low_speed_floor, 1e-6), -1.0, 1.0)
             * self.rolling_resistance
+            * m::max(i.rolling_resistance, 0.0)
             * fz
             * self.radius;
 

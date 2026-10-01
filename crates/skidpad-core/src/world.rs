@@ -6,6 +6,7 @@ use crate::definition::VehicleDefinition;
 use crate::geom::{Quat, Vec3};
 use crate::input::VehicleInput;
 use crate::snapshot::{SnapshotError, Snapshottable};
+use crate::surface::{Surface, SurfaceTable};
 use crate::telemetry;
 use crate::vehicle::{HostMode, VehicleModel, WheelContact, WHEEL_COUNT};
 use skidpad_math as m;
@@ -46,6 +47,8 @@ pub struct World {
     host_in: Vec<f64>,
     host_out: Vec<f64>,
     scratch: Vec<f64>,
+    /// What each contact surface id means (ADR-0014).
+    surfaces: SurfaceTable,
     /// Number of host steps taken.
     pub step_count: u64,
 }
@@ -92,8 +95,33 @@ impl World {
             host_in: vec![0.0; capacity * HOST_IN_STRIDE],
             host_out: vec![0.0; capacity * HOST_OUT_STRIDE],
             scratch: vec![0.0; MAX_STATE_LEN],
+            surfaces: SurfaceTable::REFERENCE,
             step_count: 0,
         }
+    }
+
+    /// The surface table every vehicle's contacts index (ADR-0014).
+    pub fn surfaces(&self) -> &SurfaceTable {
+        &self.surfaces
+    }
+
+    /// Replace the surface table: entry `i` is surface id `i`. Validates
+    /// every entry first and leaves the table unchanged on error.
+    pub fn set_surfaces(&mut self, list: &[Surface]) -> Result<(), WorldError> {
+        SurfaceTable::validate(list).map_err(WorldError::Invalid)?;
+        self.surfaces = SurfaceTable::from_slice(list);
+        Ok(())
+    }
+
+    /// Surface id of the built-in flat ground under vehicle `i`. An
+    /// external host tags each wheel contact itself.
+    pub fn set_surface(&mut self, i: usize, id: u32) -> Result<(), WorldError> {
+        let v = self
+            .vehicles
+            .get_mut(i)
+            .ok_or(WorldError::NoSuchVehicle(i))?;
+        v.model.set_surface(id);
+        Ok(())
     }
 
     pub fn capacity(&self) -> usize {
@@ -286,7 +314,7 @@ impl World {
             let n = m::max(m::round(dt * v.substep_rate_hz), 1.0) as usize;
             let sub_dt = dt / n as f64;
             for _ in 0..n {
-                v.model.substep(sub_dt, &input);
+                v.model.substep_on(sub_dt, &input, &self.surfaces);
             }
             if let Some(f) = v.model.as_four_wheel() {
                 let out = &mut self.host_out[i * HOST_OUT_STRIDE..(i + 1) * HOST_OUT_STRIDE];

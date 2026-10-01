@@ -8,7 +8,8 @@
       "Tire feel parameters tuned to a ~1.0 g skidpad and ~34 m 100–0 km/h braking distance from published road tests for the class.",
       "Suspension rates typical of a sports car with ~2.0 Hz front and ~2.2 Hz rear ride frequencies and a front-biased roll stiffness distribution (Milliken & Milliken, Race Car Vehicle Dynamics, ch. 16).",
       "Drivetrain [ILLUSTRATIVE]: a 3.5 l naturally aspirated six (peak 405 N·m, 245 kW at 6000 rpm), six-speed ratios with a 3.6 final drive and a clutch-pack LSD in the 2–3:1 drive bias range typical of the class (Milliken & Milliken, Race Car Vehicle Dynamics, ch. 20).",
-      "Steering geometry [ILLUSTRATIVE]: 7° caster (about 30 mm of trail), 12 mm scrub radius and a light assist, for the heavier, more communicative steering of a sports car."
+      "Steering geometry [ILLUSTRATIVE]: 7° caster (about 30 mm of trail), 12 mm scrub radius and a light assist, for the heavier, more communicative steering of a sports car.",
+      "Roll centres [ILLUSTRATIVE]: double-wishbone front near 50 mm and multilink rear near 100 mm (Milliken & Milliken ch. 17); a small rear spoiler leaves a touch of rear downforce and near-zero front lift (Hucho ch. 4)."
     ],
     "notes": "Not a specific production model. The rear differential is a clutch-pack limited slip (preload 50 N·m, 2.5:1 drive, 1.8:1 coast)."
   },
@@ -48,7 +49,9 @@
         "travelBump": 0.07,
         "travelDroop": 0.09,
         "antiRollStiffness": 22000,
-        "bumpStopStiffness": 400000
+        "bumpStopStiffness": 400000,
+        "kind": "independent",
+        "rollCenterHeight": 0.05
       }
     },
     {
@@ -76,7 +79,9 @@
         "travelBump": 0.08,
         "travelDroop": 0.1,
         "antiRollStiffness": 14000,
-        "bumpStopStiffness": 400000
+        "bumpStopStiffness": 400000,
+        "kind": "independent",
+        "rollCenterHeight": 0.1
       }
     }
   ],
@@ -98,7 +103,10 @@
   "aero": {
     "dragCoefficient": 0.3,
     "frontalArea": 2.0,
-    "airDensity": 1.225
+    "airDensity": 1.225,
+    "liftCoefficientFront": 0.03,
+    "liftCoefficientRear": -0.02,
+    "dragHeightAboveCg": 0.05
   },
   "simulation": {
     "substepRateHz": 1000,

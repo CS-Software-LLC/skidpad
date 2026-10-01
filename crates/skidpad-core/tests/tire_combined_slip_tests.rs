@@ -16,6 +16,7 @@ fn eval(p: &FeelTireParams, fz: f64, kappa: f64, alpha: f64, vx: f64) -> skidpad
         slip_angle: alpha,
         camber: 0.0,
         vx,
+        ..TireInput::default()
     })
 }
 

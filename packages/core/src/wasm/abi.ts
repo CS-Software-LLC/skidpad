@@ -49,6 +49,8 @@ export interface CpExports {
   sp_world_host_out_ptr(handle: number): number;
   sp_world_set_host_mode(handle: number, vehicle: number, mode: number): number;
   sp_world_set_ground_slope(handle: number, vehicle: number, grade: number, cross: number): number;
+  sp_world_set_surfaces(handle: number, jsonPtr: number, jsonLen: number): number;
+  sp_world_set_surface(handle: number, vehicle: number, surface: number): number;
   sp_world_wheel_rays(handle: number, vehicle: number, out: number, cap: number): number;
   sp_world_step(handle: number, dt: number): number;
   sp_world_step_count(handle: number): bigint;
@@ -94,7 +96,7 @@ export interface CpExports {
 }
 
 /** ABI version this loader was written against. */
-export const EXPECTED_ABI_VERSION = 3;
+export const EXPECTED_ABI_VERSION = 4;
 
 export enum ErrorCode {
   Ok = 0,

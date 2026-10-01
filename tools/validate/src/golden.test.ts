@@ -58,13 +58,51 @@ describe("validation scenarios", () => {
     }
   });
 
+  it("every preset answers the step steer promptly and finishes the lane change", () => {
+    for (const [id, v] of Object.entries(report.vehicles)) {
+      const s = v.stepSteer;
+      expect(s.completed, `${id}: step steer did not complete`).toBe(true);
+      // A spool (the kart) pushes well short of the 4 m/s² the linear
+      // steer angle aims for; everything else lands near it.
+      expect(s.latAccel, `${id}: lat accel ${s.latAccel}`).toBeGreaterThan(1.5);
+      expect(s.latAccel, `${id}: lat accel ${s.latAccel}`).toBeLessThan(6);
+      expect(s.yawRateResponseTime, `${id}: no yaw response`).not.toBeNull();
+      expect(s.yawRateResponseTime!, `${id}: response ${s.yawRateResponseTime}`).toBeLessThan(0.8);
+      expect(s.yawRateOvershoot, `${id}: overshoot ${s.yawRateOvershoot}`).toBeLessThan(0.5);
+      const l = v.laneChange;
+      // Every road car clears the ISO 3888-1 course at 60 km/h; a kart's
+      // narrow lanes and a truck's roll need not reach 80.
+      const sixty = l.attempts.find((a) => Math.abs(a.entrySpeed * 3.6 - 60) < 1);
+      expect(sixty?.passed, `${id}: failed the lane change at 60 km/h`).toBe(true);
+      expect(l.maxPassingSpeed, id).not.toBeNull();
+    }
+  });
+
+  it("every preset stops cleanly on every surface, further the less grip it has", () => {
+    for (const [id, v] of Object.entries(report.vehicles)) {
+      // A vehicle with rear brakes only (the kart) swaps ends once the
+      // surface is slippery enough; that is reported, not failed.
+      const rearBrakesOnly = preset(id as PresetId).axles[0]!.maxBrakeTorque === 0;
+      let last = v.straightLine.brakingDistance;
+      for (const [name, s] of Object.entries(v.surfaces)) {
+        if (s.spun) {
+          expect(rearBrakesOnly, `${id} spun on ${name}`).toBe(true);
+          continue;
+        }
+        expect(s.cleanStop, `${id} on ${name}: chatter or no rest`).toBe(true);
+        expect(s.brakingDistance, `${id} on ${name}`).toBeGreaterThan(last);
+        expect(s.brakingDistanceAbs, `${id} on ${name}: ABS`).toBeLessThan(s.brakingDistance);
+        last = s.brakingDistance;
+      }
+    }
+  });
+
   it("every preset understeers mildly and agrees with linear theory", () => {
     for (const [id, v] of Object.entries(report.vehicles)) {
       expect(v.model, id).toBe("fourWheel");
-      // A solid rear axle (the kart) pushes at low speed and the push eases
-      // as the inner wheel unloads, so its fitted gradient is slightly
-      // negative until steering-geometry jacking lifts the inner wheel
-      // (milestone 5); every other preset understeers.
+      // A spool (the kart's locked rear differential) pushes at low speed
+      // and the push eases as the inner wheel unloads, so its fitted
+      // gradient is slightly negative; every other preset understeers.
       const spool = preset(id as PresetId).drivetrain.rear.kind === "locked";
       expect(v.understeer.gradientDegPerG, id).toBeGreaterThan(spool ? -1 : 0);
       expect(v.understeer.gradientDegPerG, id).toBeLessThan(8);

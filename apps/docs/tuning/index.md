@@ -24,7 +24,8 @@ helps. Parameters are per tire unless noted.
 - A limited-slip differential (`rear.kind: "lsd"`) with a high `biasDrive`
   drives the inner and outer wheels together and turns wheelspin into a yaw
   moment; lower the bias or the `preload` for a more forgiving exit.
-- Traction control arrives with the assists in milestone 5.
+- `assists.tractionControl` scales the throttle on drive slip; see
+  [assists](/concepts/assists).
 
 ## Body rolls or pitches too much
 
@@ -33,6 +34,17 @@ helps. Parameters are per tire unless noted.
 - Raise `chassis.rollInertia` or `pitchInertia` to slow the motion rather
   than reduce it.
 - Lower `chassis.cgHeight`: both transfers scale with it.
+
+## Car rolls too much in corners but rides well
+
+- Raise `rollCenterHeight` on one or both axles. The share
+  `rollCenterHeight / cgHeight` of that axle's lateral load transfer goes
+  through the links instead of the springs, so the body rolls less for the
+  same cornering force without a stiffer ride
+  ([roll centres](/concepts/suspension#roll-centres)). It also moves the
+  balance: the axle with the higher roll centre takes a larger share of
+  the transfer, like a stiffer bar, so raise the rear for less understeer
+  and the front for more.
 
 ## Car bounces after a bump or a landing
 
@@ -129,13 +141,50 @@ helps. Parameters are per tire unless noted.
   front where braking load goes. Dive moves load forward through the
   springs; stiffer front springs do not change the steady-state transfer. Mean deceleration in the validation table
   tells you when you are at the tire's limit.
-- ABS arrives in milestone 5.
+- `assists.abs` holds each wheel at its slip target; the validation table
+  reports the stop with and without it.
 
 ## Car feels like it is on ice
 
+- Check the `SurfaceGrip_*` channels first: if they read below 1 the car
+  is on a surface, not a tire problem.
 - Raise `peakFriction`. Values above 1.2 are beyond road tires; fine for
   arcade.
 - Lower `loadSensitivity` so load transfer costs less total grip.
+
+## Car is loose at high speed only
+
+- That is aero. A road car's small positive `liftCoefficientRear` unloads
+  the rear with the square of speed; set it lower, or negative for
+  downforce, and keep `liftCoefficientFront` in proportion to the static
+  weight distribution so the balance stays put as speed rises
+  ([aerodynamics](/concepts/aero)).
+- `dragHeightAboveCg` moves load rearward at speed, which helps a little;
+  it is a real effect only on tall cars and winged ones.
+
+## Car is undrivable on ice or gravel
+
+- Probably correct: ice is 0.12 of dry grip in the reference table and the
+  tire peaks at a correspondingly smaller slip. Raise the surface's `grip`
+  in your own table, or pick a kinder entry (`snow` is 0.3, `gravel` 0.6),
+  before touching the tire ([surfaces](/concepts/surfaces)).
+- `assists.abs` and `assists.tractionControl` are what make low grip
+  drivable from a keyboard; `assists.stabilityControl` catches the yaw.
+- A car with rear-only brakes swaps ends on ice; give the front axle some
+  `maxBrakeTorque`.
+- The ploughing `drag` of gravel, sand and snow holds the car back
+  through the chassis; lower it in your table if the car will not reach
+  speed.
+
+## Outer wheel cambers off the road in corners
+
+- On an independent axle the wheels lean with the body, so more roll is
+  more positive camber on the outer tire and less grip. Add negative
+  `staticCamberDeg`, reduce the roll (above), or declare the axle
+  `suspension.kind: "solid"`, which keeps both wheels upright to the road
+  whatever the body does ([solid axles](/concepts/suspension#solid-axles)).
+  A solid axle tilts both wheels together over a one-wheel bump, which is
+  the trade.
 
 ## The car jitters or creeps when parked
 
@@ -150,3 +199,14 @@ helps. Parameters are per tire unless noted.
   `m · g · sin θ · radius`.
 - `lowSpeedFloor` only shapes the slip channels in telemetry near standstill
   and the point at which a pushed car goes from stiction to sliding.
+
+## Tuning editor
+
+The sandbox has a Tuning panel that lists every parameter of the current
+definition with the units from the schema. Edits apply live through
+`World.setDefinition`, which replaces the definition while keeping the
+car's state, so you can change a spring rate mid-corner and feel it. Reset
+returns the preset; copy, download and load move the definition as JSON, so
+a tune made in the sandbox goes straight into your own application. The
+surface selector in the sandbox controls sets the ground under the car from
+the [reference table](/concepts/surfaces).

@@ -8,6 +8,7 @@ import {
   type Mesh,
 } from "three";
 import type { TireDefinition } from "@skidpad/core";
+import type { SurfaceId } from "@skidpad/presets";
 import { emptySnapshot, type Sim, type SimSnapshot } from "./sim.js";
 import { OBSTACLES, obstacleQuaternion, trackRibbon } from "./track.js";
 
@@ -216,13 +217,28 @@ function Obstacles({ active }: { active: boolean }) {
   );
 }
 
-function Ground() {
+/** Ground plane colour hinting at the selected surface. */
+const GROUND_COLORS: Record<SurfaceId, string> = {
+  asphaltDry: "#454c5c",
+  concrete: "#5b606a",
+  asphaltWet: "#343f52",
+  cobbles: "#5a5147",
+  gravel: "#6e6150",
+  dirt: "#5f4a37",
+  grass: "#3d5a34",
+  sand: "#9a8961",
+  snow: "#d7dde6",
+  ice: "#a7c6dc",
+  kerb: "#6a6a6a",
+};
+
+function Ground({ surface }: { surface: SurfaceId }) {
   return (
     <>
       <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
         <planeGeometry args={[2000, 2000]} />
         <meshStandardMaterial
-          color="#454c5c"
+          color={GROUND_COLORS[surface] ?? GROUND_COLORS.asphaltDry}
           polygonOffset
           polygonOffsetFactor={1}
           polygonOffsetUnits={1}
@@ -241,10 +257,16 @@ function Ground() {
 export function Scene({
   sim,
   hostKind,
+  surface,
+  revision,
   canvasRef,
 }: {
   sim: Sim;
   hostKind: string;
+  /** The selected ground surface, for the ground colour. */
+  surface: SurfaceId;
+  /** Bumped when the definition changed, so the car's geometry is rebuilt. */
+  revision: number;
   canvasRef: React.MutableRefObject<HTMLCanvasElement | null>;
 }) {
   return (
@@ -259,10 +281,10 @@ export function Scene({
       <color attach="background" args={["#10131a"]} />
       <fog attach="fog" args={["#10131a", 80, 400]} />
       <hemisphereLight args={["#dde6ff", "#3a3f4c", 1.4]} />
-      <Ground />
+      <Ground surface={surface} />
       <Track />
       <Obstacles active={hostKind === "rapier"} />
-      <Car key={sim.presetId} sim={sim} />
+      <Car key={`${sim.presetId}:${revision}`} sim={sim} />
     </Canvas>
   );
 }

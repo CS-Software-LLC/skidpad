@@ -79,6 +79,54 @@ for (const [id, v] of Object.entries(report.vehicles)) {
 }
 console.log("");
 
+console.log(
+  "| Vehicle | Step steer 80 km/h: steer (deg) | Yaw rate (deg/s) | Response (s) | Overshoot | Lat accel (m/s²) | Roll (deg) |",
+);
+console.log("| --- | --- | --- | --- | --- | --- | --- |");
+const deg = 180 / Math.PI;
+for (const [id, v] of Object.entries(report.vehicles)) {
+  const s = v.stepSteer;
+  console.log(
+    `| ${id} | ${fmt(s.steerAngle * deg, 1)} | ${fmt(s.yawRate * deg, 1)} | ${fmt(s.yawRateResponseTime)} | ${(100 * s.yawRateOvershoot).toFixed(1)} % | ${fmt(s.latAccel)} | ${fmt(s.roll * deg, 1)}${s.completed ? "" : " (INCOMPLETE)"} |`,
+  );
+}
+console.log("");
+console.log(
+  "| Vehicle | Double lane change (ISO 3888-1) passes up to | Attempts (km/h: pass, peak lat g) |",
+);
+console.log("| --- | --- | --- |");
+for (const [id, v] of Object.entries(report.vehicles)) {
+  const l = v.laneChange;
+  const attempts = l.attempts
+    .map(
+      (a) =>
+        `${(a.entrySpeed * 3.6).toFixed(0)}: ${a.passed ? "pass" : "FAIL"}, ${(a.maxLatAccel / 9.80665).toFixed(2)} g`,
+    )
+    .join("; ");
+  console.log(
+    `| ${id} | ${l.maxPassingSpeed === null ? "none" : `${(l.maxPassingSpeed * 3.6).toFixed(0)} km/h`} | ${attempts} |`,
+  );
+}
+console.log("");
+console.log("| Vehicle | 100–0 km/h locked / ABS (m): wet asphalt | gravel | snow | ice |");
+console.log("| --- | --- | --- | --- | --- |");
+for (const [id, v] of Object.entries(report.vehicles)) {
+  const cell = (s: {
+    brakingDistance: number;
+    brakingDistanceAbs: number;
+    cleanStop: boolean;
+    spun: boolean;
+  }) =>
+    s.spun
+      ? `spins (${fmt(s.brakingDistance, 0)} m)`
+      : `${fmt(s.brakingDistance, 1)} / ${fmt(s.brakingDistanceAbs, 1)}${s.cleanStop ? "" : " (CHATTER)"}`;
+  const su = v.surfaces;
+  console.log(
+    `| ${id} | ${cell(su.asphaltWet!)} | ${cell(su.gravel!)} | ${cell(su.snow!)} | ${cell(su.ice!)} |`,
+  );
+}
+console.log("");
+
 if (args.has("--update") || !existsSync(goldenPath)) {
   mkdirSync(dirname(goldenPath), { recursive: true });
   writeFileSync(goldenPath, JSON.stringify(report, null, 2));

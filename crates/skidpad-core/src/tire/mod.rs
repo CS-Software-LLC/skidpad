@@ -15,7 +15,7 @@ pub use feel::FeelTireParams;
 pub use magic_formula::MagicFormulaParams;
 
 /// Inputs to a tire evaluation. All in SI, ISO sign convention.
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct TireInput {
     /// Vertical load, N. Non-positive loads give zero output.
     pub fz: f64,
@@ -27,6 +27,25 @@ pub struct TireInput {
     pub camber: f64,
     /// Forward speed of the wheel centre, m/s. Used for rolling resistance.
     pub vx: f64,
+    /// Surface grip scale on the peak and sliding friction (ADR-0014), the
+    /// Magic Formula's `λμ`. 1 on the surface the tire was parameterised on.
+    pub grip: f64,
+    /// Surface scale on the rolling resistance (ADR-0014).
+    pub rolling_resistance: f64,
+}
+
+impl Default for TireInput {
+    fn default() -> Self {
+        Self {
+            fz: 0.0,
+            slip_ratio: 0.0,
+            slip_angle: 0.0,
+            camber: 0.0,
+            vx: 0.0,
+            grip: 1.0,
+            rolling_resistance: 1.0,
+        }
+    }
 }
 
 /// Forces and moments at the contact patch, plus a few derived values that
@@ -200,6 +219,7 @@ impl TireModel {
             slip_angle: 1e-4,
             camber: 0.0,
             vx: 10.0,
+            ..TireInput::default()
         })
         .trail
     }

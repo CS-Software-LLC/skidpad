@@ -32,6 +32,8 @@ export default defineConfig({
           { text: "Combined slip", link: "/concepts/combined-slip" },
           { text: "Load transfer", link: "/concepts/load-transfer" },
           { text: "Suspension and the four-wheel model", link: "/concepts/suspension" },
+          { text: "Surfaces", link: "/concepts/surfaces" },
+          { text: "Aerodynamics", link: "/concepts/aero" },
           { text: "Relaxation length", link: "/concepts/relaxation-length" },
           { text: "Why substepping and the chassis proxy", link: "/concepts/substepping" },
         ],

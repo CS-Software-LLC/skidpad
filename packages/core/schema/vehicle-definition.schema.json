@@ -553,13 +553,34 @@
           "type": "number",
           "minimum": 0,
           "default": 2.2,
-          "description": "m²"
+          "description": "m². The reference area of every coefficient here."
         },
         "airDensity": {
           "type": "number",
           "minimum": 0,
           "default": 1.225,
           "description": "kg/m³"
+        },
+        "liftCoefficientFront": {
+          "type": "number",
+          "minimum": -10,
+          "maximum": 10,
+          "default": 0,
+          "description": "Lift coefficient at the front axle on frontalArea; negative is downforce (ADR-0015)"
+        },
+        "liftCoefficientRear": {
+          "type": "number",
+          "minimum": -10,
+          "maximum": 10,
+          "default": 0,
+          "description": "Lift coefficient at the rear axle on frontalArea; negative is downforce (ADR-0015)"
+        },
+        "dragHeightAboveCg": {
+          "type": "number",
+          "minimum": -5,
+          "maximum": 5,
+          "default": 0,
+          "description": "m. Height of the drag's line of action above the centre of mass; drag up high lifts the nose and moves load rearward at speed (ADR-0015)"
         }
       },
       "additionalProperties": false
@@ -852,8 +873,14 @@
     },
     "suspension": {
       "type": "object",
-      "description": "One corner's spring, damper, travel limits and the axle's anti-roll bar (ADR-0009). Per wheel. Defaults shown are the front axle's; the rear defaults are a little softer.",
+      "description": "One corner's spring, damper, travel limits, the axle's anti-roll bar (ADR-0009), its kind and roll-centre height (ADR-0016). Per wheel. Defaults shown are the front axle's; the rear defaults are a little softer.",
       "properties": {
+        "kind": {
+          "type": "string",
+          "enum": ["independent", "solid"],
+          "default": "independent",
+          "description": "independent: each wheel on its own strut, leaning with the body. solid: a beam axle that keeps both wheels upright to the line through its two contacts (ADR-0016). Four-wheel model only."
+        },
         "springRate": {
           "type": "number",
           "exclusiveMinimum": 0,
@@ -895,6 +922,13 @@
           "minimum": 0,
           "default": 300000,
           "description": "N/m beyond the bump travel"
+        },
+        "rollCenterHeight": {
+          "type": "number",
+          "minimum": -1,
+          "maximum": 1,
+          "default": 0,
+          "description": "m above the ground at ride height (ADR-0016). The share h_rc / h_cg of this axle's lateral load transfer goes through the links straight to the tires instead of rolling the body. Zero is a ground-level roll centre, which the raycast strut gives by itself."
         }
       },
       "additionalProperties": false

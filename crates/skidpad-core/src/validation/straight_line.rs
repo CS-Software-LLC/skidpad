@@ -8,6 +8,7 @@
 
 use crate::definition::VehicleDefinition;
 use crate::input::VehicleInput;
+use crate::surface::{Surface, SurfaceTable};
 use crate::vehicle::VehicleModel;
 use skidpad_math as m;
 
@@ -24,6 +25,9 @@ pub struct StraightLineConfig {
     /// largest speed over this window is `rest_speed`.
     pub rest_time: f64,
     pub host_dt: f64,
+    /// The surface under every wheel (ADR-0014). The reference surface
+    /// (grip 1) by default.
+    pub surface: Surface,
 }
 
 impl Default for StraightLineConfig {
@@ -33,6 +37,7 @@ impl Default for StraightLineConfig {
             max_accel_time: 60.0,
             rest_time: 2.0,
             host_dt: 1.0 / 100.0,
+            surface: Surface::REFERENCE,
         }
     }
 }
@@ -98,6 +103,13 @@ pub struct StraightLineResult {
     /// Planar displacement over the rest window, m: how far the spring-back
     /// moved the car.
     pub rest_distance: f64,
+    /// Heading at the end of the stop, rad. A car that locks only its rear
+    /// wheels on a slippery surface swaps ends; the braking distance is
+    /// then the distance it travelled before coming to rest, not a
+    /// straight-line figure.
+    pub final_yaw: f64,
+    /// The car turned more than 60° during the stop.
+    pub spun: bool,
 }
 
 pub fn run(
@@ -105,6 +117,12 @@ pub fn run(
     cfg: &StraightLineConfig,
 ) -> Result<StraightLineResult, String> {
     def.validate().map_err(|e| e.join("; "))?;
+    let mut errors = Vec::new();
+    cfg.surface.validate("surface", &mut errors);
+    if !errors.is_empty() {
+        return Err(errors.join("; "));
+    }
+    let surfaces = SurfaceTable::from_slice(&[cfg.surface]);
     let mut car = VehicleModel::new(def.clone());
     let rate = def.simulation.substep_rate_hz;
     let n_sub = m::max(m::round(cfg.host_dt * rate), 1.0) as usize;
@@ -123,7 +141,7 @@ pub fn run(
     let max_steps = m::round(m::max(cfg.max_accel_time, 0.0) / cfg.host_dt) as usize;
     for _ in 0..max_steps {
         for _ in 0..n_sub {
-            car.substep(sub_dt, &full_throttle);
+            car.substep_on(sub_dt, &full_throttle, &surfaces);
         }
         let x = car.pose2d().0;
         if accel_time.is_none() && car.vx() >= cfg.target_speed {
@@ -157,10 +175,12 @@ pub fn run(
     let mut ripple_a = Vec::new();
     let max_brake_steps = m::round(MAX_BRAKE_TIME / cfg.host_dt) as usize;
     let mut steps = 0usize;
-    while car.vx() > STOP_SPEED && steps < max_brake_steps {
+    // Speed over ground, not forward speed: a car sliding sideways has not
+    // stopped.
+    while car.speed() > STOP_SPEED && steps < max_brake_steps {
         let v_before = car.vx();
         for _ in 0..n_sub {
-            car.substep(sub_dt, &full_brake);
+            car.substep_on(sub_dt, &full_brake, &surfaces);
             let mask = car.locked_mask();
             if mask != prev_mask {
                 lock_transitions += 1;
@@ -181,7 +201,8 @@ pub fn run(
         }
         steps += 1;
     }
-    let braking_distance = car.pose2d().0;
+    let (bx, by, final_yaw) = car.pose2d();
+    let braking_distance = m::hypot(bx, by);
     let braking_time = car.time();
     let mean_decel = if braking_time > 0.0 {
         cfg.target_speed / braking_time
@@ -196,7 +217,7 @@ pub fn run(
     let mut rest_speed: f64 = 0.0;
     for _ in 0..rest_steps {
         for _ in 0..n_sub {
-            car.substep(sub_dt, &full_brake);
+            car.substep_on(sub_dt, &full_brake, &surfaces);
         }
         rest_speed = m::max(rest_speed, car.speed());
     }
@@ -219,6 +240,8 @@ pub fn run(
         rest_speed,
         settled_speed,
         rest_distance,
+        final_yaw,
+        spun: m::abs(final_yaw) > m::PI / 3.0,
     })
 }
 

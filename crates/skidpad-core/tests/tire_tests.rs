@@ -27,6 +27,7 @@ fn eval(model: &TireModel, fz: f64, kappa: f64, alpha: f64) -> skidpad_core::Tir
         slip_angle: alpha,
         camber: 0.0,
         vx: 10.0,
+        ..TireInput::default()
     })
 }
 
@@ -217,6 +218,7 @@ fn camber_produces_lateral_force_at_zero_slip() {
         slip_angle: 0.0,
         camber: 0.05,
         vx: 10.0,
+        ..TireInput::default()
     });
     assert!(
         o.fy > 0.0,

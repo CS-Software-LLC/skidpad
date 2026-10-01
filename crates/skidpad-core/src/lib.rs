@@ -8,8 +8,9 @@
 //! The substep pipeline reads, in order:
 //!
 //! ```text
-//! contacts → suspension → wheel loads → steering → drivetrain solve
-//!   (tire forces as boundary conditions) → tire forces → aero
+//! contacts → suspension → wheel loads (springs, roll centres, aero lift)
+//!   → steering → drivetrain solve (tire forces on the contact surface as
+//!   boundary conditions) → tire forces → aero drag
 //!   → chassis proxy integration → telemetry
 //! ```
 //!
@@ -37,6 +38,7 @@ pub mod drivetrain;
 pub mod geom;
 pub mod input;
 pub mod snapshot;
+pub mod surface;
 pub mod telemetry;
 pub mod tire;
 pub mod validation;
@@ -45,6 +47,7 @@ pub mod world;
 
 pub use definition::VehicleDefinition;
 pub use input::VehicleInput;
+pub use surface::{Surface, SurfaceTable};
 pub use tire::{TireInput, TireModel, TireOutput};
 pub use vehicle::VehicleModel;
 pub use world::World;

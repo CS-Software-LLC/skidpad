@@ -165,6 +165,23 @@ channels! {
     ESC_BRAKE_TORQUE => ("EscBrakeTorque", "N*m"),
     STEER_ASSIST_SCALE => ("SteerAssistScale", "-"),
     THROTTLE_EFFECTIVE => ("ThrottleEffective", "-"),
+    // Surfaces (ADR-0014): the contact surface id under each wheel and the
+    // grip scale the tire ran on.
+    SURFACE_ID_FL => ("SurfaceId_FL", "-"),
+    SURFACE_ID_FR => ("SurfaceId_FR", "-"),
+    SURFACE_ID_RL => ("SurfaceId_RL", "-"),
+    SURFACE_ID_RR => ("SurfaceId_RR", "-"),
+    SURFACE_GRIP_FL => ("SurfaceGrip_FL", "-"),
+    SURFACE_GRIP_FR => ("SurfaceGrip_FR", "-"),
+    SURFACE_GRIP_RL => ("SurfaceGrip_RL", "-"),
+    SURFACE_GRIP_RR => ("SurfaceGrip_RR", "-"),
+    // Aero (ADR-0015): lift at each axle, positive up (downforce negative).
+    AERO_LIFT_F => ("AeroLift_F", "N"),
+    AERO_LIFT_R => ("AeroLift_R", "N"),
+    // Roll centres (ADR-0016): geometric lateral load transfer per axle,
+    // N moved from the inner to the outer wheel through the links.
+    GEOMETRIC_TRANSFER_F => ("GeometricTransfer_F", "N"),
+    GEOMETRIC_TRANSFER_R => ("GeometricTransfer_R", "N"),
 }
 
 /// Index of the first channel in each per-wheel group; the four wheels follow
@@ -185,6 +202,8 @@ pub const WHEEL_GROUPS: &[usize] = &[
     WHEEL_CONTACT_FL,
     WHEEL_LOCKED_FL,
     SPIN_ANGLE_FL,
+    SURFACE_ID_FL,
+    SURFACE_GRIP_FL,
 ];
 
 /// Number of `f64` slots in one vehicle's telemetry record.
@@ -217,7 +236,7 @@ mod tests {
         assert_eq!(CHANNELS[WHEEL_LOCKED_R].name, "WheelLocked_R");
         assert_eq!(CHANNELS[SPIN_ANGLE_RR].name, "SpinAngle_RR");
         assert_eq!(CHANNELS[ENGINE_RPM].name, "EngineRpm");
-        assert_eq!(STRIDE, THROTTLE_EFFECTIVE + 1);
+        assert_eq!(STRIDE, GEOMETRIC_TRANSFER_R + 1);
         for &g in WHEEL_GROUPS {
             let base = CHANNELS[g].name.trim_end_matches("_FL");
             for (k, side) in ["_FL", "_FR", "_RL", "_RR"].iter().enumerate() {

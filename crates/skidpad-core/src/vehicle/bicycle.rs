@@ -16,6 +16,7 @@ use crate::definition::VehicleDefinition;
 use crate::drivetrain::{Drivetrain, WheelDyn};
 use crate::input::VehicleInput;
 use crate::snapshot::Snapshottable;
+use crate::surface::SurfaceTable;
 use crate::telemetry as t;
 use crate::tire::{
     clamp_to_friction, kinematic_slip, low_speed_fade, TireInput, TireOutput, TireTransient,
@@ -72,6 +73,12 @@ pub struct BicycleVehicle {
     pub rack_force: f64,
     /// What the assists did this substep (ADR-0013).
     pub assist_telemetry: AssistTelemetry,
+    /// Aero lift at each axle, N, positive up (ADR-0015).
+    pub aero_lift: [f64; 2],
+    /// Surface id of the flat ground under both axles (ADR-0014).
+    pub surface_id: u32,
+    /// Grip scale of that surface during the last substep.
+    pub surface_grip: f64,
     /// Ground slope under the built-in host as the rise per metre along
     /// world +x (grade) and world +y (cross slope). Not part of the
     /// definition or the snapshot: it is the environment, set by the
@@ -105,10 +112,18 @@ impl BicycleVehicle {
             steering_torque: 0.0,
             rack_force: 0.0,
             assist_telemetry: AssistTelemetry::default(),
+            aero_lift: [0.0, 0.0],
+            surface_id: 0,
+            surface_grip: 1.0,
             ground_slope: [0.0, 0.0],
         };
         v.compute_static_loads();
         v
+    }
+
+    /// Surface id of the flat ground (ADR-0014).
+    pub fn set_surface(&mut self, id: u32) {
+        self.surface_id = id;
     }
 
     /// Set the ground slope of the built-in flat world as the rise per
@@ -199,9 +214,18 @@ impl BicycleVehicle {
         m::hypot(self.vx, self.vy)
     }
 
-    /// One substep of the pipeline.
+    /// One substep of the pipeline on the reference surface.
+    #[inline]
     pub fn substep(&mut self, dt: f64, input: &VehicleInput) {
+        self.substep_on(dt, input, &SurfaceTable::REFERENCE);
+    }
+
+    /// One substep of the pipeline on the surface `surfaces[surface_id]`
+    /// (ADR-0014).
+    pub fn substep_on(&mut self, dt: f64, input: &VehicleInput, surfaces: &SurfaceTable) {
         let input = input.clamped();
+        let surface = surfaces.get(self.surface_id);
+        self.surface_grip = surface.grip;
         let c = &self.def.chassis;
         let a = c.cg_to_front_axle;
         let b = self.def.cg_to_rear_axle();
@@ -220,9 +244,19 @@ impl BicycleVehicle {
         // (Gillespie ch. 1, loads on a grade).
         let (cos_theta, grav_x_world, grav_y_world) = self.slope_terms();
         let mg = mass * GRAVITY * cos_theta;
-        let transfer = mass * self.ax_prev * h / l;
-        self.axles[FRONT].load = m::max(mg * b / l - transfer, 0.0);
-        self.axles[REAR].load = m::max(mg * a / l + transfer, 0.0);
+        // Drag on a line above the centre of mass pitches the nose up
+        // (ADR-0015); the lift at each axle adds to its load directly, the
+        // single-track model having no springs for it to go through.
+        let aero = &self.def.aero;
+        let q_lift = aero.q_area() * self.vx * self.vx;
+        self.aero_lift = [
+            aero.lift_coefficient_front * q_lift,
+            aero.lift_coefficient_rear * q_lift,
+        ];
+        let transfer =
+            mass * self.ax_prev * h / l + self.drag_force * aero.drag_height_above_cg / l;
+        self.axles[FRONT].load = m::max(mg * b / l - transfer - self.aero_lift[0], 0.0);
+        self.axles[REAR].load = m::max(mg * a / l + transfer - self.aero_lift[1], 0.0);
 
         // --- steering ------------------------------------------------------
         // Positive input steers right (toward −y), which is a negative road
@@ -247,6 +281,7 @@ impl BicycleVehicle {
         let mut body_mz = 0.0;
         let mut dyn_wheels = [WheelDyn::default(); 2];
         let mut outs = [TireOutput::default(); 2];
+        let mut ploughs = [(0.0, 0.0); 2];
 
         for i in 0..2 {
             let axle_def = &self.def.axles[i];
@@ -303,6 +338,8 @@ impl BicycleVehicle {
                 slip_angle: st.transient.slip_angle,
                 camber,
                 vx: wx,
+                grip: surface.grip,
+                rolling_resistance: surface.rolling_resistance,
             });
             // Low-speed damping on the contact slip velocities (ADR-0010),
             // per tire, faded out with rolling speed. The total, curve plus
@@ -323,6 +360,15 @@ impl BicycleVehicle {
                 one.fx = fx;
                 one.fy = fy;
             }
+            // Ploughing drag of the surface (ADR-0014) on the chassis,
+            // against the contact-patch motion, for both wheels of the axle.
+            let v_mag = m::hypot(wx, wy);
+            let plough = 2.0 * surface.drag_force(fz_tire, v_mag, floor);
+            let (plough_x, plough_y) = if plough > 0.0 && v_mag > 1e-9 {
+                (-plough * wx / v_mag, -plough * wy / v_mag)
+            } else {
+                (0.0, 0.0)
+            };
             let out = TireOutput {
                 fx: 2.0 * one.fx,
                 fy: 2.0 * one.fy,
@@ -337,6 +383,7 @@ impl BicycleVehicle {
             };
             st.out = out;
             outs[i] = out;
+            ploughs[i] = (plough_x, plough_y);
 
             // Brake capacity (service brake plus handbrake on the rear).
             let mut brake_cap = input.brake * axle_def.max_brake_torque;
@@ -423,13 +470,14 @@ impl BicycleVehicle {
             // --- tire forces into the body frame -----------------------------
             let out = outs[i];
             let steered = self.def.axles[i].steered;
+            let (px, py) = ploughs[i];
             let (fxb, fyb) = if steered {
                 (
-                    out.fx * cos_d - out.fy * sin_d,
-                    out.fx * sin_d + out.fy * cos_d,
+                    (out.fx + px) * cos_d - (out.fy + py) * sin_d,
+                    (out.fx + px) * sin_d + (out.fy + py) * cos_d,
                 )
             } else {
-                (out.fx, out.fy)
+                (out.fx + px, out.fy + py)
             };
             body_fx += fxb;
             body_fy += fyb;
@@ -441,10 +489,9 @@ impl BicycleVehicle {
             }
         }
 
-        // --- aero ----------------------------------------------------------
-        let aero = &self.def.aero;
+        // --- aero drag (ADR-0015) --------------------------------------------
         let speed = self.speed();
-        let q = 0.5 * aero.air_density * aero.drag_coefficient * aero.frontal_area * speed;
+        let q = aero.q_area() * aero.drag_coefficient * speed;
         self.drag_force = q * speed;
         body_fx -= q * self.vx;
         body_fy -= q * self.vy;
@@ -573,7 +620,13 @@ impl BicycleVehicle {
             rec[t::WHEEL_CONTACT_FL + i] = 1.0;
             rec[t::WHEEL_LOCKED_FL + i] = if ax.locked { 1.0 } else { 0.0 };
             rec[t::SPIN_ANGLE_FL + i] = ax.spin_angle;
+            rec[t::SURFACE_ID_FL + i] = self.surface_id as f64;
+            rec[t::SURFACE_GRIP_FL + i] = self.surface_grip;
         }
+        rec[t::AERO_LIFT_F] = self.aero_lift[0];
+        rec[t::AERO_LIFT_R] = self.aero_lift[1];
+        rec[t::GEOMETRIC_TRANSFER_F] = 0.0;
+        rec[t::GEOMETRIC_TRANSFER_R] = 0.0;
         super::four_wheel::write_drivetrain_telemetry(&self.drivetrain, input, rec);
         super::four_wheel::write_assist_telemetry(&self.assist_telemetry, rec);
     }

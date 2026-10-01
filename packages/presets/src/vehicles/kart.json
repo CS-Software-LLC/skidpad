@@ -7,9 +7,10 @@
       "Class-typical figures from kart homologation sheets (wheelbase 1040–1060 mm, track 1.2–1.4 m, dry mass with driver 155–175 kg, 125 cc engines of 20–30 kW).",
       "Tire feel parameters tuned to a ~1.4 g skidpad on slick kart tires.",
       "Drivetrain [ILLUSTRATIVE]: a 125 cc two-stroke (peak 17 N·m, 18 kW at 11000 rpm) through a centrifugal clutch that engages between 1800 and 4300 rpm and an 11:80 chain reduction (7.3:1) to a solid rear axle, as on a rental or junior kart.",
-      "Steering geometry [ILLUSTRATIVE]: kart spindles with large caster and kingpin inclination jack the frame with steer; the linearised jacking rate of 10 mm per radian unloads the inner rear wheel by about a quarter in a steady corner. No assist; direct steering with a short arm."
+      "Steering geometry [ILLUSTRATIVE]: kart spindles with large caster and kingpin inclination jack the frame with steer; the linearised jacking rate of 10 mm per radian unloads the inner rear wheel by about a quarter in a steady corner. No assist; direct steering with a short arm.",
+      "The driver sits high on a kart, so the drag acts well above the centre of mass; no measurable lift."
     ],
-    "notes": "Not a specific chassis. The solid rear axle (inside-rear lift under frame flex) arrives in milestone 6; until then the rear wheels are independent. The solid rear axle is a locked differential: on the four-wheel model it pushes at low speed because the inner wheel does not lift (no steering-geometry jacking until milestone 5), so the kart's skidpad gradient is slightly negative there."
+    "notes": "Not a specific chassis. The rear is a solid axle (suspension.kind \"solid\", ADR-0016) driven through a locked differential: both rear wheels turn at one speed and stay upright to the track. On the four-wheel model it pushes at low speed because the inner rear wheel carries load until the steering-geometry jacking (ADR-0012) and lateral transfer unload it, so the fitted skidpad gradient is slightly negative; the per-point steer angles in the golden file show the push easing with speed."
   },
   "chassis": {
     "mass": 165,
@@ -49,7 +50,9 @@
         "travelBump": 0.02,
         "travelDroop": 0.02,
         "antiRollStiffness": 0,
-        "bumpStopStiffness": 400000
+        "bumpStopStiffness": 400000,
+        "kind": "independent",
+        "rollCenterHeight": 0.0
       }
     },
     {
@@ -79,7 +82,9 @@
         "travelBump": 0.02,
         "travelDroop": 0.02,
         "antiRollStiffness": 0,
-        "bumpStopStiffness": 400000
+        "bumpStopStiffness": 400000,
+        "kind": "solid",
+        "rollCenterHeight": 0.0
       }
     }
   ],
@@ -101,7 +106,10 @@
   "aero": {
     "dragCoefficient": 0.8,
     "frontalArea": 0.7,
-    "airDensity": 1.225
+    "airDensity": 1.225,
+    "liftCoefficientFront": 0.0,
+    "liftCoefficientRear": 0.0,
+    "dragHeightAboveCg": 0.15
   },
   "simulation": {
     "substepRateHz": 1000,

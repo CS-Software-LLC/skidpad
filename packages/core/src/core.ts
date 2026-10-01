@@ -5,8 +5,9 @@ import type {
   PartialVehicleDefinition,
   TireDefinition,
   MagicFormulaParams,
+  SurfaceDefinition,
 } from "./definition/types.js";
-import { validateDefinition } from "./definition/validate.js";
+import { validateDefinition, validateSurfaces } from "./definition/validate.js";
 import { migrateLegacyDrive } from "./definition/migrate.js";
 
 /** Thrown for any error reported by the core. */
@@ -67,7 +68,7 @@ export interface WheelContact {
   normal: [number, number, number];
   /** Velocity of the surface at the contact, m/s. Defaults to zero. */
   surfaceVelocity?: [number, number, number];
-  /** Surface identifier for the surface table (milestone 6). Defaults to 0. */
+  /** Index into the world's surface table ({@link World.setSurfaces}, ADR-0014). Defaults to 0. */
   surfaceId?: number;
 }
 
@@ -146,6 +147,8 @@ export interface StraightLineConfig {
   /** How long the brake stays held after the stop, s (default 2). */
   restTime?: number;
   hostDt?: number;
+  /** The surface under every wheel (ADR-0014); the reference surface by default. */
+  surface?: Partial<SurfaceDefinition>;
 }
 
 export interface StraightLineResult {
@@ -170,6 +173,10 @@ export interface StraightLineResult {
   settledSpeed: number;
   /** Displacement over the rest window, m. */
   restDistance: number;
+  /** Heading at the end of the stop, rad. */
+  finalYaw: number;
+  /** The car turned more than 60° during the stop (rear-only brakes on a slippery surface). */
+  spun: boolean;
 }
 
 /** Parked on a slope, or at rest on flat ground (ADR-0005, ADR-0010). */
@@ -254,6 +261,99 @@ export interface TimestepSweepResult {
   stable: boolean;
 }
 
+/** Step steer after ISO 7401 (milestone 6). */
+export interface StepSteerConfig {
+  /** Speed held through the manoeuvre, m/s (default 80 km/h). */
+  speed?: number;
+  /** Steady-state lateral acceleration the step aims for, m/s² (default 4). */
+  latAccelTarget?: number;
+  leadTime?: number;
+  holdTime?: number;
+  /** Ramp time of the step, s (default 0.1). */
+  rampTime?: number;
+  measureTime?: number;
+  hostDt?: number;
+}
+
+export interface StepSteerResult {
+  speed: number;
+  /** Road-wheel steer angle of the step, rad. */
+  steerAngle: number;
+  steeringWheelAngle: number;
+  /** Steady-state yaw rate, rad/s. */
+  yawRate: number;
+  /** Steady-state yaw rate per rad of road-wheel steer. */
+  yawRateGain: number;
+  yawRatePeak: number;
+  /** `peak / steady − 1`; zero without overshoot. */
+  yawRateOvershoot: number;
+  /** Time for the yaw rate to first reach 90 % of its steady state, s. */
+  yawRateResponseTime: number | null;
+  latAccel: number;
+  latAccelResponseTime: number | null;
+  /** Steady-state body side-slip angle, rad. */
+  bodySlipAngle: number;
+  rollPeak: number;
+  roll: number;
+  completed: boolean;
+}
+
+/** Which ISO 3888 course to lay out. */
+export type LaneChangeCourse = "iso3888Part1" | "iso3888Part2";
+
+/** Double lane change after ISO 3888-1, or the ISO 3888-2 "moose test" (milestone 6). */
+export interface LaneChangeConfig {
+  course?: LaneChangeCourse;
+  /** Entry speeds to try, m/s, increasing (default 50 to 110 km/h in steps of 10). */
+  speeds?: number[];
+  /** Overall vehicle width, m; zero means `trackWidth + 0.25`. */
+  vehicleWidth?: number;
+  /** Driver preview, s of travel (default 0.35) with a floor in metres (default 4). */
+  previewTime?: number;
+  minPreview?: number;
+  /** How far ahead the path curvature is read for the feedforward steer, s (default 0.2). */
+  feedforwardLead?: number;
+  /** Hold the entry speed (default) or release the throttle at the first cone. */
+  holdSpeed?: boolean;
+  /**
+   * Practice runs per speed (default 4): after each run the driver corrects
+   * its steering along the course by the path error it saw, and the best
+   * run is reported. 1 is a single blind run.
+   */
+  learningPasses?: number;
+  hostDt?: number;
+}
+
+export interface LaneChangeAttempt {
+  entrySpeed: number;
+  exitSpeed: number;
+  /** Every wheel stayed inside the coned lanes. */
+  passed: boolean;
+  /** Largest excursion of a wheel beyond a lane edge, m. */
+  coneOverlap: number;
+  maxPathError: number;
+  maxLatAccel: number;
+  maxYawRate: number;
+  maxSteerAngle: number;
+  maxBodySlipAngle: number;
+  maxRoll: number;
+  completed: boolean;
+  /** Which practice run this is (0 is the blind run). */
+  practiceRun: number;
+}
+
+export interface LaneChangeResult {
+  course: LaneChangeCourse;
+  vehicleWidth: number;
+  /** Lane widths of sections 1, 3 and 5, m. */
+  laneWidths: [number, number, number];
+  laneOffset: number;
+  courseLength: number;
+  attempts: LaneChangeAttempt[];
+  /** Highest entry speed that passed, m/s; `null` when none did. */
+  maxPassingSpeed: number | null;
+}
+
 export type ScenarioRequest =
   | {
       scenario: "understeerGradient";
@@ -266,6 +366,12 @@ export type ScenarioRequest =
       scenario: "timestepSweep";
       definition: PartialVehicleDefinition;
       config?: TimestepSweepConfig;
+    }
+  | { scenario: "stepSteer"; definition: PartialVehicleDefinition; config?: StepSteerConfig }
+  | {
+      scenario: "doubleLaneChange";
+      definition: PartialVehicleDefinition;
+      config?: LaneChangeConfig;
     };
 
 export type ScenarioResult<R extends ScenarioRequest> = R extends { scenario: "understeerGradient" }
@@ -274,7 +380,11 @@ export type ScenarioResult<R extends ScenarioRequest> = R extends { scenario: "u
     ? StraightLineResult
     : R extends { scenario: "parkedOnSlope" }
       ? ParkedResult
-      : TimestepSweepResult;
+      : R extends { scenario: "timestepSweep" }
+        ? TimestepSweepResult
+        : R extends { scenario: "stepSteer" }
+          ? StepSteerResult
+          : LaneChangeResult;
 
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
@@ -739,6 +849,32 @@ export class World {
    */
   setGroundSlope(vehicle: number, grade: number, cross = 0): void {
     this.sp.check(this.sp.exports.sp_world_set_ground_slope(this.handle, vehicle, grade, cross));
+  }
+
+  /**
+   * Replace the world's surface table (ADR-0014): entry `i` is the surface
+   * id `i` that wheel contacts carry. At most 16 entries; ids beyond the
+   * table read as id 0, and an empty table is the reference surface.
+   * Missing fields take the reference values (grip 1, rolling resistance
+   * 1, drag 0).
+   */
+  setSurfaces(surfaces: ReadonlyArray<Partial<SurfaceDefinition>>): void {
+    const v = validateSurfaces(surfaces);
+    if (!v.ok) throw new SkidpadError(v.errors.join("; "), ErrorCode.InvalidDefinition);
+    const { ptr, len } = this.sp.writeString(JSON.stringify(surfaces));
+    try {
+      this.sp.check(this.sp.exports.sp_world_set_surfaces(this.handle, ptr, len));
+    } finally {
+      this.sp.free(ptr, len);
+    }
+  }
+
+  /**
+   * Surface id of the built-in flat ground under a vehicle. An external
+   * host tags each wheel contact itself through {@link writeWheelContact}.
+   */
+  setSurface(vehicle: number, surfaceId: number): void {
+    this.sp.check(this.sp.exports.sp_world_set_surface(this.handle, vehicle, surfaceId >>> 0));
   }
 
   resetVehicle(vehicle: number, x = 0, y = 0, yaw = 0): void {
