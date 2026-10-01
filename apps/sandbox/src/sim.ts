@@ -13,6 +13,7 @@ import { preset, presetIds, type PresetId } from "@skidpad/presets";
 import { createChassisBody, RapierVehicle } from "@skidpad/rapier";
 import type RAPIER from "@dimforge/rapier3d-compat";
 import { OBSTACLES, obstacleQuaternion } from "./track.js";
+import { SandboxAudio } from "./audio.js";
 
 export const HOST_DT = 1 / 60;
 
@@ -96,6 +97,8 @@ export class Sim {
   // floor a 250 kW car.
   readonly keyboard = new KeyboardInput({ throttle: { riseRate: 1.5, fallRate: 6 } });
   readonly gamepad = new GamepadInput();
+  /** Synthesised engine and tire-slip sound; off until the user enables it. */
+  readonly audio = new SandboxAudio();
   presetId: PresetId = "hatchbackFwd";
   hostKind: HostKind = "builtin";
   /**
@@ -155,6 +158,7 @@ export class Sim {
       this.world.resetVehicle(this.vehicle, 0, 0, 0);
     }
     if (this.hostKind === "rapier") this.rebuildRapierBody();
+    this.audio.setDefinition(this.definition);
     this.recorder.clear();
     this.syncPoses();
   }
@@ -225,6 +229,7 @@ export class Sim {
       this.body.resetForces(true);
       this.body.resetTorques(true);
     }
+    this.audio.setDefinition(this.definition);
     this.recorder.clear();
     this.syncPoses();
   }
@@ -297,7 +302,10 @@ export class Sim {
       this.stepsThisFrame++;
     }
     this.alpha = Math.min(1, Math.max(0, this.accumulator / HOST_DT));
+    this.audio.update(dt, this.readChannel, this.definition);
   }
+
+  private readonly readChannel = (name: string): number => this.read(name);
 
   /** Render pose, interpolated between the last two sim steps. */
   snapshot(out: SimSnapshot): SimSnapshot {
@@ -332,6 +340,7 @@ export class Sim {
   }
 
   dispose(): void {
+    this.audio.dispose();
     this.detach?.();
     this.host?.detach();
     this.scene?.free();
