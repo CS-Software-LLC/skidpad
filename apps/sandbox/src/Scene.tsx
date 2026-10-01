@@ -37,7 +37,7 @@ function Car({ sim }: { sim: Sim }) {
   const length = def.chassis.wheelbase * 1.5;
   const width = def.chassis.trackWidth * 1.05;
 
-  useFrame((state) => {
+  useFrame((state, delta) => {
     sim.frame(state.clock.elapsedTime * 1000);
     const s = sim.snapshot(snap.current);
     const g = group.current;
@@ -47,16 +47,22 @@ function Car({ sim }: { sim: Sim }) {
     }
     if (wheelFL.current) wheelFL.current.rotation.y = s.steer;
     if (wheelFR.current) wheelFR.current.rotation.y = s.steer;
-    const dt = state.clock.getDelta() || 1 / 60;
-    for (const m of spinF.current) m.rotation.z -= s.wheelF * dt;
-    for (const m of spinR.current) m.rotation.z -= s.wheelR * dt;
-    // Chase camera.
+    // The cylinder's own axis is its local Y. With three.js' XYZ Euler order
+    // the Y rotation is applied before the fixed X tilt, so spinning about Y
+    // turns the wheel about its axle; spinning about Z would swing the axle.
+    const dt = delta || 1 / 60;
+    for (const m of spinF.current) m.rotation.y -= s.wheelF * dt;
+    for (const m of spinR.current) m.rotation.y -= s.wheelR * dt;
+    // Chase camera: frame-rate independent follow with a gain high enough
+    // that the car stays framed at speed, looking a little ahead of it.
     const cam = state.camera;
-    const back = 9;
+    const back = 8;
     const tx = s.x - Math.cos(s.yaw) * back;
     const tz = -s.y + Math.sin(s.yaw) * back;
-    cam.position.lerp({ x: tx, y: 3.2, z: tz } as never, 0.08);
-    cam.lookAt(s.x, 0.6, -s.y);
+    const k = 1 - Math.exp(-10 * dt);
+    cam.position.lerp({ x: tx, y: 3.0, z: tz } as never, k);
+    const ahead = 3;
+    cam.lookAt(s.x + Math.cos(s.yaw) * ahead, 0.5, -s.y - Math.sin(s.yaw) * ahead);
   });
 
   const wheel = (radius: number, list: React.MutableRefObject<Mesh[]>, key: string) => (
@@ -100,9 +106,9 @@ function Ground() {
     <>
       <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
         <planeGeometry args={[2000, 2000]} />
-        <meshStandardMaterial color="#2d3340" />
+        <meshStandardMaterial color="#454c5c" />
       </mesh>
-      <gridHelper args={[2000, 400, "#4a5368", "#3a4152"]} position={[0, 0.01, 0]} />
+      <gridHelper args={[2000, 400, "#8f9ab3", "#5e6778"]} position={[0, 0.01, 0]} />
       {/* A 40 m skidpad circle, matching the understeer validation radius. */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, -40]}>
         <ringGeometry args={[39.5, 40.5, 128]} />
@@ -130,7 +136,7 @@ export function Scene({
     >
       <color attach="background" args={["#10131a"]} />
       <fog attach="fog" args={["#10131a", 80, 400]} />
-      <hemisphereLight args={["#dde6ff", "#2a2e38", 0.9]} />
+      <hemisphereLight args={["#dde6ff", "#3a3f4c", 1.4]} />
       <directionalLight
         position={[30, 50, 20]}
         intensity={1.4}

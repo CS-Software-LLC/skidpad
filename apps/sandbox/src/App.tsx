@@ -22,19 +22,37 @@ interface HudState {
 export function App() {
   const [sim, setSim] = useState<Sim | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [presetId, setPresetId] = useState<PresetId>("sportsRwd");
+  const [presetId, setPresetId] = useState<PresetId>("hatchbackFwd");
   const [hud, setHud] = useState<HudState | null>(null);
   const [recording, setRecording] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const clip = useRef(new ClipRecorder());
 
   useEffect(() => {
+    // StrictMode runs effects twice; only the surviving instance may publish
+    // itself and attach input listeners.
+    let cancelled = false;
     const s = new Sim();
     s.load()
-      .then(() => setSim(s))
+      .then(() => {
+        if (cancelled) s.dispose();
+        else setSim(s);
+      })
       .catch((e: unknown) => setError(String(e)));
-    return () => s.dispose();
+    return () => {
+      cancelled = true;
+      s.dispose();
+    };
   }, []);
+
+  useEffect(() => {
+    if (!sim) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.code === "KeyR" && !e.repeat) sim.reset();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [sim]);
 
   useEffect(() => {
     if (!sim) return;
