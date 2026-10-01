@@ -244,12 +244,23 @@ impl BicycleVehicle {
             // lets definitions carry over unchanged to the four-wheel model.
             let fz_tire = 0.5 * st.load;
 
-            // Kinematic slip → relaxation → tire forces.
+            // Kinematic slip (telemetry and the standstill bound), then the
+            // contact-patch deflection transient (ADR-0010), then the tire.
             let (kappa, alpha) = kinematic_slip(wx, wy, st.omega, radius, floor);
             st.kinematic_ratio = kappa;
             st.kinematic_angle = alpha;
-            st.transient
-                .relax(kappa, alpha, wx, dt, sigma_x, sigma_y, floor);
+            let (kappa_peak, tan_alpha_peak) = tire.static_slip_bounds();
+            let slip_vx = st.omega * radius - wx;
+            st.transient.update(
+                slip_vx,
+                wy,
+                wx,
+                dt,
+                sigma_x,
+                sigma_y,
+                m::max(kappa_peak, m::abs(kappa)),
+                m::max(tan_alpha_peak, m::abs(wy) / m::max(m::abs(wx), floor)),
+            );
             let mut one = tire.eval(&TireInput {
                 fz: fz_tire,
                 slip_ratio: st.transient.slip_ratio,
@@ -257,13 +268,22 @@ impl BicycleVehicle {
                 camber,
                 vx: wx,
             });
-            // Low-speed damping (ADR-0005), per tire, fading out at the floor.
-            let fade = low_speed_fade(wx, floor);
-            let k_low = tire.low_speed_damping_coefficient(fz_tire, axle_def.wheel_inertia) * fade;
+            // Low-speed damping on the contact slip velocities (ADR-0010),
+            // per tire, faded out with rolling speed. The total, curve plus
+            // damping, is bounded by what the curve allows: the peak while
+            // the spring is below it, the sliding force once past it.
+            let fade = low_speed_fade(wx, tire.low_speed_damping_fade());
+            let (c_x, c_y) = if fade > 0.0 {
+                let (cx, cy) = tire.low_speed_damping_coefficients(fz_tire, dt);
+                (cx * fade, cy * fade)
+            } else {
+                (0.0, 0.0)
+            };
             {
-                let fx = one.fx + k_low * (st.omega * radius - wx);
-                let fy = one.fy - k_low * wy;
-                let (fx, fy) = clamp_to_friction(fx, fy, m::max(one.fx_max, one.fy_max));
+                let fx = one.fx + c_x * slip_vx;
+                let fy = one.fy - c_y * wy;
+                let bound = m::max(m::hypot(one.fx, one.fy), m::max(one.fx_slide, one.fy_slide));
+                let (fx, fy) = clamp_to_friction(fx, fy, bound);
                 one.fx = fx;
                 one.fy = fy;
             }
@@ -276,6 +296,8 @@ impl BicycleVehicle {
                 trail: one.trail,
                 fx_max: 2.0 * one.fx_max,
                 fy_max: 2.0 * one.fy_max,
+                fx_slide: 2.0 * one.fx_slide,
+                fy_slide: 2.0 * one.fy_slide,
             };
             st.out = out;
 
@@ -299,17 +321,18 @@ impl BicycleVehicle {
             }
             st.brake_torque = brake_cap;
 
-            // Implicit wheel spin: the tire's longitudinal stiffness is
-            // treated implicitly through the fraction of a kinematic slip
-            // change that reaches the transient state within this step. This
-            // makes the stiff tire–wheel mode unconditionally stable
-            // (ADR-0005).
+            // Implicit wheel spin (ADR-0005 item 3, re-derived in ADR-0010):
+            // the tire force's sensitivity to wheel speed within one step is
+            // `Cκ·R·dt / (σx + dt·|Vx|)` from the deflection update plus
+            // `c_x·R` from the damping, and both go into the effective
+            // inertia so the stiff wheel–tire mode is unconditionally
+            // stable. The stiffness is the slope at the origin, an upper
+            // bound at large slip.
             // Two wheels per axle.
             let inertia = 2.0 * axle_def.wheel_inertia;
-            let v_eff = m::max(m::abs(wx), floor);
-            let frac = TireTransient::response_fraction(wx, dt, sigma_x, floor);
-            let dfx_domega = 2.0
-                * (tire.longitudinal_stiffness(fz_tire) * radius / v_eff * frac + k_low * radius);
+            let gain = TireTransient::deflection_gain(wx, dt, sigma_x);
+            let dfx_domega =
+                2.0 * (tire.longitudinal_stiffness(fz_tire) * radius * gain + c_x * radius);
             let i_eff = inertia + dt * radius * dfx_domega;
             let net = drive - radius * out.fx + out.my;
             let omega_free = st.omega + dt * net / i_eff;

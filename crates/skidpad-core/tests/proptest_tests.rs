@@ -1,6 +1,7 @@
 use proptest::prelude::*;
+use skidpad_core::geom::Vec3;
 use skidpad_core::tire::{FeelTireParams, TireInput, TireModel};
-use skidpad_core::vehicle::BicycleVehicle;
+use skidpad_core::vehicle::{BicycleVehicle, FourWheelVehicle};
 use skidpad_core::{VehicleDefinition, VehicleInput};
 
 fn arb_feel() -> impl Strategy<Value = FeelTireParams> {
@@ -92,6 +93,69 @@ proptest! {
             prop_assert!(car.yaw_rate.abs() < 20.0, "yaw rate {}", car.yaw_rate);
             for ax in &car.axles {
                 prop_assert!(ax.omega.is_finite() && ax.omega.abs() < 1000.0);
+            }
+        }
+    }
+
+    #[test]
+    fn rapid_full_lock_inputs_at_speed_stay_finite(
+        d in arb_def(),
+        speed in 5.0f64..40.0,
+        period_ms in 20u32..200,
+        brake_on in prop::collection::vec(any::<bool>(), 8..40),
+    ) {
+        prop_assert!(d.validate().is_ok());
+        let mut car = FourWheelVehicle::new(d.clone());
+        car.set_speed(speed);
+        let dt = 1.0 / d.simulation.substep_rate_hz;
+        let steps = ((period_ms as f64) * 1e-3 / dt).max(1.0) as usize;
+        for (i, &brake) in brake_on.iter().enumerate() {
+            // Full lock one way, then the other, with the brakes stamped
+            // on and off: the deflection transient and the implicit wheel
+            // spin must stay bounded at every substep rate.
+            let input = VehicleInput {
+                steer: if i % 2 == 0 { 1.0 } else { -1.0 },
+                throttle: if brake { 0.0 } else { 1.0 },
+                brake: if brake { 1.0 } else { 0.0 },
+                handbrake: 0.0,
+            };
+            for _ in 0..steps {
+                car.substep(dt, &input);
+            }
+            prop_assert!(car.vel.is_finite() && car.omega.is_finite() && car.pos.is_finite());
+            prop_assert!(car.speed() < 120.0, "speed {}", car.speed());
+            prop_assert!(car.omega.length() < 30.0, "angular velocity {:?}", car.omega);
+            for w in &car.wheels {
+                prop_assert!(w.omega.is_finite() && w.omega.abs() < 2000.0);
+                prop_assert!(w.transient.slip_ratio.is_finite() && w.transient.slip_angle.is_finite());
+                prop_assert!(w.out.fx.is_finite() && w.out.fy.is_finite() && w.out.mz.is_finite());
+            }
+        }
+    }
+
+    #[test]
+    fn forward_and_reverse_flips_at_low_speed_stay_finite(
+        d in arb_def(),
+        flips in prop::collection::vec((-0.6f64..0.6, -1.0f64..1.0, 0.0f64..1.0, 0.0f64..1.0), 6..30),
+    ) {
+        prop_assert!(d.validate().is_ok());
+        let mut car = FourWheelVehicle::new(d.clone());
+        let dt = 1.0 / d.simulation.substep_rate_hz;
+        let steps = (0.1 / dt).max(1.0) as usize;
+        for (vx, steer, brake, handbrake) in flips {
+            // Kick the body forward or backward inside the damping fade and
+            // the kinematic floor, with random steering and brakes.
+            car.vel = car.orient.rotate(Vec3::new(vx, 0.0, car.vel_body().z));
+            let input = VehicleInput { steer, throttle: 0.0, brake, handbrake };
+            for _ in 0..steps {
+                car.substep(dt, &input);
+                prop_assert!(car.vel.is_finite() && car.omega.is_finite());
+            }
+            prop_assert!(car.speed() < 2.0, "speed {} after a {vx} m/s kick", car.speed());
+            for w in &car.wheels {
+                prop_assert!(w.omega.is_finite() && w.omega.abs() < 100.0, "wheel {}", w.omega);
+                prop_assert!(w.transient.slip_ratio.abs() <= 2.0 + 1e-9);
+                prop_assert!(w.out.fx.is_finite() && w.out.fy.is_finite());
             }
         }
     }

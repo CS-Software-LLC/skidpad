@@ -372,13 +372,19 @@
           "type": "number",
           "exclusiveMinimum": 0,
           "default": 0.5,
-          "description": "m/s"
+          "description": "m/s. Speed floor of the kinematic slip (telemetry and the standstill deflection bound, ADR-0005); the deflection transient decays at the true rolling speed (ADR-0010)"
         },
         "lowSpeedDamping": {
           "type": "number",
           "minimum": 0,
-          "default": 0.3,
-          "description": "Damping ratio of the wheel-tire mode below the speed floor (ADR-0005)"
+          "default": 0.7,
+          "description": "Damping ratio of the contact-patch spring on the corner mass at standstill (ADR-0010)"
+        },
+        "lowSpeedDampingFade": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "default": 2,
+          "description": "m/s. Rolling speed at which the low-speed damping has faded to zero (ADR-0010)"
         }
       },
       "required": ["model"],
@@ -424,7 +430,12 @@
         "lowSpeedDamping": {
           "type": "number",
           "minimum": 0,
-          "default": 0.3
+          "default": 0.7
+        },
+        "lowSpeedDampingFade": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "default": 2
         }
       },
       "required": ["model"],

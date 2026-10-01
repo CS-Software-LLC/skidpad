@@ -494,16 +494,29 @@ impl FourWheelVehicle {
             let (kappa, alpha) = kinematic_slip(wx, wy, w.omega, radius, floor);
             w.kinematic_ratio = kappa;
             w.kinematic_angle = alpha;
-            w.transient
-                .relax(kappa, alpha, wx, dt, sigma_x, sigma_y, floor);
-            // Low-speed damping (ADR-0005): a viscous term on the contact
-            // slip velocities that fades out at the speed floor, with its
+            // Contact-patch deflection transient (ADR-0010), bounded at
+            // standstill by the force peak or the floored kinematic slip.
+            let (kappa_peak, tan_alpha_peak) = tire.static_slip_bounds();
+            let slip_vx = w.omega * radius - wx;
+            w.transient.update(
+                slip_vx,
+                wy,
+                wx,
+                dt,
+                sigma_x,
+                sigma_y,
+                m::max(kappa_peak, m::abs(kappa)),
+                m::max(tan_alpha_peak, m::abs(wy) / m::max(m::abs(wx), floor)),
+            );
+            // Low-speed damping (ADR-0010): a viscous term on the contact
+            // slip velocities that fades out with rolling speed, with its
             // longitudinal part treated implicitly in the wheel equation.
-            let fade = low_speed_fade(wx, floor);
-            let k_low = if fade > 0.0 && w.in_contact {
-                tire.low_speed_damping_coefficient(w.load, adef.wheel_inertia) * fade
+            let fade = low_speed_fade(wx, tire.low_speed_damping_fade());
+            let (c_x, c_y) = if fade > 0.0 && w.in_contact && w.load > 0.0 {
+                let (cx, cy) = tire.low_speed_damping_coefficients(w.load, dt);
+                (cx * fade, cy * fade)
             } else {
-                0.0
+                (0.0, 0.0)
             };
             let out = if w.in_contact && w.load > 0.0 {
                 let mut o = tire.eval(&TireInput {
@@ -513,9 +526,12 @@ impl FourWheelVehicle {
                     camber: w.camber,
                     vx: wx,
                 });
-                let fx = o.fx + k_low * (w.omega * radius - wx);
-                let fy = o.fy - k_low * wy;
-                let (fx, fy) = clamp_to_friction(fx, fy, m::max(o.fx_max, o.fy_max));
+                let fx = o.fx + c_x * slip_vx;
+                let fy = o.fy - c_y * wy;
+                // Curve plus damping may not exceed what the curve allows:
+                // the peak below it, the sliding force past it.
+                let bound = m::max(m::hypot(o.fx, o.fy), m::max(o.fx_slide, o.fy_slide));
+                let (fx, fy) = clamp_to_friction(fx, fy, bound);
                 o.fx = fx;
                 o.fy = fy;
                 o
@@ -541,12 +557,12 @@ impl FourWheelVehicle {
             }
             w.brake_torque = brake_cap;
 
-            // Implicit wheel spin (ADR-0005), one wheel.
+            // Implicit wheel spin (ADR-0005 item 3 as re-derived in
+            // ADR-0010), one wheel: the force sensitivity to wheel speed is
+            // `Cκ·R·dt / (σx + dt·|Vx|)` plus the damping `c_x·R`.
             let inertia = adef.wheel_inertia;
-            let v_eff = m::max(m::abs(wx), floor);
-            let frac = TireTransient::response_fraction(wx, dt, sigma_x, floor);
-            let dfx_domega =
-                tire.longitudinal_stiffness(w.load) * radius / v_eff * frac + k_low * radius;
+            let gain = TireTransient::deflection_gain(wx, dt, sigma_x);
+            let dfx_domega = tire.longitudinal_stiffness(w.load) * radius * gain + c_x * radius;
             let i_eff = inertia + dt * radius * dfx_domega;
             let net = drive - radius * out.fx + out.my;
             let omega_free = w.omega + dt * net / i_eff;

@@ -50,6 +50,7 @@ function validateTire(errors: string[], warnings: string[], path: string, tire: 
       "relaxationLengthLong",
       "relaxationLengthLat",
       "lowSpeedFloor",
+      "lowSpeedDampingFade",
     ]) {
       positive(errors, `${path}.${k}`, t[k]);
     }
@@ -103,6 +104,7 @@ function validateTire(errors: string[], warnings: string[], path: string, tire: 
       "relaxationLengthLong",
       "relaxationLengthLat",
       "lowSpeedFloor",
+      "lowSpeedDampingFade",
     ]) {
       positive(errors, `${path}.${k}`, t[k]);
     }

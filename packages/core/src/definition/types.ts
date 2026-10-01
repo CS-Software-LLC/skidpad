@@ -56,10 +56,16 @@ export interface FeelTireParams {
   relaxationLengthLong?: number;
   /** Lateral relaxation length, m. */
   relaxationLengthLat?: number;
-  /** Speed floor for slip computation, m/s (ADR-0005). */
+  /**
+   * Speed floor of the kinematic slip, m/s (ADR-0005): telemetry slips and
+   * the standstill deflection bound. The deflection transient decays at the
+   * true rolling speed (ADR-0010).
+   */
   lowSpeedFloor?: number;
-  /** Damping ratio of the wheel-tire mode below the speed floor (ADR-0005). */
+  /** Damping ratio of the contact-patch spring on the corner mass at standstill (ADR-0010). */
   lowSpeedDamping?: number;
+  /** Rolling speed at which the low-speed damping has faded to zero, m/s (ADR-0010). */
+  lowSpeedDampingFade?: number;
 }
 
 /**
@@ -76,6 +82,7 @@ export interface MagicFormulaParams {
   relaxationLengthLat?: number;
   lowSpeedFloor?: number;
   lowSpeedDamping?: number;
+  lowSpeedDampingFade?: number;
   [coefficient: string]: number | string | undefined;
 }
 

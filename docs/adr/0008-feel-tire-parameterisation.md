@@ -47,9 +47,15 @@ exact equation numbers of the edition at hand). Under braking `κ < 0`, so the
 along its curves than a driven tire at the same `|κ|` and `α`. The feel model
 now:
 
-- computes `σx` and `σy` from the transient slips, with the slip ratio
-  mirrored by the direction of travel so that braking in reverse behaves like
-  braking forward (theoretical slip assumes forward rolling);
+- computes `σx = κ / (1 + s·κ)` and `σy = tan α / (1 + s·κ)` from the
+  transient slips, with `s` the direction of travel, so that braking in
+  reverse behaves like braking forward (theoretical slip assumes forward
+  rolling). `s` is `Vx / lowSpeedFloor` clamped to ±1 rather than a hard
+  sign: a parked car's velocity crosses zero endlessly, and a hard switch
+  stepped the combined-slip force by a fraction of a percent at each
+  crossing, enough to sustain a 3 Hz limit cycle on a cross slope (found by
+  the ADR-0010 scenarios). At `s = 0` the theoretical slips are the plain
+  slips, which is symmetric, and at `|Vx| ≥ lowSpeedFloor` nothing changes;
 - normalises them by sign-specific peak theoretical slips,
   `σx,peak = κp / (1 + κp)` driving and `κp / (1 − κp)` braking, and
   `σy,peak = tan αp`, so `peakSlipRatio` marks the peak in both drive and

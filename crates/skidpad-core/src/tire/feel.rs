@@ -105,12 +105,18 @@ pub struct FeelTireParams {
     pub relaxation_length_long: f64,
     /// Lateral relaxation length, m.
     pub relaxation_length_lat: f64,
-    /// Speed floor for slip computation and relaxation, m/s (ADR-0005).
+    /// Speed floor for the kinematic slip, m/s (ADR-0005). Sets the
+    /// telemetry slips and the static deflection bound at standstill; the
+    /// deflection transient itself decays at the true rolling speed
+    /// (ADR-0010).
     pub low_speed_floor: f64,
-    /// Damping ratio of the wheel-tire mode below the speed floor
-    /// (ADR-0005). Zero reproduces the bare relaxation model, which rings
-    /// for seconds when a parked car is nudged.
+    /// Damping ratio of the contact-patch spring on the corner mass at
+    /// standstill (ADR-0010). Zero leaves the standstill spring undamped,
+    /// which rings for seconds when a parked car is nudged.
     pub low_speed_damping: f64,
+    /// Rolling speed at which the low-speed damping has faded to zero, m/s
+    /// (ADR-0010).
+    pub low_speed_damping_fade: f64,
 }
 
 impl Default for FeelTireParams {
@@ -136,7 +142,8 @@ impl Default for FeelTireParams {
             relaxation_length_long: 0.25,
             relaxation_length_lat: 0.35,
             low_speed_floor: 0.5,
-            low_speed_damping: 0.3,
+            low_speed_damping: 0.7,
+            low_speed_damping_fade: 2.0,
         }
     }
 }
@@ -202,28 +209,31 @@ impl FeelTireParams {
         let alpha_eff = i.slip_angle - camber_force / m::max(ky, 1e-9);
 
         // Theoretical slips of the brush model (Pacejka ch. 3):
-        //   σx = κ / (1 + κ),   σy = tan α / (1 + κ).
-        // They assume forward rolling. In reverse the kinematic slip ratio
-        // has the opposite sign for the same physical situation (braking
-        // gives κ > 0), so the slip ratio is mirrored by the direction of
-        // travel here and the longitudinal force mirrored back below;
-        // braking while reversing then behaves exactly like braking forward.
-        let dir = if i.vx < 0.0 { -1.0 } else { 1.0 };
-        let kappa = dir * i.slip_ratio;
-        let denom = m::max(1.0 + kappa, THEORETICAL_SLIP_MIN_DENOM);
+        //   σx = κ / (1 + s·κ),   σy = tan α / (1 + s·κ),
+        // where `s` is the direction of travel: +1 rolling forward, −1 in
+        // reverse (theoretical slip assumes forward rolling, and in reverse
+        // the kinematic slip ratio has the opposite sign for the same
+        // physical situation, so braking while reversing then behaves like
+        // braking forward). The sign is taken smoothly over ±lowSpeedFloor
+        // rather than switched at zero: a parked car's velocity crosses
+        // zero endlessly, and a hard switch stepped the combined-slip force
+        // by a fraction of a percent at each crossing, which was enough to
+        // keep a limit cycle alive on a cross slope (ADR-0010). At s = 0 the
+        // theoretical slips reduce to the plain slips, which is symmetric.
+        let dir = m::clamp(i.vx / m::max(self.low_speed_floor, 1e-6), -1.0, 1.0);
+        let kappa = i.slip_ratio;
+        let denom = m::max(1.0 + dir * kappa, THEORETICAL_SLIP_MIN_DENOM);
         let alpha_t = m::clamp(alpha_eff, -ALPHA_TAN_LIMIT, ALPHA_TAN_LIMIT);
         let sigma_x = kappa / denom;
         let sigma_y = m::tan(alpha_t) / denom;
 
-        // Normalise by the peak theoretical slips, specific to the sign of
-        // the longitudinal slip so that `peakSlipRatio` marks the peak in
-        // both drive and brake: σx,peak = κp / (1 ± κp), σy,peak = tan αp.
+        // Normalise by the peak theoretical slips, specific to whether the
+        // longitudinal slip is driving or braking so that `peakSlipRatio`
+        // marks the peak in both: σx,peak = κp / (1 + s·sign(κ)·κp), which is
+        // κp / (1 + κp) driving and κp / (1 − κp) braking; σy,peak = tan αp.
         let kp = m::min(kappa_peak, KAPPA_PEAK_MAX);
-        let sigma_x_peak = if sigma_x < 0.0 {
-            kp / (1.0 - kp)
-        } else {
-            kp / (1.0 + kp)
-        };
+        let kappa_sign = if kappa < 0.0 { -1.0 } else { 1.0 };
+        let sigma_x_peak = kp / (1.0 + dir * kappa_sign * kp);
         let sigma_y_peak = m::tan(m::min(alpha_peak, ALPHA_PEAK_MAX));
         let sx = sigma_x / sigma_x_peak;
         let sy = sigma_y / sigma_y_peak;
@@ -235,17 +245,14 @@ impl FeelTireParams {
             // normalised theoretical slip equals the resultant `s`, so that
             // pure slip reproduces the pure curve exactly:
             //   longitudinal: |σ*| = s · σx,peak, mapped back through the
-            //     inverse of σ = κ / (1 + κ), which is κ = σ / (1 − σ)
-            //     (driving) and |κ| = |σ| / (1 + |σ|) (braking);
+            //     inverse of σ = κ / (1 + s·κ), which is κ = σ / (1 − s·σ);
+            //     for pure slip that is κ itself;
             //   lateral: α* = atan(s · tan αp).
             // Evaluating at `s · κp` instead would scale the initial
             // longitudinal stiffness by `1 ± κp`.
             let sigma_mag = s * sigma_x_peak;
-            let kappa_mag = if sx < 0.0 {
-                sigma_mag / (1.0 + sigma_mag)
-            } else {
-                sigma_mag / m::max(1.0 - sigma_mag, KAPPA_STAR_MIN_DENOM)
-            };
+            let kappa_mag =
+                sigma_mag / m::max(1.0 - dir * kappa_sign * sigma_mag, KAPPA_STAR_MIN_DENOM);
             let alpha_mag = m::atan(s * sigma_y_peak);
             // Direction cosines in normalised slip space (Milliken ch. 2).
             // At full sliding this direction differs from the slip velocity
@@ -255,7 +262,6 @@ impl FeelTireParams {
             let fy = -(sy / s) * cy.eval(alpha_mag);
             (fx, fy)
         };
-        let fx = dir * fx;
 
         // Pneumatic trail. The published reference shape is the Magic
         // Formula cosine trail `Dt·cos(Ct·atan(Bt·α_t,eq − …))` (Pacejka ch. 4,
@@ -304,6 +310,8 @@ impl FeelTireParams {
             trail,
             fx_max: peak,
             fy_max: peak,
+            fx_slide: m::clamp(self.falloff_long, 0.05, 1.0) * peak,
+            fy_slide: m::clamp(self.falloff_lat, 0.05, 1.0) * peak,
         }
     }
 
@@ -320,6 +328,7 @@ impl FeelTireParams {
             ("relaxationLengthLong", self.relaxation_length_long),
             ("relaxationLengthLat", self.relaxation_length_lat),
             ("lowSpeedFloor", self.low_speed_floor),
+            ("lowSpeedDampingFade", self.low_speed_damping_fade),
         ];
         for (name, v) in positive {
             if !(v > 0.0) || !v.is_finite() {

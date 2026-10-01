@@ -86,9 +86,16 @@ helps. Parameters are per tire unless noted.
   arcade.
 - Lower `loadSensitivity` so load transfer costs less total grip.
 
-## The car jitters when parked
+## The car jitters or creeps when parked
 
 - It should not. Raise `lowSpeedDamping` (the damping ratio of the
-  wheel-tire mode below the speed floor, default 0.3) or `lowSpeedFloor`
-  slightly (0.5 to 1.0 m/s), and file an issue with a telemetry export;
-  standstill stability is a feature we test.
+  contact-patch spring on the corner mass at standstill, default 0.7) or
+  `lowSpeedDampingFade` (the rolling speed at which that damping is gone,
+  default 2 m/s), and file an issue with a telemetry export; standstill
+  stability is a feature we test, on 30 % grades and 20 % cross slopes.
+- A car placed on a slope moves a few millimetres while its tire springs
+  wind up, then holds. If it keeps moving, the brakes cannot hold it: check
+  `maxBrakeTorque` and `brakes.handbrakeTorque` against
+  `m · g · sin θ · radius`.
+- `lowSpeedFloor` only shapes the slip channels in telemetry near standstill
+  and the point at which a pushed car goes from stiction to sliding.
