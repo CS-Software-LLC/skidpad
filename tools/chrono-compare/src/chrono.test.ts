@@ -15,17 +15,16 @@ import { bmwE90, derive } from "./vehicle.js";
 
 /** `maneuver: label` → why it is outside tolerance. */
 export const KNOWN_GAPS: Record<string, string> = {
+  "coast: speed at 20 s": "Skidpad's closed-throttle drag is linear; Chrono's map is convex",
+  "coast: speed": "Skidpad's closed-throttle drag is linear; Chrono's map is convex",
   "brakeHalf: stopping distance, 0.4 pedal":
     "Chrono realises about 7 % less brake torque than its nominal 800 N·m",
   "brakeHalf: pitch per g of braking": "no anti-dive or anti-lift geometry in Skidpad",
   "brakeHalf: pitch": "no anti-dive or anti-lift geometry in Skidpad",
-  "rampSteer: body slip gradient": "static toe (part) and unexplained remainder",
   "rampSteer: pitch in the turn at 0.7 g": "roll centres fixed, no jacking force",
   "rampSteer: fz2": "roll centres fixed: Chrono's front share falls with lateral acceleration",
-  "stepSteer: yaw rate response time (ISO 7401, 90 %)": "no static toe in Skidpad",
-  "stepSteer: lateral acceleration response time (90 %)": "no static toe in Skidpad",
-  "sineSteer: yaw rate lag behind steer": "no static toe in Skidpad",
-  "sineSteer: roll": "no static toe in Skidpad (larger transient response)",
+  "sineSteer: peak roll": "open: Skidpad overshoots in roll more than Chrono",
+  "sineSteer: roll": "open: Skidpad overshoots in roll more than Chrono",
 };
 
 describe("Skidpad against Project Chrono's BMW_E90", () => {

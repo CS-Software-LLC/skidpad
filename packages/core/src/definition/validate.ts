@@ -346,6 +346,14 @@ export function validateDefinition(def: unknown): ValidationResult {
         if (camber !== undefined && (!isNum(camber) || Math.abs(camber) > 45)) {
           errors.push(`${path}.staticCamberDeg must be within ±45 degrees (got ${String(camber)})`);
         }
+        const toe = a?.staticToeDeg;
+        if (toe !== undefined && (!isNum(toe) || Math.abs(toe) > 10)) {
+          errors.push(`${path}.staticToeDeg must be within ±10 degrees (got ${String(toe)})`);
+        } else if (toe !== undefined && Math.abs(toe) > 2) {
+          warnings.push(
+            `${path}.staticToeDeg of ${toe} degrees is far beyond a road alignment (a few tenths); the tires scrub hard`,
+          );
+        }
         const s = a?.suspension;
         if (s !== undefined) {
           if (typeof s !== "object" || s === null) {

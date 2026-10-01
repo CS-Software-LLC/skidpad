@@ -64,6 +64,21 @@ the top of each wheel toward the centreline. On an independent axle body
 roll adds to it at the contact; `Camber_*` reports the resulting inclination
 in the tire's sign convention. A solid axle behaves differently, below.
 
+## Toe
+
+`staticToeDeg` is the toe of each wheel, also as alignment sheets quote it:
+positive is toe-in, each wheel pointing toward the centreline ahead of it,
+and negative is toe-out. It adds to the steering angle of each wheel, so
+`WheelSteer_*` includes it and `SteerAngle` does not. Driving straight, a
+toed-in axle runs both tires at a small slip angle whose lateral forces
+cancel, leaving some drag. In a corner the loaded outer tire is already
+turned into the turn and the unloaded inner one away from it, so toe-in
+gains grip as the load transfers. Before that transfer arrives, each tire
+works partway up its curve, where it is less stiff, so a toed-in car answers
+the wheel later and overshoots less. Toe-out does the opposite. Road cars
+run a few tenths of a degree. The single-track model ignores toe because
+its two mirrored forces cancel.
+
 ## Roll centres
 
 A strut that is a ray down the body's vertical axis puts the roll centre on

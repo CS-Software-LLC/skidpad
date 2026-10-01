@@ -20,7 +20,10 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { WHEEL_ORDER, type PartialVehicleDefinition, type Skidpad } from "@skidpad/core";
-import { bmwE90, MAX_WHEEL_ANGLE_DEG, ROOT } from "./vehicle.js";
+import { at, loadReference, ROOT, type Row } from "./reference.js";
+import { bmwE90, MAX_WHEEL_ANGLE_DEG } from "./vehicle.js";
+
+export { at, loadReference, type Row, type RowKey } from "./reference.js";
 
 type Pts = [number, number][];
 export interface Spec {
@@ -34,53 +37,9 @@ export interface Spec {
     | { type: "points"; points: Pts }
     | { type: "sine"; amp: number; freq: number; start: number; cycles: number };
 }
-type WheelChannel = `${"fz" | "fx" | "fy" | "slip" | "alpha" | "omega"}${0 | 1 | 2 | 3}`;
-type Channel =
-  | "t"
-  | "x"
-  | "y"
-  | "speed"
-  | "vy"
-  | "ax"
-  | "ay"
-  | "yawRate"
-  | "roll"
-  | "pitch"
-  | "rpm"
-  | "gear"
-  | "throttle"
-  | "brake"
-  | "steer"
-  | WheelChannel;
-/**
- * One logged sample. Chrono's rows carry each wheel's road-wheel angle
- * (`delta0`…`delta3`); Skidpad's carry the mean front angle it was steered
- * with (`delta`).
- */
-export type Row = { [K in Channel]: number } & {
-  delta?: number;
-  delta0?: number;
-  delta1?: number;
-  delta2?: number;
-  delta3?: number;
-};
-export type RowKey = keyof Row;
-
 export const MANEUVERS: Record<string, Spec> = JSON.parse(
   readFileSync(join(ROOT, "chrono", "maneuvers.json"), "utf8"),
 ) as Record<string, Spec>;
-
-export function loadReference(name: string): Row[] {
-  const text = readFileSync(join(ROOT, "reference", `${name}.csv`), "utf8").trim();
-  const [head = "", ...lines] = text.split("\n");
-  const keys = head.split(",");
-  return lines.map((l) => {
-    const v = l.split(",");
-    const r: Record<string, number> = {};
-    keys.forEach((k, i) => (r[k] = Number(v[i])));
-    return r as Row;
-  });
-}
 
 function interp(points: Pts, t: number): number {
   const first = points[0]!;
@@ -91,24 +50,6 @@ function interp(points: Pts, t: number): number {
     if (t <= t1) return t1 > t0 ? v0 + ((v1 - v0) * (t - t0)) / (t1 - t0) : v1;
   }
   return points[points.length - 1]![1];
-}
-
-/** Linear interpolation of a channel at time t (rows sorted by time). */
-export function at(rows: Row[], t: number, key: RowKey): number {
-  const get = (r: Row) => r[key] ?? NaN;
-  const first = rows[0]!;
-  if (t <= first.t) return get(first);
-  let lo = 0;
-  let hi = rows.length - 1;
-  if (t >= rows[hi]!.t) return get(rows[hi]!);
-  while (hi - lo > 1) {
-    const m = (lo + hi) >> 1;
-    if (rows[m]!.t > t) hi = m;
-    else lo = m;
-  }
-  const a = rows[lo]!;
-  const b = rows[hi]!;
-  return get(a) + ((get(b) - get(a)) * (t - a.t)) / (b.t - a.t);
 }
 
 /** The PI cruise control of the Chrono script (same gains, same clamps). */

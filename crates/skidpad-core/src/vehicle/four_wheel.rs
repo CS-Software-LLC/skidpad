@@ -435,6 +435,13 @@ impl FourWheelVehicle {
         delta + ack * (ideal - delta)
     }
 
+    /// Static toe of wheel `i` as a road-wheel angle about +z, rad: toe-in
+    /// points the left wheel right (negative) and the right wheel left.
+    #[inline]
+    fn toe(&self, i: usize) -> f64 {
+        -self.geometry[i].side * m::deg_to_rad(self.def.axles[i / 2].static_toe_deg)
+    }
+
     /// One substep of the pipeline on the reference surface everywhere.
     #[inline]
     pub fn substep(&mut self, dt: f64, input: &VehicleInput) {
@@ -464,12 +471,14 @@ impl FourWheelVehicle {
         self.assist_telemetry.steer_assist_scale = steer_scale;
         let delta = -input.steer * steer_scale * self.def.max_wheel_angle();
         self.steer_angle = delta;
+        // Steering angle of each wheel, then its static toe on top.
         let steers = [
             self.wheel_steer(FL, delta),
             self.wheel_steer(FR, delta),
             self.wheel_steer(RL, delta),
             self.wheel_steer(RR, delta),
         ];
+        let toes = [self.toe(FL), self.toe(FR), self.toe(RL), self.toe(RR)];
 
         // --- contacts: ray from the top of travel to the contact plane ------
         // --- suspension travel and rate ---------------------------------------
@@ -478,7 +487,7 @@ impl FourWheelVehicle {
             let c = self.contacts[i];
             let origin = self.pos + orient.rotate(g.ray_origin);
             let w = &mut self.wheels[i];
-            w.steer = steer;
+            w.steer = steer + toes[i];
             let dn = down.dot(c.normal);
             let hit_t = if c.hit && dn < -1e-6 {
                 let tt = (c.point - origin).dot(c.normal) / dn;
@@ -492,7 +501,8 @@ impl FourWheelVehicle {
             };
             // Jacking (ADR-0012): with steer, the inner wheel's contact moves
             // down the ray and the outer's up, as caster and kingpin
-            // inclination do; the spring sees it as compression.
+            // inclination do; the spring sees it as compression. It follows
+            // the steering angle only: static toe is set at ride height.
             let jack = g.side * steer * self.def.steering.jacking_rate;
             match hit_t {
                 Some(tt) if tt <= g.ray_length => {

@@ -186,6 +186,15 @@ helps. Parameters are per tire unless noted.
   A solid axle tilts both wheels together over a one-wheel bump, which is
   the trade.
 
+## Turn-in is too sharp, or the car is nervous on the straight
+
+- Add a little toe-in, `staticToeDeg` of 0.1 to 0.3 degrees per wheel. The
+  car answers the wheel a little later and settles with less overshoot. On
+  the rear axle toe-in also steadies the car under braking and on lift-off.
+- Toe-out on the front does the opposite and sharpens turn-in. Either way
+  the scrub costs a little straight-line speed
+  ([toe](/concepts/suspension#toe)).
+
 ## The car jitters or creeps when parked
 
 - It should not. Raise `lowSpeedDamping` (the damping ratio of the

@@ -11,14 +11,14 @@
  * `GAPS` and reported with the results.
  */
 import { readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 import type { PartialVehicleDefinition } from "@skidpad/core";
 import * as c from "./chrono-e90.js";
 import { doubleWishboneRollCentre, macphersonRollCentre } from "./geometry.js";
+import { loadReference, ROOT } from "./reference.js";
 import { fitMagicFormula } from "./tire-fit.js";
 
-export const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
+export { ROOT } from "./reference.js";
 
 type Vec3 = [number, number, number];
 
@@ -39,7 +39,7 @@ export function loadStatic(): ChronoStatic {
 }
 
 /** Anti-roll bar wheel rates, N/m: FITTED by `fit.ts` (`pnpm compare --fit`). */
-export const FITTED_ANTI_ROLL = { front: 13000, rear: 6000 };
+export const FITTED_ANTI_ROLL = { front: 12750, rear: 6000 };
 
 /** Tire relaxation length, m. TMsimple has none; this is under one substep at 20 m/s. */
 const RELAXATION_LENGTH = 0.02;
@@ -69,6 +69,12 @@ export interface Derived {
   stops: { front: { bump: number; droop: number }; rear: { bump: number; droop: number } };
   wheelInertia: { front: number; rear: number };
   engineBraking: { idle: number; redline: number };
+  /** Toe-in per wheel at rest, degrees. */
+  restToeDeg: { front: number; rear: number };
+  /**
+   * Toe-in per wheel while driving straight before the steering starts,
+   * degrees: what the comparison car is given (see `drivingToe`).
+   */
   staticToeDeg: { front: number; rear: number };
 }
 
@@ -100,6 +106,28 @@ function engineBrakingLine(): { idle: number; redline: number } {
   // Skidpad's drag cannot be negative at idle: the best line through zero there.
   const through = xs.reduce((a, x, i) => a + x * ys[i]!, 0) / xs.reduce((a, x) => a + x * x, 0);
   return { idle: 0, redline: through };
+}
+
+/**
+ * Chrono's toe-in per wheel while driving straight, degrees: the mean
+ * half-difference of the left and right road-wheel angles over the first
+ * 2 s of the step steer, at 80 km/h before the steering moves. Chrono's
+ * linkage runs more toe-in at speed than at rest (1.43° against 1.27° at
+ * the front) and less as the body rolls (about 0.9° at 0.8 g). Skidpad's
+ * toe is fixed, so it takes the straight-running value the transient
+ * manoeuvres start from; every manoeuvre's straight section agrees with it
+ * within 0.03°.
+ */
+function drivingToe(): { front: number; rear: number } {
+  const rows = loadReference("stepSteer").filter((r) => r.t < 2);
+  const mean = (f: (r: (typeof rows)[number]) => number) =>
+    rows.reduce((a, r) => a + f(r), 0) / rows.length;
+  const half = (left?: number, right?: number) =>
+    (((right ?? NaN) - (left ?? NaN)) / 2) * (180 / Math.PI);
+  return {
+    front: mean((r) => half(r.delta0, r.delta1)),
+    rear: mean((r) => half(r.delta2, r.delta3)),
+  };
 }
 
 export function derive(s: ChronoStatic = loadStatic()): Derived {
@@ -158,10 +186,11 @@ export function derive(s: ChronoStatic = loadStatic()): Derived {
         c.AXLE_SHAFT_INERTIA,
     },
     engineBraking: engineBrakingLine(),
-    staticToeDeg: {
+    restToeDeg: {
       front: (((s.toe[1] - s.toe[0]) / 2) * 180) / Math.PI,
       rear: (((s.toe[3] - s.toe[2]) / 2) * 180) / Math.PI,
     },
+    staticToeDeg: drivingToe(),
   };
 }
 
@@ -220,6 +249,7 @@ export function bmwE90(
         steered: true,
         maxBrakeTorque: 2 * c.BRAKE_TORQUE_PER_WHEEL,
         staticCamberDeg: 0,
+        staticToeDeg: d.staticToeDeg.front,
         suspension: suspension(
           d.springRate.front,
           c.SUSPENSION.front.damping,
@@ -236,6 +266,7 @@ export function bmwE90(
         steered: false,
         maxBrakeTorque: 2 * c.BRAKE_TORQUE_PER_WHEEL,
         staticCamberDeg: 0,
+        staticToeDeg: d.staticToeDeg.rear,
         suspension: suspension(
           d.springRate.rear,
           c.SUSPENSION.rear.damping,
@@ -307,8 +338,7 @@ function loadStaticCached(): ChronoStatic {
 
 /** Structural differences between the two models, reported with the results. */
 export const GAPS = [
-  "Static toe: Chrono's linkage gives toe-in at rest (front and rear, see the derived values); Skidpad has no toe, so the harness steers with Chrono's mean front road-wheel angle.",
-  "Roll and bump steer: Chrono's road-wheel angles change with suspension travel. Feeding the measured mean angle carries the front axle's net effect across; the rear's is not represented.",
+  "Toe that changes with travel: Chrono's toe-in is 1.27° front and 0.53° rear at rest, 1.43° and 0.67° driving straight, and falls to about 0.9° and 0.52° at 0.8 g as the body rolls. Skidpad's toe is fixed at the straight-running value, so it overstates the toe benefit in hard cornering. The harness steers with Chrono's mean front road-wheel angle, which carries the front's net roll steer across.",
   "Unsprung mass: Chrono's wheels, uprights and arms are separate bodies; Skidpad carries the whole mass on the chassis proxy.",
   "Roll centres: fixed at their static heights in Skidpad; Chrono's migrate with travel and roll.",
   "Anti-dive and anti-squat: Chrono's linkages react part of the brake and drive forces; Skidpad sends all longitudinal load transfer through the springs.",
@@ -316,5 +346,5 @@ export const GAPS = [
   "Damper: Chrono's front damper is degressive; Skidpad's is linear at the low-speed rate.",
   "Tire: TMsimple carried into a Magic Formula fit (`tire-fit.ts`); combined slip follows Skidpad's MF weighting, not TMsimple's; no relaxation in either.",
   "Tire radius: Chrono rolls on (2·R0 + r)/3 and pushes at the loaded radius r; Skidpad uses one radius for both.",
-  "Drivetrain: Chrono's simple-map gearbox has no clutch and shifts instantly; its closed-throttle drag map is fitted with a line.",
+  "Drivetrain: Chrono's simple-map gearbox has no clutch and shifts instantly. Skidpad's closed-throttle drag is a straight line from idle to redline, and Chrono's map is convex: the least-squares line is 8 N·m too strong at 4000 rpm.",
 ];

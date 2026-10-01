@@ -154,6 +154,11 @@ export interface AxleDefinition {
   maxBrakeTorque: number;
   /** Static camber, degrees; negative leans the top of each wheel inward. */
   staticCamberDeg: number;
+  /**
+   * Static toe per wheel, degrees; positive is toe-in (each wheel points
+   * toward the centreline). Four-wheel model only.
+   */
+  staticToeDeg: number;
   /** Independent suspension at each wheel of this axle (four-wheel model). */
   suspension: SuspensionDefinition;
 }

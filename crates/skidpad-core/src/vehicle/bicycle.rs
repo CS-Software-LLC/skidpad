@@ -295,6 +295,9 @@ impl BicycleVehicle {
             // four-wheel model in milestone 2.
             let _ = axle_def.static_camber_deg;
             let camber = 0.0;
+            // Static toe is mirrored too: the two wheels' lateral forces
+            // cancel, and the single tire runs at the steering angle alone.
+            let _ = axle_def.static_toe_deg;
 
             // Contact velocity in the wheel frame.
             let (bx, by, steered) = if i == FRONT {

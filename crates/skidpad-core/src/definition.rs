@@ -104,6 +104,13 @@ pub struct AxleDef {
     /// the centreline (the usual road-car setting); the single-track model
     /// ignores it because the mirrored thrust cancels.
     pub static_camber_deg: f64,
+    /// Static toe per wheel, degrees. Positive is toe-in: each wheel of the
+    /// axle points toward the centreline ahead of it. It adds to the
+    /// steering angle on both models' wheel axes, so a toed-in axle runs
+    /// each tire at a small slip angle when driving straight, with the
+    /// lateral forces cancelling and a little drag left over. The
+    /// single-track model ignores it because the mirrored forces cancel.
+    pub static_toe_deg: f64,
     /// Independent suspension at each wheel of this axle. Four-wheel model
     /// only.
     pub suspension: SuspensionDef,
@@ -225,6 +232,11 @@ impl SuspensionDef {
     }
 }
 
+/// Largest static toe per wheel a definition may set, degrees. Road cars
+/// run a few tenths of a degree; a few degrees is already an extreme
+/// setting, and beyond ten the tire is scrubbing rather than rolling.
+pub const MAX_STATIC_TOE_DEG: f64 = 10.0;
+
 impl Default for AxleDef {
     fn default() -> Self {
         AxleDef::front_default()
@@ -240,6 +252,7 @@ impl AxleDef {
             steered: true,
             max_brake_torque: 3600.0,
             static_camber_deg: 0.0,
+            static_toe_deg: 0.0,
             suspension: SuspensionDef::front_default(),
         }
     }
@@ -252,6 +265,7 @@ impl AxleDef {
             steered: false,
             max_brake_torque: 2000.0,
             static_camber_deg: 0.0,
+            static_toe_deg: 0.0,
             suspension: SuspensionDef::rear_default(),
         }
     }
@@ -490,6 +504,12 @@ impl VehicleDefinition {
                 e.push(format!(
                     "axles[{i}] ({name}).staticCamberDeg must be within ±45 (got {})",
                     a.static_camber_deg
+                ));
+            }
+            if !a.static_toe_deg.is_finite() || m::abs(a.static_toe_deg) > MAX_STATIC_TOE_DEG {
+                e.push(format!(
+                    "axles[{i}] ({name}).staticToeDeg must be within ±{MAX_STATIC_TOE_DEG} (got {})",
+                    a.static_toe_deg
                 ));
             }
             a.suspension

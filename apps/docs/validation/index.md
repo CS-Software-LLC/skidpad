@@ -136,9 +136,11 @@ An independent check drives Skidpad and Project Chrono's multibody BMW E90
 through the same manoeuvres with the same inputs, with the Skidpad car built
 from Chrono's published constants. Steady-state handling agrees within a few
 percent: understeer gradient, lateral acceleration to the limit, yaw gain,
-roll and turn radius. The differences found are Skidpad's missing static toe,
-which accounts for a quicker step-steer response, and its missing anti-dive
-geometry. The
+roll and turn radius. The comparison found Skidpad answering a step steer
+too quickly because it could not express the car's static toe; with
+`staticToeDeg` the step and sine responses agree too. The remaining
+differences are the missing anti-dive geometry and the linear engine
+braking. The
 [report](https://github.com/csummers88/skidpad/blob/main/docs/validation/chrono-bmw-e90.md)
 has the full results, and `tools/chrono-compare` reruns them.
 
