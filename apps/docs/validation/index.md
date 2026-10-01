@@ -25,12 +25,20 @@ brake with no ABS, so cars whose brakes exceed tire grip lock their wheels and
 stop on sliding friction. Published road-test distances assume ABS and are
 shorter; the gap closes in milestone 5.
 
+**Parks on slopes** runs the standstill scenarios: at rest on flat ground
+with no inputs, parked facing uphill on 10 %, 20 % and 30 % grades on the
+service brake, on 10 % and 20 % grades on the handbrake alone (skipped for
+vehicles without one), and across a 20 % slope with both held. After a 5 s
+settle the car must sit below 0.1 mm/s, drift less than 1 mm over the next
+10 s and show no sustained oscillation (velocity RMS below 0.1 mm/s over the
+last 5 s). The table shows the worst creep speed over the cases.
+
 **Scripted drive hash** is the state hash after a fixed 30 s drive. It changes
 whenever anything physics-visible changes, and it must match across Chromium,
 Firefox, WebKit, and Node.
 
 ## Coming with later milestones
 
-Step steer (ISO 7401), double lane change (ISO 3888), parked-on-slope tests,
-rest-jitter measurement, and the full timestep sweep (internal 250 to 2000 Hz,
-host 30 to 240 Hz).
+Step steer (ISO 7401), double lane change (ISO 3888), rest-jitter
+measurement, and the full timestep sweep (internal 250 to 2000 Hz, host 30
+to 240 Hz).

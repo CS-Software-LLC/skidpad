@@ -35,16 +35,37 @@ export interface FeelTireParams {
   camberStiffness?: number;
   /** Pneumatic trail at zero slip, m. */
   pneumaticTrail?: number;
+  /**
+   * Equivalent slip angle at which the trail crosses zero, as a multiple of
+   * `peakSlipAngleDeg` (ADR-0008). Default 1.
+   */
+  trailZeroCrossing?: number;
+  /**
+   * Depth of the negative trail lobe past the zero crossing, as a fraction
+   * of `pneumaticTrail` (ADR-0008). Default 0.1.
+   */
+  trailReversal?: number;
+  /**
+   * Lateral offset of the longitudinal force per unit of `Fy / nominalLoad`,
+   * m; adds `s · Fx` to the aligning moment (Magic Formula SSZ2). Default 0.
+   */
+  fxMomentArm?: number;
   /** Rolling resistance coefficient. */
   rollingResistance?: number;
   /** Longitudinal relaxation length, m. */
   relaxationLengthLong?: number;
   /** Lateral relaxation length, m. */
   relaxationLengthLat?: number;
-  /** Speed floor for slip computation, m/s (ADR-0005). */
+  /**
+   * Speed floor of the kinematic slip, m/s (ADR-0005): telemetry slips and
+   * the standstill deflection bound. The deflection transient decays at the
+   * true rolling speed (ADR-0010).
+   */
   lowSpeedFloor?: number;
-  /** Damping ratio of the wheel-tire mode below the speed floor (ADR-0005). */
+  /** Damping ratio of the contact-patch spring on the corner mass at standstill (ADR-0010). */
   lowSpeedDamping?: number;
+  /** Rolling speed at which the low-speed damping has faded to zero, m/s (ADR-0010). */
+  lowSpeedDampingFade?: number;
 }
 
 /**
@@ -61,6 +82,7 @@ export interface MagicFormulaParams {
   relaxationLengthLat?: number;
   lowSpeedFloor?: number;
   lowSpeedDamping?: number;
+  lowSpeedDampingFade?: number;
   [coefficient: string]: number | string | undefined;
 }
 

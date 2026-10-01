@@ -1,5 +1,65 @@
-import { smoothWave, type Skidpad, type VehicleDefinition } from "@skidpad/core";
+import {
+  smoothWave,
+  type ParkedConfig,
+  type ParkedResult,
+  type Skidpad,
+  type VehicleDefinition,
+} from "@skidpad/core";
 import { presetIds, preset, type PresetId } from "@skidpad/presets";
+
+/** One standstill case of the parked scenario (ADR-0005, ADR-0010). */
+export interface ParkedCase {
+  /** Mean creep speed over the 10 s hold, m/s. */
+  creepSpeed: number;
+  /** Velocity RMS over the last 5 s of the hold, m/s. */
+  velocityRms: number;
+  /** Settled, no drift, no oscillation. */
+  holds: boolean;
+}
+
+/**
+ * The standstill cases every preset runs. `null` marks a case the vehicle
+ * cannot hold physically (no handbrake), which is skipped rather than
+ * failed.
+ */
+export interface ParkedResults {
+  flatRest: ParkedCase;
+  grade10Brake: ParkedCase;
+  grade20Brake: ParkedCase;
+  grade30Brake: ParkedCase;
+  grade10Handbrake: ParkedCase | null;
+  grade20Handbrake: ParkedCase | null;
+  cross20Brakes: ParkedCase;
+}
+
+export const PARKED_CASES: Record<keyof ParkedResults, ParkedConfig> = {
+  flatRest: {},
+  grade10Brake: { grade: 0.1, brake: 1 },
+  grade20Brake: { grade: 0.2, brake: 1 },
+  grade30Brake: { grade: 0.3, brake: 1 },
+  grade10Handbrake: { grade: 0.1, handbrake: 1 },
+  grade20Handbrake: { grade: 0.2, handbrake: 1 },
+  cross20Brakes: { crossSlope: 0.2, brake: 1, handbrake: 1 },
+};
+
+function parkedCase(r: ParkedResult): ParkedCase {
+  return { creepSpeed: r.creepSpeed, velocityRms: r.velocityRms, holds: r.holds };
+}
+
+export function runParked(sp: Skidpad, def: VehicleDefinition): ParkedResults {
+  const run = (config: ParkedConfig): ParkedCase =>
+    parkedCase(sp.runScenario({ scenario: "parkedOnSlope", definition: def, config }));
+  const handbrake = (def.brakes?.handbrakeTorque ?? 0) > 0;
+  return {
+    flatRest: run(PARKED_CASES.flatRest),
+    grade10Brake: run(PARKED_CASES.grade10Brake),
+    grade20Brake: run(PARKED_CASES.grade20Brake),
+    grade30Brake: run(PARKED_CASES.grade30Brake),
+    grade10Handbrake: handbrake ? run(PARKED_CASES.grade10Handbrake) : null,
+    grade20Handbrake: handbrake ? run(PARKED_CASES.grade20Handbrake) : null,
+    cross20Brakes: run(PARKED_CASES.cross20Brakes),
+  };
+}
 
 export interface VehicleResults {
   /** Which model produced `understeer` and `straightLine`. */
@@ -26,6 +86,8 @@ export interface VehicleResults {
     meanDeceleration: number;
     wheelLocked: boolean;
   };
+  /** Standstill: at rest on flat ground and parked on slopes. */
+  parked: ParkedResults;
   /** State hash after a fixed scripted drive. Any physics change moves it. */
   scriptedDriveHash: string;
 }
@@ -79,6 +141,7 @@ export function runAll(sp: Skidpad, ids: PresetId[] = presetIds): ValidationRepo
         meanDeceleration: sl.meanDeceleration,
         wheelLocked: sl.wheelLocked,
       },
+      parked: runParked(sp, def),
       scriptedDriveHash: scriptedDriveHash(sp, def),
     };
   }

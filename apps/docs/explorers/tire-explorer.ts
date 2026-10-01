@@ -96,9 +96,12 @@ export class TireExplorer {
       otherSlip: 0,
       camber: 0,
     });
+    // The aligning moment goes negative past the limit (ADR-0008), so the
+    // vertical range reaches a little below zero.
     const yMax = s.fz * 1.6;
+    const yMin = -s.fz * 0.25;
     const x = (i: number) => pad + ((w - 2 * pad) * i) / (n - 1);
-    const y = (v: number) => h - pad - ((h - 2 * pad) * v) / yMax;
+    const y = (v: number) => h - pad - ((h - 2 * pad) * (v - yMin)) / (yMax - yMin);
 
     // Axes and friction limit.
     ctx.strokeStyle = "#8884";
@@ -108,6 +111,11 @@ export class TireExplorer {
     ctx.lineTo(w - pad, y(0));
     ctx.moveTo(pad, pad);
     ctx.lineTo(pad, h - pad);
+    ctx.stroke();
+    ctx.setLineDash([2 * dpr, 4 * dpr]);
+    ctx.beginPath();
+    ctx.moveTo(pad, y(yMin));
+    ctx.lineTo(w - pad, y(yMin));
     ctx.stroke();
     ctx.setLineDash([4 * dpr, 4 * dpr]);
     ctx.beginPath();

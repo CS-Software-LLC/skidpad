@@ -12,7 +12,9 @@
 use skidpad_core::input::VehicleInput;
 use skidpad_core::telemetry;
 use skidpad_core::tire::{tir, TireInput, TireModel};
-use skidpad_core::validation::{straight_line, understeer, StraightLineConfig, UndersteerConfig};
+use skidpad_core::validation::{
+    parked, straight_line, understeer, ParkedConfig, StraightLineConfig, UndersteerConfig,
+};
 use skidpad_core::vehicle::{HostMode, WHEEL_COUNT};
 use skidpad_core::world::{
     HOST_CONTACT_STRIDE, HOST_IN_BODY_LEN, HOST_IN_STRIDE, HOST_OUT_BODY_LEN, HOST_OUT_STRIDE,
@@ -458,6 +460,29 @@ pub extern "C" fn sp_world_hash(handle: u32) -> u64 {
     with_world(handle, |w| w.world_hash()).unwrap_or(0)
 }
 
+/// Ground slope of the built-in flat world under a vehicle: rise per metre
+/// along world +x (grade) and +y (cross slope). Ignored by an external host.
+#[no_mangle]
+pub extern "C" fn sp_world_set_ground_slope(
+    handle: u32,
+    vehicle: u32,
+    grade: f64,
+    cross: f64,
+) -> i32 {
+    unwrap_code(
+        with_world(handle, |w| {
+            w.set_ground_slope(vehicle as usize, grade, cross)
+        }),
+        |r| match r {
+            Ok(()) => OK,
+            Err(e) => {
+                set_error(e.to_string());
+                ERR_NO_SUCH_VEHICLE
+            }
+        },
+    )
+}
+
 #[no_mangle]
 pub extern "C" fn sp_world_reset_vehicle(
     handle: u32,
@@ -749,6 +774,11 @@ enum ScenarioRequest {
         #[serde(default)]
         config: StraightLineConfig,
     },
+    ParkedOnSlope {
+        definition: VehicleDefinition,
+        #[serde(default)]
+        config: ParkedConfig,
+    },
 }
 
 /// Run a validation scenario described by JSON. The result JSON is available
@@ -775,6 +805,9 @@ pub unsafe extern "C" fn sp_run_scenario(ptr: *const u8, len: usize) -> i32 {
         }
         ScenarioRequest::StraightLine { definition, config } => {
             straight_line::run(&definition, &config).map(|r| serde_json::to_string(&r))
+        }
+        ScenarioRequest::ParkedOnSlope { definition, config } => {
+            parked::run(&definition, &config).map(|r| serde_json::to_string(&r))
         }
     };
     match result {

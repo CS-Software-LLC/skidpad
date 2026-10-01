@@ -2,9 +2,11 @@
 //! pure function of a definition and a configuration, so the Rust tests, the
 //! Node CLI (through WASM), and the docs all run the same code.
 
+pub mod parked;
 pub mod straight_line;
 pub mod understeer;
 
+pub use parked::{ParkedConfig, ParkedResult};
 pub use straight_line::{StraightLineConfig, StraightLineResult};
 pub use understeer::{UndersteerConfig, UndersteerPoint, UndersteerResult};
 

@@ -195,11 +195,14 @@ mf_params! {
         relaxation_length_long: "SKIDPAD_RELAXATION_LENGTH_LONG" = 0.25,
         /// Lateral relaxation length, m.
         relaxation_length_lat: "SKIDPAD_RELAXATION_LENGTH_LAT" = 0.35,
-        /// Speed floor for slip computation, m/s (ADR-0005).
+        /// Speed floor for the kinematic slip, m/s (ADR-0005, ADR-0010).
         low_speed_floor: "SKIDPAD_LOW_SPEED_FLOOR" = 0.5,
-        /// Damping ratio of the wheel-tire mode below the speed floor
-        /// (ADR-0005, Pacejka §8.6 low-speed damping).
-        low_speed_damping: "SKIDPAD_LOW_SPEED_DAMPING" = 0.3,
+        /// Damping ratio of the contact-patch spring on the corner mass at
+        /// standstill (ADR-0010, Pacejka §8.6 low-speed damping).
+        low_speed_damping: "SKIDPAD_LOW_SPEED_DAMPING" = 0.7,
+        /// Rolling speed at which the low-speed damping has faded to zero,
+        /// m/s (ADR-0010).
+        low_speed_damping_fade: "SKIDPAD_LOW_SPEED_DAMPING_FADE" = 2.0,
     }
 }
 
@@ -393,6 +396,9 @@ impl MagicFormulaParams {
             trail,
             fx_max: m::abs(dx),
             fy_max: m::abs(dy),
+            // Large-slip asymptotes of the pure curves, `D·sin(C·π/2)`.
+            fx_slide: m::abs(dx * m::sin(cx * m::FRAC_PI_2)),
+            fy_slide: m::abs(dy * m::sin(cy * m::FRAC_PI_2)),
         }
     }
 
@@ -409,6 +415,7 @@ impl MagicFormulaParams {
             ("relaxationLengthLong", self.relaxation_length_long),
             ("relaxationLengthLat", self.relaxation_length_lat),
             ("lowSpeedFloor", self.low_speed_floor),
+            ("lowSpeedDampingFade", self.low_speed_damping_fade),
         ] {
             if !(v > 0.0) || !v.is_finite() {
                 errors.push(format!(

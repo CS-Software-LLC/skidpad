@@ -9,11 +9,16 @@ Two things follow:
 
 1. Steering feels progressive rather than instant, and the lag grows at low
    speed.
-2. At very low speed the time constant would go to infinity and the slip
-   definition would divide by zero. The core floors the speed used in both
-   ([ADR-0005](https://github.com/csummers88/skidpad/blob/main/docs/adr/0005-tire-low-speed-handling.md)),
-   so a parked car behaves like a spring between the contact patch and the
-   road instead of a limit cycle. That is what makes standstill stable.
+2. At very low speed the time constant goes to infinity, which is right: the
+   core integrates the **contact-patch deflection** itself, driven by the
+   slip velocity and decaying at the rolling speed
+   ([ADR-0010](https://github.com/csummers88/skidpad/blob/main/docs/adr/0010-contact-patch-deflection-at-standstill.md)).
+   At speed that is the lag above; at standstill it is a spring between the
+   contact patch and the road, so a parked car holds a static deflection on
+   a slope instead of creeping. A damping term that fades out by
+   `lowSpeedDampingFade` keeps that spring from ringing, and the deflection
+   is capped at the force peak so a car pushed past its grip slides.
 
-The transient slips are part of the snapshot and appear in telemetry as
-`SlipRatio_*` and `SlipAngle_*`.
+The transient slips (the deflections divided by the relaxation lengths) are
+part of the snapshot and appear in telemetry as `SlipRatio_*` and
+`SlipAngle_*`.

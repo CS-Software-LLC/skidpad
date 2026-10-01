@@ -86,9 +86,30 @@ fn curves_are_odd_symmetric_at_zero_camber() {
         for i in 1..40 {
             let a = i as f64 * 0.01;
             let k = i as f64 * 0.01;
-            let p = eval(&model, fz, k, a);
-            let n = eval(&model, fz, -k, -a);
+            // Pure slip is odd on each axis for every model.
+            let p = eval(&model, fz, k, 0.0);
+            let n = eval(&model, fz, -k, 0.0);
             assert!((p.fx + n.fx).abs() < 1e-6 * fz, "{name}: fx not odd at {k}");
+            let p = eval(&model, fz, 0.0, a);
+            let n = eval(&model, fz, 0.0, -a);
+            assert!((p.fy + n.fy).abs() < 1e-6 * fz, "{name}: fy not odd at {a}");
+            assert!((p.mz + n.mz).abs() < 1e-6 * fz, "{name}: mz not odd at {a}");
+            // Combined slip: a tire is mirror-symmetric left to right, so
+            // flipping the slip angle at a fixed slip ratio flips fy and mz
+            // and leaves fx alone. (Flipping the slip ratio as well is not a
+            // symmetry: braking and driving differ, ADR-0008 amendment A.)
+            // The Magic Formula's `SVyκ` offset is a κ-only term that breaks
+            // the left-right mirror slightly; the published model is kept as
+            // is and checked under the full point reflection instead.
+            let p = eval(&model, fz, k, a);
+            let (n, sign) = match model {
+                TireModel::Feel(_) => (eval(&model, fz, k, -a), 1.0),
+                TireModel::MagicFormula(_) => (eval(&model, fz, -k, -a), -1.0),
+            };
+            assert!(
+                (p.fx - sign * n.fx).abs() < 1e-6 * fz,
+                "{name}: fx symmetry broken at ({k}, {a})"
+            );
             assert!((p.fy + n.fy).abs() < 1e-6 * fz, "{name}: fy not odd at {a}");
             assert!((p.mz + n.mz).abs() < 1e-6 * fz, "{name}: mz not odd at {a}");
         }

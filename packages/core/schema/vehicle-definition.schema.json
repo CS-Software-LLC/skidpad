@@ -277,12 +277,16 @@
         "peakSlipRatio": {
           "type": "number",
           "exclusiveMinimum": 0,
-          "default": 0.12
+          "exclusiveMaximum": 1,
+          "default": 0.12,
+          "description": "Slip ratio at which longitudinal force peaks, in drive and in brake"
         },
         "peakSlipAngleDeg": {
           "type": "number",
           "exclusiveMinimum": 0,
-          "default": 7
+          "maximum": 45,
+          "default": 7,
+          "description": "deg"
         },
         "longitudinalStiffness": {
           "type": "number",
@@ -324,7 +328,28 @@
           "type": "number",
           "minimum": 0,
           "default": 0.03,
-          "description": "m"
+          "description": "m, trail at zero slip"
+        },
+        "trailZeroCrossing": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 5,
+          "default": 1,
+          "description": "Equivalent slip angle at which the trail crosses zero, as a multiple of peakSlipAngleDeg (ADR-0008)"
+        },
+        "trailReversal": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 0.5,
+          "default": 0.1,
+          "description": "Depth of the negative trail lobe past the zero crossing, as a fraction of pneumaticTrail (ADR-0008)"
+        },
+        "fxMomentArm": {
+          "type": "number",
+          "minimum": -1,
+          "maximum": 1,
+          "default": 0,
+          "description": "m per unit of Fy / nominalLoad: lateral offset of the longitudinal force that adds s·Fx to the aligning moment (Magic Formula SSZ2). Zero disables it."
         },
         "rollingResistance": {
           "type": "number",
@@ -347,13 +372,19 @@
           "type": "number",
           "exclusiveMinimum": 0,
           "default": 0.5,
-          "description": "m/s"
+          "description": "m/s. Speed floor of the kinematic slip (telemetry and the standstill deflection bound, ADR-0005); the deflection transient decays at the true rolling speed (ADR-0010)"
         },
         "lowSpeedDamping": {
           "type": "number",
           "minimum": 0,
-          "default": 0.3,
-          "description": "Damping ratio of the wheel-tire mode below the speed floor (ADR-0005)"
+          "default": 0.7,
+          "description": "Damping ratio of the contact-patch spring on the corner mass at standstill (ADR-0010)"
+        },
+        "lowSpeedDampingFade": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "default": 2,
+          "description": "m/s. Rolling speed at which the low-speed damping has faded to zero (ADR-0010)"
         }
       },
       "required": ["model"],
@@ -399,7 +430,12 @@
         "lowSpeedDamping": {
           "type": "number",
           "minimum": 0,
-          "default": 0.3
+          "default": 0.7
+        },
+        "lowSpeedDampingFade": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "default": 2
         }
       },
       "required": ["model"],

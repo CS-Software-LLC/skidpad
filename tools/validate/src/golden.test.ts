@@ -18,6 +18,20 @@ describe("validation scenarios", () => {
     ).toEqual([]);
   });
 
+  it("every preset stays put at rest and parked on slopes", async () => {
+    const sp = await init();
+    const report = runAll(sp);
+    for (const [id, v] of Object.entries(report.vehicles)) {
+      for (const [name, c] of Object.entries(v.parked)) {
+        if (c === null) continue;
+        expect(
+          c.holds,
+          `${id} ${name}: creep ${c.creepSpeed.toExponential(2)} m/s, rms ${c.velocityRms.toExponential(2)} m/s`,
+        ).toBe(true);
+      }
+    }
+  });
+
   it("every preset understeers mildly and agrees with linear theory", async () => {
     const sp = await init();
     const report = runAll(sp);

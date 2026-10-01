@@ -1,6 +1,6 @@
 # ADR-0005: Low-speed and standstill tire handling
 
-- Status: Accepted
+- Status: Accepted, amended by [ADR-0010](0010-contact-patch-deflection-at-standstill.md)
 - Date: 2026-10-01
 
 ## Context
@@ -56,6 +56,16 @@ Two mechanisms, both from published work:
 The parked-on-slope validation scenarios (10%, 20%, 30%) and the rest-jitter
 measurement in milestone 3 guard this ADR; the four-wheel rest and nudge tests
 of milestone 2 guard the amendment.
+
+**Amended by ADR-0010.** The parked-on-slope scenarios showed that items 1
+and 2 do not give a static deflection: with the floored relaxation rate the
+steady state at rest is the kinematic slip, a viscous law, and the car creeps
+at `m g sin θ · V_low / C`. ADR-0010 replaces the floored relaxation with the
+contact-patch deflection driven by slip velocity and decaying at the true
+rolling speed, re-derives item 3 for it, and redefines the damping of item 4
+as a damping ratio on the corner mass with its own fade speed. The speed
+floor keeps its role for the kinematic slip (telemetry and the deflection
+bound) only.
 
 ## Alternatives considered
 

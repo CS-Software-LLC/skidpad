@@ -218,6 +218,24 @@ impl World {
         Ok(())
     }
 
+    /// Ground slope of the built-in flat world under vehicle `i`: rise per
+    /// metre along world +x (grade, 0.1 for 10 %) and world +y (cross
+    /// slope). Gravity then has a component along the ground. An external
+    /// host has its own geometry and gravity and ignores this.
+    pub fn set_ground_slope(&mut self, i: usize, grade: f64, cross: f64) -> Result<(), WorldError> {
+        if !grade.is_finite() || !cross.is_finite() {
+            return Err(WorldError::Invalid(vec![String::from(
+                "ground slope must be finite",
+            )]));
+        }
+        let v = self
+            .vehicles
+            .get_mut(i)
+            .ok_or(WorldError::NoSuchVehicle(i))?;
+        v.model.set_ground_slope(grade, cross);
+        Ok(())
+    }
+
     pub fn host_mode(&self, i: usize) -> Result<HostMode, WorldError> {
         let v = self.vehicles.get(i).ok_or(WorldError::NoSuchVehicle(i))?;
         let four = v.model.as_four_wheel().ok_or(WorldError::WrongModel(i))?;

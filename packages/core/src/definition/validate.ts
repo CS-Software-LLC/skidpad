@@ -50,6 +50,7 @@ function validateTire(errors: string[], warnings: string[], path: string, tire: 
       "relaxationLengthLong",
       "relaxationLengthLat",
       "lowSpeedFloor",
+      "lowSpeedDampingFade",
     ]) {
       positive(errors, `${path}.${k}`, t[k]);
     }
@@ -60,12 +61,36 @@ function validateTire(errors: string[], warnings: string[], path: string, tire: 
         errors.push(`${path}.${k} must be in (0, 1] (got ${String(v)})`);
       }
     }
+    if (isNum(t.peakSlipRatio) && t.peakSlipRatio >= 1) {
+      errors.push(
+        `${path}.peakSlipRatio must be below 1 (got ${t.peakSlipRatio}); the braking peak of the theoretical slip is κp / (1 − κp)`,
+      );
+    }
+    if (isNum(t.peakSlipAngleDeg) && t.peakSlipAngleDeg > 45) {
+      errors.push(`${path}.peakSlipAngleDeg must be at most 45 (got ${t.peakSlipAngleDeg})`);
+    }
     const ls = t.loadSensitivity;
     if (ls !== undefined && (!isNum(ls) || ls < 0 || ls >= 1)) {
       errors.push(`${path}.loadSensitivity must be in [0, 1) (got ${String(ls)})`);
     }
     for (const k of ["camberStiffness", "pneumaticTrail", "rollingResistance"]) {
       nonNegative(errors, `${path}.${k}`, t[k]);
+    }
+    const tzc = t.trailZeroCrossing;
+    if (tzc !== undefined && (!isNum(tzc) || tzc <= 0 || tzc > 5)) {
+      errors.push(
+        `${path}.trailZeroCrossing must be in (0, 5] multiples of the peak slip angle (got ${String(tzc)})`,
+      );
+    }
+    const tr = t.trailReversal;
+    if (tr !== undefined && (!isNum(tr) || tr < 0 || tr > 0.5)) {
+      errors.push(
+        `${path}.trailReversal must be in [0, 0.5] of the trail at zero slip (got ${String(tr)})`,
+      );
+    }
+    const arm = t.fxMomentArm;
+    if (arm !== undefined && (!isNum(arm) || Math.abs(arm) > 1)) {
+      errors.push(`${path}.fxMomentArm must be within ±1 m (got ${String(arm)})`);
     }
     if (isNum(t.peakFriction) && t.peakFriction > 2.5) {
       warnings.push(
@@ -79,6 +104,7 @@ function validateTire(errors: string[], warnings: string[], path: string, tire: 
       "relaxationLengthLong",
       "relaxationLengthLat",
       "lowSpeedFloor",
+      "lowSpeedDampingFade",
     ]) {
       positive(errors, `${path}.${k}`, t[k]);
     }

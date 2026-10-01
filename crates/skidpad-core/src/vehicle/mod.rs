@@ -93,6 +93,26 @@ impl VehicleModel {
         }
     }
 
+    /// Ground slope of the built-in flat world: rise per metre along world
+    /// +x (grade) and +y (cross slope). Ignored by an external host.
+    pub fn set_ground_slope(&mut self, grade: f64, cross: f64) {
+        match self {
+            VehicleModel::SingleTrack(v) => v.set_ground_slope(grade, cross),
+            VehicleModel::FourWheel(v) => v.set_ground_slope(grade, cross),
+        }
+    }
+
+    /// Planar velocity in the world frame, m/s.
+    pub fn planar_velocity(&self) -> (f64, f64) {
+        match self {
+            VehicleModel::SingleTrack(v) => {
+                let (sy, cy) = (skidpad_math::sin(v.yaw), skidpad_math::cos(v.yaw));
+                (v.vx * cy - v.vy * sy, v.vx * sy + v.vy * cy)
+            }
+            VehicleModel::FourWheel(v) => (v.vel.x, v.vel.y),
+        }
+    }
+
     pub fn set_yaw_rate(&mut self, r: f64) {
         match self {
             VehicleModel::SingleTrack(v) => v.yaw_rate = r,
