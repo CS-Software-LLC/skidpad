@@ -103,20 +103,50 @@ docs/adr            architecture decision records
 
 ## Developing
 
-Requirements: Rust (pinned in `rust-toolchain.toml`), Node 20+, pnpm.
+Requirements: Node 20+ with pnpm (`corepack enable`), and Rust via
+[rustup](https://rustup.rs). The pinned toolchain and the
+`wasm32-unknown-unknown` target install themselves the first time cargo runs
+in the repository.
 
 ```sh
 pnpm install
-pnpm build:wasm            # compile the core to WASM and copy it into packages/core
-pnpm build                 # TypeScript packages and tools
+pnpm bootstrap                 # compile the core to WASM and build the packages
+pnpm dev:sandbox           # drive a car (http://localhost:5173)
+pnpm dev:docs              # docs with the tire explorer
+```
+
+`pnpm dev:*` runs a preflight that builds anything missing, so after a fresh
+clone the two commands above are enough. `pnpm preflight` reports what is missing
+without building.
+
+Everything else:
+
+```sh
+pnpm build                 # release WASM, TypeScript packages, tools
 pnpm test:rust             # cargo test --workspace
-pnpm test                  # vitest across packages and tools
+pnpm test                  # vitest across packages, tools and tests
 pnpm validate              # standard manoeuvres vs golden results
 pnpm bench                 # Node benchmark
 pnpm test:determinism      # Playwright: Chromium, Firefox, WebKit
-pnpm dev:sandbox           # drive a car
-pnpm dev:docs              # docs with the tire explorer
+pnpm dev:packages          # rebuild packages on change while an app is running
 ```
+
+The apps import the _built_ packages, so after editing anything under
+`packages/` run `pnpm build` or keep `pnpm dev:packages` running; after
+editing `crates/` run `pnpm build:wasm`.
+
+### Troubleshooting
+
+- **"Failed to resolve entry for package @contactpatch/core"** or a blank
+  sandbox: the packages are not built. Run `pnpm bootstrap`.
+- **"cargo: command not found"**: install Rust from https://rustup.rs and
+  open a new terminal so `cargo` is on the PATH.
+- **The docs explorer says "failed to load"**: the WASM or the compat
+  build is missing. Run `pnpm bootstrap`, then restart `pnpm dev:docs`.
+- **Changes to a package are not showing in the sandbox**: the apps read
+  `packages/*/dist`. Run `pnpm build` or `pnpm dev:packages`.
+- **A dependency build script was skipped** (pnpm prints a notice about
+  esbuild): harmless; the repo allows the ones it needs.
 
 Contributors who only know TypeScript can work on everything outside
 `crates/`. See [CONTRIBUTING.md](CONTRIBUTING.md).

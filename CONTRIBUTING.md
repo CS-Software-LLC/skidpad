@@ -28,12 +28,16 @@ is installed automatically) and Node 20+ with pnpm (`corepack enable`).
 
 ```sh
 pnpm install
-pnpm build:wasm        # compiles crates/cp-wasm and copies the .wasm into packages/core
-pnpm build             # TypeScript packages and tools
+pnpm bootstrap             # compiles crates/cp-wasm into packages/core and builds the packages
+pnpm dev:sandbox       # Vite playground (runs the same preflight first)
 pnpm test:rust         # cargo test --workspace
-pnpm test              # vitest across packages and tools
-pnpm dev:sandbox       # Vite playground
+pnpm test              # vitest across packages, tools and tests
+pnpm preflight            # reports anything missing without building
 ```
+
+The apps import the built packages under `packages/*/dist`; run `pnpm build`
+or keep `pnpm dev:packages` running after editing a package, and
+`pnpm build:wasm` after editing a crate.
 
 Contributors who only know TypeScript can work on every package, app, and tool.
 Only `crates/` requires Rust.

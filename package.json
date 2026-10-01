@@ -12,7 +12,10 @@
     "build:wasm": "node scripts/build-wasm.mjs",
     "build:wasm:release": "node scripts/build-wasm.mjs --release",
     "build": "pnpm build:wasm:release && pnpm -r --filter './packages/**' run build && pnpm -r --filter './tools/**' run build",
+    "build:dev": "pnpm build:wasm && pnpm -r --filter './packages/**' run build && pnpm -r --filter './tools/**' run build",
     "build:apps": "pnpm -r --filter './apps/**' run build",
+    "bootstrap": "node scripts/ensure-built.mjs --force",
+    "preflight": "node scripts/ensure-built.mjs --check",
     "test": "pnpm -r --filter './packages/**' --filter './tools/**' --filter './tests/**' run test",
     "test:rust": "cargo test --workspace",
     "test:determinism": "pnpm --filter @contactpatch/determinism-tests run test:browsers",
@@ -21,12 +24,13 @@
     "format": "prettier --write .",
     "validate": "pnpm --filter @contactpatch/validate run validate",
     "bench": "pnpm --filter @contactpatch/bench run bench:node",
-    "dev:sandbox": "pnpm --filter @contactpatch/sandbox run dev",
-    "dev:docs": "pnpm --filter @contactpatch/docs run dev",
+    "dev:sandbox": "node scripts/ensure-built.mjs && pnpm --filter @contactpatch/sandbox run dev",
+    "dev:docs": "node scripts/ensure-built.mjs && pnpm --filter @contactpatch/docs run dev",
+    "dev:bench": "node scripts/ensure-built.mjs && pnpm --filter @contactpatch/bench run dev",
+    "dev:packages": "pnpm -r --parallel --filter './packages/**' exec tsc -p tsconfig.build.json --watch --preserveWatchOutput",
     "changeset": "changeset",
     "version-packages": "changeset version",
-    "release": "pnpm build && changeset publish",
-    "build:dev": "pnpm build:wasm && pnpm -r --filter './packages/**' run build && pnpm -r --filter './tools/**' run build"
+    "release": "pnpm build && changeset publish"
   },
   "devDependencies": {
     "@changesets/cli": "^2.27.0",
