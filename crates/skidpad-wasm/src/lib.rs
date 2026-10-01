@@ -9,6 +9,7 @@
 //! The crate is single threaded (WASM has one thread); state lives in
 //! thread-locals.
 
+use skidpad_core::ai::AiConfig;
 use skidpad_core::input::VehicleInput;
 use skidpad_core::telemetry;
 use skidpad_core::tire::{tir, TireInput, TireModel};
@@ -17,6 +18,7 @@ use skidpad_core::validation::{
     ParkedConfig, StepSteerConfig, StraightLineConfig, TimestepSweepConfig, UndersteerConfig,
 };
 use skidpad_core::vehicle::{HostMode, WHEEL_COUNT};
+use skidpad_core::world::{Lod, WorldError};
 use skidpad_core::world::{
     HOST_CONTACT_STRIDE, HOST_IN_BODY_LEN, HOST_IN_STRIDE, HOST_OUT_BODY_LEN, HOST_OUT_STRIDE,
     HOST_OUT_WHEEL_STRIDE, WHEEL_RAY_STRIDE,
@@ -26,7 +28,7 @@ use std::cell::RefCell;
 
 /// Bump this whenever an exported signature changes. The TypeScript loader
 /// refuses to run against a different ABI version.
-pub const ABI_VERSION: u32 = 4;
+pub const ABI_VERSION: u32 = 5;
 
 pub const OK: i32 = 0;
 pub const ERR_INVALID_HANDLE: i32 = -1;
@@ -296,14 +298,7 @@ pub unsafe extern "C" fn sp_world_add_vehicle(
     };
     unwrap_code(with_world(handle, |w| w.add_vehicle(def)), |r| match r {
         Ok(i) => i as i32,
-        Err(skidpad_core::world::WorldError::Full { capacity }) => {
-            set_error(format!("world is full ({capacity} vehicles)"));
-            ERR_WORLD_FULL
-        }
-        Err(e) => {
-            set_error(e.to_string());
-            ERR_INVALID_DEFINITION
-        }
+        Err(e) => world_error_code(e),
     })
 }
 
@@ -333,10 +328,7 @@ pub unsafe extern "C" fn sp_world_set_definition(
         with_world(handle, |w| w.set_definition(vehicle as usize, def)),
         |r| match r {
             Ok(()) => OK,
-            Err(e) => {
-                set_error(e.to_string());
-                ERR_INVALID_DEFINITION
-            }
+            Err(e) => world_error_code(e),
         },
     )
 }
@@ -391,14 +383,7 @@ pub extern "C" fn sp_world_set_host_mode(handle: u32, vehicle: u32, mode: u32) -
         with_world(handle, |w| w.set_host_mode(vehicle as usize, mode)),
         |r| match r {
             Ok(()) => OK,
-            Err(e @ skidpad_core::world::WorldError::WrongModel(_)) => {
-                set_error(e.to_string());
-                ERR_WRONG_MODEL
-            }
-            Err(e) => {
-                set_error(e.to_string());
-                ERR_NO_SUCH_VEHICLE
-            }
+            Err(e) => world_error_code(e),
         },
     )
 }
@@ -429,14 +414,7 @@ pub unsafe extern "C" fn sp_world_wheel_rays(
         with_world(handle, |w| w.wheel_rays(vehicle as usize, buf)),
         |r| match r {
             Ok(n) => n as i32,
-            Err(e @ skidpad_core::world::WorldError::WrongModel(_)) => {
-                set_error(e.to_string());
-                ERR_WRONG_MODEL
-            }
-            Err(e) => {
-                set_error(e.to_string());
-                ERR_NO_SUCH_VEHICLE
-            }
+            Err(e) => world_error_code(e),
         },
     )
 }
@@ -444,6 +422,150 @@ pub unsafe extern "C" fn sp_world_wheel_rays(
 #[no_mangle]
 pub extern "C" fn sp_world_step(handle: u32, dt: f64) -> i32 {
     unwrap_code(with_world(handle, |w| w.step(dt)), |_| OK)
+}
+
+/// Map a world error to its status code, recording the message.
+fn world_error_code(e: WorldError) -> i32 {
+    let code = match &e {
+        WorldError::Full { .. } => ERR_WORLD_FULL,
+        WorldError::Invalid(_) => ERR_INVALID_DEFINITION,
+        WorldError::NoSuchVehicle(_) => ERR_NO_SUCH_VEHICLE,
+        WorldError::Snapshot(_) => ERR_SNAPSHOT,
+        WorldError::WrongModel(_) => ERR_WRONG_MODEL,
+    };
+    set_error(e.to_string());
+    code
+}
+
+/// Take `count` host steps of `dt` in one call (batched stepping);
+/// identical to `count` calls of `sp_world_step`.
+#[no_mangle]
+pub extern "C" fn sp_world_step_many(handle: u32, dt: f64, count: u32) -> i32 {
+    unwrap_code(with_world(handle, |w| w.step_many(dt, count)), |_| OK)
+}
+
+/// Set a vehicle's level of detail (ADR-0019): `0` full, `1` single-track,
+/// `2` frozen. `substep_rate_hz` overrides the definition's substep rate at
+/// this level; `0` keeps it.
+#[no_mangle]
+pub extern "C" fn sp_world_set_lod(
+    handle: u32,
+    vehicle: u32,
+    lod: u32,
+    substep_rate_hz: f64,
+) -> i32 {
+    let Some(lod) = Lod::from_u32(lod) else {
+        set_error("unknown level of detail");
+        return ERR_INVALID_DEFINITION;
+    };
+    unwrap_code(
+        with_world(handle, |w| {
+            w.set_lod(vehicle as usize, lod, substep_rate_hz)
+        }),
+        |r| match r {
+            Ok(()) => OK,
+            Err(e) => world_error_code(e),
+        },
+    )
+}
+
+/// A vehicle's level of detail (`0`, `1`, `2`) or a negative error code.
+#[no_mangle]
+pub extern "C" fn sp_world_lod(handle: u32, vehicle: u32) -> i32 {
+    unwrap_code(
+        with_world(handle, |w| w.lod(vehicle as usize)),
+        |r| match r {
+            Ok(l) => l.as_u32() as i32,
+            Err(e) => world_error_code(e),
+        },
+    )
+}
+
+/// Hand a vehicle to the path-following driver (ADR-0020). The path is
+/// `n` f64 values `[x0, y0, x1, y1, …]`; the config is `cfg_len` f64
+/// values in the order of `AiConfig::from_values`, NaN for a default.
+///
+/// # Safety
+/// `points` must point to `n` readable f64 values and `cfg` to `cfg_len`.
+#[no_mangle]
+pub unsafe extern "C" fn sp_world_set_ai(
+    handle: u32,
+    vehicle: u32,
+    points: *const f64,
+    n: usize,
+    cfg: *const f64,
+    cfg_len: usize,
+) -> i32 {
+    if (points.is_null() && n > 0) || (cfg.is_null() && cfg_len > 0) {
+        set_error("null driver buffer");
+        return ERR_INVALID_DEFINITION;
+    }
+    let path: &[f64] = if n == 0 {
+        &[]
+    } else {
+        std::slice::from_raw_parts(points, n)
+    };
+    let cfg = AiConfig::from_values(if cfg_len == 0 {
+        &[]
+    } else {
+        std::slice::from_raw_parts(cfg, cfg_len)
+    });
+    unwrap_code(
+        with_world(handle, |w| w.set_ai(vehicle as usize, path, cfg)),
+        |r| match r {
+            Ok(()) => OK,
+            Err(e) => world_error_code(e),
+        },
+    )
+}
+
+#[no_mangle]
+pub extern "C" fn sp_world_clear_ai(handle: u32, vehicle: u32) -> i32 {
+    unwrap_code(
+        with_world(handle, |w| w.clear_ai(vehicle as usize)),
+        |r| match r {
+            Ok(()) => OK,
+            Err(e) => world_error_code(e),
+        },
+    )
+}
+
+/// Number of values `sp_world_ai_status` writes.
+pub const AI_STATUS_LEN: usize = 5;
+
+/// Write the driver's status, `[distance, laps, lateralError, targetSpeed,
+/// finished]`, into `out`. Returns the number of values written: 5, or 0
+/// when the vehicle has no driver.
+///
+/// # Safety
+/// `out` must point to at least `cap` writable f64 values.
+#[no_mangle]
+pub unsafe extern "C" fn sp_world_ai_status(
+    handle: u32,
+    vehicle: u32,
+    out: *mut f64,
+    cap: usize,
+) -> i32 {
+    if out.is_null() || cap < AI_STATUS_LEN {
+        set_error("driver status needs 5 values");
+        return ERR_BUFFER_TOO_SMALL;
+    }
+    let buf = std::slice::from_raw_parts_mut(out, cap);
+    unwrap_code(
+        with_world(handle, |w| w.ai_status(vehicle as usize)),
+        |r| match r {
+            Ok(Some(st)) => {
+                buf[0] = st.distance;
+                buf[1] = st.laps as f64;
+                buf[2] = st.lateral_error;
+                buf[3] = st.target_speed;
+                buf[4] = if st.finished { 1.0 } else { 0.0 };
+                AI_STATUS_LEN as i32
+            }
+            Ok(None) => 0,
+            Err(e) => world_error_code(e),
+        },
+    )
 }
 
 #[no_mangle]
@@ -476,10 +598,7 @@ pub extern "C" fn sp_world_set_ground_slope(
         }),
         |r| match r {
             Ok(()) => OK,
-            Err(e) => {
-                set_error(e.to_string());
-                ERR_NO_SUCH_VEHICLE
-            }
+            Err(e) => world_error_code(e),
         },
     )
 }
@@ -511,10 +630,7 @@ pub unsafe extern "C" fn sp_world_set_surfaces(
     };
     unwrap_code(with_world(handle, |w| w.set_surfaces(&list)), |r| match r {
         Ok(()) => OK,
-        Err(e) => {
-            set_error(e.to_string());
-            ERR_INVALID_DEFINITION
-        }
+        Err(e) => world_error_code(e),
     })
 }
 
@@ -526,10 +642,7 @@ pub extern "C" fn sp_world_set_surface(handle: u32, vehicle: u32, surface: u32) 
         with_world(handle, |w| w.set_surface(vehicle as usize, surface)),
         |r| match r {
             Ok(()) => OK,
-            Err(e) => {
-                set_error(e.to_string());
-                ERR_NO_SUCH_VEHICLE
-            }
+            Err(e) => world_error_code(e),
         },
     )
 }
@@ -546,10 +659,7 @@ pub extern "C" fn sp_world_reset_vehicle(
         with_world(handle, |w| w.reset_vehicle(vehicle as usize, x, y, yaw)),
         |r| match r {
             Ok(()) => OK,
-            Err(e) => {
-                set_error(e.to_string());
-                ERR_NO_SUCH_VEHICLE
-            }
+            Err(e) => world_error_code(e),
         },
     )
 }
@@ -560,10 +670,7 @@ pub extern "C" fn sp_world_snapshot_len(handle: u32, vehicle: u32) -> i32 {
         with_world(handle, |w| w.snapshot_len(vehicle as usize)),
         |r| match r {
             Ok(n) => n as i32,
-            Err(e) => {
-                set_error(e.to_string());
-                ERR_NO_SUCH_VEHICLE
-            }
+            Err(e) => world_error_code(e),
         },
     )
 }
@@ -593,10 +700,7 @@ pub unsafe extern "C" fn sp_world_snapshot(
                 set_error(format!("snapshot needs {n} bytes, buffer holds {cap}"));
                 ERR_BUFFER_TOO_SMALL
             }
-            Err(e) => {
-                set_error(e.to_string());
-                ERR_NO_SUCH_VEHICLE
-            }
+            Err(e) => world_error_code(e),
         },
     )
 }
@@ -619,10 +723,7 @@ pub unsafe extern "C" fn sp_world_restore(
         with_world(handle, |w| w.restore(vehicle as usize, bytes)),
         |r| match r {
             Ok(()) => OK,
-            Err(e) => {
-                set_error(e.to_string());
-                ERR_SNAPSHOT
-            }
+            Err(e) => world_error_code(e),
         },
     )
 }

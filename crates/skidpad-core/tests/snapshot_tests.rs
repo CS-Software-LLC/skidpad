@@ -279,10 +279,10 @@ fn mixed_model_world_hash_covers_every_vehicle_and_the_step_count() {
         buf1.len(),
         "the models have different state sizes"
     );
-    assert!(
-        w.restore(0, &buf1).is_err(),
-        "a single-track snapshot does not fit a four-wheel car"
-    );
+    // A single-track snapshot drops a four-wheel car to the single-track
+    // level of detail (ADR-0019); its own snapshot brings it back below.
+    w.restore(0, &buf1).unwrap();
+    assert_eq!(w.lod(0).unwrap(), skidpad_core::world::Lod::SingleTrack);
     w.set_input(1, VehicleInput::default()).unwrap();
     w.step(1.0 / 60.0);
     assert_ne!(w.world_hash(), h, "a step changes the world hash");

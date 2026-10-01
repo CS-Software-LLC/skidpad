@@ -25,3 +25,5 @@ Rejected.
 | [0016](0016-solid-axles-and-roll-centres.md)           | Solid axles and roll-centre heights on the raycast suspension           | Accepted                  |
 | [0017](0017-static-toe.md)                             | Static toe per axle                                                     | Accepted                  |
 | [0018](0018-anti-dive-and-anti-squat.md)               | Anti-dive and anti-squat on the raycast suspension                      | Accepted                  |
+| [0019](0019-level-of-detail.md)                        | Level of detail by switching models at runtime                          | Accepted                  |
+| [0020](0020-path-following-driver.md)                  | A path-following driver inside the core                                 | Accepted                  |

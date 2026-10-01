@@ -2,7 +2,8 @@
 //! per-vehicle inputs and telemetry live in flat `f64` buffers so the WASM
 //! layer can expose them as typed-array views with no copying.
 
-use crate::definition::VehicleDefinition;
+use crate::ai::{AiConfig, AiDriver, AiStatus};
+use crate::definition::{VehicleDefinition, VehicleModelKind};
 use crate::geom::{Quat, Vec3};
 use crate::input::VehicleInput;
 use crate::snapshot::{SnapshotError, Snapshottable};
@@ -32,10 +33,72 @@ pub const HOST_OUT_STRIDE: usize = HOST_OUT_BODY_LEN + WHEEL_COUNT * HOST_OUT_WH
 /// frame.
 pub const WHEEL_RAY_STRIDE: usize = 8;
 
+/// Level of detail of one vehicle (ADR-0019).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Lod {
+    /// The model the definition asks for.
+    #[default]
+    Full,
+    /// The single-track model, whatever the definition asks for: about a
+    /// fifth of the four-wheel cost, for traffic far from the camera.
+    SingleTrack,
+    /// Not stepped at all: the state, telemetry and clock hold until the
+    /// vehicle is raised again. For parked or far-away cars.
+    Frozen,
+}
+
+impl Lod {
+    pub fn from_u32(v: u32) -> Option<Self> {
+        match v {
+            0 => Some(Lod::Full),
+            1 => Some(Lod::SingleTrack),
+            2 => Some(Lod::Frozen),
+            _ => None,
+        }
+    }
+
+    pub fn as_u32(self) -> u32 {
+        match self {
+            Lod::Full => 0,
+            Lod::SingleTrack => 1,
+            Lod::Frozen => 2,
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct Vehicle {
     pub model: VehicleModel,
+    /// Substep rate of the definition, Hz.
     pub substep_rate_hz: f64,
+    /// The definition as given, with the model it asks for; the running
+    /// model may differ at a reduced level of detail.
+    authored: VehicleDefinition,
+    lod: Lod,
+    /// Substep rate override of the level of detail, Hz; zero runs the
+    /// definition's rate.
+    lod_rate_hz: f64,
+}
+
+impl Vehicle {
+    pub fn lod(&self) -> Lod {
+        self.lod
+    }
+
+    /// The definition as given (its `simulation.model` is the full-detail
+    /// model).
+    pub fn authored_definition(&self) -> &VehicleDefinition {
+        &self.authored
+    }
+
+    /// Substep rate the vehicle runs at, Hz.
+    pub fn effective_rate_hz(&self) -> f64 {
+        if self.lod_rate_hz > 0.0 {
+            self.lod_rate_hz
+        } else {
+            self.substep_rate_hz
+        }
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -49,6 +112,8 @@ pub struct World {
     scratch: Vec<f64>,
     /// What each contact surface id means (ADR-0014).
     surfaces: SurfaceTable,
+    /// Path-following drivers (ADR-0020), one slot per vehicle.
+    ai: Vec<Option<AiDriver>>,
     /// Number of host steps taken.
     pub step_count: u64,
 }
@@ -96,6 +161,7 @@ impl World {
             host_out: vec![0.0; capacity * HOST_OUT_STRIDE],
             scratch: vec![0.0; MAX_STATE_LEN],
             surfaces: SurfaceTable::REFERENCE,
+            ai: Vec::with_capacity(capacity),
             step_count: 0,
         }
     }
@@ -147,9 +213,13 @@ impl World {
         let rate = def.simulation.substep_rate_hz;
         let idx = self.vehicles.len();
         self.vehicles.push(Vehicle {
-            model: VehicleModel::new(def),
+            model: VehicleModel::new(def.clone()),
             substep_rate_hz: rate,
+            authored: def,
+            lod: Lod::Full,
+            lod_rate_hz: 0.0,
         });
+        self.ai.push(None);
         self.clear_host_records(idx);
         let rec = &mut self.telemetry[idx * telemetry::STRIDE..(idx + 1) * telemetry::STRIDE];
         self.vehicles[idx]
@@ -294,24 +364,39 @@ impl World {
     }
 
     /// Advance every vehicle by one host step of `dt` seconds.
+    // Kept out of line so `step_many` and the WASM exports share one copy
+    // of the whole substep pipeline (the WASM size budget).
+    #[inline(never)]
     pub fn step(&mut self, dt: f64) {
         let dt = m::clamp(dt, 0.0, 1.0);
         if dt <= 0.0 {
             return;
         }
         for (i, v) in self.vehicles.iter_mut().enumerate() {
-            let input = VehicleInput::from_slice(
-                &self.inputs[i * VehicleInput::STRIDE..(i + 1) * VehicleInput::STRIDE],
-            );
             let external =
                 matches!(&v.model, VehicleModel::FourWheel(f) if f.host_mode == HostMode::External);
+            if v.lod == Lod::Frozen {
+                // A frozen car pushes nothing onto an external body.
+                if external {
+                    self.host_out[i * HOST_OUT_STRIDE..i * HOST_OUT_STRIDE + HOST_OUT_BODY_LEN]
+                        .fill(0.0);
+                }
+                continue;
+            }
             if external {
                 let rec = &self.host_in[i * HOST_IN_STRIDE..(i + 1) * HOST_IN_STRIDE];
                 if let Some(f) = v.model.as_four_wheel_mut() {
                     read_host_in(f, rec);
                 }
             }
-            let n = m::max(m::round(dt * v.substep_rate_hz), 1.0) as usize;
+            let slot = &mut self.inputs[i * VehicleInput::STRIDE..(i + 1) * VehicleInput::STRIDE];
+            if let Some(ai) = self.ai[i].as_mut() {
+                let mut wanted = VehicleInput::from_slice(slot);
+                ai.drive(&v.model, dt, &mut wanted);
+                wanted.write_slice(slot);
+            }
+            let input = VehicleInput::from_slice(slot);
+            let n = m::max(m::round(dt * v.effective_rate_hz()), 1.0) as usize;
             let sub_dt = dt / n as f64;
             for _ in 0..n {
                 v.model.substep_on(sub_dt, &input, &self.surfaces);
@@ -324,6 +409,84 @@ impl World {
             v.model.write_telemetry(&input, rec);
         }
         self.step_count += 1;
+    }
+
+    /// Take `count` host steps of `dt` seconds in one call, with the inputs
+    /// as they stand (path-following drivers update theirs every step).
+    /// Bit-identical to `count` calls of [`World::step`]; it saves the
+    /// per-call overhead across the WASM boundary when a host runs the
+    /// simulation ahead (a server, a replay seek, a worker catching up).
+    pub fn step_many(&mut self, dt: f64, count: u32) {
+        for _ in 0..count {
+            self.step(dt);
+        }
+    }
+
+    /// Set a vehicle's level of detail (ADR-0019). Moving between the full
+    /// model and the single-track model rebuilds the vehicle as the other
+    /// model, carrying its motion over (see [`VehicleModel::convert_to`]).
+    /// `substep_rate_hz` overrides the definition's substep rate while at
+    /// this level; zero keeps the definition's. A vehicle on an external
+    /// host can be frozen but not reduced to the single-track model, which
+    /// has no host contract.
+    pub fn set_lod(&mut self, i: usize, lod: Lod, substep_rate_hz: f64) -> Result<(), WorldError> {
+        if !(0.0..=100_000.0).contains(&substep_rate_hz) {
+            return Err(WorldError::Invalid(vec![String::from(
+                "level-of-detail substep rate must be between 0 and 100000 Hz",
+            )]));
+        }
+        let v = self
+            .vehicles
+            .get_mut(i)
+            .ok_or(WorldError::NoSuchVehicle(i))?;
+        let target = match lod {
+            Lod::Full => v.authored.simulation.model,
+            Lod::SingleTrack => VehicleModelKind::SingleTrack,
+            Lod::Frozen => v.model.kind(),
+        };
+        if target != v.model.kind() {
+            if matches!(&v.model, VehicleModel::FourWheel(f) if f.host_mode == HostMode::External) {
+                return Err(WorldError::WrongModel(i));
+            }
+            v.model.convert_to(target, &v.authored);
+        }
+        v.lod = lod;
+        v.lod_rate_hz = substep_rate_hz;
+        if lod != Lod::Frozen {
+            let rec = &mut self.telemetry[i * telemetry::STRIDE..(i + 1) * telemetry::STRIDE];
+            let input = VehicleInput::from_slice(
+                &self.inputs[i * VehicleInput::STRIDE..(i + 1) * VehicleInput::STRIDE],
+            );
+            v.model.write_telemetry(&input, rec);
+        }
+        Ok(())
+    }
+
+    pub fn lod(&self, i: usize) -> Result<Lod, WorldError> {
+        Ok(self.vehicle(i)?.lod)
+    }
+
+    /// Hand vehicle `i` to a path-following driver (ADR-0020) along
+    /// `points` (`[x0, y0, x1, y1, …]`, world frame). It sets the steer,
+    /// throttle and brake inputs every step from then on.
+    pub fn set_ai(&mut self, i: usize, points: &[f64], config: AiConfig) -> Result<(), WorldError> {
+        let v = self.vehicles.get(i).ok_or(WorldError::NoSuchVehicle(i))?;
+        let driver = AiDriver::new(&v.authored, points, config).map_err(WorldError::Invalid)?;
+        self.ai[i] = Some(driver);
+        Ok(())
+    }
+
+    /// Take the driver away; the inputs keep their last values.
+    pub fn clear_ai(&mut self, i: usize) -> Result<(), WorldError> {
+        self.vehicle(i)?;
+        self.ai[i] = None;
+        Ok(())
+    }
+
+    /// What the vehicle's driver did on its last step, if it has one.
+    pub fn ai_status(&self, i: usize) -> Result<Option<AiStatus>, WorldError> {
+        self.vehicle(i)?;
+        Ok(self.ai[i].as_ref().map(|d| d.status()))
     }
 
     pub fn state_hash(&mut self, i: usize) -> Result<u64, WorldError> {
@@ -353,14 +516,57 @@ impl World {
         Ok(v.model.snapshot_into(out, &mut self.scratch))
     }
 
+    /// Restore a vehicle's snapshot. A snapshot taken at the other model
+    /// (another level of detail) switches the vehicle to that model first,
+    /// and its level of detail follows: the full level if that is the
+    /// definition's model, the single-track level otherwise.
     pub fn restore(&mut self, i: usize, bytes: &[u8]) -> Result<(), WorldError> {
         let v = self
             .vehicles
             .get_mut(i)
             .ok_or(WorldError::NoSuchVehicle(i))?;
+        if bytes.len() >= 12 {
+            let count = u32::from_le_bytes([bytes[8], bytes[9], bytes[10], bytes[11]]) as usize;
+            let current = v.model.kind();
+            let other = match current {
+                VehicleModelKind::FourWheel => VehicleModelKind::SingleTrack,
+                VehicleModelKind::SingleTrack => VehicleModelKind::FourWheel,
+            };
+            let external =
+                matches!(&v.model, VehicleModel::FourWheel(f) if f.host_mode == HostMode::External);
+            // Only a well-formed snapshot of the other model switches it, so
+            // a bad one leaves the vehicle as it was.
+            if count != VehicleModel::state_len_of(current)
+                && count == VehicleModel::state_len_of(other)
+                && !external
+                && &bytes[0..4] == crate::snapshot::MAGIC
+                && bytes[4..8] == crate::snapshot::VERSION.to_le_bytes()
+                && bytes.len() >= 12 + 8 * count
+            {
+                v.model.convert_to(other, &v.authored);
+                v.model
+                    .restore_from(bytes, &mut self.scratch)
+                    .map_err(WorldError::Snapshot)?;
+                if v.lod != Lod::Frozen {
+                    v.lod = if other == v.authored.simulation.model {
+                        Lod::Full
+                    } else {
+                        Lod::SingleTrack
+                    };
+                }
+                if let Some(ai) = self.ai[i].as_mut() {
+                    ai.reset();
+                }
+                return Ok(());
+            }
+        }
         v.model
             .restore_from(bytes, &mut self.scratch)
-            .map_err(WorldError::Snapshot)
+            .map_err(WorldError::Snapshot)?;
+        if let Some(ai) = self.ai[i].as_mut() {
+            ai.reset();
+        }
+        Ok(())
     }
 
     pub fn reset_vehicle(&mut self, i: usize, x: f64, y: f64, yaw: f64) -> Result<(), WorldError> {
@@ -371,6 +577,9 @@ impl World {
         v.model.reset(x, y, yaw);
         let rec = &mut self.telemetry[i * telemetry::STRIDE..(i + 1) * telemetry::STRIDE];
         v.model.write_telemetry(&VehicleInput::default(), rec);
+        if let Some(ai) = self.ai[i].as_mut() {
+            ai.reset();
+        }
         Ok(())
     }
 
@@ -382,7 +591,17 @@ impl World {
             .get_mut(i)
             .ok_or(WorldError::NoSuchVehicle(i))?;
         v.substep_rate_hz = def.simulation.substep_rate_hz;
-        v.model.set_definition(def);
+        if let Some(ai) = self.ai[i].as_mut() {
+            ai.set_definition(&def);
+        }
+        let mut running = def.clone();
+        if v.lod == Lod::SingleTrack
+            || (v.lod == Lod::Frozen && v.model.kind() != def.simulation.model)
+        {
+            running.simulation.model = v.model.kind();
+        }
+        v.authored = def;
+        v.model.set_definition(running);
         let rec = &mut self.telemetry[i * telemetry::STRIDE..(i + 1) * telemetry::STRIDE];
         v.model.write_telemetry(&VehicleInput::default(), rec);
         Ok(())
