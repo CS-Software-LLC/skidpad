@@ -148,17 +148,53 @@ export interface StraightLineResult {
   wheelLocked: boolean;
 }
 
+/** Parked on a slope, or at rest on flat ground (ADR-0005, ADR-0010). */
+export interface ParkedConfig {
+  /** Road grade as rise per metre along world +x (0.1 for 10 %); the car faces uphill. */
+  grade?: number;
+  /** Cross slope as rise per metre along world +y. */
+  crossSlope?: number;
+  /** Service brake held throughout, 0 … 1. */
+  brake?: number;
+  /** Handbrake held throughout, 0 … 1. */
+  handbrake?: number;
+  /** Heading, rad. */
+  heading?: number;
+  settleTime?: number;
+  holdTime?: number;
+  rmsWindow?: number;
+  hostDt?: number;
+}
+
+export interface ParkedResult {
+  /** Speed at the end of the settling period, m/s. */
+  settleSpeed: number;
+  /** Planar displacement over the hold period, m. */
+  drift: number;
+  /** Mean creep speed over the hold period, m/s. */
+  creepSpeed: number;
+  /** RMS speed over the last `rmsWindow` of the hold, m/s. */
+  velocityRms: number;
+  maxSpeed: number;
+  settleMaxSpeed: number;
+  /** Settled below 0.1 mm/s, under 1 mm of drift, RMS below 0.1 mm/s. */
+  holds: boolean;
+}
+
 export type ScenarioRequest =
   | {
       scenario: "understeerGradient";
       definition: PartialVehicleDefinition;
       config?: UndersteerConfig;
     }
-  | { scenario: "straightLine"; definition: PartialVehicleDefinition; config?: StraightLineConfig };
+  | { scenario: "straightLine"; definition: PartialVehicleDefinition; config?: StraightLineConfig }
+  | { scenario: "parkedOnSlope"; definition: PartialVehicleDefinition; config?: ParkedConfig };
 
 export type ScenarioResult<R extends ScenarioRequest> = R extends { scenario: "understeerGradient" }
   ? UndersteerResult
-  : StraightLineResult;
+  : R extends { scenario: "straightLine" }
+    ? StraightLineResult
+    : ParkedResult;
 
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
@@ -609,6 +645,16 @@ export class World {
   /** Hash of every vehicle plus the step count. */
   worldHash(): string {
     return hex64(this.sp.exports.sp_world_hash(this.handle));
+  }
+
+  /**
+   * Ground slope of the built-in flat world under a vehicle: rise per metre
+   * along world +x (grade, 0.1 for 10 %) and world +y (cross slope).
+   * Gravity then has a component along the ground. An external host has
+   * its own geometry and gravity and ignores this.
+   */
+  setGroundSlope(vehicle: number, grade: number, cross = 0): void {
+    this.sp.check(this.sp.exports.sp_world_set_ground_slope(this.handle, vehicle, grade, cross));
   }
 
   resetVehicle(vehicle: number, x = 0, y = 0, yaw = 0): void {

@@ -62,6 +62,11 @@ pub struct BicycleVehicle {
     pub lat_accel: f64,
     pub drag_force: f64,
     pub steering_torque: f64,
+    /// Ground slope under the built-in host as the rise per metre along
+    /// world +x (grade) and world +y (cross slope). Not part of the
+    /// definition or the snapshot: it is the environment, set by the
+    /// scenario or the application. See `set_ground_slope`.
+    pub ground_slope: [f64; 2],
 }
 
 const FRONT: usize = 0;
@@ -86,9 +91,31 @@ impl BicycleVehicle {
             lat_accel: 0.0,
             drag_force: 0.0,
             steering_torque: 0.0,
+            ground_slope: [0.0, 0.0],
         };
         v.compute_static_loads();
         v
+    }
+
+    /// Set the ground slope of the built-in flat world as the rise per
+    /// metre along world +x (`grade`, 0.1 for a 10 % grade) and world +y
+    /// (`cross`). Gravity then has a component along the ground, and the
+    /// wheel loads carry `cos θ` of the weight. A car heading +x faces
+    /// uphill on a positive grade.
+    pub fn set_ground_slope(&mut self, grade: f64, cross: f64) {
+        self.ground_slope = [grade, cross];
+        self.compute_static_loads();
+    }
+
+    /// `cos θ` of the ground slope and the along-ground gravity in the
+    /// world frame, m/s². With the plane normal `n = (−gx, −gy, 1) / N`,
+    /// `N² = 1 + gx² + gy²`, gravity projected onto the plane is
+    /// `g (−gx, −gy, −(gx² + gy²)) / N²`; its planar part is used here.
+    fn slope_terms(&self) -> (f64, f64, f64) {
+        let [gx, gy] = self.ground_slope;
+        let n2 = 1.0 + gx * gx + gy * gy;
+        let cos_theta = 1.0 / m::sqrt(n2);
+        (cos_theta, -GRAVITY * gx / n2, -GRAVITY * gy / n2)
     }
 
     pub fn definition(&self) -> &VehicleDefinition {
@@ -106,7 +133,8 @@ impl BicycleVehicle {
         let a = c.cg_to_front_axle;
         let b = self.def.cg_to_rear_axle();
         let l = c.wheelbase;
-        let mg = c.mass * GRAVITY;
+        let (cos_theta, _, _) = self.slope_terms();
+        let mg = c.mass * GRAVITY * cos_theta;
         self.axles[FRONT].load = mg * b / l;
         self.axles[REAR].load = mg * a / l;
     }
@@ -156,7 +184,14 @@ impl BicycleVehicle {
         // --- contacts: flat ground, both wheels in contact, normal +z ------
         // --- suspension: rigid in the single-track model -------------------
         // --- wheel loads: static split plus longitudinal transfer ----------
-        let mg = mass * GRAVITY;
+        // On a slope the weight on the wheels is `m g cos θ`, and the
+        // transfer follows the ground-plane forces on the body (tire and
+        // aero), which is what `ax_prev` holds: at rest on a grade the
+        // tires push the car uphill and that force at ground level moves
+        // load to the downhill axle, the same as accelerating uphill
+        // (Gillespie ch. 1, loads on a grade).
+        let (cos_theta, grav_x_world, grav_y_world) = self.slope_terms();
+        let mg = mass * GRAVITY * cos_theta;
         let transfer = mass * self.ax_prev * h / l;
         self.axles[FRONT].load = m::max(mg * b / l - transfer, 0.0);
         self.axles[REAR].load = m::max(mg * a / l + transfer, 0.0);
@@ -326,11 +361,17 @@ impl BicycleVehicle {
         body_fy -= q * self.vy;
 
         // --- chassis proxy integration (semi-implicit Euler) ---------------
+        // `ax_body`, `ay_body` are the accelerations from forces other than
+        // gravity (what an accelerometer reads); gravity along the ground is
+        // added to the velocity update separately.
         let ax_body = body_fx / mass;
         let ay_body = body_fy / mass;
+        let (sy0, cy0) = (m::sin(self.yaw), m::cos(self.yaw));
+        let grav_x = grav_x_world * cy0 + grav_y_world * sy0;
+        let grav_y = -grav_x_world * sy0 + grav_y_world * cy0;
         let vx_old = self.vx;
-        self.vx += (ax_body + self.vy * self.yaw_rate) * dt;
-        self.vy += (ay_body - vx_old * self.yaw_rate) * dt;
+        self.vx += (ax_body + grav_x + self.vy * self.yaw_rate) * dt;
+        self.vy += (ay_body + grav_y - vx_old * self.yaw_rate) * dt;
         self.yaw_rate += body_mz / c.yaw_inertia * dt;
         self.ax_prev = ax_body;
         self.long_accel = ax_body;

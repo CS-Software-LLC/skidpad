@@ -173,6 +173,13 @@ pub struct FourWheelVehicle {
     pub accel_body: Vec3,
     pub drag_force: f64,
     pub steering_torque: f64,
+    /// Ground slope under the built-in host as the rise per metre along
+    /// world +x (grade) and world +y (cross slope). The built-in ground
+    /// stays the plane z = 0 and gravity is tilted instead, which is the
+    /// same physics; an external host has real geometry and its own
+    /// gravity, so the slope is ignored in external mode. Not part of the
+    /// definition or the snapshot.
+    pub ground_slope: [f64; 2],
 }
 
 impl FourWheelVehicle {
@@ -194,10 +201,31 @@ impl FourWheelVehicle {
             accel_body: Vec3::ZERO,
             drag_force: 0.0,
             steering_torque: 0.0,
+            ground_slope: [0.0, 0.0],
         };
         v.compute_geometry();
         v.reset(0.0, 0.0, 0.0);
         v
+    }
+
+    /// Set the ground slope of the built-in flat world as the rise per
+    /// metre along world +x (`grade`, 0.1 for a 10 % grade) and world +y
+    /// (`cross`). A car heading +x faces uphill on a positive grade.
+    pub fn set_ground_slope(&mut self, grade: f64, cross: f64) {
+        self.ground_slope = [grade, cross];
+    }
+
+    /// Gravity vector in the world frame, m/s². In the built-in host the
+    /// ground is the plane z = 0 and a slope is represented by tilting
+    /// gravity: `g (−gx, −gy, −1) / N` with `N² = 1 + gx² + gy²`, which has
+    /// `g cos θ` into the ground and `g sin θ` along it.
+    fn gravity(&self) -> Vec3 {
+        if self.host_mode == HostMode::External {
+            return Vec3::new(0.0, 0.0, -GRAVITY);
+        }
+        let [gx, gy] = self.ground_slope;
+        let n = m::sqrt(1.0 + gx * gx + gy * gy);
+        Vec3::new(-gx, -gy, -1.0) * (GRAVITY / n)
     }
 
     pub fn definition(&self) -> &VehicleDefinition {
@@ -557,7 +585,7 @@ impl FourWheelVehicle {
         self.angular_impulse = self.angular_impulse + torque * dt;
         let accel = force * (1.0 / mass);
         self.accel_body = orient.inverse_rotate(accel);
-        let gravity = Vec3::new(0.0, 0.0, -GRAVITY);
+        let gravity = self.gravity();
         self.vel = self.vel + (accel + gravity) * dt;
 
         let c = &self.def.chassis;

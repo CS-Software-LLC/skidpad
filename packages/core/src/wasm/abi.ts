@@ -48,6 +48,7 @@ export interface CpExports {
   sp_world_host_in_ptr(handle: number): number;
   sp_world_host_out_ptr(handle: number): number;
   sp_world_set_host_mode(handle: number, vehicle: number, mode: number): number;
+  sp_world_set_ground_slope(handle: number, vehicle: number, grade: number, cross: number): number;
   sp_world_wheel_rays(handle: number, vehicle: number, out: number, cap: number): number;
   sp_world_step(handle: number, dt: number): number;
   sp_world_step_count(handle: number): bigint;

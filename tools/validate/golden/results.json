@@ -69,6 +69,43 @@
         "meanDeceleration": 8.194034742707943,
         "wheelLocked": true
       },
+      "parked": {
+        "flatRest": {
+          "creepSpeed": 1.4076899937149074e-21,
+          "velocityRms": 6.272770056689135e-21,
+          "holds": true
+        },
+        "grade10Brake": {
+          "creepSpeed": 0.0021828212512001554,
+          "velocityRms": 0.0021828212518965407,
+          "holds": false
+        },
+        "grade20Brake": {
+          "creepSpeed": 0.004339100085578059,
+          "velocityRms": 0.004339100087282248,
+          "holds": false
+        },
+        "grade30Brake": {
+          "creepSpeed": 0.006496230948217804,
+          "velocityRms": 0.00649623095112904,
+          "holds": false
+        },
+        "grade10Handbrake": {
+          "creepSpeed": 0.004691905220992369,
+          "velocityRms": 0.004691905189126494,
+          "holds": false
+        },
+        "grade20Handbrake": {
+          "creepSpeed": 0.009636003205332774,
+          "velocityRms": 0.009636003229201022,
+          "holds": false
+        },
+        "cross20Brakes": {
+          "creepSpeed": 0.005529993735379865,
+          "velocityRms": 0.005530092523419159,
+          "holds": false
+        }
+      },
       "scriptedDriveHash": "a7b61dd04de25a88"
     },
     "sportsRwd": {
@@ -138,6 +175,43 @@
         "meanDeceleration": 9.712509712510405,
         "wheelLocked": true
       },
+      "parked": {
+        "flatRest": {
+          "creepSpeed": 1.068745012585819e-18,
+          "velocityRms": 1.3114483846998099e-18,
+          "holds": true
+        },
+        "grade10Brake": {
+          "creepSpeed": 0.0018196058442744502,
+          "velocityRms": 0.0018196058442816348,
+          "holds": false
+        },
+        "grade20Brake": {
+          "creepSpeed": 0.0036459184422644895,
+          "velocityRms": 0.0036459184422595417,
+          "holds": false
+        },
+        "grade30Brake": {
+          "creepSpeed": 0.005493161539836555,
+          "velocityRms": 0.005493161539856586,
+          "holds": false
+        },
+        "grade10Handbrake": {
+          "creepSpeed": 0.0034868810742231028,
+          "velocityRms": 0.003486881084497106,
+          "holds": false
+        },
+        "grade20Handbrake": {
+          "creepSpeed": 0.006979284038847804,
+          "velocityRms": 0.0069792840134628685,
+          "holds": false
+        },
+        "cross20Brakes": {
+          "creepSpeed": 0.004424169889049767,
+          "velocityRms": 0.0044241700721007115,
+          "holds": false
+        }
+      },
       "scriptedDriveHash": "7009bb25f7a632d6"
     },
     "kart": {
@@ -206,6 +280,35 @@
         "brakingDistance": 58.99154434376143,
         "meanDeceleration": 6.284565108094789,
         "wheelLocked": true
+      },
+      "parked": {
+        "flatRest": {
+          "creepSpeed": 5.2679749897820926e-20,
+          "velocityRms": 6.439739695332227e-19,
+          "holds": true
+        },
+        "grade10Brake": {
+          "creepSpeed": 0.003870508133864932,
+          "velocityRms": 0.0038705081338628235,
+          "holds": false
+        },
+        "grade20Brake": {
+          "creepSpeed": 0.007561341483288198,
+          "velocityRms": 0.007561341483288062,
+          "holds": false
+        },
+        "grade30Brake": {
+          "creepSpeed": 0.01099776483247861,
+          "velocityRms": 0.010997764832474334,
+          "holds": false
+        },
+        "grade10Handbrake": null,
+        "grade20Handbrake": null,
+        "cross20Brakes": {
+          "creepSpeed": 0.005773686861982974,
+          "velocityRms": 0.005773671433500315,
+          "holds": false
+        }
       },
       "scriptedDriveHash": "090f9548e781f0dd"
     }

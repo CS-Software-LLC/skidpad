@@ -43,6 +43,19 @@ for (const [id, v] of Object.entries(report.vehicles)) {
   );
 }
 console.log("");
+console.log(
+  "| Vehicle | Flat rest | 10 % brake | 20 % brake | 30 % brake | 10 % handbrake | 20 % handbrake | 20 % cross |",
+);
+console.log("| --- | --- | --- | --- | --- | --- | --- | --- |");
+const park = (c: { creepSpeed: number; holds: boolean } | null): string =>
+  c === null ? "n/a" : `${c.holds ? "holds" : "CREEPS"} (${c.creepSpeed.toExponential(1)} m/s)`;
+for (const [id, v] of Object.entries(report.vehicles)) {
+  const p = v.parked;
+  console.log(
+    `| ${id} | ${park(p.flatRest)} | ${park(p.grade10Brake)} | ${park(p.grade20Brake)} | ${park(p.grade30Brake)} | ${park(p.grade10Handbrake)} | ${park(p.grade20Handbrake)} | ${park(p.cross20Brakes)} |`,
+  );
+}
+console.log("");
 
 if (args.has("--update") || !existsSync(goldenPath)) {
   mkdirSync(dirname(goldenPath), { recursive: true });
