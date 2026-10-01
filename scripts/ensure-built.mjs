@@ -37,7 +37,7 @@ if (major < 20) problems.push("Node 20 or newer is required (https://nodejs.org)
 const pnpm = has("pnpm");
 log(pnpm ? `pnpm ${pnpm}` : "pnpm not found  <- run: corepack enable");
 const cargo = has("cargo");
-log(cargo ? cargo : "cargo not found  <- Rust is needed to compile the core to WASM");
+log(cargo ? cargo : "cargo not found  <- fine for TypeScript work; the prebuilt core will be used");
 
 // 2. WASM artifact (needs Rust).
 const wasm = join(root, "packages", "core", "wasm", "contactpatch.wasm");
@@ -45,16 +45,29 @@ const inline = join(root, "packages", "core", "src", "generated", "wasm-inline.t
 const wasmMissing = !existsSync(wasm) || !existsSync(inline);
 if (wasmMissing || force) {
   if (checkOnly) {
-    problems.push("WASM core not built: run `pnpm build:wasm` (needs Rust).");
-  } else if (!cargo) {
     problems.push(
-      [
-        "The WASM core has not been built and Rust is not installed.",
-        "Install Rust with rustup (https://rustup.rs), then re-run this command.",
-        "The pinned toolchain and the wasm32-unknown-unknown target install",
-        "automatically the first time cargo runs in this repository.",
-      ].join("\n  "),
+      "WASM core not installed: run `pnpm bootstrap` (uses Rust if present, else the prebuilt core).",
     );
+  } else if (!cargo || process.env.CP_USE_PREBUILT === "1") {
+    log(
+      cargo
+        ? "using the prebuilt core (CP_USE_PREBUILT=1)"
+        : "Rust not installed: using the prebuilt core from prebuilt/",
+    );
+    const r = spawnSync(process.execPath, [join(root, "scripts", "prebuilt.mjs"), "--install"], {
+      stdio: "inherit",
+      cwd: root,
+    });
+    if (r.status !== 0) {
+      problems.push(
+        [
+          "No usable prebuilt core and Rust is not installed.",
+          "Install Rust with rustup (https://rustup.rs), then re-run this command.",
+          "The pinned toolchain and the wasm32-unknown-unknown target install",
+          "automatically the first time cargo runs in this repository.",
+        ].join("\n  "),
+      );
+    }
   } else {
     log("building the WASM core (first build takes a minute or two)…");
     const r = spawnSync(process.execPath, [join(root, "scripts", "build-wasm.mjs"), "--release"], {

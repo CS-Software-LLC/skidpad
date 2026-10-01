@@ -43,3 +43,9 @@ SIMD or fast-math).
   converts codes into typed errors.
 - Memory management is explicit (`cp_alloc` / `cp_free`) and wrapped in
   TypeScript so users never see pointers.
+- A release build of the core is committed under `prebuilt/` with a manifest
+  recording the hash of the Rust sources it came from. The dev preflight
+  installs it when `cargo` is absent, which keeps the "no Rust toolchain for
+  TypeScript contributors" promise before the first npm release. CI fails when
+  `crates/` changes without a refreshed prebuilt. Once releases exist this can
+  move to a download from the release artifacts.

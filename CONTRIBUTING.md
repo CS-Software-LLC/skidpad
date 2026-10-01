@@ -23,8 +23,10 @@ size are welcome: bug reports, physics corrections, docs, presets, and code.
 
 ## Getting set up
 
-You need Rust (see `rust-toolchain.toml`; the `wasm32-unknown-unknown` target
-is installed automatically) and Node 20+ with pnpm (`corepack enable`).
+You need Node 20+ with pnpm (`corepack enable`). Rust (see
+`rust-toolchain.toml`; the `wasm32-unknown-unknown` target is installed
+automatically) is only needed to change `crates/`; otherwise the prebuilt core
+in `prebuilt/` is used.
 
 ```sh
 pnpm install
@@ -37,7 +39,9 @@ pnpm preflight            # reports anything missing without building
 
 The apps import the built packages under `packages/*/dist`; run `pnpm build`
 or keep `pnpm dev:packages` running after editing a package, and
-`pnpm build:wasm` after editing a crate.
+`pnpm build:wasm` after editing a crate. A PR that touches `crates/` must also
+run `pnpm prebuilt:update` and commit `prebuilt/`, so TypeScript-only
+contributors keep working without Rust; CI checks this.
 
 Contributors who only know TypeScript can work on every package, app, and tool.
 Only `crates/` requires Rust.

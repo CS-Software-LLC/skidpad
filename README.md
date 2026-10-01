@@ -103,14 +103,16 @@ docs/adr            architecture decision records
 
 ## Developing
 
-Requirements: Node 20+ with pnpm (`corepack enable`), and Rust via
-[rustup](https://rustup.rs). The pinned toolchain and the
-`wasm32-unknown-unknown` target install themselves the first time cargo runs
-in the repository.
+Requirements: Node 20+ with pnpm (`corepack enable`). Rust is optional: the
+repository ships a prebuilt core in `prebuilt/`, and the preflight uses it
+when `cargo` is not installed. You only need Rust
+([rustup](https://rustup.rs)) to change `crates/`; the pinned toolchain and
+the `wasm32-unknown-unknown` target install themselves the first time cargo
+runs in the repository.
 
 ```sh
 pnpm install
-pnpm bootstrap                 # compile the core to WASM and build the packages
+pnpm bootstrap             # install the core (Rust build or prebuilt) and build the packages
 pnpm dev:sandbox           # drive a car (http://localhost:5173)
 pnpm dev:docs              # docs with the tire explorer
 ```
@@ -132,15 +134,21 @@ pnpm dev:packages          # rebuild packages on change while an app is running
 ```
 
 The apps import the _built_ packages, so after editing anything under
-`packages/` run `pnpm build` or keep `pnpm dev:packages` running; after
-editing `crates/` run `pnpm build:wasm`.
+`packages/` run `pnpm build` or keep `pnpm dev:packages` running. After
+editing `crates/` run `pnpm build:wasm`, and before opening the PR run
+`pnpm prebuilt:update` and commit `prebuilt/`; CI fails when the prebuilt core
+is out of sync with the Rust sources.
 
 ### Troubleshooting
 
 - **"Failed to resolve entry for package @contactpatch/core"** or a blank
   sandbox: the packages are not built. Run `pnpm bootstrap`.
-- **"cargo: command not found"**: install Rust from https://rustup.rs and
-  open a new terminal so `cargo` is on the PATH.
+- **"cargo not found"** in the preflight output: fine unless you are
+  changing `crates/`; the prebuilt core is used. To build the core yourself,
+  install Rust from https://rustup.rs and open a new terminal.
+- **"the prebuilt core may be stale"**: the Rust sources changed after the
+  last `pnpm prebuilt:update`. Harmless for app work; ask someone with Rust
+  to refresh `prebuilt/`.
 - **The docs explorer says "failed to load"**: the WASM or the compat
   build is missing. Run `pnpm bootstrap`, then restart `pnpm dev:docs`.
 - **Changes to a package are not showing in the sandbox**: the apps read

@@ -47,6 +47,8 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - name: Prebuilt core is in sync with the Rust sources
+        run: pnpm prebuilt:check
       - run: pnpm build:wasm:release
       - run: pnpm build
       - run: pnpm typecheck
