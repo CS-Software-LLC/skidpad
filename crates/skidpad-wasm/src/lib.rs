@@ -26,7 +26,7 @@ use std::cell::RefCell;
 
 /// Bump this whenever an exported signature changes. The TypeScript loader
 /// refuses to run against a different ABI version.
-pub const ABI_VERSION: u32 = 2;
+pub const ABI_VERSION: u32 = 3;
 
 pub const OK: i32 = 0;
 pub const ERR_INVALID_HANDLE: i32 = -1;

@@ -17,10 +17,13 @@ helps. Parameters are per tire unless noted.
 
 ## Car oversteers under power
 
-- The driven axle loses lateral grip while it spins; lower
-  `drive.maxWheelTorque` or raise the rear `peakSlipRatio` so the force peak
-  sits at a larger slip.
+- The driven axle loses lateral grip while it spins; lower the engine's
+  `torqueCurve` or a tall first gear in `transmission.gears`, or raise the
+  rear `peakSlipRatio` so the force peak sits at a larger slip.
 - Raise the rear `falloffLong` so the tire keeps more grip past the peak.
+- A limited-slip differential (`rear.kind: "lsd"`) with a high `biasDrive`
+  drives the inner and outer wheels together and turns wheelspin into a yaw
+  moment; lower the bias or the `preload` for a more forgiving exit.
 - Traction control arrives with the assists in milestone 5.
 
 ## Body rolls or pitches too much
@@ -42,9 +45,28 @@ helps. Parameters are per tire unless noted.
 ## Inner front wheel spins out of corners
 
 - That is an open differential doing what it does under power with the
-  inner wheel unloaded. A limited-slip differential arrives with the
-  drivetrain graph in milestone 4; until then lower `drive.maxWheelTorque`
-  or raise the front `antiRollStiffness` a little less.
+  inner wheel unloaded. Set `drivetrain.front.kind` to `"lsd"`: `preload`
+  (N·m) is what it locks with at zero torque, `biasDrive` how much more
+  torque the slower wheel may carry than the spinning one under power
+  (2 to 3 is a road-car range), `biasCoast` the same on the overrun. A
+  `"locked"` differential is a spool and pushes in tight corners.
+
+## Car launches lazily or bogs down
+
+- The automatic clutch bites between idle and `clutchBiteRpm` above it; a
+  smaller value engages sooner and stalls less speed off the engine, a
+  larger one lets the engine rev first (a kart's centrifugal clutch). Raise
+  `clutchMaxTorque` if the clutch slips at full throttle in first.
+- `shiftUpAt` and `shiftDownAt` are fractions of redline on the gearbox
+  input speed; a long `shiftTime` is a visible torque hole.
+- A `direct` power unit has none of this and pulls from rest at its full
+  `maxWheelTorque`; use it for traffic.
+
+## Engine drags the car on a closed throttle
+
+- `engineBrakingIdle` and `engineBrakingRedline` set the closed-throttle
+  drag; lower them for a car that coasts further. An electric motor's
+  lift-off drag is `regenTorque`.
 
 ## Steering feels numb
 

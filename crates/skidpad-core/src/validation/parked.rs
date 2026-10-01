@@ -91,6 +91,7 @@ pub fn run(def: &VehicleDefinition, cfg: &ParkedConfig) -> Result<ParkedResult, 
         throttle: 0.0,
         brake: cfg.brake,
         handbrake: cfg.handbrake,
+        ..VehicleInput::default()
     };
     let speed = |car: &VehicleModel| {
         let (vx, vy) = car.planar_velocity();

@@ -30,6 +30,7 @@
 
 pub mod curve;
 pub mod definition;
+pub mod drivetrain;
 pub mod geom;
 pub mod input;
 pub mod snapshot;

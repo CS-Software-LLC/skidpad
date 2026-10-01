@@ -440,7 +440,7 @@ fn snapshot_restores_pose_and_wheels() {
     w.restore(0, &buf).unwrap();
     assert_eq!(w.state_hash(0).unwrap(), h);
     let car = w.vehicle(0).unwrap().model.as_four_wheel().unwrap();
-    assert_eq!(car.state_len(), 14 + 16);
+    assert_eq!(car.state_len(), 14 + 16 + 4);
     assert!(car.orient.is_finite());
     assert!(car.wheels[FL].spin_angle.abs() <= core::f64::consts::PI);
 }

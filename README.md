@@ -19,8 +19,9 @@ win on specific, measurable axes, together:
 
 1. **Sim-grade fidelity.** Slip-based tires with combined slip, load
    sensitivity, transient response, and aligning torque. A coupled drivetrain
-   solved implicitly. Validated against published data and standard
-   manoeuvres, with results published.
+   (engine or motor, clutch, gearbox, differentials) solved implicitly with
+   the wheels. Validated against published data and standard manoeuvres,
+   with results published.
 2. **Stability.** No jitter at rest, no explosions across the supported
    timestep range, cars park on slopes, brakes lock without chatter. Tested
    like a feature.
@@ -38,24 +39,30 @@ win on specific, measurable axes, together:
 
 ## Status
 
-Milestones 0 to 3 are done. The core runs a four-wheel model with
+Milestones 0 to 4 are done. The core runs a four-wheel model with
 independent suspension on a six-degree-of-freedom chassis proxy, a Rapier
 adapter hosts that chassis in a real scene, and the planar single-track model
-stays as the level-of-detail model. Milestone 3 made stability a tested
-feature: parked cars hold on slopes, brakes lock once and stay locked, the
-manoeuvres agree across the supported timestep range, and snapshots restore
-the full model exactly. Every number below comes from the validation runner
-that CI executes on each commit.
+stays as the level-of-detail model. Stability is a tested feature: parked
+cars hold on slopes, brakes lock once and stay locked, the manoeuvres agree
+across the supported timestep range, and snapshots restore the full model
+exactly. Milestone 4 added the drivetrain: a combustion engine or electric
+motor, a clutch, a gearbox with reverse, open, locked and limited-slip
+differentials and a centre differential, solved implicitly with the wheels.
+Every number below comes from the validation runner that CI executes on each
+commit.
 
 | Vehicle (preset)    | Understeer gradient, four-wheel | Single-track | Linear theory with trail | 0–100 km/h | 100–0 km/h, no ABS        |
 | ------------------- | ------------------------------- | ------------ | ------------------------ | ---------- | ------------------------- |
-| Light FWD hatchback | 1.14 deg/g                      | 0.90 deg/g   | 0.93 deg/g               | 9.0 s      | 46.8 m                    |
-| RWD sports car      | 0.20 deg/g                      | 0.10 deg/g   | 0.10 deg/g               | 4.9 s      | 39.5 m                    |
-| Kart                | 0.42 deg/g                      | 0.32 deg/g   | 0.36 deg/g               | 10.3 s     | 59.0 m (rear brakes only) |
+| Light FWD hatchback | 1.16 deg/g                      | 0.93 deg/g   | 0.93 deg/g               | 9.4 s      | 46.3 m                    |
+| RWD sports car      | 0.29 deg/g                      | 0.12 deg/g   | 0.10 deg/g               | 5.5 s      | 39.6 m                    |
+| Kart                | −0.18 deg/g (solid axle push)   | 0.29 deg/g   | 0.36 deg/g               | 10.9 s     | 58.8 m (rear brakes only) |
 
 The four-wheel gradient sits above the single-track one by the load
 sensitivity cost of lateral load transfer, which the single-track model does
-not have.
+not have; the kart's solid rear axle pushes at low speed (no inner-wheel
+lift until the steering geometry of milestone 5), which the single-track
+model, with one wheel per axle, does not see. The 0–100 km/h times run
+through each preset's drivetrain: launch on the clutch, wheelspin, shifts.
 
 Stability, from the same runner (all three presets, both models):
 
@@ -70,14 +77,14 @@ Benchmarks on a Node 22 x64 container, 60 Hz host step, release build:
 
 | Case                                    | ms per step |
 | --------------------------------------- | ----------- |
-| 1 car, four-wheel, 1 kHz internal       | 0.05        |
-| 20 cars, four-wheel, 1 kHz internal     | 0.76        |
-| 50 cars, four-wheel, 500 Hz internal    | 1.05        |
-| 200 cars, single-track, 240 Hz internal | 1.02        |
+| 1 car, four-wheel, 1 kHz internal       | 0.06        |
+| 20 cars, four-wheel, 1 kHz internal     | 1.09        |
+| 50 cars, four-wheel, 500 Hz internal    | 1.26        |
+| 200 cars, single-track, 240 Hz internal | 1.26        |
 
 Targets: under 0.2 ms for one car and under 3 ms for twenty on M1-class
 hardware; under 2 ms for two hundred traffic cars; core WASM under 200 KB
-gzipped (currently 148 KB). `apps/bench/baseline` holds the committed
+gzipped (currently 172 KB). `apps/bench/baseline` holds the committed
 baseline the benchmark compares against.
 
 The determinism check runs a 50 s scripted drive of three vehicles, then a
@@ -123,7 +130,7 @@ scene.step();
 
 ```
 crates/skidpad-math      deterministic software math (ADR-0006)
-crates/skidpad-core      the simulation: tires, vehicle, world, snapshots, validation
+crates/skidpad-core      the simulation: tires, drivetrain, vehicle, world, snapshots, validation
 crates/skidpad-wasm      plain C-style WASM ABI (ADR-0003)
 packages/core       @skidpad/core: loader, World, Tire, definitions, schema, migrations
 packages/presets    reference vehicles with data sheets
@@ -200,16 +207,16 @@ Contributors who only know TypeScript can work on everything outside
 
 `pnpm dev:sandbox` opens a scene with a car on a looped track, a 40 m
 skidpad, and a set of obstacles. WASD or arrows drive, Space is the
-handbrake, gamepads work. The host selector switches between the built-in
+handbrake, Q and E shift (the presets are automatics; E from neutral is
+drive, Q below first is reverse), C is the clutch, gamepads work. The host selector switches between the built-in
 flat-ground host and a Rapier scene where the speed bumps, the ramp and the
 kerb are real. The overlay shows speed, lateral g, roll and pitch, slip
 angles, steering torque, step cost, the live state hash, and per wheel the
 load, suspension travel and slips; the graph scrolls telemetry; buttons
 export CSV and record a WebM clip. A sound toggle adds a synthesised engine
-note and tire squeal (Web Audio, no samples): the core has no engine model,
-so the note follows a virtual five-speed gearbox on the driven-wheel speed,
-and the squeal follows each wheel's combined slip past its force peak. It is
-sound only and does not touch the simulation.
+note and tire squeal (Web Audio, no samples): the note follows the core's
+engine speed and gear, and the squeal follows each wheel's combined slip
+past its force peak. It is sound only and does not touch the simulation.
 The site deploys to GitHub Pages on every merge to `main`, and CI uploads a
 preview build of the sandbox, docs, and bench page for every pull request.
 

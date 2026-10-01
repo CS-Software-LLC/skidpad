@@ -7,6 +7,7 @@ import type {
   MagicFormulaParams,
 } from "./definition/types.js";
 import { validateDefinition } from "./definition/validate.js";
+import { migrateLegacyDrive } from "./definition/migrate.js";
 
 /** Thrown for any error reported by the core. */
 export class SkidpadError extends Error {
@@ -29,6 +30,13 @@ export interface VehicleInput {
   brake: number;
   /** 0 … 1. */
   handbrake: number;
+  /** Clutch pedal, 0 (engaged) … 1 (open). Combustion power units only. */
+  clutch: number;
+  /**
+   * Requested gear: negative reverse, zero neutral (manual) or drive
+   * (automatic), positive gear number.
+   */
+  gear: number;
 }
 
 export interface TelemetryChannel {
@@ -497,6 +505,7 @@ export class World {
    * core defaults. Returns the vehicle index.
    */
   addVehicle(def: PartialVehicleDefinition): number {
+    def = migrateLegacyDrive(def as Record<string, unknown>) as PartialVehicleDefinition;
     const v = validateDefinition(def);
     if (!v.ok) throw new SkidpadError(v.errors.join("; "), ErrorCode.InvalidDefinition);
     const { ptr, len } = this.sp.writeString(JSON.stringify(def));
@@ -509,6 +518,7 @@ export class World {
 
   /** Replace a vehicle's definition in place, keeping its state (live tuning). */
   setDefinition(vehicle: number, def: PartialVehicleDefinition): void {
+    def = migrateLegacyDrive(def as Record<string, unknown>) as PartialVehicleDefinition;
     const v = validateDefinition(def);
     if (!v.ok) throw new SkidpadError(v.errors.join("; "), ErrorCode.InvalidDefinition);
     const { ptr, len } = this.sp.writeString(JSON.stringify(def));
@@ -527,9 +537,11 @@ export class World {
     if (input.throttle !== undefined) f[o + 1] = input.throttle;
     if (input.brake !== undefined) f[o + 2] = input.brake;
     if (input.handbrake !== undefined) f[o + 3] = input.handbrake;
+    if (input.clutch !== undefined) f[o + 4] = input.clutch;
+    if (input.gear !== undefined) f[o + 5] = input.gear;
   }
 
-  /** Live view of a vehicle's input slots (`[steer, throttle, brake, handbrake]`). */
+  /** Live view of a vehicle's input slots (`[steer, throttle, brake, handbrake, clutch, gear]`). */
   inputView(vehicle: number): Float64Array {
     const o = this.inputsPtr / 8 + vehicle * this.sp.inputStride;
     return this.sp.floats().subarray(o, o + this.sp.inputStride);

@@ -3,6 +3,7 @@
 //! the TypeScript side owns migrations and friendly validation messages, this
 //! side guards the simulation and gives the same messages for Rust callers.
 
+use crate::drivetrain::DrivetrainDef;
 use crate::tire::TireModel;
 use skidpad_math as m;
 
@@ -20,8 +21,9 @@ pub struct VehicleDefinition {
     pub axles: Vec<AxleDef>,
     pub steering: SteeringDef,
     pub brakes: BrakesDef,
-    /// Interim drive model until the drivetrain graph lands (milestone 4).
-    pub drive: SimpleDriveDef,
+    /// Power unit, transmission and differentials (ADR-0011). Which axles
+    /// it drives comes from `axles[].driven`.
+    pub drivetrain: DrivetrainDef,
     pub aero: AeroDef,
     pub simulation: SimulationDef,
 }
@@ -35,7 +37,7 @@ impl Default for VehicleDefinition {
             axles: vec![AxleDef::front_default(), AxleDef::rear_default()],
             steering: SteeringDef::default(),
             brakes: BrakesDef::default(),
-            drive: SimpleDriveDef::default(),
+            drivetrain: DrivetrainDef::default(),
             aero: AeroDef::default(),
             simulation: SimulationDef::default(),
         }
@@ -260,27 +262,6 @@ impl Default for BrakesDef {
 #[derive(Clone, Debug, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(rename_all = "camelCase", default))]
-pub struct SimpleDriveDef {
-    /// Total drive torque at the wheels at full throttle, N·m, split evenly
-    /// across driven axles.
-    pub max_wheel_torque: f64,
-    /// Wheel speed above which drive torque fades to zero, rad/s. Stands in
-    /// for a power limit until the drivetrain lands.
-    pub max_wheel_speed: f64,
-}
-
-impl Default for SimpleDriveDef {
-    fn default() -> Self {
-        Self {
-            max_wheel_torque: 2200.0,
-            max_wheel_speed: 160.0,
-        }
-    }
-}
-
-#[derive(Clone, Debug, PartialEq)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serde", serde(rename_all = "camelCase", default))]
 pub struct AeroDef {
     pub drag_coefficient: f64,
     /// Frontal area, m².
@@ -442,18 +423,7 @@ impl VehicleDefinition {
                 self.steering.ackermann
             ));
         }
-        if !(self.drive.max_wheel_torque >= 0.0) {
-            e.push(format!(
-                "drive.maxWheelTorque must be zero or positive (got {})",
-                self.drive.max_wheel_torque
-            ));
-        }
-        if !(self.drive.max_wheel_speed > 0.0) {
-            e.push(format!(
-                "drive.maxWheelSpeed must be positive (got {})",
-                self.drive.max_wheel_speed
-            ));
-        }
+        self.drivetrain.validate("drivetrain", &mut e);
         if !(self.aero.drag_coefficient >= 0.0
             && self.aero.frontal_area >= 0.0
             && self.aero.air_density >= 0.0)
@@ -488,6 +458,14 @@ impl VehicleDefinition {
         } else {
             Err(e)
         }
+    }
+
+    /// Which axles are driven, front then rear.
+    pub fn driven_axles(&self) -> [bool; 2] {
+        [
+            self.axles.first().is_some_and(|a| a.driven),
+            self.axles.get(1).is_some_and(|a| a.driven),
+        ]
     }
 
     /// Distance from the centre of mass to the rear axle, m.

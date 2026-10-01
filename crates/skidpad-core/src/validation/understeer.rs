@@ -108,14 +108,17 @@ pub fn run(def: &VehicleDefinition, cfg: &UndersteerConfig) -> Result<Understeer
     // then has the same dimensionless gain for a kart and a limousine, and
     // stays stable at any host rate, including one slower than the yaw
     // time constant of a kart (the discrete loop `e_{k+1} = −kp' e_k`
-    // converges for `kp' < 1`). Speed is P with the negative half going to
-    // the brake.
+    // converges for `kp' < 1`). Speed is PI with the negative half going
+    // to the brake; the integral removes the offset a part-throttle engine
+    // (whose torque falls with engine braking) would otherwise leave.
     let kp_steer = 0.5;
     let ki_steer = 1.5;
     let kp_speed = 0.6;
+    let ki_speed = 0.4;
     let wheelbase = def.chassis.wheelbase;
     // Integral state in steer-angle units, started at the Ackermann angle.
     let mut steer_integral = wheelbase / cfg.radius;
+    let mut speed_integral = 0.0;
 
     let mut points = Vec::with_capacity(cfg.speeds.len());
     for &target in &cfg.speeds {
@@ -132,12 +135,18 @@ pub fn run(def: &VehicleDefinition, cfg: &UndersteerConfig) -> Result<Understeer
             steer_integral += ki_steer * err * cfg.host_dt;
             steer_integral = m::clamp(steer_integral, -max_angle, max_angle);
             let delta = m::clamp(kp_steer * err + steer_integral, -max_angle, max_angle);
-            let pedal = kp_speed * (target - speed);
+            speed_integral = m::clamp(
+                speed_integral + ki_speed * (target - speed) * cfg.host_dt,
+                -1.0,
+                1.0,
+            );
+            let pedal = kp_speed * (target - speed) + speed_integral;
             let input = VehicleInput {
                 steer: -delta / max_angle,
                 throttle: m::clamp(pedal, 0.0, 1.0),
                 brake: m::clamp(-pedal, 0.0, 1.0),
                 handbrake: 0.0,
+                ..VehicleInput::default()
             };
             for _ in 0..n_sub {
                 car.substep(sub_dt, &input);
@@ -163,14 +172,30 @@ pub fn run(def: &VehicleDefinition, cfg: &UndersteerConfig) -> Result<Understeer
         });
     }
 
+    // ISO 4138 reduction: the dynamic steer angle is the steer angle less
+    // the Ackermann angle of the path actually driven, `L · r / V`. Fitting
+    // it against lateral acceleration makes the gradient independent of
+    // the small speed (and so radius) errors the controllers leave; the
+    // nominal Ackermann angle is added back so the intercept stays
+    // comparable to `L / R`.
+    let l = def.chassis.wheelbase;
     let xs: Vec<f64> = points.iter().map(|p| p.lat_accel).collect();
-    let ys: Vec<f64> = points.iter().map(|p| p.steer_angle).collect();
+    let ys: Vec<f64> = points
+        .iter()
+        .map(|p| {
+            let path = if p.speed > 0.1 {
+                l * p.yaw_rate / p.speed
+            } else {
+                l / cfg.radius
+            };
+            p.steer_angle - path + l / cfg.radius
+        })
+        .collect();
     let (gradient, intercept) = linear_fit(&xs, &ys);
 
     let c = &def.chassis;
     let a = c.cg_to_front_axle;
     let b = def.cg_to_rear_axle();
-    let l = c.wheelbase;
     let wf = c.mass * GRAVITY * b / l;
     let wr = c.mass * GRAVITY * a / l;
     // Axle cornering stiffness: two tires, each at half the axle load.

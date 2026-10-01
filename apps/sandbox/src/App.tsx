@@ -23,8 +23,10 @@ interface HudState {
   slipR: number;
   steerDeg: number;
   torque: number;
+  engine: boolean;
   rpm: number;
   gear: number;
+  clutchSlip: number;
   squeal: number;
   stepMs: number;
   hash: string;
@@ -194,9 +196,9 @@ export function App() {
         </button>
       </div>
       <div className="help">
-        WASD / arrows to drive · Space handbrake · R reset · gamepad supported · the ramp is 70 m
-        ahead under the Rapier host · sound is a virtual engine on the wheel speed plus tire squeal
-        past the grip peak
+        WASD / arrows to drive · Space handbrake · Q / E shift down / up (E from neutral for drive,
+        Q below first for reverse) · C clutch · R reset · gamepad supported · the ramp is 70 m ahead
+        under the Rapier host · sound follows the engine plus tire squeal past the grip peak
       </div>
       <Graph recorder={sim.recorder} />
     </>
@@ -221,8 +223,16 @@ function Hud({ sim }: { sim: Sim }) {
         slipR: w.read(v, "SlipAngle_R") * deg,
         steerDeg: w.read(v, "SteeringWheelAngle") * deg,
         torque: w.read(v, "SteeringTorque"),
-        rpm: sim.audio.engineRpm,
-        gear: sim.audio.currentGear,
+        engine: sim.definition.drivetrain.powerUnit.kind !== "direct",
+        rpm:
+          sim.definition.drivetrain.powerUnit.kind !== "direct"
+            ? w.read(v, "EngineRpm")
+            : sim.audio.engineRpm,
+        gear:
+          sim.definition.drivetrain.powerUnit.kind !== "direct"
+            ? w.read(v, "Gear")
+            : sim.audio.currentGear,
+        clutchSlip: w.read(v, "ClutchSlip"),
         squeal: sim.audio.squealLevel,
         stepMs: sim.stepCostMs,
         hash: w.stateHash(v),
@@ -272,9 +282,11 @@ function Hud({ sim }: { sim: Sim }) {
                 </td>
               </tr>
               <tr>
-                <td>Engine (sound only)</td>
+                <td>{hud.engine ? "Engine" : "Engine (sound only)"}</td>
                 <td>
-                  {hud.rpm.toFixed(0)} rpm · gear {hud.gear} · squeal{" "}
+                  {hud.rpm.toFixed(0)} rpm · gear{" "}
+                  {hud.gear < 0 ? "R" : hud.gear === 0 ? "N" : hud.gear}
+                  {hud.engine && Math.abs(hud.clutchSlip) > 5 ? " · clutch slipping" : ""} · squeal{" "}
                   {(hud.squeal * 100).toFixed(0)}%
                 </td>
               </tr>

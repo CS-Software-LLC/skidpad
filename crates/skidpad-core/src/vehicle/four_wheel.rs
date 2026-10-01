@@ -23,6 +23,7 @@
 //! used to move the rays between substeps and is discarded.
 
 use crate::definition::VehicleDefinition;
+use crate::drivetrain::{Drivetrain, WheelDyn};
 use crate::geom::{Quat, Vec3};
 use crate::input::VehicleInput;
 use crate::snapshot::Snapshottable;
@@ -161,6 +162,9 @@ pub struct FourWheelVehicle {
     /// Angular velocity, body frame.
     pub omega: Vec3,
     pub wheels: [WheelState; WHEEL_COUNT],
+    /// Power unit, clutch, gearbox and differentials (ADR-0011); its state
+    /// is in the snapshot.
+    pub drivetrain: Drivetrain,
     // --- host-step accumulators (external host mode) ---
     /// Net impulse of everything except gravity over the host step, world
     /// frame, N·s.
@@ -184,8 +188,10 @@ pub struct FourWheelVehicle {
 
 impl FourWheelVehicle {
     pub fn new(def: VehicleDefinition) -> Self {
+        let drivetrain = Drivetrain::new(def.drivetrain.clone(), def.driven_axles(), WHEEL_COUNT);
         let mut v = Self {
             geometry: [WheelGeometry::default(); WHEEL_COUNT],
+            drivetrain,
             def,
             host_mode: HostMode::Builtin,
             contacts: [WheelContact::flat_ground(); WHEEL_COUNT],
@@ -234,6 +240,8 @@ impl FourWheelVehicle {
 
     /// Replace the definition while keeping the state (live tuning).
     pub fn set_definition(&mut self, def: VehicleDefinition) {
+        self.drivetrain
+            .set_definition(def.drivetrain.clone(), def.driven_axles());
         self.def = def;
         self.compute_geometry();
     }
@@ -297,6 +305,7 @@ impl FourWheelVehicle {
         if self.host_mode == HostMode::Builtin {
             self.contacts = [WheelContact::flat_ground(); WHEEL_COUNT];
         }
+        self.drivetrain.reset();
     }
 
     /// Set a forward speed with the wheels rolling to match.
@@ -306,6 +315,17 @@ impl FourWheelVehicle {
             w.omega = vx / self.geometry[i].radius;
             w.transient = TireTransient::default();
         }
+        let mut carrier = 0.0;
+        let driven = self.def.driven_axles();
+        let mut n = 0.0;
+        for (i, w) in self.wheels.iter().enumerate() {
+            if driven[i / 2] {
+                carrier += w.omega;
+                n += 1.0;
+            }
+        }
+        self.drivetrain
+            .match_speed(if n > 0.0 { carrier / n } else { 0.0 });
     }
 
     /// Velocity in the body frame.
@@ -458,10 +478,12 @@ impl FourWheelVehicle {
             torque = torque + (w.contact_point - self.pos).cross(f);
         }
 
-        // --- drivetrain solve with tire forces as boundary conditions -------
-        // Interim: equal torque to every driven wheel (an open differential
-        // with no inertia). The drivetrain graph replaces this in milestone 4.
-        let driven_wheels = 2.0 * self.def.axles.iter().filter(|a| a.driven).count().max(1) as f64;
+        // --- tires, then the drivetrain solve (ADR-0011) ---------------------
+        // Each wheel's tire force is evaluated at the start-of-step state and
+        // becomes a boundary torque on the drivetrain system; the implicit
+        // tire stiffness goes into the wheel's effective inertia (ADR-0010).
+        let mut dyn_wheels = [WheelDyn::default(); WHEEL_COUNT];
+        let mut tire_forces = [(Vec3::ZERO, Vec3::ZERO, 0.0); WHEEL_COUNT];
         for i in 0..WHEEL_COUNT {
             let axle = i / 2;
             let adef = &self.def.axles[axle];
@@ -540,17 +562,6 @@ impl FourWheelVehicle {
             };
             w.out = out;
 
-            let drive = if adef.driven {
-                let fade = m::clamp(
-                    1.0 - m::abs(w.omega) / self.def.drive.max_wheel_speed,
-                    0.0,
-                    1.0,
-                );
-                input.throttle * self.def.drive.max_wheel_torque / driven_wheels * fade
-            } else {
-                0.0
-            };
-            w.drive_torque = drive;
             let mut brake_cap = 0.5 * input.brake * adef.max_brake_torque;
             if axle == 1 {
                 brake_cap += 0.5 * input.handbrake * self.def.brakes.handbrake_torque;
@@ -560,20 +571,27 @@ impl FourWheelVehicle {
             // Implicit wheel spin (ADR-0005 item 3 as re-derived in
             // ADR-0010), one wheel: the force sensitivity to wheel speed is
             // `Cκ·R·dt / (σx + dt·|Vx|)` plus the damping `c_x·R`.
-            let inertia = adef.wheel_inertia;
             let gain = TireTransient::deflection_gain(wx, dt, sigma_x);
             let dfx_domega = tire.longitudinal_stiffness(w.load) * radius * gain + c_x * radius;
-            let i_eff = inertia + dt * radius * dfx_domega;
-            let net = drive - radius * out.fx + out.my;
-            let omega_free = w.omega + dt * net / i_eff;
-            let impulse_cap = brake_cap * dt;
-            if m::abs(omega_free) * i_eff <= impulse_cap {
-                w.omega = 0.0;
-                w.locked = brake_cap > 0.0;
-            } else {
-                w.omega = omega_free - m::signum(omega_free) * impulse_cap / i_eff;
-                w.locked = false;
-            }
+            dyn_wheels[i] = WheelDyn {
+                omega: w.omega,
+                inertia: adef.wheel_inertia + dt * radius * dfx_domega,
+                torque: -radius * out.fx + out.my,
+                brake_capacity: brake_cap,
+                axle,
+                ..WheelDyn::default()
+            };
+            tire_forces[i] = (fwd * out.fx + lat * out.fy, n, out.mz);
+        }
+
+        self.drivetrain.step(dt, &input, &mut dyn_wheels);
+
+        for i in 0..WHEEL_COUNT {
+            let d = dyn_wheels[i];
+            let w = &mut self.wheels[i];
+            w.omega = d.omega;
+            w.locked = d.locked;
+            w.drive_torque = d.shaft_torque;
             w.spin_angle += w.omega * dt;
             if w.spin_angle > m::PI {
                 w.spin_angle -= m::TAU;
@@ -583,9 +601,9 @@ impl FourWheelVehicle {
 
             // --- tire forces into the world frame at the contact point ------
             if w.in_contact {
-                let f = fwd * out.fx + lat * out.fy;
+                let (f, n, mz) = tire_forces[i];
                 force = force + f;
-                torque = torque + (w.contact_point - self.pos).cross(f) + n * out.mz;
+                torque = torque + (w.contact_point - self.pos).cross(f) + n * mz;
             }
         }
 
@@ -704,7 +722,22 @@ impl FourWheelVehicle {
             rec[t::WHEEL_LOCKED_FL + i] = if w.locked { 1.0 } else { 0.0 };
             rec[t::SPIN_ANGLE_FL + i] = w.spin_angle;
         }
+        write_drivetrain_telemetry(&self.drivetrain, input, rec);
     }
+}
+
+/// The drivetrain channels, shared by both models.
+pub(crate) fn write_drivetrain_telemetry(d: &Drivetrain, input: &VehicleInput, rec: &mut [f64]) {
+    let tel = &d.telemetry;
+    rec[t::ENGINE_RPM] = tel.engine_rpm;
+    rec[t::ENGINE_TORQUE] = tel.engine_torque;
+    rec[t::GEAR] = tel.gear as f64;
+    rec[t::CLUTCH_SLIP] = tel.clutch_slip;
+    rec[t::CLUTCH_TORQUE] = tel.clutch_torque;
+    rec[t::DIFF_LOCK_TORQUE_F] = tel.diff_lock_front;
+    rec[t::DIFF_LOCK_TORQUE_R] = tel.diff_lock_rear;
+    rec[t::CENTER_LOCK_TORQUE] = tel.center_lock;
+    rec[t::CLUTCH] = input.clutch;
 }
 
 const BODY_STATE_LEN: usize = 14;
@@ -712,7 +745,7 @@ const WHEEL_STATE_LEN: usize = 4;
 
 impl Snapshottable for FourWheelVehicle {
     fn state_len(&self) -> usize {
-        BODY_STATE_LEN + WHEEL_COUNT * WHEEL_STATE_LEN
+        BODY_STATE_LEN + WHEEL_COUNT * WHEEL_STATE_LEN + crate::drivetrain::STATE_LEN
     }
 
     fn write_state(&self, out: &mut [f64]) {
@@ -737,6 +770,9 @@ impl Snapshottable for FourWheelVehicle {
             out[o + 2] = w.transient.slip_angle;
             out[o + 3] = w.spin_angle;
         }
+        let o = BODY_STATE_LEN + WHEEL_STATE_LEN * WHEEL_COUNT;
+        self.drivetrain
+            .write_state(&mut out[o..o + crate::drivetrain::STATE_LEN]);
     }
 
     fn read_state(&mut self, v: &[f64]) {
@@ -752,5 +788,8 @@ impl Snapshottable for FourWheelVehicle {
             w.transient.slip_angle = v[o + 2];
             w.spin_angle = v[o + 3];
         }
+        let o = BODY_STATE_LEN + WHEEL_STATE_LEN * WHEEL_COUNT;
+        self.drivetrain
+            .read_state(&v[o..o + crate::drivetrain::STATE_LEN]);
     }
 }

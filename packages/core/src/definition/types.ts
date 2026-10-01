@@ -156,11 +156,112 @@ export interface BrakesDefinition {
   handbrakeTorque: number;
 }
 
-export interface SimpleDriveDefinition {
-  /** Total drive torque at the wheels at full throttle, N·m. */
-  maxWheelTorque: number;
-  /** Wheel speed above which drive torque fades to zero, rad/s. */
-  maxWheelSpeed: number;
+/**
+ * The interim drive of milestones 1 to 3, kept as the `direct` power unit:
+ * a carrier torque law with no engine state.
+ */
+export interface DirectDriveDefinition {
+  kind: "direct";
+  /** Carrier torque at full throttle and rest, N·m, shared by the driven wheels. */
+  maxWheelTorque?: number;
+  /** Carrier speed at which the torque has faded to zero, rad/s. */
+  maxWheelSpeed?: number;
+}
+
+/** Internal combustion engine (ADR-0011). */
+export interface CombustionEngineDefinition {
+  kind: "combustion";
+  /** Idle speed, rpm. */
+  idleRpm?: number;
+  /** Rev limiter, rpm; the torque is cut smoothly over the last 2 %. */
+  redlineRpm?: number;
+  /** Crank, flywheel and clutch cover inertia, kg·m². */
+  inertia?: number;
+  /** Full-throttle torque curve as `[rpm, N·m]` points in increasing rpm. */
+  torqueCurve?: [number, number][];
+  /** Closed-throttle drag torque at idle, N·m. */
+  engineBrakingIdle?: number;
+  /** Closed-throttle drag torque at redline, N·m. */
+  engineBrakingRedline?: number;
+  /** Most torque the idle governor adds below idle, N·m. */
+  idleTorqueMax?: number;
+}
+
+/** Electric motor (ADR-0011): constant torque, then constant power. */
+export interface ElectricMotorDefinition {
+  kind: "electric";
+  /** Peak motor torque, N·m. */
+  maxTorque?: number;
+  /** Peak power, W. */
+  maxPower?: number;
+  /** Speed at which the torque has faded to zero, rpm. */
+  maxRpm?: number;
+  /** Rotor inertia, kg·m². */
+  inertia?: number;
+  /** Regenerative braking torque on a closed throttle, N·m. */
+  regenTorque?: number;
+}
+
+export type PowerUnitDefinition =
+  DirectDriveDefinition | CombustionEngineDefinition | ElectricMotorDefinition;
+
+export type TransmissionMode = "automatic" | "manual";
+
+export interface TransmissionDefinition {
+  /** Forward ratios, first gear first. One entry is a single speed. */
+  gears: number[];
+  /** Reverse ratio magnitude; zero means no reverse. */
+  reverse: number;
+  finalDrive: number;
+  /** `"automatic"` shifts by itself and treats a `gear` input of 0 as drive. */
+  mode: TransmissionMode;
+  /** Torque interruption while changing gear, s. */
+  shiftTime: number;
+  /** Time after a shift before the automatic shifts again, s. */
+  shiftHold: number;
+  /** Automatic upshift point as a fraction of redline (gearbox input speed). */
+  shiftUpAt: number;
+  /** Automatic downshift point as a fraction of redline. */
+  shiftDownAt: number;
+  /** Largest torque the clutch transmits when fully engaged, N·m. */
+  clutchMaxTorque: number;
+  /** Clutch re-engagement time after a shift, s. */
+  clutchEngageTime: number;
+  /** The automatic clutch bites from idle to this many rpm above idle; 0 disables it. */
+  clutchBiteRpm: number;
+  /** Gearbox input and clutch disc inertia, kg·m². */
+  inputInertia: number;
+  /** Gearbox output and propshaft inertia, kg·m². */
+  outputInertia: number;
+}
+
+export type DifferentialKind = "open" | "locked" | "lsd";
+
+export interface DifferentialDefinition {
+  kind: DifferentialKind;
+  /** Locking torque at zero carrier torque, N·m (LSD). */
+  preload: number;
+  /** Torque bias ratio under drive, ≥ 1 (LSD). */
+  biasDrive: number;
+  /** Torque bias ratio on the overrun, ≥ 1 (LSD). */
+  biasCoast: number;
+}
+
+export interface CenterDifferentialDefinition extends DifferentialDefinition {
+  /** Share of the carrier torque sent to the front axle when open, 0 … 1. */
+  frontTorqueFraction: number;
+}
+
+/** Power unit, transmission and differentials (ADR-0011). */
+export interface DrivetrainDefinition {
+  powerUnit: PowerUnitDefinition;
+  transmission: TransmissionDefinition;
+  /** Front axle differential (four-wheel model). */
+  front: DifferentialDefinition;
+  /** Rear axle differential (four-wheel model). */
+  rear: DifferentialDefinition;
+  /** Centre differential, used when both axles are driven. */
+  center: CenterDifferentialDefinition;
 }
 
 export interface AeroDefinition {
@@ -200,11 +301,19 @@ export interface VehicleDefinition {
   axles: AxleDefinition[];
   steering: SteeringDefinition;
   brakes: BrakesDefinition;
-  drive: SimpleDriveDefinition;
+  drivetrain: DrivetrainDefinition;
   aero: AeroDefinition;
   simulation: SimulationDefinition;
   dataSheet?: DataSheet;
 }
+
+export type PartialDrivetrainDefinition = {
+  powerUnit?: PowerUnitDefinition;
+  transmission?: Partial<TransmissionDefinition>;
+  front?: Partial<DifferentialDefinition>;
+  rear?: Partial<DifferentialDefinition>;
+  center?: Partial<CenterDifferentialDefinition>;
+};
 
 /** A definition where every component may be partially specified. */
 export type PartialVehicleDefinition = {
@@ -216,7 +325,7 @@ export type PartialVehicleDefinition = {
   >;
   steering?: Partial<SteeringDefinition>;
   brakes?: Partial<BrakesDefinition>;
-  drive?: Partial<SimpleDriveDefinition>;
+  drivetrain?: PartialDrivetrainDefinition;
   aero?: Partial<AeroDefinition>;
   simulation?: Partial<SimulationDefinition>;
   dataSheet?: DataSheet;

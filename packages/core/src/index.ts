@@ -22,7 +22,12 @@ export * from "./core.js";
 export * from "./definition/types.js";
 export { validateDefinition } from "./definition/validate.js";
 export type { ValidationResult } from "./definition/validate.js";
-export { migrateDefinition, isCurrentFormat, MigrationError } from "./definition/migrate.js";
+export {
+  migrateDefinition,
+  migrateLegacyDrive,
+  isCurrentFormat,
+  MigrationError,
+} from "./definition/migrate.js";
 export { ErrorCode, EXPECTED_ABI_VERSION } from "./wasm/abi.js";
 export { triangleWave, smoothWave } from "./wave.js";
 export type { CpExports } from "./wasm/abi.js";

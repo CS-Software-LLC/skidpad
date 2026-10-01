@@ -13,7 +13,7 @@ and SI units; the only non-SI fields end in `Deg`.
 | `axles`      | Front then rear. Each has a tire, a `suspension`, wheel inertia, `driven`, `steered`, brake torque, static camber |
 | `steering`   | Maximum road-wheel angle, steering ratio, Ackermann fraction                                                      |
 | `brakes`     | Handbrake torque                                                                                                  |
-| `drive`      | Interim drive model: wheel torque and fade speed, until the drivetrain graph lands                                |
+| `drivetrain` | Power unit (`direct`, `combustion` or `electric`), transmission, axle and centre differentials (ADR-0011)         |
 | `aero`       | Drag coefficient, frontal area, air density                                                                       |
 | `simulation` | Internal substep rate and `model`: `"fourWheel"` (default) or `"singleTrack"`                                     |
 | `dataSheet`  | Sources for reference vehicles                                                                                    |
