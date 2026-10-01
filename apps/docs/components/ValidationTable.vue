@@ -4,6 +4,7 @@ import results from "../../../tools/validate/golden/results.json";
 const rows = Object.entries(results.vehicles).map(([id, v]) => ({
   id,
   kus: v.understeer.gradientDegPerG,
+  kusSingle: v.understeerSingleTrack.gradientDegPerG,
   kusLin: v.understeer.analyticGradientDegPerG,
   accel: v.straightLine.accelTime,
   brake: v.straightLine.brakingDistance,
@@ -25,7 +26,8 @@ const f = (v: number | null, d = 2) => (v === null ? "n/a" : v.toFixed(d));
     <thead>
       <tr>
         <th>Vehicle</th>
-        <th>K<sub>us</sub> simulated (deg/g)</th>
+        <th>K<sub>us</sub> four-wheel (deg/g)</th>
+        <th>K<sub>us</sub> single-track (deg/g)</th>
         <th>K<sub>us</sub> linear theory (deg/g)</th>
         <th>0–100 km/h (s)</th>
         <th>100–0 km/h (m)</th>
@@ -38,6 +40,7 @@ const f = (v: number | null, d = 2) => (v === null ? "n/a" : v.toFixed(d));
       <tr v-for="r in rows" :key="r.id">
         <td>{{ r.id }}</td>
         <td>{{ f(r.kus) }}</td>
+        <td>{{ f(r.kusSingle) }}</td>
         <td>{{ f(r.kusLin) }}</td>
         <td>{{ f(r.accel) }}</td>
         <td>{{ f(r.brake, 1) }}</td>

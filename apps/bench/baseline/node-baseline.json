@@ -1,0 +1,61 @@
+{
+  "platform": "node-22.22.0-linux-x64",
+  "coreVersion": "0.1.0",
+  "timestamp": "2026-10-01T14:42:38.049Z",
+  "results": [
+    {
+      "vehicles": 1,
+      "substepRateHz": 1000,
+      "model": "fourWheel",
+      "label": "1 car, LOD 0 (1 kHz)",
+      "msPerStep": 0.044938474999999964,
+      "usPerVehicleStep": 44.93847499999996,
+      "steps": 600
+    },
+    {
+      "vehicles": 10,
+      "substepRateHz": 1000,
+      "model": "fourWheel",
+      "label": "10 cars, LOD 0 (1 kHz)",
+      "msPerStep": 0.4162022966666667,
+      "usPerVehicleStep": 41.620229666666674,
+      "steps": 600
+    },
+    {
+      "vehicles": 20,
+      "substepRateHz": 1000,
+      "model": "fourWheel",
+      "label": "20 cars, LOD 0 (1 kHz)",
+      "msPerStep": 0.7632398799999999,
+      "usPerVehicleStep": 38.16199399999999,
+      "steps": 600
+    },
+    {
+      "vehicles": 50,
+      "substepRateHz": 500,
+      "model": "fourWheel",
+      "label": "50 cars, four-wheel at 500 Hz",
+      "msPerStep": 1.0484416849999998,
+      "usPerVehicleStep": 20.968833699999994,
+      "steps": 600
+    },
+    {
+      "vehicles": 50,
+      "substepRateHz": 500,
+      "model": "singleTrack",
+      "label": "50 cars, LOD 1 stand-in (single-track, 500 Hz)",
+      "msPerStep": 0.4311952933333335,
+      "usPerVehicleStep": 8.62390586666667,
+      "steps": 600
+    },
+    {
+      "vehicles": 200,
+      "substepRateHz": 240,
+      "model": "singleTrack",
+      "label": "200 cars, LOD 2 stand-in (single-track, 240 Hz)",
+      "msPerStep": 1.0170504166666667,
+      "usPerVehicleStep": 5.085252083333334,
+      "steps": 600
+    }
+  ]
+}

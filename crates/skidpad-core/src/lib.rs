@@ -13,9 +13,12 @@
 //!   → chassis proxy integration → telemetry
 //! ```
 //!
-//! Milestone 1 implements that pipeline for a planar single-track ("bicycle")
-//! vehicle on flat ground inside the built-in minimal host. Later milestones
-//! replace stages (suspension, drivetrain) without changing the shape.
+//! Two vehicle models run that pipeline: the planar single-track ("bicycle")
+//! model of milestone 1, kept as the cheap level-of-detail model, and the
+//! four-wheel model of milestone 2 with independent suspension on a
+//! six-degree-of-freedom chassis proxy that an external host can drive.
+//! Later milestones replace stages (drivetrain, steering geometry) without
+//! changing the shape.
 //!
 //! Units are SI throughout: metres, kilograms, seconds, newtons, radians.
 
@@ -27,6 +30,7 @@
 
 pub mod curve;
 pub mod definition;
+pub mod geom;
 pub mod input;
 pub mod snapshot;
 pub mod telemetry;
@@ -38,6 +42,7 @@ pub mod world;
 pub use definition::VehicleDefinition;
 pub use input::VehicleInput;
 pub use tire::{TireInput, TireModel, TireOutput};
+pub use vehicle::VehicleModel;
 pub use world::World;
 
 /// Crate version, exposed through the WASM ABI.

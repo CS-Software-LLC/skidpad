@@ -39,8 +39,23 @@ Two mechanisms, both from published work:
    exchange for unconditional stability of the stiff wheel–tire mode. Stable
    beats accurate, and the error vanishes as `dt → 0`.
 
+4. **Low-speed damping and smooth rolling resistance** (amendment, milestone
+   2). With (1) and (2) alone the wheel-tire mode at standstill, a spring of
+   stiffness `C_κ / σ_x` on the wheel's effective mass `I / R²`, is damped
+   only by the relaxation floor, a damping ratio below one percent, and the
+   rolling-resistance moment switched sign with the velocity. Together they
+   produced a limit cycle whenever a parked car was nudged. Following
+   Pacejka §8.6, a viscous force on the contact slip velocities,
+   `k = 2 ζ √(C_κ I / (σ_x R²))` with the tire parameter `lowSpeedDamping`
+   as `ζ` (default 0.3), is added below the speed floor and fades to zero at
+   it; its longitudinal part enters the implicit wheel equation so it cannot
+   destabilise anything. The rolling-resistance moment is proportional to
+   `V_x / V_low` below the floor instead of its sign. Both are clamped to the
+   friction circle.
+
 The parked-on-slope validation scenarios (10%, 20%, 30%) and the rest-jitter
-measurement in milestone 3 guard this ADR.
+measurement in milestone 3 guard this ADR; the four-wheel rest and nudge tests
+of milestone 2 guard the amendment.
 
 ## Alternatives considered
 
@@ -60,4 +75,4 @@ measurement in milestone 3 guard this ADR.
 - Every tire carries two state variables per wheel (transient κ and α). They
   are part of the snapshot and of the telemetry.
 - `V_low` is a tuning parameter with units and a default, exposed in the
-  schema as `tire.lowSpeedFloor`.
+  schema as `tire.lowSpeedFloor`; the damping ratio is `tire.lowSpeedDamping`.

@@ -23,6 +23,14 @@ export interface CpExports {
   sp_telemetry_stride(): number;
   sp_telemetry_layout_ptr(): number;
   sp_telemetry_layout_len(): number;
+  sp_wheel_count(): number;
+  sp_host_in_stride(): number;
+  sp_host_in_body_len(): number;
+  sp_host_contact_stride(): number;
+  sp_host_out_stride(): number;
+  sp_host_out_body_len(): number;
+  sp_host_out_wheel_stride(): number;
+  sp_wheel_ray_stride(): number;
 
   sp_world_new(capacity: number): number;
   sp_world_free(handle: number): void;
@@ -37,6 +45,10 @@ export interface CpExports {
   sp_world_capacity(handle: number): number;
   sp_world_inputs_ptr(handle: number): number;
   sp_world_telemetry_ptr(handle: number): number;
+  sp_world_host_in_ptr(handle: number): number;
+  sp_world_host_out_ptr(handle: number): number;
+  sp_world_set_host_mode(handle: number, vehicle: number, mode: number): number;
+  sp_world_wheel_rays(handle: number, vehicle: number, out: number, cap: number): number;
   sp_world_step(handle: number, dt: number): number;
   sp_world_step_count(handle: number): bigint;
   sp_world_state_hash(handle: number, vehicle: number): bigint;
@@ -81,7 +93,7 @@ export interface CpExports {
 }
 
 /** ABI version this loader was written against. */
-export const EXPECTED_ABI_VERSION = 1;
+export const EXPECTED_ABI_VERSION = 2;
 
 export enum ErrorCode {
   Ok = 0,
@@ -93,4 +105,5 @@ export enum ErrorCode {
   Snapshot = -6,
   BufferTooSmall = -7,
   Scenario = -8,
+  WrongModel = -9,
 }

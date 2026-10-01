@@ -4,14 +4,17 @@
   "dataSheet": {
     "description": "A generic rear-wheel-drive two-seat sports car in the 1.35 t class: roughly 250 kW, 2.5 m wheelbase, near 50/50 weight distribution, wide performance tires.",
     "sources": [
-      "Class-typical figures from manufacturer specification sheets for front-engine RWD sports cars (mass 1300\u20131450 kg, wheelbase 2.45\u20132.55 m, Cd 0.28\u20130.32, 52/48 front weight bias).",
-      "Tire feel parameters tuned to a ~1.0 g skidpad and ~34 m 100\u20130 km/h braking distance from published road tests for the class."
+      "Class-typical figures from manufacturer specification sheets for front-engine RWD sports cars (mass 1300–1450 kg, wheelbase 2.45–2.55 m, Cd 0.28–0.32, 52/48 front weight bias).",
+      "Tire feel parameters tuned to a ~1.0 g skidpad and ~34 m 100–0 km/h braking distance from published road tests for the class.",
+      "Suspension rates typical of a sports car with ~2.0 Hz front and ~2.2 Hz rear ride frequencies and a front-biased roll stiffness distribution (Milliken & Milliken, Race Car Vehicle Dynamics, ch. 16)."
     ],
     "notes": "Not a specific production model. The clutch-pack LSD arrives with the drivetrain graph in milestone 4."
   },
   "chassis": {
     "mass": 1380,
     "yawInertia": 2100,
+    "rollInertia": 480,
+    "pitchInertia": 1900,
     "wheelbase": 2.5,
     "cgToFrontAxle": 1.3,
     "cgHeight": 0.45,
@@ -35,7 +38,16 @@
       "driven": false,
       "steered": true,
       "maxBrakeTorque": 4200,
-      "staticCamberDeg": -1.0
+      "staticCamberDeg": -1.0,
+      "suspension": {
+        "springRate": 38000,
+        "bumpDamping": 3200,
+        "reboundDamping": 4400,
+        "travelBump": 0.07,
+        "travelDroop": 0.09,
+        "antiRollStiffness": 22000,
+        "bumpStopStiffness": 400000
+      }
     },
     {
       "tire": {
@@ -54,12 +66,22 @@
       "driven": true,
       "steered": false,
       "maxBrakeTorque": 2600,
-      "staticCamberDeg": -1.5
+      "staticCamberDeg": -1.5,
+      "suspension": {
+        "springRate": 36000,
+        "bumpDamping": 3000,
+        "reboundDamping": 4200,
+        "travelBump": 0.08,
+        "travelDroop": 0.1,
+        "antiRollStiffness": 14000,
+        "bumpStopStiffness": 400000
+      }
     }
   ],
   "steering": {
     "maxWheelAngleDeg": 32,
-    "ratio": 13
+    "ratio": 13,
+    "ackermann": 1.0
   },
   "brakes": {
     "handbrakeTorque": 1500
@@ -74,6 +96,7 @@
     "airDensity": 1.225
   },
   "simulation": {
-    "substepRateHz": 1000
+    "substepRateHz": 1000,
+    "model": "fourWheel"
   }
 }

@@ -5,7 +5,7 @@
 
 use crate::definition::VehicleDefinition;
 use crate::input::VehicleInput;
-use crate::vehicle::BicycleVehicle;
+use crate::vehicle::VehicleModel;
 use skidpad_math as m;
 
 #[derive(Clone, Debug, PartialEq)]
@@ -54,7 +54,7 @@ pub fn run(
     cfg: &StraightLineConfig,
 ) -> Result<StraightLineResult, String> {
     def.validate().map_err(|e| e.join("; "))?;
-    let mut car = BicycleVehicle::new(def.clone());
+    let mut car = VehicleModel::new(def.clone());
     let rate = def.simulation.substep_rate_hz;
     let n_sub = m::max(m::round(cfg.host_dt * rate), 1.0) as usize;
     let sub_dt = cfg.host_dt / n_sub as f64;
@@ -73,14 +73,15 @@ pub fn run(
         for _ in 0..n_sub {
             car.substep(sub_dt, &full_throttle);
         }
-        if accel_time.is_none() && car.vx >= cfg.target_speed {
-            accel_time = Some(car.time);
-            accel_distance = Some(car.x);
+        let x = car.pose2d().0;
+        if accel_time.is_none() && car.vx() >= cfg.target_speed {
+            accel_time = Some(car.time());
+            accel_distance = Some(x);
         }
-        if quarter_mile_time.is_none() && car.x >= 402.336 {
-            quarter_mile_time = Some(car.time);
+        if quarter_mile_time.is_none() && x >= 402.336 {
+            quarter_mile_time = Some(car.time());
         }
-        if accel_time.is_some() && (quarter_mile_time.is_some() || car.x > 402.336) {
+        if accel_time.is_some() && (quarter_mile_time.is_some() || x > 402.336) {
             break;
         }
     }
@@ -96,15 +97,15 @@ pub fn run(
     };
     let mut locked = false;
     let mut steps = 0usize;
-    while car.vx > 0.05 && steps < max_steps {
+    while car.vx() > 0.05 && steps < max_steps {
         for _ in 0..n_sub {
             car.substep(sub_dt, &full_brake);
         }
-        locked |= car.axles[0].locked || car.axles[1].locked;
+        locked |= car.axle_locked(0) || car.axle_locked(1);
         steps += 1;
     }
-    let braking_distance = car.x;
-    let braking_time = car.time;
+    let braking_distance = car.pose2d().0;
+    let braking_time = car.time();
     let mean_decel = if braking_time > 0.0 {
         cfg.target_speed / braking_time
     } else {

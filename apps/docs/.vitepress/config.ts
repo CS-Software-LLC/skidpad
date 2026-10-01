@@ -20,6 +20,7 @@ export default defineConfig({
         items: [
           { text: "Getting started", link: "/guide/getting-started" },
           { text: "Vehicle definitions", link: "/guide/definitions" },
+          { text: "Driving a Rapier body", link: "/guide/rapier" },
           { text: "Determinism contract", link: "/guide/determinism-contract" },
         ],
       },
@@ -29,6 +30,7 @@ export default defineConfig({
           { text: "Slip ratio and slip angle", link: "/concepts/slip" },
           { text: "Combined slip", link: "/concepts/combined-slip" },
           { text: "Load transfer", link: "/concepts/load-transfer" },
+          { text: "Suspension and the four-wheel model", link: "/concepts/suspension" },
           { text: "Relaxation length", link: "/concepts/relaxation-length" },
           { text: "Why substepping and the chassis proxy", link: "/concepts/substepping" },
         ],

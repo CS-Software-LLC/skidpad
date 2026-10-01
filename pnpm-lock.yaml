@@ -73,6 +73,9 @@ importers:
 
   apps/sandbox:
     dependencies:
+      '@dimforge/rapier3d-compat':
+        specifier: ^0.21.0
+        version: 0.21.0
       '@react-three/fiber':
         specifier: ^8.17.0
         version: 8.18.0(@types/react@18.3.31)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(three@0.169.0)
@@ -85,6 +88,9 @@ importers:
       '@skidpad/presets':
         specifier: workspace:*
         version: link:../../packages/presets
+      '@skidpad/rapier':
+        specifier: workspace:*
+        version: link:../../packages/rapier
       '@skidpad/telemetry':
         specifier: workspace:*
         version: link:../../packages/telemetry
@@ -166,6 +172,25 @@ importers:
         specifier: workspace:*
         version: link:../core
     devDependencies:
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
+      vitest:
+        specifier: ^2.1.0
+        version: 2.1.9(@types/node@22.20.4)
+
+  packages/rapier:
+    dependencies:
+      '@skidpad/core':
+        specifier: workspace:*
+        version: link:../core
+    devDependencies:
+      '@dimforge/rapier3d-compat':
+        specifier: ^0.21.0
+        version: 0.21.0
+      '@skidpad/presets':
+        specifier: workspace:*
+        version: link:../presets
       typescript:
         specifier: ^5.6.0
         version: 5.9.3
@@ -451,6 +476,9 @@ packages:
 
   '@changesets/write@0.4.0':
     resolution: {integrity: sha512-CdTLvIOPiCNuH71pyDu3rA+Q0n65cmAbXnwWH84rKGiFumFzkmHNT8KHTMEchcxN+Kl8I54xGUhJ7l3E7X396Q==}
+
+  '@dimforge/rapier3d-compat@0.21.0':
+    resolution: {integrity: sha512-tCl1HPGwOhn5aCQbgqWbOH+Nx/5fnr3IPAnzQuR7zIhC/raqi2yxC6LhvZqjdI2El5hQgY5RDAwDrAjAi2FdPA==}
 
   '@docsearch/css@3.8.2':
     resolution: {integrity: sha512-y05ayQFyUmCXze79+56v/4HpycYF3uFqB78pLPrSV5ZKAlDuIAAJNhaRi8tTdRNXh05yxX/TyNnzD6LwSM89vQ==}
@@ -2799,6 +2827,8 @@ snapshots:
       fs-extra: 7.0.1
       human-id: 4.2.1
       prettier: 2.8.8
+
+  '@dimforge/rapier3d-compat@0.21.0': {}
 
   '@docsearch/css@3.8.2': {}
 

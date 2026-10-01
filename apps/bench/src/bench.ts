@@ -5,6 +5,8 @@ export interface BenchCase {
   vehicles: number;
   /** Internal substep rate used for the case, Hz. */
   substepRateHz: number;
+  /** Vehicle model for the case. */
+  model: "fourWheel" | "singleTrack";
   label: string;
 }
 
@@ -24,22 +26,40 @@ export interface BenchReport {
 }
 
 /**
- * The published cases. LOD 1 and LOD 2 arrive in milestone 7; until then the
- * lower substep rates stand in for them so the dashboard has a time series
- * from day one.
+ * The published cases. LOD 0 is the four-wheel model at 1 kHz, the player
+ * car. The lower-detail levels of milestone 7 are stood in for by the
+ * single-track model at lower substep rates, so the dashboard has a time
+ * series for every tier from day one.
  */
 export const CASES: BenchCase[] = [
-  { vehicles: 1, substepRateHz: 1000, label: "1 car, LOD 0 (1 kHz)" },
-  { vehicles: 10, substepRateHz: 1000, label: "10 cars, LOD 0 (1 kHz)" },
-  { vehicles: 20, substepRateHz: 1000, label: "20 cars, LOD 0 (1 kHz)" },
-  { vehicles: 50, substepRateHz: 500, label: "50 cars, LOD 1 stand-in (500 Hz)" },
-  { vehicles: 200, substepRateHz: 240, label: "200 cars, LOD 2 stand-in (240 Hz)" },
+  { vehicles: 1, substepRateHz: 1000, model: "fourWheel", label: "1 car, LOD 0 (1 kHz)" },
+  { vehicles: 10, substepRateHz: 1000, model: "fourWheel", label: "10 cars, LOD 0 (1 kHz)" },
+  { vehicles: 20, substepRateHz: 1000, model: "fourWheel", label: "20 cars, LOD 0 (1 kHz)" },
+  {
+    vehicles: 50,
+    substepRateHz: 500,
+    model: "fourWheel",
+    label: "50 cars, four-wheel at 500 Hz",
+  },
+  {
+    vehicles: 50,
+    substepRateHz: 500,
+    model: "singleTrack",
+    label: "50 cars, LOD 1 stand-in (single-track, 500 Hz)",
+  },
+  {
+    vehicles: 200,
+    substepRateHz: 240,
+    model: "singleTrack",
+    label: "200 cars, LOD 2 stand-in (single-track, 240 Hz)",
+  },
 ];
 
 export function runCase(sp: Skidpad, c: BenchCase, now: () => number, steps = 600): BenchResult {
   const w = sp.createWorld(c.vehicles);
   const def = preset("hatchbackFwd");
   def.simulation.substepRateHz = c.substepRateHz;
+  def.simulation.model = c.model;
   for (let i = 0; i < c.vehicles; i++) w.addVehicle(def);
   for (let i = 0; i < c.vehicles; i++) w.setInput(i, { throttle: 0.7, steer: 0.1 * Math.sin(i) });
   // Warm up.

@@ -30,6 +30,12 @@ In milestone 1 the built-in minimal host uses the same structure: the bicycle
 model's chassis _is_ the proxy and the "host" integrates pose from the proxy's
 velocities.
 
+Amended by ADR-0009 (milestone 2): the proxy also integrates its own copy of
+the pose within the host step, because suspension forces depend on where the
+wheel rays hit; and adapters hand the accumulated impulse to the host as a
+force over the next host step rather than as a kick before it, which keeps the
+host's own gravity integration and the proxy in agreement.
+
 ## Alternatives considered
 
 - **Forces once per host step.** Simplest, and what most raycast vehicles do.

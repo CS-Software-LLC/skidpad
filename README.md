@@ -38,27 +38,35 @@ win on specific, measurable axes, together:
 
 ## Status
 
-Milestones 0 and 1 are done. The core runs a planar single-track model with
-two tire models, and every number below comes from the validation runner that
-CI executes on each commit.
+Milestones 0 to 2 are done. The core runs a four-wheel model with
+independent suspension on a six-degree-of-freedom chassis proxy, a Rapier
+adapter hosts that chassis in a real scene, and the planar single-track model
+stays as the level-of-detail model. Every number below comes from the
+validation runner that CI executes on each commit.
 
-| Vehicle (preset)    | Understeer gradient, simulated | Linear theory with trail | 0–100 km/h | 100–0 km/h, no ABS        |
-| ------------------- | ------------------------------ | ------------------------ | ---------- | ------------------------- |
-| Light FWD hatchback | 0.90 deg/g                     | 0.93 deg/g               | 9.0 s      | 46.6 m                    |
-| RWD sports car      | 0.10 deg/g                     | 0.10 deg/g               | 4.9 s      | 39.4 m                    |
-| Kart                | 0.32 deg/g                     | 0.36 deg/g               | 10.3 s     | 60.2 m (rear brakes only) |
+| Vehicle (preset)    | Understeer gradient, four-wheel | Single-track | Linear theory with trail | 0–100 km/h | 100–0 km/h, no ABS        |
+| ------------------- | ------------------------------- | ------------ | ------------------------ | ---------- | ------------------------- |
+| Light FWD hatchback | 1.14 deg/g                      | 0.90 deg/g   | 0.93 deg/g               | 9.0 s      | 46.8 m                    |
+| RWD sports car      | 0.20 deg/g                      | 0.10 deg/g   | 0.10 deg/g               | 4.9 s      | 39.5 m                    |
+| Kart                | 0.42 deg/g                      | 0.32 deg/g   | 0.36 deg/g               | 10.3 s     | 59.0 m (rear brakes only) |
 
-Benchmarks on the CI runner (Node 22, x64), 60 Hz host step:
+The four-wheel gradient sits above the single-track one by the load
+sensitivity cost of lateral load transfer, which the single-track model does
+not have.
 
-| Case                      | ms per step |
-| ------------------------- | ----------- |
-| 1 car, 1 kHz internal     | 0.04        |
-| 20 cars, 1 kHz internal   | 0.43        |
-| 200 cars, 240 Hz internal | 1.07        |
+Benchmarks on a Node 22 x64 container, 60 Hz host step, release build:
+
+| Case                                    | ms per step |
+| --------------------------------------- | ----------- |
+| 1 car, four-wheel, 1 kHz internal       | 0.05        |
+| 20 cars, four-wheel, 1 kHz internal     | 0.76        |
+| 50 cars, four-wheel, 500 Hz internal    | 1.05        |
+| 200 cars, single-track, 240 Hz internal | 1.02        |
 
 Targets: under 0.2 ms for one car and under 3 ms for twenty on M1-class
 hardware; under 2 ms for two hundred traffic cars; core WASM under 200 KB
-gzipped (currently 123 KB).
+gzipped (currently 139 KB). `apps/bench/baseline` holds the committed
+baseline the benchmark compares against.
 
 The determinism check runs a 50 s scripted drive of three vehicles in
 Chromium, Firefox, WebKit, and Node and asserts identical state hashes.
@@ -82,7 +90,20 @@ console.log(world.read(car, "Speed"), world.stateHash(car));
 ```
 
 See `examples/headless-node` and the docs' getting-started guide for the
-Three.js / React Three Fiber pattern.
+Three.js / React Three Fiber pattern. To let a Rapier rigid body be the car,
+add `@skidpad/rapier`:
+
+```ts
+import { createChassisBody, RapierVehicle } from "@skidpad/rapier";
+
+const body = createChassisBody(RAPIER, scene, def); // mass, inertia, chassis box
+const host = new RapierVehicle(RAPIER, world, car, body, scene);
+// each frame
+host.beforeStep(); // pose and wheel rays into the core
+world.step(1 / 60);
+host.afterStep(1 / 60); // tire and suspension impulse onto the body
+scene.step();
+```
 
 ## Repository layout
 
@@ -92,6 +113,7 @@ crates/skidpad-core      the simulation: tires, vehicle, world, snapshots, valid
 crates/skidpad-wasm      plain C-style WASM ABI (ADR-0003)
 packages/core       @skidpad/core: loader, World, Tire, definitions, schema, migrations
 packages/presets    reference vehicles with data sheets
+packages/rapier     @skidpad/rapier: Rapier 3D host adapter
 packages/telemetry  ring-buffer recorder, CSV and JSON export
 packages/input      keyboard ramps, gamepad and wheel mapping
 apps/sandbox        Vite + React Three Fiber playground
@@ -162,10 +184,14 @@ Contributors who only know TypeScript can work on everything outside
 
 ### Sandbox
 
-`pnpm dev:sandbox` opens a scene with a car on a grid and a 40 m skidpad.
-WASD or arrows drive, Space is the handbrake, gamepads work. The overlay shows
-speed, lateral g, slip angles, steering torque, step cost, and the live state
-hash; the graph scrolls telemetry; buttons export CSV and record a WebM clip.
+`pnpm dev:sandbox` opens a scene with a car on a looped track, a 40 m
+skidpad, and a set of obstacles. WASD or arrows drive, Space is the
+handbrake, gamepads work. The host selector switches between the built-in
+flat-ground host and a Rapier scene where the speed bumps, the ramp and the
+kerb are real. The overlay shows speed, lateral g, roll and pitch, slip
+angles, steering torque, step cost, the live state hash, and per wheel the
+load, suspension travel and slips; the graph scrolls telemetry; buttons
+export CSV and record a WebM clip.
 The site deploys to GitHub Pages on every merge to `main`, and CI uploads a
 preview build of the sandbox, docs, and bench page for every pull request.
 
@@ -188,8 +214,8 @@ change:
 | --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
 | M0        | Monorepo, CI with cross-browser determinism, licences and community files, deterministic math, sandbox, docs, bench skeleton                                | done   |
 | M1        | Feel and Magic Formula tires with `.tir` import, combined slip, load sensitivity, aligning moment, single-track model, tire explorer, understeer validation | done   |
-| M2        | Four wheels, suspension, Rapier adapter, chassis proxy, R3F track, telemetry overlay, benchmark baseline                                                    | next   |
-| M3        | Standstill and slope stability, locked brakes, timestep sweep, snapshot and hash on the full model, cross-browser test on a real drive                      |        |
+| M2        | Four wheels, suspension, Rapier adapter, chassis proxy, R3F track, telemetry overlay, benchmark baseline                                                    | done   |
+| M3        | Standstill and slope stability, locked brakes, timestep sweep, snapshot and hash on the full model, cross-browser test on a real drive                      | next   |
 | M4        | Drivetrain graph with implicit solver: engine, clutch, gearboxes, differentials, AWD, electric                                                              |        |
 | M5        | Steering geometry and rack force, input package with calibration, assists, WebHID force feedback                                                            |        |
 | M6        | Surfaces, aero, solid axles, tuning editor, full validation runner, reference vehicles                                                                      |        |

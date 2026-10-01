@@ -10,11 +10,13 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@dimforge/rapier3d-compat": "^0.21.0",
+    "@react-three/fiber": "^8.17.0",
     "@skidpad/core": "workspace:*",
     "@skidpad/input": "workspace:*",
     "@skidpad/presets": "workspace:*",
+    "@skidpad/rapier": "workspace:*",
     "@skidpad/telemetry": "workspace:*",
-    "@react-three/fiber": "^8.17.0",
     "react": "^18.3.0",
     "react-dom": "^18.3.0",
     "three": "^0.169.0"

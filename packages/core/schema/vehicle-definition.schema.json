@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://skidpad.dev/schema/vehicle-definition.schema.json",
   "title": "Skidpad vehicle definition",
-  "description": "A vehicle as plain data: chassis, axles with tires, steering, brakes, drive, aero, and simulation settings. All units SI unless the field name ends in Deg. Every field has a default; a definition may omit any of them.",
+  "description": "A vehicle as plain data: chassis, axles with tires and suspension, steering, brakes, drive, aero, and simulation settings. All units SI unless the field name ends in Deg. Every field has a default; a definition may omit any of them.",
   "type": "object",
   "properties": {
     "formatVersion": {
@@ -10,7 +10,10 @@
       "const": 1,
       "description": "Format version. Migrations in @skidpad/core bring older files forward."
     },
-    "name": { "type": "string", "default": "Unnamed vehicle" },
+    "name": {
+      "type": "string",
+      "default": "Unnamed vehicle"
+    },
     "chassis": {
       "type": "object",
       "properties": {
@@ -25,6 +28,18 @@
           "exclusiveMinimum": 0,
           "default": 2000,
           "description": "Yaw inertia about the centre of mass, kg·m²"
+        },
+        "rollInertia": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "default": 500,
+          "description": "Roll inertia about the centre of mass, kg·m² (four-wheel model)"
+        },
+        "pitchInertia": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "default": 1800,
+          "description": "Pitch inertia about the centre of mass, kg·m² (four-wheel model)"
         },
         "wheelbase": {
           "type": "number",
@@ -58,7 +73,9 @@
       "description": "Front axle first, rear second.",
       "minItems": 2,
       "maxItems": 2,
-      "items": { "$ref": "#/$defs/axle" }
+      "items": {
+        "$ref": "#/$defs/axle"
+      }
     },
     "steering": {
       "type": "object",
@@ -75,6 +92,13 @@
           "exclusiveMinimum": 0,
           "default": 14,
           "description": "Hand-wheel degrees per road-wheel degree"
+        },
+        "ackermann": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "default": 1,
+          "description": "Ackermann fraction: 0 parallel steer, 1 ideal Ackermann (four-wheel model)"
         }
       },
       "additionalProperties": false
@@ -113,9 +137,23 @@
     "aero": {
       "type": "object",
       "properties": {
-        "dragCoefficient": { "type": "number", "minimum": 0, "default": 0.32 },
-        "frontalArea": { "type": "number", "minimum": 0, "default": 2.2, "description": "m²" },
-        "airDensity": { "type": "number", "minimum": 0, "default": 1.225, "description": "kg/m³" }
+        "dragCoefficient": {
+          "type": "number",
+          "minimum": 0,
+          "default": 0.32
+        },
+        "frontalArea": {
+          "type": "number",
+          "minimum": 0,
+          "default": 2.2,
+          "description": "m²"
+        },
+        "airDensity": {
+          "type": "number",
+          "minimum": 0,
+          "default": 1.225,
+          "description": "kg/m³"
+        }
       },
       "additionalProperties": false
     },
@@ -128,6 +166,12 @@
           "maximum": 10000,
           "default": 1000,
           "description": "Internal substep rate, Hz"
+        },
+        "model": {
+          "type": "string",
+          "enum": ["fourWheel", "singleTrack"],
+          "default": "fourWheel",
+          "description": "Vehicle model: four wheels on independent suspension over a 6-DOF chassis proxy, or the planar single-track model"
         }
       },
       "additionalProperties": false
@@ -136,9 +180,18 @@
       "type": "object",
       "description": "Provenance for reference vehicles.",
       "properties": {
-        "description": { "type": "string" },
-        "sources": { "type": "array", "items": { "type": "string" } },
-        "notes": { "type": "string" }
+        "description": {
+          "type": "string"
+        },
+        "sources": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "notes": {
+          "type": "string"
+        }
       },
       "additionalProperties": false
     }
@@ -148,15 +201,21 @@
     "axle": {
       "type": "object",
       "properties": {
-        "tire": { "$ref": "#/$defs/tire" },
+        "tire": {
+          "$ref": "#/$defs/tire"
+        },
         "wheelInertia": {
           "type": "number",
           "exclusiveMinimum": 0,
           "default": 2.4,
           "description": "kg·m² per wheel including its share of the drivetrain"
         },
-        "driven": { "type": "boolean" },
-        "steered": { "type": "boolean" },
+        "driven": {
+          "type": "boolean"
+        },
+        "steered": {
+          "type": "boolean"
+        },
         "maxBrakeTorque": {
           "type": "number",
           "minimum": 0,
@@ -164,36 +223,67 @@
         },
         "staticCamberDeg": {
           "type": "number",
+          "minimum": -45,
+          "maximum": 45,
           "default": 0,
-          "description": "Positive leans the top of the wheel toward +y"
+          "description": "Negative leans the top of each wheel toward the centreline"
+        },
+        "suspension": {
+          "$ref": "#/$defs/suspension"
         }
       },
       "additionalProperties": false
     },
     "tire": {
-      "oneOf": [{ "$ref": "#/$defs/feelTire" }, { "$ref": "#/$defs/magicFormulaTire" }]
+      "oneOf": [
+        {
+          "$ref": "#/$defs/feelTire"
+        },
+        {
+          "$ref": "#/$defs/magicFormulaTire"
+        }
+      ]
     },
     "feelTire": {
       "type": "object",
       "description": "Feel model (ADR-0008): tune by peak slip, peak grip, falloff, and stiffness.",
       "properties": {
-        "model": { "const": "feel" },
-        "radius": { "type": "number", "exclusiveMinimum": 0, "default": 0.31, "description": "m" },
+        "model": {
+          "const": "feel"
+        },
+        "radius": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "default": 0.31,
+          "description": "m"
+        },
         "nominalLoad": {
           "type": "number",
           "exclusiveMinimum": 0,
           "default": 4000,
           "description": "N"
         },
-        "peakFriction": { "type": "number", "exclusiveMinimum": 0, "default": 1.0 },
+        "peakFriction": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "default": 1.0
+        },
         "loadSensitivity": {
           "type": "number",
           "minimum": 0,
           "exclusiveMaximum": 1,
           "default": 0.1
         },
-        "peakSlipRatio": { "type": "number", "exclusiveMinimum": 0, "default": 0.12 },
-        "peakSlipAngleDeg": { "type": "number", "exclusiveMinimum": 0, "default": 7 },
+        "peakSlipRatio": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "default": 0.12
+        },
+        "peakSlipAngleDeg": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "default": 7
+        },
         "longitudinalStiffness": {
           "type": "number",
           "exclusiveMinimum": 0,
@@ -212,16 +302,35 @@
           "default": 8000,
           "description": "N"
         },
-        "falloffLong": { "type": "number", "exclusiveMinimum": 0, "maximum": 1, "default": 0.85 },
-        "falloffLat": { "type": "number", "exclusiveMinimum": 0, "maximum": 1, "default": 0.85 },
+        "falloffLong": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "default": 0.85
+        },
+        "falloffLat": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "default": 0.85
+        },
         "camberStiffness": {
           "type": "number",
           "minimum": 0,
           "default": 0.8,
           "description": "1/rad"
         },
-        "pneumaticTrail": { "type": "number", "minimum": 0, "default": 0.03, "description": "m" },
-        "rollingResistance": { "type": "number", "minimum": 0, "default": 0.012 },
+        "pneumaticTrail": {
+          "type": "number",
+          "minimum": 0,
+          "default": 0.03,
+          "description": "m"
+        },
+        "rollingResistance": {
+          "type": "number",
+          "minimum": 0,
+          "default": 0.012
+        },
         "relaxationLengthLong": {
           "type": "number",
           "exclusiveMinimum": 0,
@@ -239,6 +348,12 @@
           "exclusiveMinimum": 0,
           "default": 0.5,
           "description": "m/s"
+        },
+        "lowSpeedDamping": {
+          "type": "number",
+          "minimum": 0,
+          "default": 0.3,
+          "description": "Damping ratio of the wheel-tire mode below the speed floor (ADR-0005)"
         }
       },
       "required": ["model"],
@@ -248,16 +363,98 @@
       "type": "object",
       "description": "Magic Formula 5.2 subset. Coefficient keys are lower-cased .tir names.",
       "properties": {
-        "model": { "const": "magicFormula" },
-        "unloadedRadius": { "type": "number", "exclusiveMinimum": 0, "default": 0.31 },
-        "fz0": { "type": "number", "exclusiveMinimum": 0, "default": 4000 },
-        "longvl": { "type": "number", "exclusiveMinimum": 0, "default": 16.7 },
-        "relaxationLengthLong": { "type": "number", "exclusiveMinimum": 0, "default": 0.25 },
-        "relaxationLengthLat": { "type": "number", "exclusiveMinimum": 0, "default": 0.35 },
-        "lowSpeedFloor": { "type": "number", "exclusiveMinimum": 0, "default": 0.5 }
+        "model": {
+          "const": "magicFormula"
+        },
+        "unloadedRadius": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "default": 0.31
+        },
+        "fz0": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "default": 4000
+        },
+        "longvl": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "default": 16.7
+        },
+        "relaxationLengthLong": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "default": 0.25
+        },
+        "relaxationLengthLat": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "default": 0.35
+        },
+        "lowSpeedFloor": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "default": 0.5
+        },
+        "lowSpeedDamping": {
+          "type": "number",
+          "minimum": 0,
+          "default": 0.3
+        }
       },
       "required": ["model"],
-      "additionalProperties": { "type": "number" }
+      "additionalProperties": {
+        "type": "number"
+      }
+    },
+    "suspension": {
+      "type": "object",
+      "description": "One corner's spring, damper, travel limits and the axle's anti-roll bar (ADR-0009). Per wheel. Defaults shown are the front axle's; the rear defaults are a little softer.",
+      "properties": {
+        "springRate": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "default": 28000,
+          "description": "N/m at the wheel"
+        },
+        "bumpDamping": {
+          "type": "number",
+          "minimum": 0,
+          "default": 2500,
+          "description": "N·s/m in compression"
+        },
+        "reboundDamping": {
+          "type": "number",
+          "minimum": 0,
+          "default": 3500,
+          "description": "N·s/m in extension"
+        },
+        "travelBump": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "default": 0.08,
+          "description": "m of compression travel from static ride height"
+        },
+        "travelDroop": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "default": 0.1,
+          "description": "m of extension travel from static ride height"
+        },
+        "antiRollStiffness": {
+          "type": "number",
+          "minimum": 0,
+          "default": 15000,
+          "description": "N/m: force on each wheel per metre of left-right travel difference"
+        },
+        "bumpStopStiffness": {
+          "type": "number",
+          "minimum": 0,
+          "default": 300000,
+          "description": "N/m beyond the bump travel"
+        }
+      },
+      "additionalProperties": false
     }
   }
 }

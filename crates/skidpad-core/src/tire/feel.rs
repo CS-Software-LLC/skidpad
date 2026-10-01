@@ -51,6 +51,10 @@ pub struct FeelTireParams {
     pub relaxation_length_lat: f64,
     /// Speed floor for slip computation and relaxation, m/s (ADR-0005).
     pub low_speed_floor: f64,
+    /// Damping ratio of the wheel-tire mode below the speed floor
+    /// (ADR-0005). Zero reproduces the bare relaxation model, which rings
+    /// for seconds when a parked car is nudged.
+    pub low_speed_damping: f64,
 }
 
 impl Default for FeelTireParams {
@@ -73,6 +77,7 @@ impl Default for FeelTireParams {
             relaxation_length_long: 0.25,
             relaxation_length_lat: 0.35,
             low_speed_floor: 0.5,
+            low_speed_damping: 0.3,
         }
     }
 }
@@ -156,8 +161,13 @@ impl FeelTireParams {
         let trail = self.pneumatic_trail * m::clamp(1.0 - sa * sa, 0.0, 1.0);
         let mz = -trail * fy;
 
-        // Rolling resistance moment opposes rolling.
-        let my = -m::signum(i.vx) * self.rolling_resistance * fz * self.radius;
+        // Rolling resistance moment opposes rolling; it goes smoothly through
+        // zero below the speed floor so a parked car never sees a
+        // sign-switching torque (ADR-0005).
+        let my = -m::clamp(i.vx / m::max(self.low_speed_floor, 1e-6), -1.0, 1.0)
+            * self.rolling_resistance
+            * fz
+            * self.radius;
 
         TireOutput {
             fx,
@@ -210,6 +220,7 @@ impl FeelTireParams {
             ("camberStiffness", self.camber_stiffness),
             ("pneumaticTrail", self.pneumatic_trail),
             ("rollingResistance", self.rolling_resistance),
+            ("lowSpeedDamping", self.low_speed_damping),
         ] {
             if !(v >= 0.0) || !v.is_finite() {
                 errors.push(format!(
