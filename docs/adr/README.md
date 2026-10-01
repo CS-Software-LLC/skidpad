@@ -29,3 +29,4 @@ Rejected.
 | [0020](0020-path-following-driver.md)                  | A path-following driver inside the core                                 | Accepted                  |
 | [0021](0021-replays-and-ghosts.md)                     | Replays as inputs plus keyframes, ghosts as pose tracks                 | Accepted                  |
 | [0022](0022-worker-mode.md)                            | Worker mode by message passing, inputs out and telemetry back           | Accepted                  |
+| [0023](0023-jolt-host-adapter.md)                      | A Jolt Physics host adapter on the same host contract                   | Accepted                  |
