@@ -13,6 +13,7 @@
     "@skidpad/bench",
     "@skidpad/determinism-tests",
     "@skidpad/example-headless-node",
+    "@skidpad/example-babylon",
     "@skidpad/chrono-compare"
   ]
 }
