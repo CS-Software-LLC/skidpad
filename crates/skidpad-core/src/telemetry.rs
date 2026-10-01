@@ -182,6 +182,10 @@ channels! {
     // N moved from the inner to the outer wheel through the links.
     GEOMETRIC_TRANSFER_F => ("GeometricTransfer_F", "N"),
     GEOMETRIC_TRANSFER_R => ("GeometricTransfer_R", "N"),
+    // Anti-dive and anti-squat (ADR-0018): vertical force the axle's links
+    // put on the body from its longitudinal tire force, positive up.
+    PITCH_LINK_LOAD_F => ("PitchLinkLoad_F", "N"),
+    PITCH_LINK_LOAD_R => ("PitchLinkLoad_R", "N"),
 }
 
 /// Index of the first channel in each per-wheel group; the four wheels follow
@@ -236,7 +240,7 @@ mod tests {
         assert_eq!(CHANNELS[WHEEL_LOCKED_R].name, "WheelLocked_R");
         assert_eq!(CHANNELS[SPIN_ANGLE_RR].name, "SpinAngle_RR");
         assert_eq!(CHANNELS[ENGINE_RPM].name, "EngineRpm");
-        assert_eq!(STRIDE, GEOMETRIC_TRANSFER_R + 1);
+        assert_eq!(STRIDE, PITCH_LINK_LOAD_R + 1);
         for &g in WHEEL_GROUPS {
             let base = CHANNELS[g].name.trim_end_matches("_FL");
             for (k, side) in ["_FL", "_FR", "_RL", "_RR"].iter().enumerate() {

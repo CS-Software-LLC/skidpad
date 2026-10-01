@@ -42,7 +42,9 @@ exactly zero, which is what keeps a locked wheel from chattering
   default and the cheap option for traffic.
 - **Combustion** has a full-throttle torque curve over rpm, engine braking
   that grows with speed on a closed throttle, an idle governor and a rev
-  limiter. The governor stands in for a starter: the engine never stalls.
+  limiter. The engine braking is a line from `engineBrakingIdle` to
+  `engineBrakingRedline`, or the measured `engineBrakingCurve` when one is
+  given; at part throttle the torque blends between the two curves. The governor stands in for a starter: the engine never stalls.
   Its inertia matters: in first gear it is reflected to the wheels at the
   square of the ratio and can be tens of times a wheel's own, which is why
   the driven wheels lock last under hard braking.

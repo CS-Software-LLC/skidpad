@@ -158,6 +158,35 @@ function validateDrivetrain(
       for (const k of ["engineBrakingIdle", "engineBrakingRedline", "idleTorqueMax"]) {
         nonNegative(errors, `drivetrain.powerUnit.${k}`, pu[k]);
       }
+      const drag = pu.engineBrakingCurve;
+      if (drag !== undefined) {
+        if (!Array.isArray(drag) || drag.length > 32) {
+          errors.push("drivetrain.powerUnit.engineBrakingCurve takes at most 32 [rpm, N·m] points");
+        } else {
+          let prev = -Infinity;
+          drag.forEach((p, i) => {
+            if (
+              !Array.isArray(p) ||
+              p.length !== 2 ||
+              !isNum(p[0]) ||
+              !isNum(p[1]) ||
+              p[0] < 0 ||
+              p[1] < 0
+            ) {
+              errors.push(
+                `drivetrain.powerUnit.engineBrakingCurve[${i}] must be [rpm ≥ 0, drag N·m ≥ 0]`,
+              );
+            } else {
+              if (p[0] <= prev) {
+                errors.push(
+                  `drivetrain.powerUnit.engineBrakingCurve[${i}] rpm must increase along the curve`,
+                );
+              }
+              prev = p[0];
+            }
+          });
+        }
+      }
       const curve = pu.torqueCurve;
       if (curve !== undefined) {
         if (!Array.isArray(curve) || curve.length === 0 || curve.length > 32) {
@@ -346,6 +375,12 @@ export function validateDefinition(def: unknown): ValidationResult {
         if (camber !== undefined && (!isNum(camber) || Math.abs(camber) > 45)) {
           errors.push(`${path}.staticCamberDeg must be within ±45 degrees (got ${String(camber)})`);
         }
+        const track = a?.trackWidth;
+        if (track !== undefined && (!isNum(track) || track < 0)) {
+          errors.push(
+            `${path}.trackWidth must be zero (use chassis.trackWidth) or positive (got ${String(track)})`,
+          );
+        }
         const toe = a?.staticToeDeg;
         if (toe !== undefined && (!isNum(toe) || Math.abs(toe) > 10)) {
           errors.push(`${path}.staticToeDeg must be within ±10 degrees (got ${String(toe)})`);
@@ -370,6 +405,12 @@ export function validateDefinition(def: unknown): ValidationResult {
               errors.push(
                 `${path}.suspension.kind must be "independent" or "solid" (got "${String(s.kind)}")`,
               );
+            }
+            for (const k of ["antiBrake", "antiDrive"] as const) {
+              const v = s[k];
+              if (v !== undefined && (!isNum(v) || Math.abs(v) > 2)) {
+                errors.push(`${path}.suspension.${k} must be within ±2 (got ${String(v)})`);
+              }
             }
             const rc = s.rollCenterHeight;
             if (rc !== undefined && (!isNum(rc) || Math.abs(rc) > 1)) {

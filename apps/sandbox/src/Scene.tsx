@@ -32,18 +32,21 @@ function Car({ sim }: { sim: Sim }) {
   const def = sim.definition;
   const a = def.chassis.cgToFrontAxle;
   const b = def.chassis.wheelbase - a;
-  const half = def.chassis.trackWidth / 2;
+  // Each axle's own track, or the chassis track when it sets none.
+  const halfTrack = (axle: number) => (def.axles[axle]!.trackWidth || def.chassis.trackWidth) / 2;
+  const halfF = halfTrack(0);
+  const halfR = halfTrack(1);
   const h = def.chassis.cgHeight;
   const rF = tireRadius(def.axles[0]!.tire);
   const rR = tireRadius(def.axles[1]!.tire);
   const length = def.chassis.wheelbase * 1.5;
-  const width = def.chassis.trackWidth * 1.05;
+  const width = 2 * Math.max(halfF, halfR) * 1.05;
   // Wheel hub positions in core body coordinates at static ride height.
   const hubs: Array<[number, number, number, number]> = [
-    [a, half, rF - h, rF],
-    [a, -half, rF - h, rF],
-    [-b, half, rR - h, rR],
-    [-b, -half, rR - h, rR],
+    [a, halfF, rF - h, rF],
+    [a, -halfF, rF - h, rF],
+    [-b, halfR, rR - h, rR],
+    [-b, -halfR, rR - h, rR],
   ];
 
   useFrame((state, delta) => {

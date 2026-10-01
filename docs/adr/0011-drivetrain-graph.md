@@ -144,3 +144,16 @@ becomes 2 and the WASM ABI version 3.
   limit, open centre split, exact brake lock under a driven wheel), the
   existing parked, brake-lock, timestep-sweep and determinism tests on every
   preset, new launch and shift tests, and the validate tool.
+
+## Amendment (2026-10-01): measured engine braking
+
+The closed-throttle drag was a line from `engineBrakingIdle` to
+`engineBrakingRedline`. Motoring maps rise faster than a line at high revs:
+fitting the Project Chrono BMW E90's map with one left the line 8 N·m too
+strong at 4 000 rpm and its coast-down 6 % short
+(`docs/validation/chrono-bmw-e90.md`). A combustion power unit now takes an
+optional `engineBrakingCurve` of `[rpm, N·m]` points, drag positive,
+interpolated and held flat beyond its ends like `torqueCurve`. When it has
+points it replaces the line, and its local slope feeds the implicit damping
+term as the line's slope did. A curve through the line's two end points
+reproduces the line.

@@ -142,6 +142,18 @@ export interface SuspensionDefinition {
    * the roll centre on the ground.
    */
   rollCenterHeight: number;
+  /**
+   * Anti-pitch geometry under braking, a fraction (ADR-0018): the share of
+   * the load transfer this axle's braking force causes that its links carry
+   * to the tires. Anti-dive at the front, anti-lift at the rear; negative is
+   * pro-dive or pro-lift. `tan θ · L / h_cg` of the side-view swing arm.
+   */
+  antiBrake: number;
+  /**
+   * Anti-pitch geometry under drive, a fraction (ADR-0018): anti-squat on a
+   * driven rear axle, anti-lift on a driven front axle.
+   */
+  antiDrive: number;
 }
 
 export interface AxleDefinition {
@@ -159,6 +171,8 @@ export interface AxleDefinition {
    * toward the centreline). Four-wheel model only.
    */
   staticToeDeg: number;
+  /** Track width of this axle, m; 0 uses `chassis.trackWidth`. */
+  trackWidth: number;
   /** Independent suspension at each wheel of this axle (four-wheel model). */
   suspension: SuspensionDefinition;
 }
@@ -218,6 +232,12 @@ export interface CombustionEngineDefinition {
   engineBrakingIdle?: number;
   /** Closed-throttle drag torque at redline, N·m. */
   engineBrakingRedline?: number;
+  /**
+   * Closed-throttle drag torque as `[rpm, N·m]` points in increasing rpm,
+   * drag positive. When it has points it replaces the line from
+   * `engineBrakingIdle` to `engineBrakingRedline`.
+   */
+  engineBrakingCurve?: [number, number][];
   /** Most torque the idle governor adds below idle, N·m. */
   idleTorqueMax?: number;
 }

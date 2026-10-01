@@ -12,10 +12,13 @@
  * the comparison.
  *
  * The other difference is the start. Chrono places its car at `initSpeed`
- * with the wheels spinning; Skidpad's API starts at rest, so the harness
- * drives up to `initSpeed` on the same controller, restarts the controller
- * at the target as Chrono's starts there, then holds for `settle` seconds as
- * Chrono does.
+ * with the wheels spinning and settles it for `settle` seconds on the PI
+ * controller, which leaves it 0.15–0.22 m/s above the target when the
+ * manoeuvre starts. Skidpad's API starts at rest, so the harness drives up
+ * and then settles on a tighter controller at the speed Chrono's car
+ * actually has at the start, in the gear the automatic picks. Both cars
+ * begin the manoeuvre at the same speed, with the manoeuvre's own
+ * controller starting fresh in each.
  */
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -52,14 +55,21 @@ function interp(points: Pts, t: number): number {
   return points[points.length - 1]![1];
 }
 
-/** The PI cruise control of the Chrono script (same gains, same clamps). */
+/**
+ * The PI cruise control of the Chrono script (same gains, same clamps). The
+ * harness's pre-phase also uses it with tighter gains to settle the start.
+ */
 class SpeedController {
   i = 0;
-  constructor(public target: number) {}
+  constructor(
+    public target: number,
+    private readonly kp = 0.4,
+    private readonly ki = 0.15,
+  ) {}
   update(speed: number, dt: number): [number, number] {
     const e = this.target - speed;
     this.i = Math.max(-2, Math.min(2, this.i + e * dt));
-    const u = 0.4 * e + 0.15 * this.i;
+    const u = this.kp * e + this.ki * this.i;
     return [Math.max(0, Math.min(1, u)), Math.max(0, Math.min(1, -u * 0.5))];
   }
 }
@@ -83,20 +93,22 @@ export function runManeuver(sp: Skidpad, name: string, opts: RunOptions = {}): R
     const init = spec.initSpeed ?? 0;
     const settle = spec.settle ?? 1;
 
-    // Pre-phase. Parked on 0.3 brake, or driven up to the initial speed.
+    // Pre-phase. Parked on 0.3 brake, or driven up to the speed Chrono's
+    // car starts the manoeuvre at and settled there.
     if (init > 0) {
-      const pre = new SpeedController(init);
+      const target = ref[0]!.speed;
+      const pre = new SpeedController(target);
       let t = 0;
-      while (read("VelX") < init - 0.01) {
+      while (read("VelX") < target - 0.01) {
         const [throttle, brake] = pre.update(read("VelX"), STEP);
         world.setInput(car, { throttle, brake, steer: 0 });
         world.step(STEP);
         t += STEP;
-        if (t > 120) throw new Error(`${name}: never reached ${init} m/s`);
+        if (t > 120) throw new Error(`${name}: never reached ${target} m/s`);
       }
-      pre.i = 0;
+      const settler = new SpeedController(target, 2.0, 2.0);
       for (let k = 0; k < Math.round(settle / STEP); k++) {
-        const [throttle, brake] = pre.update(read("VelX"), STEP);
+        const [throttle, brake] = settler.update(read("VelX"), STEP);
         world.setInput(car, { throttle, brake, steer: 0 });
         world.step(STEP);
       }

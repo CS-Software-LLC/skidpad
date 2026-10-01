@@ -292,6 +292,18 @@ impl Drivetrain {
         curve[curve.len() - 1][1]
     }
 
+    /// Slope of a `[rpm, value]` curve at `rpm`, per rpm; zero beyond the
+    /// ends, where the curve is held flat.
+    fn curve_slope(curve: &[[f64; 2]], rpm: f64) -> f64 {
+        for k in 1..curve.len() {
+            let (p0, p1) = (curve[k - 1], curve[k]);
+            if rpm > p0[0] && rpm <= p1[0] {
+                return (p1[1] - p0[1]) / m::max(p1[0] - p0[0], 1e-9);
+            }
+        }
+        0.0
+    }
+
     /// Explicit power-unit torque at the start-of-step speed and the
     /// positive damping coefficient to treat implicitly.
     fn power_unit_torque(&self, omega: f64, throttle: f64) -> (f64, f64) {
@@ -303,13 +315,26 @@ impl Drivetrain {
                 let limiter = m::clamp((1.02 * red - omega) / (0.02 * red), 0.0, 1.0);
                 let thr = throttle * limiter;
                 let wot = Self::curve_torque(&c.torque_curve, omega * RAD_TO_RPM);
-                let span = m::max(red - idle, 1e-9);
-                let s = m::clamp((omega - idle) / span, 0.0, 1.0);
-                let braking = m::lerp(c.engine_braking_idle, c.engine_braking_redline, s);
-                let k_brake = if omega > idle && omega < red {
-                    (c.engine_braking_redline - c.engine_braking_idle) / span
+                let (braking, k_brake) = if c.engine_braking_curve.is_empty() {
+                    let span = m::max(red - idle, 1e-9);
+                    let s = m::clamp((omega - idle) / span, 0.0, 1.0);
+                    let k = if omega > idle && omega < red {
+                        (c.engine_braking_redline - c.engine_braking_idle) / span
+                    } else {
+                        0.0
+                    };
+                    (
+                        m::lerp(c.engine_braking_idle, c.engine_braking_redline, s),
+                        k,
+                    )
                 } else {
-                    0.0
+                    // Measured map (ADR-0011 amendment): drag and its slope
+                    // in N·m per rad/s, for the implicit damping term.
+                    let rpm = omega * RAD_TO_RPM;
+                    (
+                        Self::curve_torque(&c.engine_braking_curve, rpm),
+                        Self::curve_slope(&c.engine_braking_curve, rpm) * RAD_TO_RPM,
+                    )
                 };
                 let mut torque = thr * wot - (1.0 - thr) * braking;
                 let mut k = (1.0 - thr) * m::max(k_brake, 0.0);

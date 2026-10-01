@@ -529,3 +529,74 @@ fn bad_drivetrains_are_rejected() {
     d.drivetrain.center.front_torque_fraction = 1.0;
     assert!(d.validate().is_err());
 }
+
+/// Speed after coasting 10 s from 25 m/s in drive with the throttle closed.
+fn coast_speed(d: VehicleDefinition) -> (f64, Vec<f64>) {
+    let mut w = World::new(1);
+    w.add_vehicle(d).unwrap();
+    w.vehicle_mut(0).unwrap().model.set_speed(25.0);
+    w.set_input(0, VehicleInput::default()).unwrap();
+    for _ in 0..1000 {
+        w.step(0.01);
+    }
+    let v = w.telemetry_of(0).to_vec();
+    (v[t::SPEED], v)
+}
+
+fn with_braking_curve(curve: Vec<[f64; 2]>) -> VehicleDefinition {
+    let mut d = combustion_def();
+    if let PowerUnitDef::Combustion(c) = &mut d.drivetrain.power_unit {
+        c.engine_braking_curve = curve;
+    }
+    d
+}
+
+#[test]
+fn an_engine_braking_curve_through_the_line_matches_the_line() {
+    let c = CombustionEngineDef::default();
+    let line = with_braking_curve(Vec::new());
+    let curve = with_braking_curve(vec![
+        [c.idle_rpm, c.engine_braking_idle],
+        [c.redline_rpm, c.engine_braking_redline],
+    ]);
+    let (a, va) = coast_speed(line);
+    let (b, _) = coast_speed(curve);
+    // The engine is engaged and dragging, so the comparison means something.
+    assert!(
+        va[t::ENGINE_RPM] > 1.2 * c.idle_rpm,
+        "{}",
+        va[t::ENGINE_RPM]
+    );
+    assert!(va[t::ENGINE_TORQUE] < -1.0, "{}", va[t::ENGINE_TORQUE]);
+    assert!((a - b).abs() < 1e-6 * a, "{a} vs {b}");
+}
+
+#[test]
+fn an_engine_braking_curve_sets_the_closed_throttle_drag() {
+    let curve = vec![[1000.0, 5.0], [3000.0, 10.0], [6000.0, 80.0]];
+    let (_, v) = coast_speed(with_braking_curve(curve.clone()));
+    let rpm = v[t::ENGINE_RPM];
+    let k = curve.iter().position(|p| p[0] >= rpm).unwrap();
+    let (p0, p1) = (curve[k - 1], curve[k]);
+    let drag = p0[1] + (p1[1] - p0[1]) * (rpm - p0[0]) / (p1[0] - p0[0]);
+    assert!(
+        (v[t::ENGINE_TORQUE] + drag).abs() < 0.02 * drag,
+        "torque {} at {rpm} rpm, drag {drag}",
+        v[t::ENGINE_TORQUE]
+    );
+    // More drag than the gentle default line at these revs coasts down sooner.
+    let (plain, _) = coast_speed(with_braking_curve(Vec::new()));
+    let (strong, _) = coast_speed(with_braking_curve(vec![[1000.0, 40.0], [6000.0, 120.0]]));
+    assert!(strong < plain - 0.2, "{strong} vs {plain}");
+}
+
+#[test]
+fn bad_engine_braking_curves_are_rejected() {
+    assert!(with_braking_curve(vec![[3000.0, 10.0], [2000.0, 20.0]])
+        .validate()
+        .is_err());
+    assert!(with_braking_curve(vec![[3000.0, -10.0]])
+        .validate()
+        .is_err());
+    assert!(with_braking_curve(vec![[3000.0, 10.0]]).validate().is_ok());
+}

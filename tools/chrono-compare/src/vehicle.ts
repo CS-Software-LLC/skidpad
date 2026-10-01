@@ -68,7 +68,14 @@ export interface Derived {
   springRate: { front: number; rear: number };
   stops: { front: { bump: number; droop: number }; rear: { bump: number; droop: number } };
   wheelInertia: { front: number; rear: number };
-  engineBraking: { idle: number; redline: number };
+  /** Track width of each axle between the spindles, m. */
+  axleTrack: { front: number; rear: number };
+  /**
+   * Anti-pitch fractions from the side-view instant centres (ADR-0018).
+   * Chrono reacts its brake torque on the chassis and drives the rear
+   * through half-shafts, so both use the line from the wheel centre.
+   */
+  anti: { frontBrake: number; rearBrake: number; rearDrive: number };
   /** Toe-in per wheel at rest, degrees. */
   restToeDeg: { front: number; rear: number };
   /**
@@ -81,31 +88,13 @@ export interface Derived {
 const IDLE_RPM = 800;
 
 /**
- * Least-squares line through Chrono's closed-throttle map over the speeds the
- * engine turns while braking and coasting in the reference manoeuvres
- * (third gear from 100 km/h down, 3000–5000 rpm). Skidpad's drag is linear
- * from idle to redline; Chrono's map is not, so the line is fitted where it
- * is used.
+ * Chrono's closed-throttle map as drag (`ENGINE_CLOSED_THROTTLE` negated),
+ * for `engineBrakingCurve` (ADR-0011 amendment). Below its first point the
+ * map falls to zero at about 100 rpm; Skidpad's idle governor holds the
+ * engine above idle there anyway.
  */
-function engineBrakingLine(): { idle: number; redline: number } {
-  const pts = c.ENGINE_CLOSED_THROTTLE.filter(([rpm]) => rpm >= 3000 && rpm <= 5000);
-  const xs = pts.map(([rpm]) => (rpm - IDLE_RPM) / (c.ENGINE_MAX_RPM - IDLE_RPM));
-  const ys = pts.map(([, tq]) => -tq);
-  const n = xs.length;
-  const mx = xs.reduce((a, b) => a + b, 0) / n;
-  const my = ys.reduce((a, b) => a + b, 0) / n;
-  let sxy = 0;
-  let sxx = 0;
-  for (let i = 0; i < n; i++) {
-    sxy += (xs[i]! - mx) * (ys[i]! - my);
-    sxx += (xs[i]! - mx) ** 2;
-  }
-  const slope = sxy / sxx;
-  const idle = my - slope * mx;
-  if (idle >= 0) return { idle, redline: idle + slope };
-  // Skidpad's drag cannot be negative at idle: the best line through zero there.
-  const through = xs.reduce((a, x, i) => a + x * ys[i]!, 0) / xs.reduce((a, x) => a + x * x, 0);
-  return { idle: 0, redline: through };
+function engineBrakingCurve(): [number, number][] {
+  return [[100, 0], ...c.ENGINE_CLOSED_THROTTLE.map(([rpm, tq]): [number, number] => [rpm, -tq])];
 }
 
 /**
@@ -185,7 +174,14 @@ export function derive(s: ChronoStatic = loadStatic()): Derived {
         c.SPINDLE_INERTIA.rear +
         c.AXLE_SHAFT_INERTIA,
     },
-    engineBraking: engineBrakingLine(),
+    axleTrack: { front: 2 * sf[1], rear: 2 * sr[1] },
+    anti: {
+      // Front: anti-dive needs the instant centre behind and above.
+      frontBrake: (front.sideView[1] / -front.sideView[0]) * (wheelbase / cgHeight),
+      // Rear: anti-lift and anti-squat need it ahead and above.
+      rearBrake: (rear.sideView[1] / rear.sideView[0]) * (wheelbase / cgHeight),
+      rearDrive: (rear.sideView[1] / rear.sideView[0]) * (wheelbase / cgHeight),
+    },
     restToeDeg: {
       front: (((s.toe[1] - s.toe[0]) / 2) * 180) / Math.PI,
       rear: (((s.toe[3] - s.toe[2]) / 2) * 180) / Math.PI,
@@ -216,6 +212,8 @@ export function bmwE90(
     stops: { bump: number; droop: number },
     stopRate: number,
     rollCenterHeight: number,
+    antiBrake: number,
+    antiDrive: number,
   ) => ({
     kind: "independent" as const,
     springRate: k,
@@ -228,6 +226,8 @@ export function bmwE90(
     antiRollStiffness: arb,
     bumpStopStiffness: stopRate,
     rollCenterHeight,
+    antiBrake,
+    antiDrive,
   });
   return {
     name: "BMW E90 (Project Chrono 9.0.1 reference)",
@@ -250,6 +250,7 @@ export function bmwE90(
         maxBrakeTorque: 2 * c.BRAKE_TORQUE_PER_WHEEL,
         staticCamberDeg: 0,
         staticToeDeg: d.staticToeDeg.front,
+        trackWidth: d.axleTrack.front,
         suspension: suspension(
           d.springRate.front,
           c.SUSPENSION.front.damping,
@@ -257,6 +258,8 @@ export function bmwE90(
           d.stops.front,
           2 * c.SUSPENSION.front.springRate,
           d.rollCentre.front,
+          d.anti.frontBrake,
+          0,
         ),
       },
       {
@@ -267,6 +270,7 @@ export function bmwE90(
         maxBrakeTorque: 2 * c.BRAKE_TORQUE_PER_WHEEL,
         staticCamberDeg: 0,
         staticToeDeg: d.staticToeDeg.rear,
+        trackWidth: d.axleTrack.rear,
         suspension: suspension(
           d.springRate.rear,
           c.SUSPENSION.rear.damping,
@@ -274,6 +278,8 @@ export function bmwE90(
           d.stops.rear,
           2 * c.SUSPENSION.rear.springRate,
           d.rollCentre.rear,
+          d.anti.rearBrake,
+          d.anti.rearDrive,
         ),
       },
     ],
@@ -303,8 +309,7 @@ export function bmwE90(
         // Chrono's simple-map engine has no inertia of its own.
         inertia: 0.02,
         torqueCurve: [...c.ENGINE_FULL_THROTTLE, [c.ENGINE_MAX_RPM, 240]],
-        engineBrakingIdle: d.engineBraking.idle,
-        engineBrakingRedline: d.engineBraking.redline,
+        engineBrakingCurve: engineBrakingCurve(),
         idleTorqueMax: 40,
       },
       transmission: {
@@ -340,11 +345,10 @@ function loadStaticCached(): ChronoStatic {
 export const GAPS = [
   "Toe that changes with travel: Chrono's toe-in is 1.27° front and 0.53° rear at rest, 1.43° and 0.67° driving straight, and falls to about 0.9° and 0.52° at 0.8 g as the body rolls. Skidpad's toe is fixed at the straight-running value, so it overstates the toe benefit in hard cornering. The harness steers with Chrono's mean front road-wheel angle, which carries the front's net roll steer across.",
   "Unsprung mass: Chrono's wheels, uprights and arms are separate bodies; Skidpad carries the whole mass on the chassis proxy.",
-  "Roll centres: fixed at their static heights in Skidpad; Chrono's migrate with travel and roll.",
-  "Anti-dive and anti-squat: Chrono's linkages react part of the brake and drive forces; Skidpad sends all longitudinal load transfer through the springs.",
+  "Roll centres and pitch geometry: fixed at their static values in Skidpad (roll-centre heights, anti-dive, anti-lift and anti-squat from the side-view instant centres at ride height); Chrono's migrate with travel, and its links jack the body.",
   "Rebound stops: Chrono has a stop spring 2.4 cm (front) and 6.6 cm (rear) below static; Skidpad's droop limit lets the wheel hang instead.",
   "Damper: Chrono's front damper is degressive; Skidpad's is linear at the low-speed rate.",
   "Tire: TMsimple carried into a Magic Formula fit (`tire-fit.ts`); combined slip follows Skidpad's MF weighting, not TMsimple's; no relaxation in either.",
   "Tire radius: Chrono rolls on (2·R0 + r)/3 and pushes at the loaded radius r; Skidpad uses one radius for both.",
-  "Drivetrain: Chrono's simple-map gearbox has no clutch and shifts instantly. Skidpad's closed-throttle drag is a straight line from idle to redline, and Chrono's map is convex: the least-squares line is 8 N·m too strong at 4000 rpm.",
+  "Drivetrain: Chrono's simple-map gearbox has no clutch and shifts instantly; its closed-throttle map is carried over as Skidpad's engineBrakingCurve.",
 ];

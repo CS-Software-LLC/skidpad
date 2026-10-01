@@ -111,6 +111,47 @@ the pickup's leaf-sprung rear at 0.4 m, near the spring-seat height. The
 `GeometricTransfer_F` and `GeometricTransfer_R` channels report the geometric
 part in newtons.
 
+## Anti-dive and anti-squat
+
+The same idea applies in side view. Braking or driving moves load from one
+axle to the other, `F_x · h_cg / L` in all. With the plain raycast strut
+every bit of it goes through the springs, so the nose dives under braking
+and squats or lifts under power. Inclined links carry part of it straight
+to the tires instead (Milliken & Milliken ch. 17; Gillespie, _Fundamentals
+of Vehicle Dynamics_, ch. 9). Each axle has two fractions on its
+`suspension`
+([ADR-0018](https://github.com/csummers88/skidpad/blob/main/docs/adr/0018-anti-dive-and-anti-squat.md)):
+
+- `antiBrake` for that axle's braking force: anti-dive at the front,
+  anti-lift at the rear.
+- `antiDrive` for its driving force: anti-squat on a driven rear axle,
+  anti-lift on a driven front one.
+
+Each is `tan θ · L / h_cg`, with `θ` the side-view angle of the line from
+the contact patch (outboard brakes) or the wheel centre (inboard brakes,
+and drive through half-shafts) to the side-view instant centre. The model
+applies `anti · F_x · h_cg / L` of the axle's longitudinal force from the
+previous substep as a vertical force between the body and that axle's
+tires: under braking it lifts the nose at the front and holds the tail down
+at the rear. The tires carry the same loads either way, since the
+deceleration fixes the transfer; only the body's pitch changes. Negative
+values are pro-dive and pro-lift, which some strut fronts have.
+
+Alignment sheets often quote "percent anti-dive" with the brake balance
+folded in: Gillespie's `%AD = tan θ · L / h · (front braking share)`. To
+convert, divide that percentage by the axle's share of the braking. A front
+axle braking 65 % of the car with 30 % anti-dive therefore has
+`antiBrake` 0.46. The default of zero is the plain strut, and the
+`PitchLinkLoad_F` and `PitchLinkLoad_R` channels report the link force in
+newtons, positive up. The single-track model has no pitch and ignores both.
+
+## Track width per axle
+
+`chassis.trackWidth` sets both axles' track unless an axle sets its own
+`trackWidth`. The wheels, the roll-centre transfer and the Ackermann
+geometry all use the axle's own track; most cars run a slightly wider
+track at one end.
+
 ## Solid axles
 
 `suspension.kind` is `"independent"` (the default) or `"solid"`. On an

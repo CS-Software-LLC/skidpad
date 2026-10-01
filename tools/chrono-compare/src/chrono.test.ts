@@ -15,12 +15,12 @@ import { bmwE90, derive } from "./vehicle.js";
 
 /** `maneuver: label` → why it is outside tolerance. */
 export const KNOWN_GAPS: Record<string, string> = {
-  "coast: speed at 20 s": "Skidpad's closed-throttle drag is linear; Chrono's map is convex",
-  "coast: speed": "Skidpad's closed-throttle drag is linear; Chrono's map is convex",
   "brakeHalf: stopping distance, 0.4 pedal":
     "Chrono realises about 7 % less brake torque than its nominal 800 N·m",
-  "brakeHalf: pitch per g of braking": "no anti-dive or anti-lift geometry in Skidpad",
-  "brakeHalf: pitch": "no anti-dive or anti-lift geometry in Skidpad",
+  "brakeHalf: pitch per g of braking":
+    "pitch geometry fixed at ride height; Chrono's far front instant centre moves with dive",
+  "brakeHalf: pitch":
+    "pitch geometry fixed at ride height; Chrono's far front instant centre moves with dive",
   "rampSteer: pitch in the turn at 0.7 g": "roll centres fixed, no jacking force",
   "rampSteer: fz2": "roll centres fixed: Chrono's front share falls with lateral acceleration",
   "sineSteer: peak roll": "open: Skidpad overshoots in roll more than Chrono",

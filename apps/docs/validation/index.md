@@ -137,10 +137,12 @@ through the same manoeuvres with the same inputs, with the Skidpad car built
 from Chrono's published constants. Steady-state handling agrees within a few
 percent: understeer gradient, lateral acceleration to the limit, yaw gain,
 roll and turn radius. The comparison found Skidpad answering a step steer
-too quickly because it could not express the car's static toe; with
-`staticToeDeg` the step and sine responses agree too. The remaining
-differences are the missing anti-dive geometry and the linear engine
-braking. The
+too quickly because it could not express the car's static toe, and pitching
+too little because it had no anti-dive geometry. With `staticToeDeg`,
+`antiBrake` and `antiDrive` derived from the hardpoints, and the car's own
+engine-braking map, the step and sine responses agree too and the braking
+pitch gap halves. The remaining differences are geometry that changes with
+travel. The
 [report](https://github.com/csummers88/skidpad/blob/main/docs/validation/chrono-bmw-e90.md)
 has the full results, and `tools/chrono-compare` reruns them.
 

@@ -238,10 +238,12 @@ pub fn run(def: &VehicleDefinition, cfg: &LaneChangeConfig) -> Result<LaneChange
     if !(cfg.host_dt > 0.0) {
         return Err(String::from("lane change: hostDt must be positive"));
     }
+    // The wider axle sets the vehicle's width.
+    let track = m::max(def.axle_track(0), def.axle_track(1));
     let vehicle_width = if cfg.vehicle_width > 0.0 {
         cfg.vehicle_width
     } else {
-        def.chassis.track_width + 0.25
+        track + 0.25
     };
     let c = course(cfg.course, vehicle_width);
     let widths = [
@@ -253,8 +255,8 @@ pub fn run(def: &VehicleDefinition, cfg: &LaneChangeConfig) -> Result<LaneChange
     let kus = super::understeer::linear_understeer_gradient(def);
     let max_angle = def.max_wheel_angle();
     let wheelbase = def.chassis.wheelbase;
-    let half_track = 0.5 * def.chassis.track_width;
-    let tire_half_width = 0.5 * (vehicle_width - def.chassis.track_width);
+    let half_track = 0.5 * track;
+    let tire_half_width = 0.5 * (vehicle_width - track);
 
     // The learned steering correction lives on a grid along x.
     const GRID: f64 = 0.5;

@@ -11,6 +11,9 @@
  *   - the roll centre is where the line from the contact patch through the
  *     instant centre crosses the vehicle centreline.
  *
+ * The same linkages give the side-view instant centres, from which the
+ * anti-dive, anti-lift and anti-squat fractions follow (ADR-0018).
+ *
  * Each arm pivots about the axis through its two chassis joints; in front
  * view that axis is taken where it pierces the transverse plane of the arm's
  * outer joint. The hardpoints are quoted at Chrono's design position, and the
@@ -65,6 +68,13 @@ export interface RollCentre {
   spindleY: number;
   /** Instant centre, [y, z] in the suspension frame, m. */
   instantCentre: P2;
+  /**
+   * Side-view instant centre relative to the wheel centre, [x forward,
+   * z up], m: the outer joints at the solved pose, each moving
+   * perpendicular to its arm's pivot axis (and the strut sliding through its
+   * top mount), give the lines it lies on (Milliken & Milliken, ch. 17).
+   */
+  sideView: P2;
 }
 
 /** MacPherson strut at the spindle height `spindleZ`, loaded tire radius `r`. */
@@ -87,7 +97,16 @@ export function macphersonRollCentre(spindleZ: number, r: number): RollCentre {
   const { a, phi, s } = pose(theta);
   const axis = rot(d0, phi);
   const ic = intersect(p, sub(a, p), c, [-axis[1], axis[0]]);
-  return rollCentreFrom(ic, s, r);
+  // Side view: the lower joint moves perpendicular to the arm's pivot axis,
+  // so the instant centre lies on the line through it parallel to the axis;
+  // the upright slides along the strut through the top mount, so it also
+  // lies on the perpendicular to the strut there.
+  const u = add(a, rot(sub(u0, a0), phi));
+  const joint: P2 = [h.lcaUpright[0], a[1]];
+  const top: P2 = [h.strutChassis[0], h.strutChassis[2]];
+  const strut = sub(top, [h.strutUpright[0], u[1]]);
+  const side = intersect(joint, sideAxis(h.lcaFront, h.lcaBack), top, [-strut[1], strut[0]]);
+  return { ...rollCentreFrom(ic, s, r), sideView: [side[0] - h.spindle[0], side[1] - s[1]] };
 }
 
 /** Double wishbone at the spindle height `spindleZ`, loaded tire radius `r`. */
@@ -115,10 +134,22 @@ export function doubleWishboneRollCentre(spindleZ: number, r: number): RollCentr
   const theta = bisect((t) => pose(t).s[1] - spindleZ, -0.5, 0.5);
   const { al, au, s } = pose(theta);
   const ic = intersect(pu, sub(au, pu), pl, sub(al, pl));
-  return rollCentreFrom(ic, s, r);
+  // Side view: each outer joint moves perpendicular to its arm's pivot axis.
+  const side = intersect(
+    [h.ucaUpright[0], au[1]],
+    sideAxis(h.ucaFront, h.ucaBack),
+    [h.lcaUpright[0], al[1]],
+    sideAxis(h.lcaFront, h.lcaBack),
+  );
+  return { ...rollCentreFrom(ic, s, r), sideView: [side[0] - h.spindle[0], side[1] - s[1]] };
 }
 
-function rollCentreFrom(ic: P2, spindle: P2, r: number): RollCentre {
+/** Direction of an arm's pivot axis in side view, [x, z]. */
+function sideAxis(a: Point3, b: Point3): P2 {
+  return [a[0] - b[0], a[2] - b[2]];
+}
+
+function rollCentreFrom(ic: P2, spindle: P2, r: number): Omit<RollCentre, "sideView"> {
   const contact: P2 = [spindle[0], spindle[1] - r];
   const z = contact[1] + ((ic[1] - contact[1]) * (0 - contact[0])) / (ic[0] - contact[0]);
   return { height: z - contact[1], spindleY: spindle[0], instantCentre: ic };

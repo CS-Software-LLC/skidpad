@@ -21,7 +21,8 @@ pnpm test        # regression guard (CI runs it)
 - `src/chrono-e90.ts` holds the constants from Chrono's source, with the file
   each one comes from.
 - `src/tire-fit.ts` carries TMsimple into the Magic Formula.
-- `src/geometry.ts` computes roll-centre heights from the hardpoints.
+- `src/geometry.ts` computes roll-centre heights and anti-pitch fractions
+  from the hardpoints.
 - `src/vehicle.ts` builds the Skidpad definition and lists the structural
   differences between the models.
 - `src/run.ts` is the Skidpad harness.

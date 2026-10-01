@@ -34,6 +34,10 @@ helps. Parameters are per tire unless noted.
 - Raise `chassis.rollInertia` or `pitchInertia` to slow the motion rather
   than reduce it.
 - Lower `chassis.cgHeight`: both transfers scale with it.
+- For pitch alone, add `antiBrake` on both axles (anti-dive at the front,
+  anti-lift at the rear) and `antiDrive` on the driven axle. Values of 0.2
+  to 0.5 are typical. They change only the body's pitch, not the tire loads
+  ([anti-dive](/concepts/suspension#anti-dive-and-anti-squat)).
 
 ## Car rolls too much in corners but rides well
 
@@ -79,6 +83,9 @@ helps. Parameters are per tire unless noted.
 - `engineBrakingIdle` and `engineBrakingRedline` set the closed-throttle
   drag; lower them for a car that coasts further. An electric motor's
   lift-off drag is `regenTorque`.
+- A measured motoring map rises faster than a line at high revs. Give it
+  as `engineBrakingCurve`, `[rpm, N·m]` points with the drag positive; it
+  then replaces the two end values.
 
 ## Steering feels numb
 

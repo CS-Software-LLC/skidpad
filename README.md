@@ -123,9 +123,10 @@ baseline the benchmark compares against.
 An independent check drives Skidpad and Project Chrono's multibody BMW E90
 through the same eight manoeuvres, with the Skidpad car built from Chrono's
 published constants. Steady-state handling and the step-steer response
-agree within a few percent, the latter once static toe (ADR-0017) was
-added; the remaining gaps (no anti-dive geometry, linear engine braking)
-are in [docs/validation/chrono-bmw-e90.md](docs/validation/chrono-bmw-e90.md).
+agree within a few percent once static toe, anti-dive and anti-squat, a
+measured engine-braking curve and per-axle tracks are carried over
+(ADR-0017, ADR-0018); the remaining gaps, mostly geometry that changes with
+travel, are in [docs/validation/chrono-bmw-e90.md](docs/validation/chrono-bmw-e90.md).
 
 The determinism check runs a 50 s scripted drive of three vehicles, then a
 recorded lap of the sandbox track for each of the six presets (real driving
