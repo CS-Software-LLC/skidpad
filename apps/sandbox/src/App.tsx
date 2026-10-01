@@ -23,7 +23,6 @@ export function App() {
   const [sim, setSim] = useState<Sim | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [presetId, setPresetId] = useState<PresetId>("hatchbackFwd");
-  const [hud, setHud] = useState<HudState | null>(null);
   const [recording, setRecording] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const clip = useRef(new ClipRecorder());
@@ -54,29 +53,6 @@ export function App() {
     return () => window.removeEventListener("keydown", onKey);
   }, [sim]);
 
-  useEffect(() => {
-    if (!sim) return;
-    const id = setInterval(() => {
-      const w = sim.world;
-      const v = sim.vehicle;
-      setHud({
-        speedKmh: w.read(v, "Speed") * 3.6,
-        latG: w.read(v, "LatAccel") / 9.81,
-        longG: w.read(v, "LongAccel") / 9.81,
-        slipF: (w.read(v, "SlipAngle_F") * 180) / Math.PI,
-        slipR: (w.read(v, "SlipAngle_R") * 180) / Math.PI,
-        ratioR: w.read(v, "SlipRatio_R"),
-        steerDeg: (w.read(v, "SteeringWheelAngle") * 180) / Math.PI,
-        torque: w.read(v, "SteeringTorque"),
-        lockedF: w.read(v, "WheelLocked_F") > 0.5,
-        lockedR: w.read(v, "WheelLocked_R") > 0.5,
-        stepMs: sim.stepCostMs,
-        hash: w.stateHash(v),
-      });
-    }, 100);
-    return () => clearInterval(id);
-  }, [sim]);
-
   if (error) return <div className="error">Failed to load the core:\n{error}</div>;
   if (!sim)
     return (
@@ -88,52 +64,7 @@ export function App() {
   return (
     <>
       <Scene sim={sim} canvasRef={canvasRef} />
-      <div className="hud">
-        <h1>Contact Patch sandbox · {sim.definition.name}</h1>
-        {hud && (
-          <>
-            <div className="big">{hud.speedKmh.toFixed(0)} km/h</div>
-            <table>
-              <tbody>
-                <tr>
-                  <td>Lat / long accel</td>
-                  <td>
-                    {hud.latG.toFixed(2)} g / {hud.longG.toFixed(2)} g
-                  </td>
-                </tr>
-                <tr>
-                  <td>Slip angle F / R</td>
-                  <td>
-                    {hud.slipF.toFixed(1)}° / {hud.slipR.toFixed(1)}°
-                  </td>
-                </tr>
-                <tr>
-                  <td>Slip ratio R</td>
-                  <td>
-                    {hud.ratioR.toFixed(3)}
-                    {hud.lockedR ? " (locked)" : ""}
-                    {hud.lockedF ? " F locked" : ""}
-                  </td>
-                </tr>
-                <tr>
-                  <td>Steering wheel</td>
-                  <td>
-                    {hud.steerDeg.toFixed(0)}° · {hud.torque.toFixed(1)} N·m
-                  </td>
-                </tr>
-                <tr>
-                  <td>Step cost</td>
-                  <td>{hud.stepMs.toFixed(3)} ms / 60 Hz step</td>
-                </tr>
-                <tr>
-                  <td>State hash</td>
-                  <td style={{ fontFamily: "monospace" }}>{hud.hash}</td>
-                </tr>
-              </tbody>
-            </table>
-          </>
-        )}
-      </div>
+      <Hud sim={sim} />
       <div className="controls">
         <select
           value={presetId}
@@ -174,8 +105,84 @@ export function App() {
           {recording ? "Stop recording" : "Record clip (WebM)"}
         </button>
       </div>
-      <div className="help">WASD / arrows to drive · Space handbrake · gamepad supported</div>
+      <div className="help">
+        WASD / arrows to drive · Space handbrake · R reset · gamepad supported
+      </div>
       <Graph recorder={sim.recorder} />
     </>
+  );
+}
+
+/** Live readout. Owns its own 10 Hz state so the scene tree never re-renders. */
+function Hud({ sim }: { sim: Sim }) {
+  const [hud, setHud] = useState<HudState | null>(null);
+  useEffect(() => {
+    const id = setInterval(() => {
+      const w = sim.world;
+      const v = sim.vehicle;
+      setHud({
+        speedKmh: w.read(v, "Speed") * 3.6,
+        latG: w.read(v, "LatAccel") / 9.81,
+        longG: w.read(v, "LongAccel") / 9.81,
+        slipF: (w.read(v, "SlipAngle_F") * 180) / Math.PI,
+        slipR: (w.read(v, "SlipAngle_R") * 180) / Math.PI,
+        ratioR: w.read(v, "SlipRatio_R"),
+        steerDeg: (w.read(v, "SteeringWheelAngle") * 180) / Math.PI,
+        torque: w.read(v, "SteeringTorque"),
+        lockedF: w.read(v, "WheelLocked_F") > 0.5,
+        lockedR: w.read(v, "WheelLocked_R") > 0.5,
+        stepMs: sim.stepCostMs,
+        hash: w.stateHash(v),
+      });
+    }, 100);
+    return () => clearInterval(id);
+  }, [sim]);
+  return (
+    <div className="hud">
+      <h1>Contact Patch sandbox · {sim.definition.name}</h1>
+      {hud && (
+        <>
+          <div className="big">{hud.speedKmh.toFixed(0)} km/h</div>
+          <table>
+            <tbody>
+              <tr>
+                <td>Lat / long accel</td>
+                <td>
+                  {hud.latG.toFixed(2)} g / {hud.longG.toFixed(2)} g
+                </td>
+              </tr>
+              <tr>
+                <td>Slip angle F / R</td>
+                <td>
+                  {hud.slipF.toFixed(1)}° / {hud.slipR.toFixed(1)}°
+                </td>
+              </tr>
+              <tr>
+                <td>Slip ratio R</td>
+                <td>
+                  {hud.ratioR.toFixed(3)}
+                  {hud.lockedR ? " (locked)" : ""}
+                  {hud.lockedF ? " F locked" : ""}
+                </td>
+              </tr>
+              <tr>
+                <td>Steering wheel</td>
+                <td>
+                  {hud.steerDeg.toFixed(0)}° · {hud.torque.toFixed(1)} N·m
+                </td>
+              </tr>
+              <tr>
+                <td>Step cost</td>
+                <td>{hud.stepMs.toFixed(3)} ms / 60 Hz step</td>
+              </tr>
+              <tr>
+                <td>State hash</td>
+                <td style={{ fontFamily: "monospace" }}>{hud.hash}</td>
+              </tr>
+            </tbody>
+          </table>
+        </>
+      )}
+    </div>
   );
 }
