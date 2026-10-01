@@ -27,10 +27,17 @@ jobs:
           cache: pnpm
           registry-url: https://registry.npmjs.org
       - run: pnpm install --frozen-lockfile
+      # Requires two repository settings:
+      #   Settings → Actions → General → Workflow permissions →
+      #     "Allow GitHub Actions to create and approve pull requests"
+      #   Settings → Secrets → Actions → NPM_TOKEN (only once packages publish)
+      # Without NPM_TOKEN the action only maintains the "version packages" PR
+      # and never publishes, which is the intended state before the public
+      # launch.
       - name: Create release PR or publish
         uses: changesets/action@v1
         with:
-          publish: pnpm release
+          publish: ${{ secrets.NPM_TOKEN != '' && 'pnpm release' || '' }}
           version: pnpm version-packages
           commit: "chore: version packages"
           title: "chore: version packages"

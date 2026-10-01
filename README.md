@@ -168,6 +168,19 @@ hash; the graph scrolls telemetry; buttons export CSV and record a WebM clip.
 The site deploys to GitHub Pages on every merge to `main`, and CI uploads a
 preview build of the sandbox, docs, and bench page for every pull request.
 
+## Repository settings for CI
+
+Two workflows need one-time settings that only the repository owner can
+change:
+
+- **Deploy site** publishes the sandbox, docs, and benchmark dashboard to
+  GitHub Pages. The workflow tries to enable Pages itself; if that is refused,
+  turn it on under Settings → Pages → Source: GitHub Actions.
+- **Release** maintains a "chore: version packages" pull request from the
+  pending changesets. Allow it under Settings → Actions → General → Workflow
+  permissions → "Allow GitHub Actions to create and approve pull requests".
+  It never publishes to npm until an `NPM_TOKEN` secret exists.
+
 ## Roadmap
 
 | Milestone | Scope                                                                                                                                                       | Status |
