@@ -248,6 +248,21 @@
                   "default": 60,
                   "description": "Closed-throttle drag torque at redline, N·m"
                 },
+                "engineBrakingCurve": {
+                  "type": "array",
+                  "maxItems": 32,
+                  "items": {
+                    "type": "array",
+                    "items": {
+                      "type": "number",
+                      "minimum": 0
+                    },
+                    "minItems": 2,
+                    "maxItems": 2
+                  },
+                  "default": [],
+                  "description": "Closed-throttle drag torque as [rpm, N·m] points in increasing rpm, drag positive. When it has points it replaces the line from engineBrakingIdle to engineBrakingRedline (ADR-0011)"
+                },
                 "idleTorqueMax": {
                   "type": "number",
                   "minimum": 0,
@@ -656,6 +671,19 @@
           "default": 0,
           "description": "Negative leans the top of each wheel toward the centreline"
         },
+        "staticToeDeg": {
+          "type": "number",
+          "minimum": -10,
+          "maximum": 10,
+          "default": 0,
+          "description": "Static toe per wheel, degrees. Positive is toe-in: each wheel points toward the centreline"
+        },
+        "trackWidth": {
+          "type": "number",
+          "minimum": 0,
+          "default": 0,
+          "description": "Track width of this axle, m, between the contact patches. 0 uses chassis.trackWidth"
+        },
         "suspension": {
           "$ref": "#/$defs/suspension"
         }
@@ -929,6 +957,20 @@
           "maximum": 1,
           "default": 0,
           "description": "m above the ground at ride height (ADR-0016). The share h_rc / h_cg of this axle's lateral load transfer goes through the links straight to the tires instead of rolling the body. Zero is a ground-level roll centre, which the raycast strut gives by itself."
+        },
+        "antiBrake": {
+          "type": "number",
+          "minimum": -2,
+          "maximum": 2,
+          "default": 0,
+          "description": "Anti-pitch geometry under braking, a fraction (ADR-0018): the share of the load transfer this axle's braking force causes that its links carry to the tires. Anti-dive at the front, anti-lift at the rear; negative is pro-dive or pro-lift. tan θ · L / h_cg of the side-view swing arm"
+        },
+        "antiDrive": {
+          "type": "number",
+          "minimum": -2,
+          "maximum": 2,
+          "default": 0,
+          "description": "Anti-pitch geometry under drive, a fraction (ADR-0018): anti-squat on a driven rear axle, anti-lift on a driven front axle"
         }
       },
       "additionalProperties": false

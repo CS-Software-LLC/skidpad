@@ -120,6 +120,14 @@ hardware; under 2 ms for two hundred traffic cars; core WASM under 200 KB
 gzipped (currently 196 KB). `apps/bench/baseline` holds the committed
 baseline the benchmark compares against.
 
+An independent check drives Skidpad and Project Chrono's multibody BMW E90
+through the same eight manoeuvres, with the Skidpad car built from Chrono's
+published constants. Steady-state handling and the step-steer response
+agree within a few percent once static toe, anti-dive and anti-squat, a
+measured engine-braking curve and per-axle tracks are carried over
+(ADR-0017, ADR-0018); the remaining gaps, mostly geometry that changes with
+travel, are in [docs/validation/chrono-bmw-e90.md](docs/validation/chrono-bmw-e90.md).
+
 The determinism check runs a 50 s scripted drive of three vehicles, then a
 recorded lap of the sandbox track for each of the six presets (real driving
 inputs, replayed open-loop), in Chromium, Firefox, WebKit, and Node, and
@@ -174,6 +182,7 @@ apps/sandbox        Vite + React Three Fiber playground
 apps/docs           VitePress docs with interactive explainers
 apps/bench          benchmark page and Node runner
 tools/validate      headless validation CLI with golden results
+tools/chrono-compare  behavioural comparison against Project Chrono's multibody BMW E90
 tests/determinism   cross-browser determinism harness (Playwright), recorded laps
 docs/adr            architecture decision records
 ```

@@ -17,6 +17,7 @@ packages/core/src/generated/
 tests/determinism/out/
 apps/bench/results/
 tools/validate/out/
+tools/chrono-compare/out/
 playwright-report/
 test-results/
 

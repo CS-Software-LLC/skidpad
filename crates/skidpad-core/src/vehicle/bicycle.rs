@@ -295,6 +295,14 @@ impl BicycleVehicle {
             // four-wheel model in milestone 2.
             let _ = axle_def.static_camber_deg;
             let camber = 0.0;
+            // Static toe is mirrored too: the two wheels' lateral forces
+            // cancel, and the single tire runs at the steering angle alone.
+            let _ = axle_def.static_toe_deg;
+            // The planar model has no track, body pitch or suspension, so
+            // per-axle track widths and the anti-dive and anti-squat
+            // geometry (ADR-0018) do not enter it; its axle loads come from
+            // the quasi-static load transfer, which they do not change.
+            let _ = (axle_def.track_width, axle_def.suspension.anti_brake);
 
             // Contact velocity in the wheel frame.
             let (bx, by, steered) = if i == FRONT {

@@ -34,6 +34,10 @@ helps. Parameters are per tire unless noted.
 - Raise `chassis.rollInertia` or `pitchInertia` to slow the motion rather
   than reduce it.
 - Lower `chassis.cgHeight`: both transfers scale with it.
+- For pitch alone, add `antiBrake` on both axles (anti-dive at the front,
+  anti-lift at the rear) and `antiDrive` on the driven axle. Values of 0.2
+  to 0.5 are typical. They change only the body's pitch, not the tire loads
+  ([anti-dive](/concepts/suspension#anti-dive-and-anti-squat)).
 
 ## Car rolls too much in corners but rides well
 
@@ -79,6 +83,9 @@ helps. Parameters are per tire unless noted.
 - `engineBrakingIdle` and `engineBrakingRedline` set the closed-throttle
   drag; lower them for a car that coasts further. An electric motor's
   lift-off drag is `regenTorque`.
+- A measured motoring map rises faster than a line at high revs. Give it
+  as `engineBrakingCurve`, `[rpm, N·m]` points with the drag positive; it
+  then replaces the two end values.
 
 ## Steering feels numb
 
@@ -185,6 +192,15 @@ helps. Parameters are per tire unless noted.
   whatever the body does ([solid axles](/concepts/suspension#solid-axles)).
   A solid axle tilts both wheels together over a one-wheel bump, which is
   the trade.
+
+## Turn-in is too sharp, or the car is nervous on the straight
+
+- Add a little toe-in, `staticToeDeg` of 0.1 to 0.3 degrees per wheel. The
+  car answers the wheel a little later and settles with less overshoot. On
+  the rear axle toe-in also steadies the car under braking and on lift-off.
+- Toe-out on the front does the opposite and sharpens turn-in. Either way
+  the scrub costs a little straight-line speed
+  ([toe](/concepts/suspension#toe)).
 
 ## The car jitters or creeps when parked
 

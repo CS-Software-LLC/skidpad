@@ -7,7 +7,7 @@
 use skidpad_math::StateHasher;
 
 pub const MAGIC: &[u8; 4] = b"SKID";
-pub const VERSION: u32 = 3;
+pub const VERSION: u32 = 4;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SnapshotError {

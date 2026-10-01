@@ -1,0 +1,86 @@
+{
+  "accel": {
+    "duration": 30,
+    "throttle": [
+      [0, 1],
+      [30, 1]
+    ]
+  },
+  "coast": { "duration": 20, "initSpeed": 30, "settle": 5, "throttle": [[0, 0]] },
+  "brake100": {
+    "duration": 7,
+    "initSpeed": 28.5,
+    "settle": 5,
+    "throttle": [[0, 0]],
+    "brake": [
+      [0, 0],
+      [0.5, 0],
+      [0.6, 1],
+      [7, 1]
+    ]
+  },
+  "brakeHalf": {
+    "duration": 9,
+    "initSpeed": 28.5,
+    "settle": 5,
+    "throttle": [[0, 0]],
+    "brake": [
+      [0, 0],
+      [0.5, 0],
+      [0.6, 0.4],
+      [9, 0.4]
+    ]
+  },
+  "rampSteer": {
+    "duration": 36,
+    "initSpeed": 20,
+    "settle": 5,
+    "holdSpeed": 20,
+    "steer": {
+      "type": "points",
+      "points": [
+        [0, 0],
+        [3, 0],
+        [33, 0.3],
+        [36, 0.3]
+      ]
+    }
+  },
+  "stepSteer": {
+    "duration": 8,
+    "initSpeed": 22.22,
+    "settle": 5,
+    "holdSpeed": 22.22,
+    "steer": {
+      "type": "points",
+      "points": [
+        [0, 0],
+        [2, 0],
+        [2.2, 0.08],
+        [8, 0.08]
+      ]
+    }
+  },
+  "sineSteer": {
+    "duration": 8,
+    "initSpeed": 22.22,
+    "settle": 5,
+    "holdSpeed": 22.22,
+    "steer": { "type": "sine", "amp": 0.08, "freq": 0.5, "start": 2, "cycles": 2 }
+  },
+  "lowSpeedTurn": {
+    "duration": 15,
+    "initSpeed": 5,
+    "settle": 5,
+    "holdSpeed": 5,
+    "steer": {
+      "type": "points",
+      "points": [
+        [0, 0],
+        [2, 0],
+        [4, 0.5],
+        [15, 0.5]
+      ]
+    }
+  }
+}

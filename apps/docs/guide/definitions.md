@@ -7,16 +7,16 @@ and SI units; the only non-SI fields end in `Deg`.
 
 ## Components
 
-| Component    | What it holds                                                                                                                                              |
-| ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `chassis`    | Mass, yaw, roll and pitch inertia, wheelbase, centre-of-mass position and height, track width                                                              |
-| `axles`      | Front then rear. Each has a tire, a `suspension` (with its `kind` and roll-centre height), wheel inertia, `driven`, `steered`, brake torque, static camber |
-| `steering`   | Maximum road-wheel angle, steering ratio, Ackermann fraction                                                                                               |
-| `brakes`     | Handbrake torque                                                                                                                                           |
-| `drivetrain` | Power unit (`direct`, `combustion` or `electric`), transmission, axle and centre differentials (ADR-0011)                                                  |
-| `aero`       | Drag coefficient, frontal area, air density, lift coefficient per axle, height of the drag line above the centre of mass (ADR-0015)                        |
-| `simulation` | Internal substep rate and `model`: `"fourWheel"` (default) or `"singleTrack"`                                                                              |
-| `dataSheet`  | Sources for reference vehicles                                                                                                                             |
+| Component    | What it holds                                                                                                                                                                                                                 |
+| ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `chassis`    | Mass, yaw, roll and pitch inertia, wheelbase, centre-of-mass position and height, track width                                                                                                                                 |
+| `axles`      | Front then rear. Each has a tire, a `suspension` (with its `kind`, roll-centre height and anti-dive and anti-squat), wheel inertia, `driven`, `steered`, brake torque, static camber and toe, and an optional own track width |
+| `steering`   | Maximum road-wheel angle, steering ratio, Ackermann fraction                                                                                                                                                                  |
+| `brakes`     | Handbrake torque                                                                                                                                                                                                              |
+| `drivetrain` | Power unit (`direct`, `combustion` or `electric`), transmission, axle and centre differentials (ADR-0011)                                                                                                                     |
+| `aero`       | Drag coefficient, frontal area, air density, lift coefficient per axle, height of the drag line above the centre of mass (ADR-0015)                                                                                           |
+| `simulation` | Internal substep rate and `model`: `"fourWheel"` (default) or `"singleTrack"`                                                                                                                                                 |
+| `dataSheet`  | Sources for reference vehicles                                                                                                                                                                                                |
 
 Tire and suspension parameters are quoted **per wheel**. The single-track
 model evaluates one tire at half the axle load and doubles the result, so the

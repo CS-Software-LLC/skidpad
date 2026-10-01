@@ -289,7 +289,7 @@
           "spun": false
         }
       },
-      "scriptedDriveHash": "68ae2d7a2c171ae7"
+      "scriptedDriveHash": "bf1858e1ff3cf31f"
     },
     "sportsRwd": {
       "model": "fourWheel",
@@ -578,7 +578,7 @@
           "spun": false
         }
       },
-      "scriptedDriveHash": "111c7c7e8ce823c3"
+      "scriptedDriveHash": "1cf560fec0ee8481"
     },
     "kart": {
       "model": "fourWheel",
@@ -859,7 +859,7 @@
           "spun": true
         }
       },
-      "scriptedDriveHash": "8e1634adaa5b18d4"
+      "scriptedDriveHash": "7d1ef659954c54f6"
     },
     "pickup4x4": {
       "model": "fourWheel",
@@ -1148,7 +1148,7 @@
           "spun": false
         }
       },
-      "scriptedDriveHash": "0cad872ec18c816d"
+      "scriptedDriveHash": "bd20ee4c8504dbfb"
     },
     "crossoverEv": {
       "model": "fourWheel",
@@ -1437,7 +1437,7 @@
           "spun": false
         }
       },
-      "scriptedDriveHash": "8f1f7b93687b8fc8"
+      "scriptedDriveHash": "4f3e7da128c44d4b"
     },
     "openWheeler": {
       "model": "fourWheel",
@@ -1718,7 +1718,7 @@
           "spun": false
         }
       },
-      "scriptedDriveHash": "c8a594c32933cda8"
+      "scriptedDriveHash": "c499d8cf3f926b7d"
     }
   }
 }

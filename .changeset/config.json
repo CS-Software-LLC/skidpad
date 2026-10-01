@@ -12,6 +12,7 @@
     "@skidpad/docs",
     "@skidpad/bench",
     "@skidpad/determinism-tests",
-    "@skidpad/example-headless-node"
+    "@skidpad/example-headless-node",
+    "@skidpad/chrono-compare"
   ]
 }

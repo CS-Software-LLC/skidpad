@@ -87,6 +87,13 @@ pub struct CombustionEngineDef {
     pub engine_braking_idle: f64,
     /// Closed-throttle drag torque at redline, N·m.
     pub engine_braking_redline: f64,
+    /// Closed-throttle drag torque as `[rpm, N·m]` points in increasing rpm,
+    /// drag positive, interpolated linearly and held flat beyond the ends.
+    /// When it has points it replaces the straight line from
+    /// `engineBrakingIdle` to `engineBrakingRedline`, so a measured,
+    /// typically convex, motoring map can be followed (ADR-0011
+    /// amendment). Empty by default.
+    pub engine_braking_curve: Vec<[f64; 2]>,
     /// Most torque the idle governor adds below idle, N·m. Stands in for a
     /// starter: the engine never stalls (ADR-0011).
     pub idle_torque_max: f64,
@@ -110,6 +117,7 @@ impl Default for CombustionEngineDef {
             ],
             engine_braking_idle: 15.0,
             engine_braking_redline: 60.0,
+            engine_braking_curve: Vec::new(),
             idle_torque_max: 60.0,
         }
     }
@@ -349,6 +357,24 @@ impl DrivetrainDef {
                     if i > 0 && !(p[0] > c.torque_curve[i - 1][0]) {
                         e.push(format!(
                             "{prefix}.powerUnit.torqueCurve[{i}] rpm must increase along the curve"
+                        ));
+                    }
+                }
+                if c.engine_braking_curve.len() > MAX_CURVE_POINTS {
+                    e.push(format!(
+                        "{prefix}.powerUnit.engineBrakingCurve may have at most {MAX_CURVE_POINTS} points (got {})",
+                        c.engine_braking_curve.len()
+                    ));
+                }
+                for (i, p) in c.engine_braking_curve.iter().enumerate() {
+                    if !p[0].is_finite() || !p[1].is_finite() || p[0] < 0.0 || p[1] < 0.0 {
+                        e.push(format!(
+                            "{prefix}.powerUnit.engineBrakingCurve[{i}] must be finite with rpm ≥ 0 and drag ≥ 0"
+                        ));
+                    }
+                    if i > 0 && !(p[0] > c.engine_braking_curve[i - 1][0]) {
+                        e.push(format!(
+                            "{prefix}.powerUnit.engineBrakingCurve[{i}] rpm must increase along the curve"
                         ));
                     }
                 }

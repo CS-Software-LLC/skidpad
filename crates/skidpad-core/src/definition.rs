@@ -68,7 +68,7 @@ pub struct ChassisDef {
     pub cg_to_front_axle: f64,
     /// Centre-of-mass height above ground, m. Drives longitudinal load transfer.
     pub cg_height: f64,
-    /// Track width, m. Both axles share it until per-axle tracks land.
+    /// Track width, m. An axle may set its own (`axles[].trackWidth`).
     pub track_width: f64,
 }
 
@@ -104,6 +104,16 @@ pub struct AxleDef {
     /// the centreline (the usual road-car setting); the single-track model
     /// ignores it because the mirrored thrust cancels.
     pub static_camber_deg: f64,
+    /// Static toe per wheel, degrees. Positive is toe-in: each wheel of the
+    /// axle points toward the centreline ahead of it. It adds to the
+    /// steering angle on both models' wheel axes, so a toed-in axle runs
+    /// each tire at a small slip angle when driving straight, with the
+    /// lateral forces cancelling and a little drag left over. The
+    /// single-track model ignores it because the mirrored forces cancel.
+    pub static_toe_deg: f64,
+    /// Track width of this axle, m, between the contact patches. Zero (the
+    /// default) uses `chassis.trackWidth`. Four-wheel model only.
+    pub track_width: f64,
     /// Independent suspension at each wheel of this axle. Four-wheel model
     /// only.
     pub suspension: SuspensionDef,
@@ -142,6 +152,19 @@ pub struct SuspensionDef {
     /// ground, which is what the raycast strut gives by itself. Four-wheel
     /// model only.
     pub roll_center_height: f64,
+    /// Anti-pitch geometry under braking, as a fraction (ADR-0018): the
+    /// share of the longitudinal load transfer caused by this axle's
+    /// braking force that its links carry straight to the tires instead of
+    /// pitching the body on its springs. On the front axle it is anti-dive,
+    /// on the rear anti-lift; 1 is 100 %, negative is pro-dive or pro-lift.
+    /// It is `tan θ · L / h_cg`, with `θ` the side-view angle from the
+    /// contact patch (outboard brakes) or the wheel centre (inboard brakes)
+    /// to the side-view instant centre. Four-wheel model only.
+    pub anti_brake: f64,
+    /// Anti-pitch geometry under drive, as a fraction (ADR-0018): the same
+    /// share for this axle's driving force. On a driven rear axle it is
+    /// anti-squat, on a driven front axle anti-lift. Four-wheel model only.
+    pub anti_drive: f64,
 }
 
 /// How the two wheels of an axle are held (ADR-0016).
@@ -156,6 +179,11 @@ pub enum SuspensionKind {
     /// line through the two contacts whatever the body does.
     Solid,
 }
+
+/// Largest anti-dive or anti-squat fraction a definition may set. Road cars
+/// run 0 to about 0.5; beyond 1 the body moves against the load transfer,
+/// and beyond 2 the links' jacking would dominate the springs.
+pub const MAX_ANTI_PITCH: f64 = 2.0;
 
 impl Default for SuspensionDef {
     fn default() -> Self {
@@ -175,6 +203,8 @@ impl SuspensionDef {
             anti_roll_stiffness: 15000.0,
             bump_stop_stiffness: 300000.0,
             roll_center_height: 0.0,
+            anti_brake: 0.0,
+            anti_drive: 0.0,
         }
     }
 
@@ -189,6 +219,8 @@ impl SuspensionDef {
             anti_roll_stiffness: 8000.0,
             bump_stop_stiffness: 300000.0,
             roll_center_height: 0.0,
+            anti_brake: 0.0,
+            anti_drive: 0.0,
         }
     }
 
@@ -222,8 +254,23 @@ impl SuspensionDef {
                 self.roll_center_height
             ));
         }
+        for (name, v) in [
+            ("antiBrake", self.anti_brake),
+            ("antiDrive", self.anti_drive),
+        ] {
+            if !v.is_finite() || m::abs(v) > MAX_ANTI_PITCH {
+                errors.push(format!(
+                    "{prefix}.{name} must be within ±{MAX_ANTI_PITCH} (got {v})"
+                ));
+            }
+        }
     }
 }
+
+/// Largest static toe per wheel a definition may set, degrees. Road cars
+/// run a few tenths of a degree; a few degrees is already an extreme
+/// setting, and beyond ten the tire is scrubbing rather than rolling.
+pub const MAX_STATIC_TOE_DEG: f64 = 10.0;
 
 impl Default for AxleDef {
     fn default() -> Self {
@@ -240,6 +287,8 @@ impl AxleDef {
             steered: true,
             max_brake_torque: 3600.0,
             static_camber_deg: 0.0,
+            static_toe_deg: 0.0,
+            track_width: 0.0,
             suspension: SuspensionDef::front_default(),
         }
     }
@@ -252,6 +301,8 @@ impl AxleDef {
             steered: false,
             max_brake_torque: 2000.0,
             static_camber_deg: 0.0,
+            static_toe_deg: 0.0,
+            track_width: 0.0,
             suspension: SuspensionDef::rear_default(),
         }
     }
@@ -492,6 +543,18 @@ impl VehicleDefinition {
                     a.static_camber_deg
                 ));
             }
+            if !(a.track_width >= 0.0) || !a.track_width.is_finite() {
+                e.push(format!(
+                    "axles[{i}] ({name}).trackWidth must be zero (use chassis.trackWidth) or positive (got {})",
+                    a.track_width
+                ));
+            }
+            if !a.static_toe_deg.is_finite() || m::abs(a.static_toe_deg) > MAX_STATIC_TOE_DEG {
+                e.push(format!(
+                    "axles[{i}] ({name}).staticToeDeg must be within ±{MAX_STATIC_TOE_DEG} (got {})",
+                    a.static_toe_deg
+                ));
+            }
             a.suspension
                 .validate(&format!("axles[{i}] ({name}).suspension"), &mut e);
         }
@@ -627,6 +690,16 @@ impl VehicleDefinition {
             self.axles.first().is_some_and(|a| a.driven),
             self.axles.get(1).is_some_and(|a| a.driven),
         ]
+    }
+
+    /// Track width of axle `axle`, m: its own, or the chassis track when it
+    /// sets none.
+    #[inline]
+    pub fn axle_track(&self, axle: usize) -> f64 {
+        match self.axles.get(axle) {
+            Some(a) if a.track_width > 0.0 => a.track_width,
+            _ => self.chassis.track_width,
+        }
     }
 
     /// Distance from the centre of mass to the rear axle, m.

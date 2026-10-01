@@ -17,3 +17,11 @@ Rejected.
 | [0008](0008-feel-tire-parameterisation.md)             | Feel tire model parameterisation                                        | Accepted                  |
 | [0009](0009-raycast-suspension-and-host-contract.md)   | Raycast suspension on the chassis proxy, and the external host contract | Accepted                  |
 | [0010](0010-contact-patch-deflection-at-standstill.md) | Contact-patch deflection at standstill                                  | Accepted                  |
+| [0011](0011-drivetrain-graph.md)                       | Drivetrain as a constrained rotational system solved implicitly         | Accepted, amended         |
+| [0012](0012-steering-geometry-and-rack-force.md)       | Steering geometry, rack force and jacking                               | Accepted                  |
+| [0013](0013-assists-layer.md)                          | Driving assists as a stateless stage inside the core                    | Accepted                  |
+| [0014](0014-surface-table.md)                          | Surface table, with the surface scaling the tire inside the core        | Accepted                  |
+| [0015](0015-aero-lift-and-drag-height.md)              | Aero lift per axle and the drag line of action                          | Accepted                  |
+| [0016](0016-solid-axles-and-roll-centres.md)           | Solid axles and roll-centre heights on the raycast suspension           | Accepted                  |
+| [0017](0017-static-toe.md)                             | Static toe per axle                                                     | Accepted                  |
+| [0018](0018-anti-dive-and-anti-squat.md)               | Anti-dive and anti-squat on the raycast suspension                      | Accepted                  |
