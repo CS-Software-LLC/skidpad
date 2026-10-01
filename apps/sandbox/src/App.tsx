@@ -23,6 +23,9 @@ interface HudState {
   slipR: number;
   steerDeg: number;
   torque: number;
+  rpm: number;
+  gear: number;
+  squeal: number;
   stepMs: number;
   hash: string;
   wheels: WheelHud[];
@@ -30,6 +33,13 @@ interface HudState {
 }
 
 const WHEEL_NAMES = ["FL", "FR", "RL", "RR"] as const;
+const SOUND_KEY = "skidpad.sandbox.sound";
+const VOLUME_KEY = "skidpad.sandbox.volume";
+
+function readStoredVolume(): number {
+  const v = Number(localStorage.getItem(VOLUME_KEY));
+  return Number.isFinite(v) && localStorage.getItem(VOLUME_KEY) !== null ? v : 0.5;
+}
 
 export function App() {
   const [sim, setSim] = useState<Sim | null>(null);
@@ -37,6 +47,8 @@ export function App() {
   const [presetId, setPresetId] = useState<PresetId>("hatchbackFwd");
   const [hostKind, setHostKind] = useState<HostKind>("builtin");
   const [recording, setRecording] = useState(false);
+  const [sound, setSound] = useState(false);
+  const [volume, setVolume] = useState(() => readStoredVolume());
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const clip = useRef(new ClipRecorder());
 
@@ -65,6 +77,31 @@ export function App() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [sim]);
+
+  // Browsers only start audio from a user gesture. If sound was on last
+  // time, resume it on the first key press or click instead of asking again.
+  useEffect(() => {
+    if (!sim) return;
+    sim.audio.volume = volume;
+    if (localStorage.getItem(SOUND_KEY) !== "on") return;
+    const arm = () => {
+      sim.audio
+        .enable()
+        .then(() => setSound(sim.audio.enabled))
+        .catch(() => undefined);
+    };
+    window.addEventListener("keydown", arm, { once: true });
+    window.addEventListener("pointerdown", arm, { once: true });
+    return () => {
+      window.removeEventListener("keydown", arm);
+      window.removeEventListener("pointerdown", arm);
+    };
+  }, [sim]);
+
+  useEffect(() => {
+    if (sim) sim.audio.volume = volume;
+    localStorage.setItem(VOLUME_KEY, String(volume));
+  }, [sim, volume]);
 
   if (error) return <div className="error">Failed to load the core:\n{error}</div>;
   if (!sim)
@@ -122,6 +159,26 @@ export function App() {
         </button>
         <button
           onClick={async () => {
+            const on = await sim.audio.toggle();
+            setSound(on);
+            localStorage.setItem(SOUND_KEY, on ? "on" : "off");
+          }}
+        >
+          {sound ? "Sound: on" : "Sound: off"}
+        </button>
+        <label className="volume">
+          Volume
+          <input
+            type="range"
+            min={0}
+            max={1}
+            step={0.05}
+            value={volume}
+            onChange={(e) => setVolume(Number(e.target.value))}
+          />
+        </label>
+        <button
+          onClick={async () => {
             if (!canvasRef.current) return;
             if (clip.current.recording) {
               const blob = await clip.current.stop();
@@ -138,7 +195,8 @@ export function App() {
       </div>
       <div className="help">
         WASD / arrows to drive · Space handbrake · R reset · gamepad supported · the ramp is 70 m
-        ahead under the Rapier host
+        ahead under the Rapier host · sound is a virtual engine on the wheel speed plus tire squeal
+        past the grip peak
       </div>
       <Graph recorder={sim.recorder} />
     </>
@@ -163,6 +221,9 @@ function Hud({ sim }: { sim: Sim }) {
         slipR: w.read(v, "SlipAngle_R") * deg,
         steerDeg: w.read(v, "SteeringWheelAngle") * deg,
         torque: w.read(v, "SteeringTorque"),
+        rpm: sim.audio.engineRpm,
+        gear: sim.audio.currentGear,
+        squeal: sim.audio.squealLevel,
         stepMs: sim.stepCostMs,
         hash: w.stateHash(v),
         staticLoad: (sim.definition.chassis.mass * 9.80665) / 4,
@@ -208,6 +269,13 @@ function Hud({ sim }: { sim: Sim }) {
                 <td>Steering wheel</td>
                 <td>
                   {hud.steerDeg.toFixed(0)}° · {hud.torque.toFixed(1)} N·m
+                </td>
+              </tr>
+              <tr>
+                <td>Engine (sound only)</td>
+                <td>
+                  {hud.rpm.toFixed(0)} rpm · gear {hud.gear} · squeal{" "}
+                  {(hud.squeal * 100).toFixed(0)}%
                 </td>
               </tr>
               <tr>

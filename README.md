@@ -191,7 +191,11 @@ flat-ground host and a Rapier scene where the speed bumps, the ramp and the
 kerb are real. The overlay shows speed, lateral g, roll and pitch, slip
 angles, steering torque, step cost, the live state hash, and per wheel the
 load, suspension travel and slips; the graph scrolls telemetry; buttons
-export CSV and record a WebM clip.
+export CSV and record a WebM clip. A sound toggle adds a synthesised engine
+note and tire squeal (Web Audio, no samples): the core has no engine model,
+so the note follows a virtual five-speed gearbox on the driven-wheel speed,
+and the squeal follows each wheel's combined slip past its force peak. It is
+sound only and does not touch the simulation.
 The site deploys to GitHub Pages on every merge to `main`, and CI uploads a
 preview build of the sandbox, docs, and bench page for every pull request.
 
