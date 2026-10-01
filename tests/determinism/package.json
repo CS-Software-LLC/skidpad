@@ -1,0 +1,25 @@
+{
+  "name": "@contactpatch/determinism-tests",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "build:harness": "vite build",
+    "hash:node": "tsx src/node.ts",
+    "test": "vitest run",
+    "test:browsers": "pnpm build:harness && playwright test"
+  },
+  "dependencies": {
+    "@contactpatch/core": "workspace:*",
+    "@contactpatch/presets": "workspace:*"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.48.0",
+    "@types/node": "^22.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0",
+    "vite": "^5.4.0",
+    "vitest": "^2.1.0"
+  }
+}

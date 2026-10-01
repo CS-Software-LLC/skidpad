@@ -1,0 +1,45 @@
+{
+  "name": "contactpatch-monorepo",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Contact Patch: deterministic, sim-grade vehicle physics for the web.",
+  "license": "MIT OR Apache-2.0",
+  "packageManager": "pnpm@10.28.0",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build:wasm": "node scripts/build-wasm.mjs",
+    "build:wasm:release": "node scripts/build-wasm.mjs --release",
+    "build": "pnpm build:wasm:release && pnpm -r --filter './packages/**' run build && pnpm -r --filter './tools/**' run build",
+    "build:apps": "pnpm -r --filter './apps/**' run build",
+    "test": "pnpm -r --filter './packages/**' --filter './tools/**' --filter './tests/**' run test",
+    "test:rust": "cargo test --workspace",
+    "test:determinism": "pnpm --filter @contactpatch/determinism-tests run test:browsers",
+    "typecheck": "pnpm -r run typecheck",
+    "lint": "eslint . && prettier --check .",
+    "format": "prettier --write .",
+    "validate": "pnpm --filter @contactpatch/validate run validate",
+    "bench": "pnpm --filter @contactpatch/bench run bench:node",
+    "dev:sandbox": "pnpm --filter @contactpatch/sandbox run dev",
+    "dev:docs": "pnpm --filter @contactpatch/docs run dev",
+    "changeset": "changeset",
+    "version-packages": "changeset version",
+    "release": "pnpm build && changeset publish",
+    "build:dev": "pnpm build:wasm && pnpm -r --filter './packages/**' run build && pnpm -r --filter './tools/**' run build"
+  },
+  "devDependencies": {
+    "@changesets/cli": "^2.27.0",
+    "@eslint/js": "^9.0.0",
+    "@types/node": "^22.20.4",
+    "eslint": "^9.0.0",
+    "prettier": "^3.3.0",
+    "typescript": "^5.6.0",
+    "typescript-eslint": "^8.0.0"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ]
+  }
+}

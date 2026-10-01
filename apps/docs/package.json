@@ -1,0 +1,21 @@
+{
+  "name": "@contactpatch/docs",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vitepress dev",
+    "build": "vitepress build",
+    "preview": "vitepress preview",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@contactpatch/core": "workspace:*",
+    "@contactpatch/presets": "workspace:*",
+    "vue": "^3.5.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.0",
+    "vitepress": "^1.4.0"
+  }
+}

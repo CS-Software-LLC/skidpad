@@ -1,0 +1,79 @@
+{
+  "formatVersion": 1,
+  "name": "RWD sports car",
+  "dataSheet": {
+    "description": "A generic rear-wheel-drive two-seat sports car in the 1.35 t class: roughly 250 kW, 2.5 m wheelbase, near 50/50 weight distribution, wide performance tires.",
+    "sources": [
+      "Class-typical figures from manufacturer specification sheets for front-engine RWD sports cars (mass 1300\u20131450 kg, wheelbase 2.45\u20132.55 m, Cd 0.28\u20130.32, 52/48 front weight bias).",
+      "Tire feel parameters tuned to a ~1.0 g skidpad and ~34 m 100\u20130 km/h braking distance from published road tests for the class."
+    ],
+    "notes": "Not a specific production model. The clutch-pack LSD arrives with the drivetrain graph in milestone 4."
+  },
+  "chassis": {
+    "mass": 1380,
+    "yawInertia": 2100,
+    "wheelbase": 2.5,
+    "cgToFrontAxle": 1.3,
+    "cgHeight": 0.45,
+    "trackWidth": 1.56
+  },
+  "axles": [
+    {
+      "tire": {
+        "model": "feel",
+        "radius": 0.33,
+        "nominalLoad": 4000,
+        "peakFriction": 1.1,
+        "loadSensitivity": 0.1,
+        "peakSlipAngleDeg": 6.5,
+        "corneringStiffness": 20,
+        "longitudinalStiffness": 24,
+        "stiffnessPeakLoad": 5200,
+        "relaxationLengthLat": 0.3
+      },
+      "wheelInertia": 1.8,
+      "driven": false,
+      "steered": true,
+      "maxBrakeTorque": 4200,
+      "staticCamberDeg": -1.0
+    },
+    {
+      "tire": {
+        "model": "feel",
+        "radius": 0.34,
+        "nominalLoad": 4000,
+        "peakFriction": 1.12,
+        "loadSensitivity": 0.1,
+        "peakSlipAngleDeg": 6.5,
+        "corneringStiffness": 21,
+        "longitudinalStiffness": 25,
+        "stiffnessPeakLoad": 5600,
+        "relaxationLengthLat": 0.3
+      },
+      "wheelInertia": 2.6,
+      "driven": true,
+      "steered": false,
+      "maxBrakeTorque": 2600,
+      "staticCamberDeg": -1.5
+    }
+  ],
+  "steering": {
+    "maxWheelAngleDeg": 32,
+    "ratio": 13
+  },
+  "brakes": {
+    "handbrakeTorque": 1500
+  },
+  "drive": {
+    "maxWheelTorque": 4200,
+    "maxWheelSpeed": 230
+  },
+  "aero": {
+    "dragCoefficient": 0.3,
+    "frontalArea": 2.0,
+    "airDensity": 1.225
+  },
+  "simulation": {
+    "substepRateHz": 1000
+  }
+}

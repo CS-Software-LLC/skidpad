@@ -1,0 +1,83 @@
+{
+  "formatVersion": 1,
+  "name": "Kart",
+  "dataSheet": {
+    "description": "A racing kart with driver: about 160 kg all up, 1.05 m wheelbase, no suspension, solid rear axle. In the single-track model the solid axle simply means one undriven front and one driven rear tire.",
+    "sources": [
+      "Class-typical figures from kart homologation sheets (wheelbase 1040\u20131060 mm, track 1.2\u20131.4 m, dry mass with driver 155\u2013175 kg, 125 cc engines of 20\u201330 kW).",
+      "Tire feel parameters tuned to a ~1.4 g skidpad on slick kart tires."
+    ],
+    "notes": "Not a specific chassis. Solid-axle behaviour (inside-rear lift) requires the four-wheel model of milestone 6."
+  },
+  "chassis": {
+    "mass": 165,
+    "yawInertia": 30,
+    "wheelbase": 1.05,
+    "cgToFrontAxle": 0.62,
+    "cgHeight": 0.22,
+    "trackWidth": 1.25
+  },
+  "axles": [
+    {
+      "tire": {
+        "model": "feel",
+        "radius": 0.13,
+        "nominalLoad": 350,
+        "peakFriction": 1.4,
+        "loadSensitivity": 0.15,
+        "peakSlipAngleDeg": 6.0,
+        "corneringStiffness": 16,
+        "longitudinalStiffness": 20,
+        "stiffnessPeakLoad": 520,
+        "relaxationLengthLat": 0.15,
+        "relaxationLengthLong": 0.1,
+        "rollingResistance": 0.015
+      },
+      "wheelInertia": 0.05,
+      "driven": false,
+      "steered": true,
+      "maxBrakeTorque": 0,
+      "staticCamberDeg": 0
+    },
+    {
+      "tire": {
+        "model": "feel",
+        "radius": 0.14,
+        "nominalLoad": 450,
+        "peakFriction": 1.45,
+        "loadSensitivity": 0.15,
+        "peakSlipAngleDeg": 6.0,
+        "corneringStiffness": 17,
+        "longitudinalStiffness": 22,
+        "stiffnessPeakLoad": 620,
+        "relaxationLengthLat": 0.15,
+        "relaxationLengthLong": 0.1,
+        "rollingResistance": 0.015
+      },
+      "wheelInertia": 0.12,
+      "driven": true,
+      "steered": false,
+      "maxBrakeTorque": 320,
+      "staticCamberDeg": 0
+    }
+  ],
+  "steering": {
+    "maxWheelAngleDeg": 25,
+    "ratio": 2.5
+  },
+  "brakes": {
+    "handbrakeTorque": 0
+  },
+  "drive": {
+    "maxWheelTorque": 220,
+    "maxWheelSpeed": 260
+  },
+  "aero": {
+    "dragCoefficient": 0.8,
+    "frontalArea": 0.7,
+    "airDensity": 1.225
+  },
+  "simulation": {
+    "substepRateHz": 1000
+  }
+}

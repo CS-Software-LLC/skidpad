@@ -1,0 +1,11 @@
+node_modules
+dist
+target
+pnpm-lock.yaml
+**/generated/**
+**/*.wasm
+**/.vitepress/cache
+**/.vitepress/dist
+CHANGELOG.md
+tools/validate/golden/*.json
+tests/determinism/out

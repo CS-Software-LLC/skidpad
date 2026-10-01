@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Contact Patch benchmarks</title>
+    <style>
+      body {
+        font:
+          14px/1.5 system-ui,
+          sans-serif;
+        margin: 2rem auto;
+        max-width: 960px;
+        padding: 0 1rem;
+        color: #222;
+      }
+      pre {
+        background: #f4f4f4;
+        padding: 1rem;
+        overflow: auto;
+      }
+      table {
+        border-collapse: collapse;
+        width: 100%;
+      }
+      td,
+      th {
+        border: 1px solid #ddd;
+        padding: 0.3rem 0.5rem;
+        text-align: left;
+      }
+      button {
+        font: inherit;
+        padding: 0.5rem 1rem;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Contact Patch benchmarks</h1>
+    <p>
+      Step cost for 1, 10, 20, 50, and 200 vehicles. Targets (to be revisited after milestone 2):
+      one LOD 0 car at 1 kHz under 0.2 ms per 60 Hz frame on an M1-class machine; twenty LOD 0 cars
+      under 3 ms; two hundred LOD 2 traffic cars under 2 ms.
+    </p>
+    <button id="run">Run in this browser</button>
+    <pre id="out">Press run.</pre>
+    <h2>Published results</h2>
+    <div id="dashboard">Loading…</div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

@@ -1,0 +1,36 @@
+# Determinism contract (ADR-0001, ADR-0006): the simulation crates must never
+# call platform-provided transcendental functions. Everything goes through
+# `cp_math`, which is a vendored software implementation that is bit-exact on
+# every target. `cargo clippy` fails if any of these leak in.
+disallowed-methods = [
+  { path = "f64::sin", reason = "use cp_math::sin (determinism contract)" },
+  { path = "f64::cos", reason = "use cp_math::cos (determinism contract)" },
+  { path = "f64::tan", reason = "use cp_math::tan (determinism contract)" },
+  { path = "f64::asin", reason = "use cp_math::asin (determinism contract)" },
+  { path = "f64::acos", reason = "use cp_math::acos (determinism contract)" },
+  { path = "f64::atan", reason = "use cp_math::atan (determinism contract)" },
+  { path = "f64::atan2", reason = "use cp_math::atan2 (determinism contract)" },
+  { path = "f64::sinh", reason = "use cp_math (determinism contract)" },
+  { path = "f64::cosh", reason = "use cp_math (determinism contract)" },
+  { path = "f64::tanh", reason = "use cp_math::tanh (determinism contract)" },
+  { path = "f64::exp", reason = "use cp_math::exp (determinism contract)" },
+  { path = "f64::exp2", reason = "use cp_math (determinism contract)" },
+  { path = "f64::ln", reason = "use cp_math::ln (determinism contract)" },
+  { path = "f64::log", reason = "use cp_math (determinism contract)" },
+  { path = "f64::log2", reason = "use cp_math (determinism contract)" },
+  { path = "f64::log10", reason = "use cp_math (determinism contract)" },
+  { path = "f64::powf", reason = "use cp_math::pow (determinism contract)" },
+  { path = "f64::powi", reason = "use cp_math::powi (determinism contract)" },
+  { path = "f64::cbrt", reason = "use cp_math::cbrt (determinism contract)" },
+  { path = "f64::hypot", reason = "use cp_math::hypot (determinism contract)" },
+  { path = "f64::mul_add", reason = "no fused multiply-add (determinism contract)" },
+  { path = "f32::sin", reason = "f32 is not used in the simulation" },
+  { path = "f32::cos", reason = "f32 is not used in the simulation" },
+  { path = "f32::powf", reason = "f32 is not used in the simulation" },
+  { path = "f32::exp", reason = "f32 is not used in the simulation" },
+  { path = "f32::mul_add", reason = "no fused multiply-add (determinism contract)" },
+]
+disallowed-types = [
+  { path = "std::collections::HashMap", reason = "iteration order is not deterministic; use BTreeMap or Vec" },
+  { path = "std::collections::HashSet", reason = "iteration order is not deterministic; use BTreeSet or Vec" },
+]

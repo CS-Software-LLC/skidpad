@@ -1,0 +1,30 @@
+# Rust
+/target
+**/*.rs.bk
+
+# Node
+node_modules
+dist
+.turbo
+*.tsbuildinfo
+.vite
+.vitepress/cache
+.vitepress/dist
+
+# Generated artifacts
+packages/core/wasm/*.wasm
+packages/core/src/generated/
+tests/determinism/out/
+apps/bench/results/
+tools/validate/out/
+playwright-report/
+test-results/
+
+# OS / editor
+.DS_Store
+.idea
+.vscode/*
+!.vscode/extensions.json
+
+# Assembled site
+site/

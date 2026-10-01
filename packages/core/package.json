@@ -1,0 +1,52 @@
+{
+  "name": "@contactpatch/core",
+  "version": "0.1.0",
+  "description": "Deterministic, sim-grade vehicle physics core for the web (Rust compiled to WebAssembly).",
+  "license": "MIT OR Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/csummers88/oss-vehicle-physics",
+    "directory": "packages/core"
+  },
+  "type": "module",
+  "sideEffects": false,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./compat": {
+      "types": "./dist/compat.d.ts",
+      "import": "./dist/compat.js"
+    },
+    "./schema": "./schema/vehicle-definition.schema.json",
+    "./wasm": "./wasm/contactpatch.wasm"
+  },
+  "files": [
+    "dist",
+    "schema",
+    "wasm"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "ajv": "^8.17.0",
+    "ajv-formats": "^3.0.1",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
+  },
+  "keywords": [
+    "vehicle",
+    "physics",
+    "simulation",
+    "wasm",
+    "deterministic",
+    "tire",
+    "pacejka"
+  ]
+}

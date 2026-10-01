@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Contact Patch sandbox</title>
+    <style>
+      html,
+      body,
+      #root {
+        margin: 0;
+        height: 100%;
+        background: #10131a;
+        color: #e8ecf1;
+        font:
+          13px/1.4 system-ui,
+          sans-serif;
+      }
+      canvas {
+        display: block;
+      }
+      .hud {
+        position: absolute;
+        top: 12px;
+        left: 12px;
+        background: rgba(10, 12, 18, 0.75);
+        padding: 10px 12px;
+        border-radius: 8px;
+        min-width: 260px;
+        backdrop-filter: blur(4px);
+      }
+      .hud h1 {
+        font-size: 14px;
+        margin: 0 0 6px;
+        font-weight: 600;
+      }
+      .hud .big {
+        font-size: 28px;
+        font-weight: 700;
+        font-variant-numeric: tabular-nums;
+      }
+      .hud table {
+        border-collapse: collapse;
+        font-variant-numeric: tabular-nums;
+      }
+      .hud td {
+        padding: 1px 8px 1px 0;
+      }
+      .hud td:last-child {
+        text-align: right;
+      }
+      .controls {
+        position: absolute;
+        top: 12px;
+        right: 12px;
+        background: rgba(10, 12, 18, 0.75);
+        padding: 10px 12px;
+        border-radius: 8px;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+      .controls button,
+      .controls select {
+        font: inherit;
+        padding: 4px 8px;
+        background: #2a3140;
+        color: inherit;
+        border: 1px solid #3c4557;
+        border-radius: 4px;
+        cursor: pointer;
+      }
+      .controls button:hover {
+        background: #38415a;
+      }
+      .graph {
+        position: absolute;
+        bottom: 12px;
+        left: 12px;
+        right: 12px;
+        height: 120px;
+        background: rgba(10, 12, 18, 0.75);
+        border-radius: 8px;
+      }
+      .help {
+        position: absolute;
+        bottom: 140px;
+        left: 12px;
+        opacity: 0.7;
+      }
+      .error {
+        position: absolute;
+        inset: 0;
+        display: grid;
+        place-items: center;
+        color: #ff8080;
+        white-space: pre-wrap;
+        padding: 2rem;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

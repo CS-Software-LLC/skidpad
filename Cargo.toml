@@ -1,0 +1,31 @@
+[workspace]
+resolver = "2"
+members = ["crates/cp-math", "crates/cp-core", "crates/cp-wasm"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/csummers88/oss-vehicle-physics"
+authors = ["Contact Patch contributors"]
+rust-version = "1.85"
+
+[workspace.dependencies]
+libm = "0.2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+proptest = "1"
+
+# The release profile is tuned for the WASM artifact: small, no unwinding,
+# and a single codegen unit so the optimizer sees the whole simulation.
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+strip = true
+
+# Size-optimised profile for the published WASM binary.
+[profile.wasm-release]
+inherits = "release"
+opt-level = "s"

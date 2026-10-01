@@ -1,0 +1,17 @@
+{
+  "$schema": "https://unpkg.com/@changesets/config@3.0.0/schema.json",
+  "changelog": "@changesets/cli/changelog",
+  "commit": false,
+  "fixed": [],
+  "linked": [["@contactpatch/*"]],
+  "access": "public",
+  "baseBranch": "main",
+  "updateInternalDependencies": "patch",
+  "ignore": [
+    "@contactpatch/sandbox",
+    "@contactpatch/docs",
+    "@contactpatch/bench",
+    "@contactpatch/determinism-tests",
+    "@contactpatch/example-headless-node"
+  ]
+}

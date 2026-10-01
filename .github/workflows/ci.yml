@@ -1,0 +1,113 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  CI: "true"
+
+jobs:
+  rust:
+    name: Rust (fmt, clippy, test)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: "1.97.0"
+          components: rustfmt, clippy
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fmt --all -- --check
+      - run: cargo clippy --workspace --all-targets -- -D warnings
+      - run: cargo test --workspace
+      - name: Clippy on the WASM target
+        run: cargo clippy -p cp-wasm --target wasm32-unknown-unknown -- -D warnings
+
+  typescript:
+    name: WASM build, TypeScript, validation, benchmark
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: "1.97.0"
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build:wasm:release
+      - run: pnpm build
+      - run: pnpm typecheck
+      - run: pnpm lint
+      - run: pnpm test
+      - name: Validation scenarios against golden results
+        run: pnpm validate
+      - name: Node benchmark
+        run: pnpm bench
+      - name: Build apps (sandbox, docs, bench)
+        run: pnpm build:apps
+      - name: Upload WASM artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: contactpatch-wasm
+          path: packages/core/wasm/contactpatch.wasm
+      - name: Upload benchmark result
+        uses: actions/upload-artifact@v4
+        with:
+          name: bench-node
+          path: apps/bench/results/node-latest.json
+      - name: Upload preview site
+        uses: actions/upload-artifact@v4
+        with:
+          name: preview-site
+          path: |
+            apps/sandbox/dist
+            apps/docs/.vitepress/dist
+            apps/bench/dist
+      - name: Validation summary
+        run: pnpm --filter @contactpatch/validate run validate >> "$GITHUB_STEP_SUMMARY" || true
+
+  determinism:
+    name: Cross-browser determinism (Chromium, Firefox, WebKit, Node)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: "1.97.0"
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build:wasm:release
+      - run: pnpm -r --filter './packages/**' run build
+      - name: Install Playwright browsers
+        run: pnpm --filter @contactpatch/determinism-tests exec playwright install --with-deps chromium firefox webkit
+      - name: Node hashes
+        run: pnpm --filter @contactpatch/determinism-tests run hash:node
+      - name: Node determinism test
+        run: pnpm --filter @contactpatch/determinism-tests run test
+      - name: Browser determinism test
+        run: pnpm --filter @contactpatch/determinism-tests run test:browsers
+      - name: Upload hashes
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: determinism-hashes
+          path: tests/determinism/out/*.json
