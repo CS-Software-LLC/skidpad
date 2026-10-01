@@ -6,10 +6,15 @@ lateral against longitudinal force the limit is roughly a circle (the
 **friction circle**), slightly squashed because the longitudinal peak is
 usually higher.
 
-The feel model uses the **resultant slip** method: normalise each slip by its
-peak location, combine them into one resultant slip, evaluate each curve at
-that resultant, and split the force by direction. The Magic Formula model uses
-Pacejka's weighting functions `Gxα` and `Gyκ`.
+The feel model uses the **resultant slip** method on the brush model's
+_theoretical_ slips, `σx = κ / (1 + κ)` and `σy = tan α / (1 + κ)`: normalise
+each by its peak location, combine them into one resultant slip, evaluate
+each curve at that resultant, and split the force by direction. The `1 + κ`
+denominator is what makes braking and driving differ: a braked tire
+(`κ < 0`) is further along its curves than a driven one at the same slip, so
+it reaches its lateral peak at a smaller slip angle and falls off sooner past
+the limit. The Magic Formula model uses Pacejka's weighting functions `Gxα`
+and `Gyκ`.
 
 Both give the behaviour that matters for driving:
 

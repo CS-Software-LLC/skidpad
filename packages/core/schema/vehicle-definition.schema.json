@@ -277,12 +277,16 @@
         "peakSlipRatio": {
           "type": "number",
           "exclusiveMinimum": 0,
-          "default": 0.12
+          "exclusiveMaximum": 1,
+          "default": 0.12,
+          "description": "Slip ratio at which longitudinal force peaks, in drive and in brake"
         },
         "peakSlipAngleDeg": {
           "type": "number",
           "exclusiveMinimum": 0,
-          "default": 7
+          "maximum": 45,
+          "default": 7,
+          "description": "deg"
         },
         "longitudinalStiffness": {
           "type": "number",

@@ -60,6 +60,14 @@ function validateTire(errors: string[], warnings: string[], path: string, tire: 
         errors.push(`${path}.${k} must be in (0, 1] (got ${String(v)})`);
       }
     }
+    if (isNum(t.peakSlipRatio) && t.peakSlipRatio >= 1) {
+      errors.push(
+        `${path}.peakSlipRatio must be below 1 (got ${t.peakSlipRatio}); the braking peak of the theoretical slip is κp / (1 − κp)`,
+      );
+    }
+    if (isNum(t.peakSlipAngleDeg) && t.peakSlipAngleDeg > 45) {
+      errors.push(`${path}.peakSlipAngleDeg must be at most 45 (got ${t.peakSlipAngleDeg})`);
+    }
     const ls = t.loadSensitivity;
     if (ls !== undefined && (!isNum(ls) || ls < 0 || ls >= 1)) {
       errors.push(`${path}.loadSensitivity must be in [0, 1) (got ${String(ls)})`);

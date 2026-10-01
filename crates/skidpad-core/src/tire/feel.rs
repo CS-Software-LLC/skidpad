@@ -1,13 +1,49 @@
 //! The "feel" tire model (ADR-0008): a Magic Formula curve shape driven by
 //! intuitive parameters. Combined slip uses the resultant-slip method
-//! (Milliken & Milliken, *Race Car Vehicle Dynamics*, ch. 2), load
-//! sensitivity is a linear drop in peak friction with load, and stiffness
-//! follows the saturating load dependence `sin(2·atan(Fz / Fz_peak))` from
-//! Pacejka's lateral stiffness formula.
+//! (Milliken & Milliken, *Race Car Vehicle Dynamics*, ch. 2) applied to the
+//! *theoretical* slips of the brush model, `σx = κ / (1 + κ)` and
+//! `σy = tan α / (1 + κ)` (Pacejka, *Tire and Vehicle Dynamics*, 3rd ed.,
+//! ch. 3, brush model; the `1 + κ` denominator is what makes a braked tire
+//! lose lateral grip sooner than a driven one). Load sensitivity is a linear
+//! drop in peak friction with load, and stiffness follows the saturating
+//! load dependence `sin(2·atan(Fz / Fz_peak))` from Pacejka's lateral
+//! stiffness formula.
 
 use super::{TireInput, TireOutput};
 use crate::curve::MagicCurve;
 use skidpad_math as m;
+
+/// Floor on the theoretical-slip denominator `1 + κ`. A locked wheel has
+/// `κ = −1` (and a wheel spun backwards while moving forward has `κ < −1`),
+/// where the theoretical slips are infinite. Below this floor both curves
+/// are at their sliding asymptotes anyway, so the value only has to be small
+/// enough that the resultant normalised slip is far past the peak (with the
+/// default peaks it is above `10^9`) and large enough that its square cannot
+/// overflow (`10^20` against an `f64` range of `10^308`); at `10^-9` the
+/// pure braking curve at exactly `κ = −1` is reproduced to better than
+/// `10^-10` relative. ADR-0008.
+pub const THEORETICAL_SLIP_MIN_DENOM: f64 = 1e-9;
+
+/// Floor on `1 − σ*` when mapping a driving theoretical slip back to a slip
+/// ratio (`κ* = σ* / (1 − σ*)`). A resultant theoretical slip of one or more
+/// corresponds to an infinite driving slip ratio; the floor caps `κ*` near
+/// 1000, where the curve has long reached its asymptote. ADR-0008.
+pub const KAPPA_STAR_MIN_DENOM: f64 = 1e-3;
+
+/// Largest slip-angle magnitude fed to `tan` for the theoretical lateral
+/// slip, rad (about 86°). Camber enters as a slip-angle shift and can push
+/// the effective angle past 90°, where `tan` would flip sign; beyond this
+/// clamp the lateral curve is at its asymptote regardless. ADR-0008.
+pub const ALPHA_TAN_LIMIT: f64 = 1.5;
+
+/// Largest `peakSlipRatio` the theoretical-slip normalisation accepts. The
+/// braking peak `κp / (1 − κp)` needs `κp < 1`; definitions are validated to
+/// stay below it and this clamp only protects the arithmetic.
+const KAPPA_PEAK_MAX: f64 = 0.95;
+
+/// Largest `peakSlipAngle` used for the lateral normalisation `tan αp`, rad
+/// (45°). Definitions are validated to stay below it.
+const ALPHA_PEAK_MAX: f64 = 0.785;
 
 #[derive(Clone, Debug, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -142,17 +178,61 @@ impl FeelTireParams {
         let camber_force = self.camber_stiffness * fz * i.camber;
         let alpha_eff = i.slip_angle - camber_force / m::max(ky, 1e-9);
 
-        // Resultant-slip combined model.
-        let sx = i.slip_ratio / kappa_peak;
-        let sy = alpha_eff / alpha_peak;
+        // Theoretical slips of the brush model (Pacejka ch. 3):
+        //   σx = κ / (1 + κ),   σy = tan α / (1 + κ).
+        // They assume forward rolling. In reverse the kinematic slip ratio
+        // has the opposite sign for the same physical situation (braking
+        // gives κ > 0), so the slip ratio is mirrored by the direction of
+        // travel here and the longitudinal force mirrored back below;
+        // braking while reversing then behaves exactly like braking forward.
+        let dir = if i.vx < 0.0 { -1.0 } else { 1.0 };
+        let kappa = dir * i.slip_ratio;
+        let denom = m::max(1.0 + kappa, THEORETICAL_SLIP_MIN_DENOM);
+        let alpha_t = m::clamp(alpha_eff, -ALPHA_TAN_LIMIT, ALPHA_TAN_LIMIT);
+        let sigma_x = kappa / denom;
+        let sigma_y = m::tan(alpha_t) / denom;
+
+        // Normalise by the peak theoretical slips, specific to the sign of
+        // the longitudinal slip so that `peakSlipRatio` marks the peak in
+        // both drive and brake: σx,peak = κp / (1 ± κp), σy,peak = tan αp.
+        let kp = m::min(kappa_peak, KAPPA_PEAK_MAX);
+        let sigma_x_peak = if sigma_x < 0.0 {
+            kp / (1.0 - kp)
+        } else {
+            kp / (1.0 + kp)
+        };
+        let sigma_y_peak = m::tan(m::min(alpha_peak, ALPHA_PEAK_MAX));
+        let sx = sigma_x / sigma_x_peak;
+        let sy = sigma_y / sigma_y_peak;
         let s = m::hypot(sx, sy);
         let (fx, fy) = if s < 1e-9 {
-            (kx * i.slip_ratio, -ky * alpha_eff)
+            (kx * kappa, -ky * alpha_eff)
         } else {
-            let fx = (sx / s) * cx.eval(s * kappa_peak);
-            let fy = -(sy / s) * cy.eval(s * alpha_peak);
+            // Each pure-slip curve is evaluated at the slip whose own
+            // normalised theoretical slip equals the resultant `s`, so that
+            // pure slip reproduces the pure curve exactly:
+            //   longitudinal: |σ*| = s · σx,peak, mapped back through the
+            //     inverse of σ = κ / (1 + κ), which is κ = σ / (1 − σ)
+            //     (driving) and |κ| = |σ| / (1 + |σ|) (braking);
+            //   lateral: α* = atan(s · tan αp).
+            // Evaluating at `s · κp` instead would scale the initial
+            // longitudinal stiffness by `1 ± κp`.
+            let sigma_mag = s * sigma_x_peak;
+            let kappa_mag = if sx < 0.0 {
+                sigma_mag / (1.0 + sigma_mag)
+            } else {
+                sigma_mag / m::max(1.0 - sigma_mag, KAPPA_STAR_MIN_DENOM)
+            };
+            let alpha_mag = m::atan(s * sigma_y_peak);
+            // Direction cosines in normalised slip space (Milliken ch. 2).
+            // At full sliding this direction differs from the slip velocity
+            // by the ratio of the two normalisations; ADR-0008 records the
+            // size of that error and the fix if it ever matters.
+            let fx = (sx / s) * cx.eval(kappa_mag);
+            let fy = -(sy / s) * cy.eval(alpha_mag);
             (fx, fy)
         };
+        let fx = dir * fx;
 
         // Pneumatic trail falls to zero as the lateral slip reaches its peak
         // (Milliken & Milliken, ch. 2, pneumatic trail vs slip angle); a quadratic
@@ -209,6 +289,18 @@ impl FeelTireParams {
             if !(v > 0.0 && v <= 1.0) {
                 errors.push(format!("{prefix}.{name} must be in (0, 1] (got {v})"));
             }
+        }
+        if self.peak_slip_ratio.is_finite() && self.peak_slip_ratio >= 1.0 {
+            errors.push(format!(
+                "{prefix}.peakSlipRatio must be below 1 (got {}); the braking peak of the theoretical slip is κp / (1 − κp)",
+                self.peak_slip_ratio
+            ));
+        }
+        if self.peak_slip_angle_deg.is_finite() && self.peak_slip_angle_deg > 45.0 {
+            errors.push(format!(
+                "{prefix}.peakSlipAngleDeg must be at most 45 (got {})",
+                self.peak_slip_angle_deg
+            ));
         }
         if !(0.0..1.0).contains(&self.load_sensitivity) {
             errors.push(format!(
