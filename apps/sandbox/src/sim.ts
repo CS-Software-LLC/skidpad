@@ -139,6 +139,15 @@ export class Sim {
     this.detach = this.keyboard.attach(globalThis.window);
   }
 
+  /**
+   * Whether the current definition has an engine or motor of its own (the
+   * `direct` power unit has none). Tolerates a definition built before the
+   * drivetrain existed, which has no `drivetrain` block at all.
+   */
+  get hasEngine(): boolean {
+    return powerUnitKind(this.definition) !== "direct";
+  }
+
   private read(name: string): number {
     let i = this.channel.get(name);
     if (i === undefined) {
@@ -362,6 +371,11 @@ function copySnapshot(dst: SimSnapshot, src: SimSnapshot): void {
     dst.wheelSpin[i] = src.wheelSpin[i]!;
     dst.wheelContact[i] = src.wheelContact[i]!;
   }
+}
+
+/** The power unit kind of a definition, `"direct"` when it has none. */
+export function powerUnitKind(def: VehicleDefinition | undefined): string {
+  return def?.drivetrain?.powerUnit?.kind ?? "direct";
 }
 
 export { presetIds };

@@ -101,8 +101,8 @@ export class SandboxAudio {
   setDefinition(def: VehicleDefinition): void {
     const redlineRad = (REDLINE_RPM * 2 * Math.PI) / 60;
     // Top gear reaches redline a little past the speed where drive torque fades out.
-    const pu = def.drivetrain.powerUnit;
-    const maxWheelSpeed = (pu.kind === "direct" ? pu.maxWheelSpeed : undefined) ?? 160;
+    const pu = def.drivetrain?.powerUnit;
+    const maxWheelSpeed = (pu?.kind === "direct" ? pu.maxWheelSpeed : undefined) ?? 160;
     const top = redlineRad / (maxWheelSpeed * 1.05);
     const step = Math.pow(RATIO_SPAN, 1 / (GEARS - 1));
     this.ratios = [];
@@ -139,7 +139,7 @@ export class SandboxAudio {
 
   private updateEngine(dt: number, read: ChannelReader, def: VehicleDefinition): void {
     if (this.ratios.length === 0) this.setDefinition(def);
-    if (def.drivetrain.powerUnit.kind !== "direct") {
+    if ((def.drivetrain?.powerUnit?.kind ?? "direct") !== "direct") {
       // The core's engine: follow it directly.
       const rpm = read("EngineRpm");
       this.gear = Math.max(0, Math.round(read("Gear")) - 1);

@@ -1,14 +1,15 @@
 #!/usr/bin/env node
 // Preflight for local development. The apps import the *built* workspace
 // packages (packages/*/dist) and the compiled WASM, none of which exist on a
-// fresh clone. This script builds whatever is missing and explains what to
-// install when it cannot.
+// fresh clone. This script builds whatever is missing or stale (sources newer
+// than their build, as after a `git pull`) and explains what to install when
+// it cannot.
 //
-//   node scripts/ensure-built.mjs          build only what is missing
+//   node scripts/ensure-built.mjs          build only what is missing or stale
 //   node scripts/ensure-built.mjs --force  rebuild everything (pnpm bootstrap)
-//   node scripts/ensure-built.mjs --check  report only, exit 1 if anything is missing (pnpm preflight)
+//   node scripts/ensure-built.mjs --check  report only, exit 1 if anything is missing or stale (pnpm preflight)
 import { execFileSync, spawnSync } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, readdirSync, statSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -19,6 +20,21 @@ const packages = ["core", "presets", "telemetry", "input", "rapier"];
 
 const problems = [];
 const log = (m) => console.log(`[ensure-built] ${m}`);
+
+/** Newest modification time (ms) under a path, skipping build output. */
+function newestMtime(path) {
+  if (!existsSync(path)) return 0;
+  const st = statSync(path);
+  if (st.isFile()) return st.mtimeMs;
+  let newest = 0;
+  for (const entry of readdirSync(path, { withFileTypes: true })) {
+    if (["node_modules", "dist", "target", ".vitepress"].includes(entry.name)) continue;
+    newest = Math.max(newest, newestMtime(join(path, entry.name)));
+  }
+  return newest;
+}
+
+const mtime = (path) => (existsSync(path) ? statSync(path).mtimeMs : 0);
 
 function has(cmd, args = ["--version"]) {
   const r = spawnSync(cmd, args, { stdio: "pipe", cwd: root });
@@ -42,11 +58,22 @@ log(cargo ? cargo : "cargo not found  <- fine for TypeScript work; the prebuilt 
 // 2. WASM artifact (needs Rust).
 const wasm = join(root, "packages", "core", "wasm", "skidpad.wasm");
 const inline = join(root, "packages", "core", "src", "generated", "wasm-inline.ts");
+const prebuilt = join(root, "prebuilt", "skidpad.wasm");
 const wasmMissing = !existsSync(wasm) || !existsSync(inline);
-if (wasmMissing || force) {
+// Stale: with Rust, the crates changed after the last build; without it, the
+// committed prebuilt core is newer (or a different size) than the installed one.
+const wasmStale =
+  !wasmMissing &&
+  (cargo && process.env.SKIDPAD_USE_PREBUILT !== "1"
+    ? newestMtime(join(root, "crates")) > mtime(wasm)
+    : mtime(prebuilt) > mtime(wasm) || statSync(prebuilt).size !== statSync(wasm).size);
+if (wasmStale) log("WASM core is older than its sources");
+if (wasmMissing || wasmStale || force) {
   if (checkOnly) {
     problems.push(
-      "WASM core not installed: run `pnpm bootstrap` (uses Rust if present, else the prebuilt core).",
+      wasmMissing
+        ? "WASM core not installed: run `pnpm bootstrap` (uses Rust if present, else the prebuilt core)."
+        : "WASM core is stale: run `pnpm bootstrap` (rebuilds with Rust if present, else reinstalls the prebuilt core).",
     );
   } else if (!cargo || process.env.SKIDPAD_USE_PREBUILT === "1") {
     log(
@@ -80,10 +107,19 @@ if (wasmMissing || force) {
   log("WASM core present");
 }
 
-// 3. TypeScript packages.
+// 3. TypeScript packages: missing, or with sources newer than their build.
 const missing = packages.filter((p) => !existsSync(join(root, "packages", p, "dist", "index.js")));
-if ((missing.length > 0 || force) && !checkOnly && problems.length === 0) {
-  log(`building packages: ${(force ? packages : missing).join(", ")}…`);
+const stale = packages.filter((p) => {
+  const dir = join(root, "packages", p);
+  const built = mtime(join(dir, "dist", "index.js"));
+  return (
+    built > 0 && Math.max(newestMtime(join(dir, "src")), mtime(join(dir, "package.json"))) > built
+  );
+});
+if (stale.length > 0) log(`packages older than their sources: ${stale.join(", ")}`);
+const toBuild = force ? packages : [...missing, ...stale];
+if (toBuild.length > 0 && !checkOnly && problems.length === 0) {
+  log(`building packages: ${toBuild.join(", ")}…`);
   try {
     execFileSync("pnpm", ["-r", "--filter", "./packages/**", "run", "build"], {
       stdio: "inherit",
@@ -92,8 +128,10 @@ if ((missing.length > 0 || force) && !checkOnly && problems.length === 0) {
   } catch {
     problems.push("TypeScript package build failed; see the tsc output above.");
   }
-} else if (missing.length > 0) {
-  problems.push(`packages not built (${missing.join(", ")}): run \`pnpm build\`.`);
+} else if (toBuild.length > 0) {
+  problems.push(
+    `packages ${missing.length > 0 ? "not built" : "stale"} (${toBuild.join(", ")}): run \`pnpm build\`.`,
+  );
 } else {
   log("packages built");
 }

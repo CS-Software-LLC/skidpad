@@ -161,9 +161,10 @@ pnpm dev:sandbox           # drive a car (http://localhost:5173)
 pnpm dev:docs              # docs with the tire explorer
 ```
 
-`pnpm dev:*` runs a preflight that builds anything missing, so after a fresh
-clone the two commands above are enough. `pnpm preflight` reports what is missing
-without building.
+`pnpm dev:*` runs a preflight that builds anything missing or stale (sources
+newer than their build, as after a `git pull`), so after a fresh clone or a
+pull the two commands above are enough. `pnpm preflight` reports what is
+missing or stale without building.
 
 Everything else:
 
@@ -195,8 +196,13 @@ is out of sync with the Rust sources.
   to refresh `prebuilt/`.
 - **The docs explorer says "failed to load"**: the WASM or the compat
   build is missing. Run `pnpm bootstrap`, then restart `pnpm dev:docs`.
-- **Changes to a package are not showing in the sandbox**: the apps read
-  `packages/*/dist`. Run `pnpm build` or `pnpm dev:packages`.
+- **Changes to a package are not showing in the sandbox**, or the sandbox
+  fails with something like `Cannot read properties of undefined (reading
+'powerUnit')` after pulling: the apps read `packages/*/dist`, which was
+  built from older sources. The preflight behind `pnpm dev:*` rebuilds any
+  package whose sources are newer than its build (and reinstalls a stale
+  core), so re-run the dev command, or run `pnpm build` or
+  `pnpm dev:packages` yourself.
 - **A dependency build script was skipped** (pnpm prints a notice about
   esbuild): harmless; the repo allows the ones it needs.
 

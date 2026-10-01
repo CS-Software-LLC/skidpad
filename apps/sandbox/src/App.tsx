@@ -223,15 +223,10 @@ function Hud({ sim }: { sim: Sim }) {
         slipR: w.read(v, "SlipAngle_R") * deg,
         steerDeg: w.read(v, "SteeringWheelAngle") * deg,
         torque: w.read(v, "SteeringTorque"),
-        engine: sim.definition.drivetrain.powerUnit.kind !== "direct",
-        rpm:
-          sim.definition.drivetrain.powerUnit.kind !== "direct"
-            ? w.read(v, "EngineRpm")
-            : sim.audio.engineRpm,
-        gear:
-          sim.definition.drivetrain.powerUnit.kind !== "direct"
-            ? w.read(v, "Gear")
-            : sim.audio.currentGear,
+        engine: sim.hasEngine,
+        rpm: sim.hasEngine ? w.read(v, "EngineRpm") : sim.audio.engineRpm,
+        gear: sim.hasEngine ? w.read(v, "Gear") : sim.audio.currentGear,
+
         clutchSlip: w.read(v, "ClutchSlip"),
         squeal: sim.audio.squealLevel,
         stepMs: sim.stepCostMs,
