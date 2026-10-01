@@ -12,3 +12,6 @@ tests/determinism/out
 
 # Recorded input traces: one line of integers each
 tests/determinism/data/
+
+# Reference data written by Project Chrono (tools/chrono-compare/chrono/bmw_e90.py)
+tools/chrono-compare/reference/

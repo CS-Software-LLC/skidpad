@@ -128,6 +128,20 @@ Firefox, WebKit, and Node. The determinism harness also replays a recorded lap
 of the sandbox track for each preset; see the
 [determinism contract](/guide/determinism-contract).
 
+## Against an independent simulator
+
+The scenarios above check Skidpad against linear theory, against itself across
+timesteps, and against published road-test figures the presets were tuned to.
+An independent check drives Skidpad and Project Chrono's multibody BMW E90
+through the same manoeuvres with the same inputs, with the Skidpad car built
+from Chrono's published constants. Steady-state handling agrees within a few
+percent: understeer gradient, lateral acceleration to the limit, yaw gain,
+roll and turn radius. The differences found are Skidpad's missing static toe,
+which accounts for a quicker step-steer response, and its missing anti-dive
+geometry. The
+[report](https://github.com/csummers88/skidpad/blob/main/docs/validation/chrono-bmw-e90.md)
+has the full results, and `tools/chrono-compare` reruns them.
+
 ## Coming with later milestones
 
 A rest-jitter measurement on an external host: the standstill scenarios run
