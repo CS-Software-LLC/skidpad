@@ -1,4 +1,4 @@
-import type { PartialVehicleDefinition, TireDefinition } from "./types.js";
+import type { DifferentialDefinition, PartialVehicleDefinition, TireDefinition } from "./types.js";
 import { CURRENT_FORMAT_VERSION } from "./types.js";
 
 export interface ValidationResult {
@@ -131,6 +131,140 @@ function validateTire(errors: string[], warnings: string[], path: string, tire: 
  * the core. This mirrors the checks in `skidpad-core` so problems surface before
  * the WASM boundary.
  */
+function validateDrivetrain(
+  errors: string[],
+  warnings: string[],
+  dt: PartialVehicleDefinition["drivetrain"],
+): void {
+  if (dt === undefined) return;
+  if (typeof dt !== "object" || dt === null) {
+    errors.push("drivetrain must be an object");
+    return;
+  }
+  const pu = dt.powerUnit as Record<string, unknown> | undefined;
+  if (pu !== undefined) {
+    if (typeof pu !== "object" || pu === null || typeof pu.kind !== "string") {
+      errors.push('drivetrain.powerUnit.kind is required ("direct", "combustion" or "electric")');
+    } else if (pu.kind === "direct") {
+      nonNegative(errors, "drivetrain.powerUnit.maxWheelTorque", pu.maxWheelTorque);
+      positive(errors, "drivetrain.powerUnit.maxWheelSpeed", pu.maxWheelSpeed);
+    } else if (pu.kind === "combustion") {
+      positive(errors, "drivetrain.powerUnit.idleRpm", pu.idleRpm);
+      positive(errors, "drivetrain.powerUnit.redlineRpm", pu.redlineRpm);
+      positive(errors, "drivetrain.powerUnit.inertia", pu.inertia);
+      if (isNum(pu.idleRpm) && isNum(pu.redlineRpm) && pu.redlineRpm <= pu.idleRpm) {
+        errors.push("drivetrain.powerUnit.redlineRpm must exceed idleRpm");
+      }
+      for (const k of ["engineBrakingIdle", "engineBrakingRedline", "idleTorqueMax"]) {
+        nonNegative(errors, `drivetrain.powerUnit.${k}`, pu[k]);
+      }
+      const curve = pu.torqueCurve;
+      if (curve !== undefined) {
+        if (!Array.isArray(curve) || curve.length === 0 || curve.length > 32) {
+          errors.push("drivetrain.powerUnit.torqueCurve needs 1 to 32 [rpm, N·m] points");
+        } else {
+          let prev = -Infinity;
+          curve.forEach((p, i) => {
+            if (!Array.isArray(p) || p.length !== 2 || !isNum(p[0]) || !isNum(p[1]) || p[0] < 0) {
+              errors.push(`drivetrain.powerUnit.torqueCurve[${i}] must be [rpm ≥ 0, N·m]`);
+            } else {
+              if (p[0] <= prev) {
+                errors.push(
+                  `drivetrain.powerUnit.torqueCurve[${i}] rpm must increase along the curve`,
+                );
+              }
+              prev = p[0];
+            }
+          });
+        }
+      }
+    } else if (pu.kind === "electric") {
+      for (const k of ["maxTorque", "maxPower", "maxRpm", "inertia"]) {
+        positive(errors, `drivetrain.powerUnit.${k}`, pu[k]);
+      }
+      nonNegative(errors, "drivetrain.powerUnit.regenTorque", pu.regenTorque);
+    } else {
+      errors.push(
+        `drivetrain.powerUnit.kind must be "direct", "combustion" or "electric" (got "${String(pu.kind)}")`,
+      );
+    }
+  }
+  const t = dt.transmission;
+  if (t !== undefined) {
+    if (t.gears !== undefined) {
+      if (!Array.isArray(t.gears) || t.gears.length === 0 || t.gears.length > 10) {
+        errors.push("drivetrain.transmission.gears needs 1 to 10 ratios");
+      } else {
+        t.gears.forEach((g, i) => positive(errors, `drivetrain.transmission.gears[${i}]`, g));
+      }
+    }
+    nonNegative(errors, "drivetrain.transmission.reverse", t.reverse);
+    positive(errors, "drivetrain.transmission.finalDrive", t.finalDrive);
+    positive(errors, "drivetrain.transmission.clutchMaxTorque", t.clutchMaxTorque);
+    for (const k of [
+      "shiftTime",
+      "shiftHold",
+      "clutchEngageTime",
+      "clutchBiteRpm",
+      "inputInertia",
+      "outputInertia",
+    ] as const) {
+      nonNegative(errors, `drivetrain.transmission.${k}`, t[k]);
+    }
+    if (t.mode !== undefined && t.mode !== "automatic" && t.mode !== "manual") {
+      errors.push(
+        `drivetrain.transmission.mode must be "automatic" or "manual" (got "${String(t.mode)}")`,
+      );
+    }
+    if (
+      t.shiftUpAt !== undefined &&
+      (!isNum(t.shiftUpAt) || t.shiftUpAt <= 0 || t.shiftUpAt > 1.05)
+    ) {
+      errors.push(
+        `drivetrain.transmission.shiftUpAt must be in (0, 1.05] (got ${String(t.shiftUpAt)})`,
+      );
+    }
+    if (isNum(t.shiftDownAt) && isNum(t.shiftUpAt) && t.shiftDownAt >= t.shiftUpAt) {
+      errors.push("drivetrain.transmission.shiftDownAt must be below shiftUpAt");
+    }
+    nonNegative(errors, "drivetrain.transmission.shiftDownAt", t.shiftDownAt);
+    if (isNum(t.shiftTime) && t.shiftTime > 2) {
+      warnings.push(
+        `drivetrain.transmission.shiftTime of ${t.shiftTime} s is long; 0.1 to 0.5 s is typical`,
+      );
+    }
+  }
+  const diffs: Array<[string, Partial<DifferentialDefinition> | undefined]> = [
+    ["front", dt.front],
+    ["rear", dt.rear],
+    ["center", dt.center],
+  ];
+  for (const [name, diff] of diffs) {
+    if (diff === undefined) continue;
+    if (
+      diff.kind !== undefined &&
+      diff.kind !== "open" &&
+      diff.kind !== "locked" &&
+      diff.kind !== "lsd"
+    ) {
+      errors.push(
+        `drivetrain.${name}.kind must be "open", "locked" or "lsd" (got "${String(diff.kind)}")`,
+      );
+    }
+    nonNegative(errors, `drivetrain.${name}.preload`, diff.preload);
+    for (const k of ["biasDrive", "biasCoast"] as const) {
+      const v = diff[k];
+      if (v !== undefined && (!isNum(v) || v < 1)) {
+        errors.push(`drivetrain.${name}.${k} must be at least 1 (got ${String(v)})`);
+      }
+    }
+  }
+  const f = dt.center?.frontTorqueFraction;
+  if (f !== undefined && (!isNum(f) || f <= 0 || f >= 1)) {
+    errors.push(`drivetrain.center.frontTorqueFraction must be in (0, 1) (got ${String(f)})`);
+  }
+}
+
 export function validateDefinition(def: unknown): ValidationResult {
   const errors: string[] = [];
   const warnings: string[] = [];
@@ -238,8 +372,12 @@ export function validateDefinition(def: unknown): ValidationResult {
     errors.push(`steering.ackermann must be between 0 and 1 (got ${String(s.ackermann)})`);
   }
   nonNegative(errors, "brakes.handbrakeTorque", d.brakes?.handbrakeTorque);
-  nonNegative(errors, "drive.maxWheelTorque", d.drive?.maxWheelTorque);
-  positive(errors, "drive.maxWheelSpeed", d.drive?.maxWheelSpeed);
+  validateDrivetrain(errors, warnings, d.drivetrain);
+  if ((d as Record<string, unknown>).drive !== undefined) {
+    warnings.push(
+      'the "drive" block was replaced by "drivetrain" (ADR-0011); migrateDefinition() converts it to a direct power unit',
+    );
+  }
   nonNegative(errors, "aero.dragCoefficient", d.aero?.dragCoefficient);
   nonNegative(errors, "aero.frontalArea", d.aero?.frontalArea);
   nonNegative(errors, "aero.airDensity", d.aero?.airDensity);

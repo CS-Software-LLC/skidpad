@@ -6,9 +6,10 @@
     "sources": [
       "Class-typical figures from manufacturer specification sheets for front-engine RWD sports cars (mass 1300–1450 kg, wheelbase 2.45–2.55 m, Cd 0.28–0.32, 52/48 front weight bias).",
       "Tire feel parameters tuned to a ~1.0 g skidpad and ~34 m 100–0 km/h braking distance from published road tests for the class.",
-      "Suspension rates typical of a sports car with ~2.0 Hz front and ~2.2 Hz rear ride frequencies and a front-biased roll stiffness distribution (Milliken & Milliken, Race Car Vehicle Dynamics, ch. 16)."
+      "Suspension rates typical of a sports car with ~2.0 Hz front and ~2.2 Hz rear ride frequencies and a front-biased roll stiffness distribution (Milliken & Milliken, Race Car Vehicle Dynamics, ch. 16).",
+      "Drivetrain [ILLUSTRATIVE]: a 3.5 l naturally aspirated six (peak 405 N·m, 245 kW at 6000 rpm), six-speed ratios with a 3.6 final drive and a clutch-pack LSD in the 2–3:1 drive bias range typical of the class (Milliken & Milliken, Race Car Vehicle Dynamics, ch. 20)."
     ],
-    "notes": "Not a specific production model. The clutch-pack LSD arrives with the drivetrain graph in milestone 4."
+    "notes": "Not a specific production model. The rear differential is a clutch-pack limited slip (preload 50 N·m, 2.5:1 drive, 1.8:1 coast)."
   },
   "chassis": {
     "mass": 1380,
@@ -86,10 +87,6 @@
   "brakes": {
     "handbrakeTorque": 1500
   },
-  "drive": {
-    "maxWheelTorque": 4200,
-    "maxWheelSpeed": 230
-  },
   "aero": {
     "dragCoefficient": 0.3,
     "frontalArea": 2.0,
@@ -98,5 +95,54 @@
   "simulation": {
     "substepRateHz": 1000,
     "model": "fourWheel"
+  },
+  "drivetrain": {
+    "powerUnit": {
+      "kind": "combustion",
+      "idleRpm": 850,
+      "redlineRpm": 7200,
+      "inertia": 0.28,
+      "torqueCurve": [
+        [1000, 250],
+        [2000, 330],
+        [3000, 380],
+        [4000, 400],
+        [5000, 405],
+        [6000, 390],
+        [7000, 345],
+        [7200, 320]
+      ],
+      "engineBrakingIdle": 20,
+      "engineBrakingRedline": 90,
+      "idleTorqueMax": 80
+    },
+    "transmission": {
+      "gears": [3.9, 2.4, 1.7, 1.3, 1.05, 0.85],
+      "reverse": 3.5,
+      "finalDrive": 3.6,
+      "mode": "automatic",
+      "shiftTime": 0.2,
+      "shiftHold": 0.5,
+      "shiftUpAt": 0.93,
+      "shiftDownAt": 0.45,
+      "clutchMaxTorque": 700,
+      "clutchEngageTime": 0.25,
+      "clutchBiteRpm": 1400,
+      "inputInertia": 0.05,
+      "outputInertia": 0.06
+    },
+    "front": {
+      "kind": "open"
+    },
+    "rear": {
+      "kind": "lsd",
+      "preload": 50,
+      "biasDrive": 2.5,
+      "biasCoast": 1.8
+    },
+    "center": {
+      "kind": "open",
+      "frontTorqueFraction": 0.4
+    }
   }
 }

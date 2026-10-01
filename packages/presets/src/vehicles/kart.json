@@ -5,9 +5,10 @@
     "description": "A racing kart with driver: about 160 kg all up, 1.05 m wheelbase, no suspension beyond frame and tire compliance, solid rear axle. The four-wheel model represents the frame and tire flex as a very stiff corner spring.",
     "sources": [
       "Class-typical figures from kart homologation sheets (wheelbase 1040–1060 mm, track 1.2–1.4 m, dry mass with driver 155–175 kg, 125 cc engines of 20–30 kW).",
-      "Tire feel parameters tuned to a ~1.4 g skidpad on slick kart tires."
+      "Tire feel parameters tuned to a ~1.4 g skidpad on slick kart tires.",
+      "Drivetrain [ILLUSTRATIVE]: a 125 cc two-stroke (peak 17 N·m, 18 kW at 11000 rpm) through a centrifugal clutch that engages between 1800 and 4300 rpm and an 11:80 chain reduction (7.3:1) to a solid rear axle, as on a rental or junior kart."
     ],
-    "notes": "Not a specific chassis. The solid rear axle (inside-rear lift under frame flex) arrives in milestone 6; until then the rear wheels are independent."
+    "notes": "Not a specific chassis. The solid rear axle (inside-rear lift under frame flex) arrives in milestone 6; until then the rear wheels are independent. The solid rear axle is a locked differential: on the four-wheel model it pushes at low speed because the inner wheel does not lift (no steering-geometry jacking until milestone 5), so the kart's skidpad gradient is slightly negative there."
   },
   "chassis": {
     "mass": 165,
@@ -89,10 +90,6 @@
   "brakes": {
     "handbrakeTorque": 0
   },
-  "drive": {
-    "maxWheelTorque": 220,
-    "maxWheelSpeed": 260
-  },
   "aero": {
     "dragCoefficient": 0.8,
     "frontalArea": 0.7,
@@ -101,5 +98,49 @@
   "simulation": {
     "substepRateHz": 1000,
     "model": "fourWheel"
+  },
+  "drivetrain": {
+    "powerUnit": {
+      "kind": "combustion",
+      "idleRpm": 1800,
+      "redlineRpm": 14000,
+      "inertia": 0.01,
+      "torqueCurve": [
+        [3000, 10],
+        [6000, 15],
+        [9000, 17],
+        [11000, 16],
+        [13000, 13],
+        [14000, 10]
+      ],
+      "engineBrakingIdle": 1.5,
+      "engineBrakingRedline": 6,
+      "idleTorqueMax": 6
+    },
+    "transmission": {
+      "gears": [1.0],
+      "reverse": 0,
+      "finalDrive": 7.3,
+      "mode": "automatic",
+      "shiftTime": 0,
+      "shiftHold": 0,
+      "shiftUpAt": 1.0,
+      "shiftDownAt": 0,
+      "clutchMaxTorque": 60,
+      "clutchEngageTime": 0.2,
+      "clutchBiteRpm": 2500,
+      "inputInertia": 0.002,
+      "outputInertia": 0.01
+    },
+    "front": {
+      "kind": "open"
+    },
+    "rear": {
+      "kind": "locked"
+    },
+    "center": {
+      "kind": "open",
+      "frontTorqueFraction": 0.5
+    }
   }
 }

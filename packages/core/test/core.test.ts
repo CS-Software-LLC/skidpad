@@ -136,7 +136,7 @@ describe("world", () => {
     w.setInput(0, { throttle: 0.3 });
     for (let k = 0; k < 120; k++) w.step(1 / 60);
     const before = w.read(0, "Speed");
-    w.setDefinition(0, { drive: { maxWheelTorque: 0 } });
+    w.setDefinition(0, { drivetrain: { powerUnit: { kind: "direct", maxWheelTorque: 0 } } });
     for (let k = 0; k < 120; k++) w.step(1 / 60);
     expect(w.read(0, "Speed")).toBeLessThan(before);
     w.free();

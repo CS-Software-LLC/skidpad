@@ -30,7 +30,9 @@ Firefox, WebKit, Node, on x86 and ARM.
   that restore exactly. Continuing from a snapshot matches an uninterrupted
   run, on both models and in both host modes. A snapshot is state only: the
   host mode, the ground slope and an external host's contacts are environment
-  and stay as they were on the vehicle being restored into.
+  and stay as they were on the vehicle being restored into. Snapshot format
+  version 2 (milestone 4) carries the drivetrain state: engine speed, gear,
+  shift timer and clutch engagement.
 - Recorded inputs replay identically on any machine.
 
 ## What is not covered

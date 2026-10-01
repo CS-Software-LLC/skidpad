@@ -41,7 +41,30 @@ export function migrateDefinition(input: unknown): PartialVehicleDefinition {
     def = step(def);
     version = def.formatVersion as number;
   }
-  return def as PartialVehicleDefinition;
+  return migrateLegacyDrive(def) as PartialVehicleDefinition;
+}
+
+/**
+ * Within format version 1, the interim `drive` block became the `direct`
+ * power unit of `drivetrain` (ADR-0011). A definition that carries `drive`
+ * and no `drivetrain` reads the same as before.
+ */
+export function migrateLegacyDrive(def: Record<string, unknown>): Record<string, unknown> {
+  const drive = def.drive as Record<string, unknown> | undefined;
+  if (drive === undefined) return def;
+  const { drive: _legacy, ...rest } = def;
+  void _legacy;
+  if (rest.drivetrain !== undefined) return rest;
+  return {
+    ...rest,
+    drivetrain: {
+      powerUnit: {
+        kind: "direct",
+        ...(drive.maxWheelTorque !== undefined ? { maxWheelTorque: drive.maxWheelTorque } : {}),
+        ...(drive.maxWheelSpeed !== undefined ? { maxWheelSpeed: drive.maxWheelSpeed } : {}),
+      },
+    },
+  };
 }
 
 /** True when the definition is already at the current format version. */

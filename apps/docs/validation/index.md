@@ -11,24 +11,41 @@ must update the golden file in the same pull request and say so in a
 
 **Understeer gradient** follows ISO 4138 (constant radius, 40 m, speeds 4 to
 12 m/s), run on the four-wheel model and, as a cross-check, on the
-single-track model from the same definition. The "linear theory" column is
+single-track model from the same definition. Each point's steer angle is
+reduced by the Ackermann angle of the path actually driven, `L · r / V`,
+before the fit, so the small speed errors a drivetrain leaves at part
+throttle do not bias the slope. The "linear theory" column is
 `K_us = (m / L') · (b' / C_f − a' / C_r)` with axle cornering stiffnesses at
 their static loads and moment arms corrected for pneumatic trail. The
 single-track model agrees with it within a few hundredths of a degree per g;
 the residual is tire nonlinearity across the measured lateral-acceleration
 range. The four-wheel model sits a few tenths higher because lateral load
 transfer, split by roll stiffness, costs the more heavily loaded axle grip
-through load sensitivity ([load transfer](/concepts/load-transfer)).
+through load sensitivity ([load transfer](/concepts/load-transfer)), and the
+sports car's limited-slip differential adds a little more under power. The
+kart is the exception: its solid rear axle ([drivetrain](/concepts/drivetrain))
+forces both rear wheels to one speed, so in a corner the inner wheel drives
+and the outer brakes, a yaw moment against the turn that doubles the steer
+angle needed at low speed. The push eases as load transfer unloads the
+inner wheel, so the fitted gradient comes out slightly negative. Real karts
+lift the inner rear wheel through steering-geometry jacking, which arrives in
+milestone 5; the single-track model, with one wheel per axle, shows the
+kart's underlying understeer.
 
-**Straight line** reports 0–100 km/h at full throttle and 100–0 km/h at full
-brake with no ABS, so cars whose brakes exceed tire grip lock their wheels and
-stop on sliding friction. Published road-test distances assume ABS and are
-shorter; the gap closes in milestone 5.
+**Straight line** reports 0–100 km/h at full throttle, through the
+preset's drivetrain (the automatic launches on its clutch and shifts up, so
+the time includes wheelspin and the torque holes), and 100–0 km/h at full
+brake with no ABS, so cars whose brakes exceed tire grip lock their wheels
+and stop on sliding friction. Published road-test distances assume ABS and
+are shorter; the gap closes in milestone 5.
 
 **Locked brakes** is measured on that same stop. A wheel that locks must lock
 once and stay locked: the scenario counts every change between rolling and
 locked at substep resolution and reports the releases while the car is still
-moving, which is lock chatter; the reference vehicles show none. The
+moving, which is lock chatter; the reference vehicles show none. The driven
+wheels lock last, because they also have to drag the engine's reflected
+inertia down through the clutch; the kart's single-speed engine from near
+redline takes the longest. The
 deceleration on sliding friction is reported as its relative RMS ripple about
 a 0.2 s moving average (below 0.01 % for every preset; the slow drift with
 speed from aero drag and the friction curve is not counted). After the stop

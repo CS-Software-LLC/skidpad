@@ -6,7 +6,8 @@
     "sources": [
       "Class-typical figures from manufacturer specification sheets for B/C-segment hatchbacks (mass 1150–1300 kg, wheelbase 2.5–2.65 m, Cd 0.30–0.33, 60/40 front weight bias).",
       "Tire feel parameters tuned to a ~0.85 g skidpad and ~38 m 100–0 km/h braking distance, typical of published road tests for the class.",
-      "Suspension rates typical of a compact hatchback with ~1.4 Hz front and ~1.5 Hz rear ride frequencies, soft rear bar (Gillespie, Fundamentals of Vehicle Dynamics, ch. 5)."
+      "Suspension rates typical of a compact hatchback with ~1.4 Hz front and ~1.5 Hz rear ride frequencies, soft rear bar (Gillespie, Fundamentals of Vehicle Dynamics, ch. 5).",
+      "Drivetrain [ILLUSTRATIVE]: a 1.6 l naturally aspirated four (peak 172 N·m, 100 kW at 6000 rpm), five-speed ratios and a 4.1 final drive typical of the class; open front differential."
     ],
     "notes": "Not a specific production model. Values are class-representative."
   },
@@ -86,10 +87,6 @@
   "brakes": {
     "handbrakeTorque": 1200
   },
-  "drive": {
-    "maxWheelTorque": 1900,
-    "maxWheelSpeed": 170
-  },
   "aero": {
     "dragCoefficient": 0.31,
     "frontalArea": 2.15,
@@ -98,5 +95,50 @@
   "simulation": {
     "substepRateHz": 1000,
     "model": "fourWheel"
+  },
+  "drivetrain": {
+    "powerUnit": {
+      "kind": "combustion",
+      "idleRpm": 800,
+      "redlineRpm": 6500,
+      "inertia": 0.18,
+      "torqueCurve": [
+        [1000, 120],
+        [2000, 150],
+        [3000, 165],
+        [4000, 172],
+        [5000, 170],
+        [6000, 160],
+        [6500, 145]
+      ],
+      "engineBrakingIdle": 12,
+      "engineBrakingRedline": 50,
+      "idleTorqueMax": 50
+    },
+    "transmission": {
+      "gears": [3.55, 1.95, 1.28, 0.97, 0.76],
+      "reverse": 3.2,
+      "finalDrive": 4.1,
+      "mode": "automatic",
+      "shiftTime": 0.3,
+      "shiftHold": 0.6,
+      "shiftUpAt": 0.9,
+      "shiftDownAt": 0.42,
+      "clutchMaxTorque": 300,
+      "clutchEngageTime": 0.3,
+      "clutchBiteRpm": 1200,
+      "inputInertia": 0.03,
+      "outputInertia": 0.04
+    },
+    "front": {
+      "kind": "open"
+    },
+    "rear": {
+      "kind": "open"
+    },
+    "center": {
+      "kind": "open",
+      "frontTorqueFraction": 0.5
+    }
   }
 }

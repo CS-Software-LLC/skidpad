@@ -13,11 +13,16 @@ pub struct VehicleInput {
     pub brake: f64,
     /// Handbrake, 0 … 1 (rear axle only).
     pub handbrake: f64,
+    /// Clutch pedal, 0 (engaged) … 1 (open). Combustion power units only.
+    pub clutch: f64,
+    /// Requested gear: negative reverse, zero neutral (manual) or drive
+    /// (automatic), positive gear number. Rounded to the nearest integer.
+    pub gear: f64,
 }
 
 impl VehicleInput {
     /// Number of `f64` slots this input occupies in the shared input buffer.
-    pub const STRIDE: usize = 4;
+    pub const STRIDE: usize = 6;
 
     pub fn clamped(self) -> Self {
         Self {
@@ -25,6 +30,12 @@ impl VehicleInput {
             throttle: skidpad_math::clamp(self.throttle, 0.0, 1.0),
             brake: skidpad_math::clamp(self.brake, 0.0, 1.0),
             handbrake: skidpad_math::clamp(self.handbrake, 0.0, 1.0),
+            clutch: skidpad_math::clamp(self.clutch, 0.0, 1.0),
+            gear: if self.gear.is_finite() {
+                skidpad_math::clamp(self.gear, -1.0, 16.0)
+            } else {
+                0.0
+            },
         }
     }
 
@@ -34,6 +45,8 @@ impl VehicleInput {
             throttle: s.get(1).copied().unwrap_or(0.0),
             brake: s.get(2).copied().unwrap_or(0.0),
             handbrake: s.get(3).copied().unwrap_or(0.0),
+            clutch: s.get(4).copied().unwrap_or(0.0),
+            gear: s.get(5).copied().unwrap_or(0.0),
         }
         .clamped()
     }
@@ -44,6 +57,8 @@ impl VehicleInput {
             s[1] = self.throttle;
             s[2] = self.brake;
             s[3] = self.handbrake;
+            s[4] = self.clutch;
+            s[5] = self.gear;
         }
     }
 }

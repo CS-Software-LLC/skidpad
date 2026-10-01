@@ -31,6 +31,7 @@ fn input_at(k: usize) -> VehicleInput {
         throttle: if t < 6.0 { 0.9 } else { 0.0 },
         brake: if (6.0..8.0).contains(&t) { 0.8 } else { 0.0 },
         handbrake: if t >= 8.5 { 1.0 } else { 0.0 },
+        ..VehicleInput::default()
     }
 }
 
@@ -39,16 +40,16 @@ fn four_wheel_snapshot_has_the_documented_layout() {
     let mut w = World::new(1);
     w.add_vehicle(def()).unwrap();
     let car = w.vehicle(0).unwrap().model.as_four_wheel().unwrap();
-    assert_eq!(car.state_len(), 14 + 4 * 4);
+    assert_eq!(car.state_len(), 14 + 4 * 4 + 4);
     let mut buf = vec![0u8; w.snapshot_len(0).unwrap()];
-    assert_eq!(buf.len(), 12 + 8 * 30);
+    assert_eq!(buf.len(), 12 + 8 * 34);
     w.snapshot(0, &mut buf).unwrap();
     assert_eq!(&buf[0..4], MAGIC);
     assert_eq!(
         u32::from_le_bytes([buf[4], buf[5], buf[6], buf[7]]),
         VERSION
     );
-    assert_eq!(u32::from_le_bytes([buf[8], buf[9], buf[10], buf[11]]), 30);
+    assert_eq!(u32::from_le_bytes([buf[8], buf[9], buf[10], buf[11]]), 34);
     // A buffer that is too small reports the size needed and writes nothing.
     let mut short = vec![0u8; 20];
     assert_eq!(w.snapshot(0, &mut short).unwrap(), buf.len());
@@ -66,9 +67,11 @@ fn four_wheel_hash_sees_every_state_value() {
     let n = car.state_len();
     let mut values = vec![0.0; n];
     car.write_state(&mut values);
+    // The gear slot holds an integer; nudge it by a whole gear.
+    let gear_slot = n - skidpad_core::drivetrain::STATE_LEN + 1;
     for i in 0..n {
         let mut perturbed = values.clone();
-        perturbed[i] += 1e-9;
+        perturbed[i] += if i == gear_slot { 1.0 } else { 1e-9 };
         let mut other = car.clone();
         other.read_state(&perturbed);
         assert_ne!(

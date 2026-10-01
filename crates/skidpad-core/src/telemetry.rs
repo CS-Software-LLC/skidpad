@@ -146,6 +146,16 @@ channels! {
     SPIN_ANGLE_FR => ("SpinAngle_FR", "rad"),
     SPIN_ANGLE_RL => ("SpinAngle_RL", "rad"),
     SPIN_ANGLE_RR => ("SpinAngle_RR", "rad"),
+    // Drivetrain (ADR-0011).
+    ENGINE_RPM => ("EngineRpm", "rpm"),
+    ENGINE_TORQUE => ("EngineTorque", "N*m"),
+    GEAR => ("Gear", "-"),
+    CLUTCH_SLIP => ("ClutchSlip", "rad/s"),
+    CLUTCH_TORQUE => ("ClutchTorque", "N*m"),
+    DIFF_LOCK_TORQUE_F => ("DiffLockTorque_F", "N*m"),
+    DIFF_LOCK_TORQUE_R => ("DiffLockTorque_R", "N*m"),
+    CENTER_LOCK_TORQUE => ("CenterLockTorque", "N*m"),
+    CLUTCH => ("Clutch", "-"),
 }
 
 /// Index of the first channel in each per-wheel group; the four wheels follow
@@ -197,7 +207,8 @@ mod tests {
         assert_eq!(CHANNELS[SPEED].name, "Speed");
         assert_eq!(CHANNELS[WHEEL_LOCKED_R].name, "WheelLocked_R");
         assert_eq!(CHANNELS[SPIN_ANGLE_RR].name, "SpinAngle_RR");
-        assert_eq!(STRIDE, SPIN_ANGLE_RR + 1);
+        assert_eq!(CHANNELS[ENGINE_RPM].name, "EngineRpm");
+        assert_eq!(STRIDE, CLUTCH + 1);
         for &g in WHEEL_GROUPS {
             let base = CHANNELS[g].name.trim_end_matches("_FL");
             for (k, side) in ["_FL", "_FR", "_RL", "_RR"].iter().enumerate() {

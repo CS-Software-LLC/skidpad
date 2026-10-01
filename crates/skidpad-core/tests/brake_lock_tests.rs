@@ -52,9 +52,12 @@ fn brakes_lock_once_without_chatter_and_the_car_stops_cleanly() {
                 let tag = format!("{id} {model:?} at {rate} Hz");
                 // Every reference vehicle out-brakes its tires without ABS.
                 assert!(r.wheel_locked, "{tag}: no wheel locked");
+                // The driven wheels also have to drag the engine down through
+                // the clutch before they can lock (the kart's single-speed
+                // engine from near redline takes the longest).
                 let t_lock = r.lock_time.unwrap();
                 assert!(
-                    t_lock > 0.05 && t_lock < 0.6,
+                    t_lock > 0.05 && t_lock < 1.0,
                     "{tag}: first lock at {t_lock} s"
                 );
                 // Each wheel locks at most once and never releases while the

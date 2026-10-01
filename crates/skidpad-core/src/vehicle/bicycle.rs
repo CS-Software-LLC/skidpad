@@ -12,6 +12,7 @@
 //! model in `four_wheel.rs` is the default.
 
 use crate::definition::VehicleDefinition;
+use crate::drivetrain::{Drivetrain, WheelDyn};
 use crate::input::VehicleInput;
 use crate::snapshot::Snapshottable;
 use crate::telemetry as t;
@@ -56,6 +57,9 @@ pub struct BicycleVehicle {
     /// gain `μ·h/L` is well below one so it converges.
     pub ax_prev: f64,
     pub axles: [AxleState; 2],
+    /// Power unit, clutch, gearbox and centre differential (ADR-0011); one
+    /// wheel per axle, so the axle differentials do not apply.
+    pub drivetrain: Drivetrain,
     // Derived outputs of the last substep.
     pub steer_angle: f64,
     pub long_accel: f64,
@@ -75,7 +79,9 @@ const REAR: usize = 1;
 impl BicycleVehicle {
     /// Build from a validated definition.
     pub fn new(def: VehicleDefinition) -> Self {
+        let drivetrain = Drivetrain::new(def.drivetrain.clone(), def.driven_axles(), 2);
         let mut v = Self {
+            drivetrain,
             def,
             time: 0.0,
             x: 0.0,
@@ -125,6 +131,8 @@ impl BicycleVehicle {
     /// Replace the definition while keeping the state. Used by the live
     /// tuning editor.
     pub fn set_definition(&mut self, def: VehicleDefinition) {
+        self.drivetrain
+            .set_definition(def.drivetrain.clone(), def.driven_axles());
         self.def = def;
     }
 
@@ -153,6 +161,7 @@ impl BicycleVehicle {
             *ax = AxleState::default();
         }
         self.compute_static_loads();
+        self.drivetrain.reset();
     }
 
     /// Set a forward speed with wheels rolling to match.
@@ -163,6 +172,17 @@ impl BicycleVehicle {
             ax.omega = vx / r;
             ax.transient = TireTransient::default();
         }
+        let driven = self.def.driven_axles();
+        let mut carrier = 0.0;
+        let mut n = 0.0;
+        for (i, ax) in self.axles.iter().enumerate() {
+            if driven[i] {
+                carrier += ax.omega;
+                n += 1.0;
+            }
+        }
+        self.drivetrain
+            .match_speed(if n > 0.0 { carrier / n } else { 0.0 });
     }
 
     /// Speed over ground, m/s.
@@ -203,14 +223,15 @@ impl BicycleVehicle {
         self.steer_angle = delta;
         let (sin_d, cos_d) = (m::sin(delta), m::cos(delta));
 
-        // --- drivetrain solve with tire forces as boundary conditions ------
-        // Milestone 1: one wheel per axle, implicit slip stiffness, brakes as
-        // bounded impulse constraints. The drivetrain graph replaces this in
-        // milestone 4 without changing the surrounding pipeline.
-        let driven_count = self.def.axles.iter().filter(|x| x.driven).count().max(1) as f64;
+        // --- tires, then the drivetrain solve (ADR-0011) --------------------
+        // One wheel per axle, representing the pair; tire forces are the
+        // boundary torques of the drivetrain system and the implicit tire
+        // stiffness goes into the axle's effective inertia (ADR-0010).
         let mut body_fx = 0.0;
         let mut body_fy = 0.0;
         let mut body_mz = 0.0;
+        let mut dyn_wheels = [WheelDyn::default(); 2];
+        let mut outs = [TireOutput::default(); 2];
 
         for i in 0..2 {
             let axle_def = &self.def.axles[i];
@@ -300,19 +321,7 @@ impl BicycleVehicle {
                 fy_slide: 2.0 * one.fy_slide,
             };
             st.out = out;
-
-            // Drive torque with a linear fade toward the speed limit.
-            let drive = if axle_def.driven {
-                let fade = m::clamp(
-                    1.0 - m::abs(st.omega) / self.def.drive.max_wheel_speed,
-                    0.0,
-                    1.0,
-                );
-                input.throttle * self.def.drive.max_wheel_torque / driven_count * fade
-            } else {
-                0.0
-            };
-            st.drive_torque = drive;
+            outs[i] = out;
 
             // Brake capacity (service brake plus handbrake on the rear).
             let mut brake_cap = input.brake * axle_def.max_brake_torque;
@@ -327,28 +336,28 @@ impl BicycleVehicle {
             // `c_x·R` from the damping, and both go into the effective
             // inertia so the stiff wheel–tire mode is unconditionally
             // stable. The stiffness is the slope at the origin, an upper
-            // bound at large slip.
-            // Two wheels per axle.
-            let inertia = 2.0 * axle_def.wheel_inertia;
+            // bound at large slip. Two wheels per axle.
             let gain = TireTransient::deflection_gain(wx, dt, sigma_x);
             let dfx_domega =
                 2.0 * (tire.longitudinal_stiffness(fz_tire) * radius * gain + c_x * radius);
-            let i_eff = inertia + dt * radius * dfx_domega;
-            let net = drive - radius * out.fx + out.my;
-            let omega_free = st.omega + dt * net / i_eff;
+            dyn_wheels[i] = WheelDyn {
+                omega: st.omega,
+                inertia: 2.0 * axle_def.wheel_inertia + dt * radius * dfx_domega,
+                torque: -radius * out.fx + out.my,
+                brake_capacity: brake_cap,
+                axle: i,
+                ..WheelDyn::default()
+            };
+        }
 
-            // Brake as a bounded friction constraint: it can remove at most
-            // `brake_cap·dt` of angular momentum this step. If that is enough
-            // to stop the wheel, it stays exactly locked with no chatter.
-            let impulse_cap = brake_cap * dt;
-            if m::abs(omega_free) * i_eff <= impulse_cap {
-                st.omega = 0.0;
-                st.locked = brake_cap > 0.0;
-            } else {
-                st.omega = omega_free - m::signum(omega_free) * impulse_cap / i_eff;
-                st.locked = false;
-            }
+        self.drivetrain.step(dt, &input, &mut dyn_wheels);
 
+        for i in 0..2 {
+            let d = dyn_wheels[i];
+            let st = &mut self.axles[i];
+            st.omega = d.omega;
+            st.locked = d.locked;
+            st.drive_torque = d.shaft_torque;
             st.spin_angle += st.omega * dt;
             if st.spin_angle > m::PI {
                 st.spin_angle -= m::TAU;
@@ -357,6 +366,8 @@ impl BicycleVehicle {
             }
 
             // --- tire forces into the body frame -----------------------------
+            let out = outs[i];
+            let steered = self.def.axles[i].steered;
             let (fxb, fyb) = if steered {
                 (
                     out.fx * cos_d - out.fy * sin_d,
@@ -500,12 +511,15 @@ impl BicycleVehicle {
             rec[t::WHEEL_LOCKED_FL + i] = if ax.locked { 1.0 } else { 0.0 };
             rec[t::SPIN_ANGLE_FL + i] = ax.spin_angle;
         }
+        super::four_wheel::write_drivetrain_telemetry(&self.drivetrain, input, rec);
     }
 }
 
+const BICYCLE_STATE_LEN: usize = 8 + 2 * 4;
+
 impl Snapshottable for BicycleVehicle {
     fn state_len(&self) -> usize {
-        8 + 2 * 4
+        BICYCLE_STATE_LEN + crate::drivetrain::STATE_LEN
     }
 
     fn write_state(&self, out: &mut [f64]) {
@@ -524,6 +538,9 @@ impl Snapshottable for BicycleVehicle {
             out[o + 2] = ax.transient.slip_angle;
             out[o + 3] = ax.spin_angle;
         }
+        self.drivetrain.write_state(
+            &mut out[BICYCLE_STATE_LEN..BICYCLE_STATE_LEN + crate::drivetrain::STATE_LEN],
+        );
     }
 
     fn read_state(&mut self, v: &[f64]) {
@@ -542,6 +559,8 @@ impl Snapshottable for BicycleVehicle {
             ax.transient.slip_angle = v[o + 2];
             ax.spin_angle = v[o + 3];
         }
+        self.drivetrain
+            .read_state(&v[BICYCLE_STATE_LEN..BICYCLE_STATE_LEN + crate::drivetrain::STATE_LEN]);
         self.compute_static_loads();
     }
 }

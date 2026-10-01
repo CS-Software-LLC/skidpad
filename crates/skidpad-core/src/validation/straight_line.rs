@@ -115,6 +115,7 @@ pub fn run(
         throttle: 1.0,
         brake: 0.0,
         handbrake: 0.0,
+        ..VehicleInput::default()
     };
     let mut accel_time = None;
     let mut accel_distance = None;
@@ -145,6 +146,7 @@ pub fn run(
         throttle: 0.0,
         brake: 1.0,
         handbrake: 0.0,
+        ..VehicleInput::default()
     };
     let mut locked = false;
     let mut lock_time = None;

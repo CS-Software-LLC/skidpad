@@ -53,7 +53,12 @@ fn arb_def() -> impl Strategy<Value = VehicleDefinition> {
             d.chassis.cg_height = h;
             d.axles[0].tire = TireModel::Feel(ft);
             d.axles[1].tire = TireModel::Feel(rt);
-            d.drive.max_wheel_torque = torque;
+            d.drivetrain.power_unit = skidpad_core::drivetrain::PowerUnitDef::Direct(
+                skidpad_core::drivetrain::DirectDriveDef {
+                    max_wheel_torque: torque,
+                    ..Default::default()
+                },
+            );
             d.simulation.substep_rate_hz = rate;
             d
         })
@@ -81,7 +86,13 @@ proptest! {
         let dt = 1.0 / d.simulation.substep_rate_hz;
         let steps_per_input = (0.25 / dt) as usize;
         for (s, th, br, hb) in inputs {
-            let input = VehicleInput { steer: s, throttle: th, brake: br, handbrake: hb };
+            let input = VehicleInput {
+                steer: s,
+                throttle: th,
+                brake: br,
+                handbrake: hb,
+                ..VehicleInput::default()
+            };
             for _ in 0..steps_per_input {
                 car.substep(dt, &input);
             }
@@ -118,6 +129,7 @@ proptest! {
                 throttle: if brake { 0.0 } else { 1.0 },
                 brake: if brake { 1.0 } else { 0.0 },
                 handbrake: 0.0,
+                ..VehicleInput::default()
             };
             for _ in 0..steps {
                 car.substep(dt, &input);
@@ -146,7 +158,13 @@ proptest! {
             // Kick the body forward or backward inside the damping fade and
             // the kinematic floor, with random steering and brakes.
             car.vel = car.orient.rotate(Vec3::new(vx, 0.0, car.vel_body().z));
-            let input = VehicleInput { steer, throttle: 0.0, brake, handbrake };
+            let input = VehicleInput {
+                steer,
+                throttle: 0.0,
+                brake,
+                handbrake,
+                ..VehicleInput::default()
+            };
             for _ in 0..steps {
                 car.substep(dt, &input);
                 prop_assert!(car.vel.is_finite() && car.omega.is_finite());

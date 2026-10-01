@@ -1,15 +1,15 @@
 {
   "platform": "node-22.22.0-linux-x64",
   "coreVersion": "0.1.0",
-  "timestamp": "2026-10-01T14:42:38.049Z",
+  "timestamp": "2026-10-01T17:22:05.400Z",
   "results": [
     {
       "vehicles": 1,
       "substepRateHz": 1000,
       "model": "fourWheel",
       "label": "1 car, LOD 0 (1 kHz)",
-      "msPerStep": 0.044938474999999964,
-      "usPerVehicleStep": 44.93847499999996,
+      "msPerStep": 0.06024919333333334,
+      "usPerVehicleStep": 60.24919333333334,
       "steps": 600
     },
     {
@@ -17,8 +17,8 @@
       "substepRateHz": 1000,
       "model": "fourWheel",
       "label": "10 cars, LOD 0 (1 kHz)",
-      "msPerStep": 0.4162022966666667,
-      "usPerVehicleStep": 41.620229666666674,
+      "msPerStep": 0.6188235216666668,
+      "usPerVehicleStep": 61.88235216666668,
       "steps": 600
     },
     {
@@ -26,8 +26,8 @@
       "substepRateHz": 1000,
       "model": "fourWheel",
       "label": "20 cars, LOD 0 (1 kHz)",
-      "msPerStep": 0.7632398799999999,
-      "usPerVehicleStep": 38.16199399999999,
+      "msPerStep": 1.090241775,
+      "usPerVehicleStep": 54.51208875,
       "steps": 600
     },
     {
@@ -35,8 +35,8 @@
       "substepRateHz": 500,
       "model": "fourWheel",
       "label": "50 cars, four-wheel at 500 Hz",
-      "msPerStep": 1.0484416849999998,
-      "usPerVehicleStep": 20.968833699999994,
+      "msPerStep": 1.2580397383333333,
+      "usPerVehicleStep": 25.160794766666662,
       "steps": 600
     },
     {
@@ -44,8 +44,8 @@
       "substepRateHz": 500,
       "model": "singleTrack",
       "label": "50 cars, LOD 1 stand-in (single-track, 500 Hz)",
-      "msPerStep": 0.4311952933333335,
-      "usPerVehicleStep": 8.62390586666667,
+      "msPerStep": 0.600604133333333,
+      "usPerVehicleStep": 12.01208266666666,
       "steps": 600
     },
     {
@@ -53,8 +53,8 @@
       "substepRateHz": 240,
       "model": "singleTrack",
       "label": "200 cars, LOD 2 stand-in (single-track, 240 Hz)",
-      "msPerStep": 1.0170504166666667,
-      "usPerVehicleStep": 5.085252083333334,
+      "msPerStep": 1.2566437966666664,
+      "usPerVehicleStep": 6.283218983333331,
       "steps": 600
     }
   ]

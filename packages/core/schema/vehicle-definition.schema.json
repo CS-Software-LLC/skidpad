@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://skidpad.dev/schema/vehicle-definition.schema.json",
   "title": "Skidpad vehicle definition",
-  "description": "A vehicle as plain data: chassis, axles with tires and suspension, steering, brakes, drive, aero, and simulation settings. All units SI unless the field name ends in Deg. Every field has a default; a definition may omit any of them.",
+  "description": "A vehicle as plain data: chassis, axles with tires and suspension, steering, brakes, drivetrain, aero, and simulation settings. All units SI unless the field name ends in Deg. Every field has a default; a definition may omit any of them.",
   "type": "object",
   "properties": {
     "formatVersion": {
@@ -115,21 +115,271 @@
       },
       "additionalProperties": false
     },
-    "drive": {
+    "drivetrain": {
       "type": "object",
-      "description": "Interim drive model until the drivetrain graph lands in milestone 4.",
+      "description": "Power unit, transmission and differentials (ADR-0011). Which axles it drives comes from axles[].driven.",
       "properties": {
-        "maxWheelTorque": {
-          "type": "number",
-          "minimum": 0,
-          "default": 2200,
-          "description": "Total wheel torque at full throttle, N·m"
+        "powerUnit": {
+          "description": "What turns the carrier.",
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "const": "direct"
+                },
+                "maxWheelTorque": {
+                  "type": "number",
+                  "minimum": 0,
+                  "default": 2200,
+                  "description": "Carrier torque at full throttle and rest, N·m, shared by the driven wheels"
+                },
+                "maxWheelSpeed": {
+                  "type": "number",
+                  "exclusiveMinimum": 0,
+                  "default": 160,
+                  "description": "Carrier speed where the torque reaches zero, rad/s"
+                }
+              },
+              "required": ["kind"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "const": "combustion"
+                },
+                "idleRpm": {
+                  "type": "number",
+                  "exclusiveMinimum": 0,
+                  "default": 850,
+                  "description": "Idle speed, rpm"
+                },
+                "redlineRpm": {
+                  "type": "number",
+                  "exclusiveMinimum": 0,
+                  "default": 6500,
+                  "description": "Rev limiter, rpm"
+                },
+                "inertia": {
+                  "type": "number",
+                  "exclusiveMinimum": 0,
+                  "default": 0.25,
+                  "description": "Crank, flywheel and clutch cover inertia, kg·m²"
+                },
+                "torqueCurve": {
+                  "type": "array",
+                  "minItems": 1,
+                  "maxItems": 32,
+                  "items": {
+                    "type": "array",
+                    "items": {
+                      "type": "number"
+                    },
+                    "minItems": 2,
+                    "maxItems": 2
+                  },
+                  "default": [
+                    [1000, 120],
+                    [2000, 160],
+                    [3500, 180],
+                    [4500, 178],
+                    [5500, 165],
+                    [6500, 140]
+                  ],
+                  "description": "Full-throttle torque curve as [rpm, N·m] points in increasing rpm"
+                },
+                "engineBrakingIdle": {
+                  "type": "number",
+                  "minimum": 0,
+                  "default": 15,
+                  "description": "Closed-throttle drag torque at idle, N·m"
+                },
+                "engineBrakingRedline": {
+                  "type": "number",
+                  "minimum": 0,
+                  "default": 60,
+                  "description": "Closed-throttle drag torque at redline, N·m"
+                },
+                "idleTorqueMax": {
+                  "type": "number",
+                  "minimum": 0,
+                  "default": 60,
+                  "description": "Most torque the idle governor adds below idle, N·m"
+                }
+              },
+              "required": ["kind"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "const": "electric"
+                },
+                "maxTorque": {
+                  "type": "number",
+                  "exclusiveMinimum": 0,
+                  "default": 300,
+                  "description": "Peak motor torque, N·m"
+                },
+                "maxPower": {
+                  "type": "number",
+                  "exclusiveMinimum": 0,
+                  "default": 150000,
+                  "description": "Peak power, W"
+                },
+                "maxRpm": {
+                  "type": "number",
+                  "exclusiveMinimum": 0,
+                  "default": 12000,
+                  "description": "Speed where the torque has faded to zero, rpm"
+                },
+                "inertia": {
+                  "type": "number",
+                  "exclusiveMinimum": 0,
+                  "default": 0.05,
+                  "description": "Rotor inertia, kg·m²"
+                },
+                "regenTorque": {
+                  "type": "number",
+                  "minimum": 0,
+                  "default": 60,
+                  "description": "Regenerative braking torque on a closed throttle, N·m"
+                }
+              },
+              "required": ["kind"],
+              "additionalProperties": false
+            }
+          ]
         },
-        "maxWheelSpeed": {
-          "type": "number",
-          "exclusiveMinimum": 0,
-          "default": 160,
-          "description": "Wheel speed where drive torque reaches zero, rad/s"
+        "transmission": {
+          "type": "object",
+          "properties": {
+            "gears": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 10,
+              "items": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              "default": [1],
+              "description": "Forward ratios, first gear first"
+            },
+            "reverse": {
+              "type": "number",
+              "minimum": 0,
+              "default": 0,
+              "description": "Reverse ratio magnitude; 0 means none"
+            },
+            "finalDrive": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "default": 1
+            },
+            "mode": {
+              "type": "string",
+              "enum": ["automatic", "manual"],
+              "default": "automatic"
+            },
+            "shiftTime": {
+              "type": "number",
+              "minimum": 0,
+              "default": 0.25,
+              "description": "Torque interruption while changing gear, s"
+            },
+            "shiftHold": {
+              "type": "number",
+              "minimum": 0,
+              "default": 0.5,
+              "description": "Time after a shift before the automatic shifts again, s"
+            },
+            "shiftUpAt": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 1.05,
+              "default": 0.9,
+              "description": "Automatic upshift point as a fraction of redline"
+            },
+            "shiftDownAt": {
+              "type": "number",
+              "minimum": 0,
+              "default": 0.45,
+              "description": "Automatic downshift point as a fraction of redline"
+            },
+            "clutchMaxTorque": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "default": 400,
+              "description": "Largest torque the clutch transmits, N·m"
+            },
+            "clutchEngageTime": {
+              "type": "number",
+              "minimum": 0,
+              "default": 0.3,
+              "description": "Clutch re-engagement time after a shift, s"
+            },
+            "clutchBiteRpm": {
+              "type": "number",
+              "minimum": 0,
+              "default": 1200,
+              "description": "The automatic clutch bites from idle to this many rpm above idle; 0 disables it"
+            },
+            "inputInertia": {
+              "type": "number",
+              "minimum": 0,
+              "default": 0.05,
+              "description": "Gearbox input and clutch disc inertia, kg·m²"
+            },
+            "outputInertia": {
+              "type": "number",
+              "minimum": 0,
+              "default": 0.05,
+              "description": "Gearbox output and propshaft inertia, kg·m²"
+            }
+          },
+          "additionalProperties": false
+        },
+        "front": {
+          "$ref": "#/$defs/differential"
+        },
+        "rear": {
+          "$ref": "#/$defs/differential"
+        },
+        "center": {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "enum": ["open", "locked", "lsd"],
+              "default": "open"
+            },
+            "frontTorqueFraction": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "exclusiveMaximum": 1,
+              "default": 0.4,
+              "description": "Share of the carrier torque sent to the front axle when open"
+            },
+            "preload": {
+              "type": "number",
+              "minimum": 0,
+              "default": 0
+            },
+            "biasDrive": {
+              "type": "number",
+              "minimum": 1,
+              "default": 2
+            },
+            "biasCoast": {
+              "type": "number",
+              "minimum": 1,
+              "default": 1.5
+            }
+          },
+          "additionalProperties": false
         }
       },
       "additionalProperties": false
@@ -488,6 +738,37 @@
           "minimum": 0,
           "default": 300000,
           "description": "N/m beyond the bump travel"
+        }
+      },
+      "additionalProperties": false
+    },
+    "differential": {
+      "type": "object",
+      "description": "An axle differential (ADR-0011).",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": ["open", "locked", "lsd"],
+          "default": "open",
+          "description": "open: equal torque, free speeds; locked: a spool or solid axle; lsd: clutch-pack limited slip"
+        },
+        "preload": {
+          "type": "number",
+          "minimum": 0,
+          "default": 0,
+          "description": "Locking torque at zero carrier torque, N·m"
+        },
+        "biasDrive": {
+          "type": "number",
+          "minimum": 1,
+          "default": 2.5,
+          "description": "Torque bias ratio under drive"
+        },
+        "biasCoast": {
+          "type": "number",
+          "minimum": 1,
+          "default": 1.5,
+          "description": "Torque bias ratio on the overrun"
         }
       },
       "additionalProperties": false

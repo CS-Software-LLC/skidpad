@@ -13,11 +13,21 @@ export interface InputFrame {
   brake: number;
   /** 0 … 1. */
   handbrake: number;
+  /** Clutch pedal, 0 (engaged) … 1 (open). */
+  clutch: number;
+  /**
+   * Requested gear: −1 reverse, 0 neutral (manual) or drive (automatic),
+   * 1 … n forward. The device layer holds the gear; the core follows it.
+   */
+  gear: number;
 }
 
 export function emptyFrame(): InputFrame {
-  return { steer: 0, throttle: 0, brake: 0, handbrake: 0 };
+  return { steer: 0, throttle: 0, brake: 0, handbrake: 0, clutch: 0, gear: 0 };
 }
+
+/** Highest gear number the device layer will request. */
+export const MAX_GEAR = 10;
 
 export function clamp(v: number, lo: number, hi: number): number {
   return v < lo ? lo : v > hi ? hi : v;
@@ -83,6 +93,12 @@ export interface KeyboardMapping {
   throttle: string[];
   brake: string[];
   handbrake: string[];
+  /** One gear up per press. */
+  shiftUp: string[];
+  /** One gear down per press; below first is reverse. */
+  shiftDown: string[];
+  /** Clutch pedal while held. */
+  clutch: string[];
 }
 
 export const defaultKeyboardMapping: KeyboardMapping = {
@@ -91,6 +107,9 @@ export const defaultKeyboardMapping: KeyboardMapping = {
   throttle: ["ArrowUp", "KeyW"],
   brake: ["ArrowDown", "KeyS"],
   handbrake: ["Space"],
+  shiftUp: ["KeyE", "ShiftRight"],
+  shiftDown: ["KeyQ", "ShiftLeft"],
+  clutch: ["KeyC"],
 };
 
 export interface KeyboardOptions {
@@ -112,6 +131,8 @@ export class KeyboardInput {
   private readonly throttle: Ramp;
   private readonly brake: Ramp;
   private detach: (() => void) | undefined;
+  /** Requested gear; −1 reverse, 0 neutral or drive, 1 … n. */
+  gear = 0;
 
   constructor(options: KeyboardOptions = {}) {
     this.mapping = { ...defaultKeyboardMapping, ...options.mapping };
@@ -121,6 +142,11 @@ export class KeyboardInput {
   }
 
   keyDown(code: string): void {
+    // Shifts are edge triggered: one gear per press, key repeat ignored.
+    if (!this.held.has(code)) {
+      if (this.mapping.shiftUp.includes(code)) this.gear = Math.min(MAX_GEAR, this.gear + 1);
+      if (this.mapping.shiftDown.includes(code)) this.gear = Math.max(-1, this.gear - 1);
+    }
     this.held.add(code);
   }
 
@@ -140,6 +166,8 @@ export class KeyboardInput {
       throttle: this.throttle.update(this.any(this.mapping.throttle) ? 1 : 0, dt),
       brake: this.brake.update(this.any(this.mapping.brake) ? 1 : 0, dt),
       handbrake: this.any(this.mapping.handbrake) ? 1 : 0,
+      clutch: this.any(this.mapping.clutch) ? 1 : 0,
+      gear: this.gear,
     };
   }
 
@@ -175,7 +203,9 @@ export class KeyboardInput {
 }
 
 function isMapped(m: KeyboardMapping, code: string): boolean {
-  return [m.left, m.right, m.throttle, m.brake, m.handbrake].some((l) => l.includes(code));
+  return [m.left, m.right, m.throttle, m.brake, m.handbrake, m.shiftUp, m.shiftDown, m.clutch].some(
+    (l) => l.includes(code),
+  );
 }
 
 export interface GamepadOptions {
@@ -225,7 +255,14 @@ export class GamepadInput {
       axisValue(this.opts.throttleAxis) ?? buttons[this.opts.throttleButton]?.value ?? 0;
     const brake = axisValue(this.opts.brakeAxis) ?? buttons[this.opts.brakeButton]?.value ?? 0;
     const handbrake = buttons[this.opts.handbrakeButton]?.pressed ? 1 : 0;
-    return { steer, throttle: clamp(throttle, 0, 1), brake: clamp(brake, 0, 1), handbrake };
+    return {
+      steer,
+      throttle: clamp(throttle, 0, 1),
+      brake: clamp(brake, 0, 1),
+      handbrake,
+      clutch: 0,
+      gear: 0,
+    };
   }
 
   /** Poll the first connected gamepad, or return undefined when none. */

@@ -1,11 +1,12 @@
 /**
  * Synthesised engine and tire-slip sound for the sandbox, built on Web Audio.
  *
- * Sound only. The core has no engine model (`drive` is a torque-versus-wheel-
- * speed curve with no gears), so the engine note comes from a virtual gearbox
- * driven by the driven-axle wheel speed: a handful of geometrically spaced
- * ratios with the top gear reaching redline at `drive.maxWheelSpeed`, and an
- * automatic shift with hysteresis. Tire squeal is band-passed noise whose
+ * Sound only. The engine note follows the core's own engine when the
+ * definition has one (`EngineRpm` and `Gear` telemetry, ADR-0011). For a
+ * direct-drive definition, which has no engine, it falls back to a virtual
+ * gearbox driven by the driven-axle wheel speed: a handful of geometrically
+ * spaced ratios with the top gear reaching redline at `maxWheelSpeed`, and
+ * an automatic shift with hysteresis. Tire squeal is band-passed noise whose
  * level follows how far each wheel is past its force peak, in combined slip,
  * which is the same quantity the per-wheel HUD shows as κ and α. Nothing here
  * feeds back into the simulation, so replays and hashes are unaffected.
@@ -100,7 +101,9 @@ export class SandboxAudio {
   setDefinition(def: VehicleDefinition): void {
     const redlineRad = (REDLINE_RPM * 2 * Math.PI) / 60;
     // Top gear reaches redline a little past the speed where drive torque fades out.
-    const top = redlineRad / (def.drive.maxWheelSpeed * 1.05);
+    const pu = def.drivetrain?.powerUnit;
+    const maxWheelSpeed = (pu?.kind === "direct" ? pu.maxWheelSpeed : undefined) ?? 160;
+    const top = redlineRad / (maxWheelSpeed * 1.05);
     const step = Math.pow(RATIO_SPAN, 1 / (GEARS - 1));
     this.ratios = [];
     for (let i = 0; i < GEARS; i++) this.ratios.push(top * Math.pow(step, GEARS - 1 - i));
@@ -121,7 +124,7 @@ export class SandboxAudio {
     this.oscillators[0]!.frequency.setTargetAtTime(firing, t, 0.03);
     this.oscillators[1]!.frequency.setTargetAtTime(firing / 2, t, 0.03);
     this.oscillators[2]!.frequency.setTargetAtTime(firing * 2, t, 0.03);
-    const rpmFrac = (this.rpm - IDLE_RPM) / (REDLINE_RPM - IDLE_RPM);
+    const rpmFrac = clamp01((this.rpm - IDLE_RPM) / (REDLINE_RPM - IDLE_RPM));
     // Louder and brighter under load; quieter and duller on the overrun.
     this.engineFilter.frequency.setTargetAtTime(300 + 900 * rpmFrac + 1800 * throttle, t, 0.05);
     this.engineGain.gain.setTargetAtTime(0.12 + 0.1 * rpmFrac + 0.28 * throttle, t, 0.05);
@@ -136,6 +139,13 @@ export class SandboxAudio {
 
   private updateEngine(dt: number, read: ChannelReader, def: VehicleDefinition): void {
     if (this.ratios.length === 0) this.setDefinition(def);
+    if ((def.drivetrain?.powerUnit?.kind ?? "direct") !== "direct") {
+      // The core's engine: follow it directly.
+      const rpm = read("EngineRpm");
+      this.gear = Math.max(0, Math.round(read("Gear")) - 1);
+      this.rpm += (Math.max(rpm, 1) - this.rpm) * Math.min(1, dt / 0.03);
+      return;
+    }
     let omega = 0;
     let driven = 0;
     def.axles.forEach((axle, i) => {

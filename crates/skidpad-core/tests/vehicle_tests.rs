@@ -183,6 +183,7 @@ fn ten_thousand_steps_twice_give_identical_state() {
                     throttle: 0.6,
                     brake: 0.0,
                     handbrake: 0.0,
+                    ..VehicleInput::default()
                 },
             )
             .unwrap();
@@ -207,6 +208,7 @@ fn snapshot_restore_continue_matches_uninterrupted_run() {
         throttle: 0.8,
         brake: 0.0,
         handbrake: 0.0,
+        ..VehicleInput::default()
     };
     a.set_input(0, input).unwrap();
     b.set_input(0, input).unwrap();
@@ -225,6 +227,7 @@ fn snapshot_restore_continue_matches_uninterrupted_run() {
             throttle: 0.0,
             brake: 1.0,
             handbrake: 1.0,
+            ..VehicleInput::default()
         },
     )
     .unwrap();

@@ -94,7 +94,7 @@ export interface CpExports {
 }
 
 /** ABI version this loader was written against. */
-export const EXPECTED_ABI_VERSION = 2;
+export const EXPECTED_ABI_VERSION = 3;
 
 export enum ErrorCode {
   Ok = 0,

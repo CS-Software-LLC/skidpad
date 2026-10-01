@@ -40,7 +40,32 @@ describe("KeyboardInput", () => {
     expect(f2.throttle).toBe(0);
     expect(f2.steer).toBe(1);
     expect(f2.handbrake).toBe(1);
+    expect(f2.clutch).toBe(0);
+    expect(f2.gear).toBe(0);
     expect(k.attach(undefined)).toBeTypeOf("function");
+  });
+
+  it("shifts one gear per press and holds the clutch while pressed", () => {
+    const k = new KeyboardInput();
+    k.keyDown("KeyE");
+    k.keyDown("KeyE"); // key repeat: still one shift
+    expect(k.update(0.1).gear).toBe(1);
+    k.keyUp("KeyE");
+    k.keyDown("KeyE");
+    expect(k.update(0.1).gear).toBe(2);
+    k.keyUp("KeyE");
+    for (let i = 0; i < 4; i++) {
+      k.keyDown("KeyQ");
+      k.keyUp("KeyQ");
+    }
+    expect(k.update(0.1).gear).toBe(-1);
+    k.keyDown("KeyQ");
+    k.keyUp("KeyQ");
+    expect(k.update(0.1).gear).toBe(-1);
+    k.keyDown("KeyC");
+    expect(k.update(0.1).clutch).toBe(1);
+    k.keyUp("KeyC");
+    expect(k.update(0.1).clutch).toBe(0);
   });
 });
 
