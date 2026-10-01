@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * cp-validate: run the standard manoeuvres for every preset and compare
+ * skidpad-validate: run the standard manoeuvres for every preset and compare
  * against the golden results.
  *
  *   pnpm validate            # run, write out/results.json, compare to golden
@@ -10,7 +10,7 @@
 import { mkdirSync, readFileSync, writeFileSync, existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { init } from "@contactpatch/core";
+import { init } from "@skidpad/core";
 import { compare, DEFAULT_TOLERANCE, runAll, type ValidationReport } from "./scenarios.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -19,8 +19,8 @@ const goldenPath = join(root, "golden", "results.json");
 const outDir = join(root, "out");
 
 const args = new Set(process.argv.slice(2));
-const cp = await init();
-const report = runAll(cp);
+const sp = await init();
+const report = runAll(sp);
 
 mkdirSync(outDir, { recursive: true });
 writeFileSync(join(outDir, "results.json"), JSON.stringify(report, null, 2));
@@ -31,9 +31,7 @@ if (args.has("--json")) {
 
 const fmt = (v: number | null | undefined, d = 2): string =>
   v === null || v === undefined ? "n/a" : v.toFixed(d);
-console.log(
-  `Contact Patch validation (core ${report.coreVersion}, math ${report.mathSelftestHash})`,
-);
+console.log(`Skidpad validation (core ${report.coreVersion}, math ${report.mathSelftestHash})`);
 console.log("");
 console.log(
   "| Vehicle | K_us sim (deg/g) | K_us linear theory (deg/g) | 0–100 km/h (s) | 100–0 km/h (m) | Scripted drive hash |",

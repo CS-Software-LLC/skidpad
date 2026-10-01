@@ -1,5 +1,5 @@
-import type { ContactPatch } from "@contactpatch/core";
-import { preset } from "@contactpatch/presets";
+import type { Skidpad } from "@skidpad/core";
+import { preset } from "@skidpad/presets";
 
 export interface BenchCase {
   vehicles: number;
@@ -36,13 +36,8 @@ export const CASES: BenchCase[] = [
   { vehicles: 200, substepRateHz: 240, label: "200 cars, LOD 2 stand-in (240 Hz)" },
 ];
 
-export function runCase(
-  cp: ContactPatch,
-  c: BenchCase,
-  now: () => number,
-  steps = 600,
-): BenchResult {
-  const w = cp.createWorld(c.vehicles);
+export function runCase(sp: Skidpad, c: BenchCase, now: () => number, steps = 600): BenchResult {
+  const w = sp.createWorld(c.vehicles);
   const def = preset("hatchbackFwd");
   def.simulation.substepRateHz = c.substepRateHz;
   for (let i = 0; i < c.vehicles; i++) w.addVehicle(def);
@@ -59,18 +54,18 @@ export function runCase(
   return { ...c, msPerStep: ms, usPerVehicleStep: (ms * 1000) / c.vehicles, steps };
 }
 
-export function runAll(cp: ContactPatch, platform: string, now: () => number): BenchReport {
+export function runAll(sp: Skidpad, platform: string, now: () => number): BenchReport {
   return {
     platform,
-    coreVersion: cp.version,
+    coreVersion: sp.version,
     timestamp: new Date().toISOString(),
-    results: CASES.map((c) => runCase(cp, c, now)),
+    results: CASES.map((c) => runCase(sp, c, now)),
   };
 }
 
 export function formatTable(r: BenchReport): string {
   const lines = [
-    `Contact Patch benchmark — ${r.platform} — core ${r.coreVersion}`,
+    `Skidpad benchmark — ${r.platform} — core ${r.coreVersion}`,
     "",
     "| Case | ms per 60 Hz step | µs per vehicle-step |",
     "| --- | --- | --- |",

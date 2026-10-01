@@ -1,5 +1,5 @@
 /**
- * @contactpatch/input — turns keyboards, gamepads, and wheels into a
+ * @skidpad/input — turns keyboards, gamepads, and wheels into a
  * normalised, filtered input frame. Filtering happens here, before the core,
  * so recorded inputs replay identically regardless of device.
  */

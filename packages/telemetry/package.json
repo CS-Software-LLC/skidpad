@@ -1,11 +1,11 @@
 {
-  "name": "@contactpatch/telemetry",
+  "name": "@skidpad/telemetry",
   "version": "0.1.0",
-  "description": "Ring-buffer telemetry recorder and exporters for Contact Patch.",
+  "description": "Ring-buffer telemetry recorder and exporters for Skidpad.",
   "license": "MIT OR Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "https://github.com/csummers88/oss-vehicle-physics",
+    "url": "https://github.com/csummers88/skidpad",
     "directory": "packages/telemetry"
   },
   "type": "module",

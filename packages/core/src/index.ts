@@ -1,22 +1,22 @@
 /**
- * @contactpatch/core — deterministic vehicle physics for the web.
+ * @skidpad/core — deterministic vehicle physics for the web.
  *
  * ```ts
- * import { init } from "@contactpatch/core";
- * const cp = await init();
- * const world = cp.createWorld(1);
+ * import { init } from "@skidpad/core";
+ * const sp = await init();
+ * const world = sp.createWorld(1);
  * const car = world.addVehicle({ name: "demo" });
  * world.setInput(car, { throttle: 1 });
  * world.step(1 / 60);
  * console.log(world.read(car, "Speed"));
  * ```
  *
- * This entry loads `contactpatch.wasm` as a separate file next to the
- * package. Use `@contactpatch/core/compat` for a build with the WASM inlined.
+ * This entry loads `skidpad.wasm` as a separate file next to the
+ * package. Use `@skidpad/core/compat` for a build with the WASM inlined.
  */
 import type { WasmSource } from "./wasm/instantiate.js";
 import { instantiateCore } from "./wasm/instantiate.js";
-import { ContactPatch } from "./core.js";
+import { Skidpad } from "./core.js";
 
 export * from "./core.js";
 export * from "./definition/types.js";
@@ -35,11 +35,11 @@ export interface InitOptions {
 
 /** Default location of the WASM file shipped with the package. */
 export function defaultWasmUrl(): URL {
-  return new URL("../wasm/contactpatch.wasm", import.meta.url);
+  return new URL("../wasm/skidpad.wasm", import.meta.url);
 }
 
 /** Load the core. Call once and share the result. */
-export async function init(options: InitOptions = {}): Promise<ContactPatch> {
+export async function init(options: InitOptions = {}): Promise<Skidpad> {
   const exports = await instantiateCore(options.wasm ?? defaultWasmUrl());
-  return new ContactPatch(exports);
+  return new Skidpad(exports);
 }

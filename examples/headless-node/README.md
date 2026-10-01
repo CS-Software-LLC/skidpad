@@ -2,7 +2,7 @@
 
 ```sh
 pnpm install && pnpm build
-pnpm --filter @contactpatch/example-headless-node start
+pnpm --filter @skidpad/example-headless-node start
 ```
 
 Loads the core, adds the RWD sports car preset, accelerates for ten seconds

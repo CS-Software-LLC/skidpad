@@ -32,10 +32,10 @@ importers:
 
   apps/bench:
     dependencies:
-      '@contactpatch/core':
+      '@skidpad/core':
         specifier: workspace:*
         version: link:../../packages/core
-      '@contactpatch/presets':
+      '@skidpad/presets':
         specifier: workspace:*
         version: link:../../packages/presets
     devDependencies:
@@ -54,10 +54,10 @@ importers:
 
   apps/docs:
     dependencies:
-      '@contactpatch/core':
+      '@skidpad/core':
         specifier: workspace:*
         version: link:../../packages/core
-      '@contactpatch/presets':
+      '@skidpad/presets':
         specifier: workspace:*
         version: link:../../packages/presets
       vue:
@@ -73,21 +73,21 @@ importers:
 
   apps/sandbox:
     dependencies:
-      '@contactpatch/core':
-        specifier: workspace:*
-        version: link:../../packages/core
-      '@contactpatch/input':
-        specifier: workspace:*
-        version: link:../../packages/input
-      '@contactpatch/presets':
-        specifier: workspace:*
-        version: link:../../packages/presets
-      '@contactpatch/telemetry':
-        specifier: workspace:*
-        version: link:../../packages/telemetry
       '@react-three/fiber':
         specifier: ^8.17.0
         version: 8.18.0(@types/react@18.3.31)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(three@0.169.0)
+      '@skidpad/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      '@skidpad/input':
+        specifier: workspace:*
+        version: link:../../packages/input
+      '@skidpad/presets':
+        specifier: workspace:*
+        version: link:../../packages/presets
+      '@skidpad/telemetry':
+        specifier: workspace:*
+        version: link:../../packages/telemetry
       react:
         specifier: ^18.3.0
         version: 18.3.1
@@ -119,10 +119,10 @@ importers:
 
   examples/headless-node:
     dependencies:
-      '@contactpatch/core':
+      '@skidpad/core':
         specifier: workspace:*
         version: link:../../packages/core
-      '@contactpatch/presets':
+      '@skidpad/presets':
         specifier: workspace:*
         version: link:../../packages/presets
     devDependencies:
@@ -162,7 +162,7 @@ importers:
 
   packages/presets:
     dependencies:
-      '@contactpatch/core':
+      '@skidpad/core':
         specifier: workspace:*
         version: link:../core
     devDependencies:
@@ -184,10 +184,10 @@ importers:
 
   tests/determinism:
     dependencies:
-      '@contactpatch/core':
+      '@skidpad/core':
         specifier: workspace:*
         version: link:../../packages/core
-      '@contactpatch/presets':
+      '@skidpad/presets':
         specifier: workspace:*
         version: link:../../packages/presets
     devDependencies:
@@ -212,10 +212,10 @@ importers:
 
   tools/validate:
     dependencies:
-      '@contactpatch/core':
+      '@skidpad/core':
         specifier: workspace:*
         version: link:../../packages/core
-      '@contactpatch/presets':
+      '@skidpad/presets':
         specifier: workspace:*
         version: link:../../packages/presets
     devDependencies:

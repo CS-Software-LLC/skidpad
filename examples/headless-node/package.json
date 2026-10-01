@@ -1,5 +1,5 @@
 {
-  "name": "@contactpatch/example-headless-node",
+  "name": "@skidpad/example-headless-node",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -8,8 +8,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@contactpatch/core": "workspace:*",
-    "@contactpatch/presets": "workspace:*"
+    "@skidpad/core": "workspace:*",
+    "@skidpad/presets": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

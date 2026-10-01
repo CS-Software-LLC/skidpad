@@ -1,5 +1,5 @@
 {
-  "name": "@contactpatch/sandbox",
+  "name": "@skidpad/sandbox",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -10,10 +10,10 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@contactpatch/core": "workspace:*",
-    "@contactpatch/input": "workspace:*",
-    "@contactpatch/presets": "workspace:*",
-    "@contactpatch/telemetry": "workspace:*",
+    "@skidpad/core": "workspace:*",
+    "@skidpad/input": "workspace:*",
+    "@skidpad/presets": "workspace:*",
+    "@skidpad/telemetry": "workspace:*",
     "@react-three/fiber": "^8.17.0",
     "react": "^18.3.0",
     "react-dom": "^18.3.0",

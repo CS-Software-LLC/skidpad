@@ -1,8 +1,8 @@
 /**
- * @contactpatch/presets — reference vehicle definitions. Each carries a
+ * @skidpad/presets — reference vehicle definitions. Each carries a
  * `dataSheet` with its sources; see `data/PROVENANCE.md` in the repository.
  */
-import type { VehicleDefinition } from "@contactpatch/core";
+import type { VehicleDefinition } from "@skidpad/core";
 import hatchbackFwd from "./vehicles/hatchback-fwd.json" with { type: "json" };
 import sportsRwd from "./vehicles/sports-rwd.json" with { type: "json" };
 import kart from "./vehicles/kart.json" with { type: "json" };

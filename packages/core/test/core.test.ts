@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import {
   init,
-  type ContactPatch,
+  type Skidpad,
   validateDefinition,
   migrateDefinition,
   MigrationError,
@@ -14,31 +14,31 @@ import {
 import { init as initCompat } from "../src/compat.js";
 
 const pinnedHash = readFileSync(
-  fileURLToPath(new URL("../../../crates/cp-math/selftest.hash", import.meta.url)),
+  fileURLToPath(new URL("../../../crates/skidpad-math/selftest.hash", import.meta.url)),
   "utf8",
 ).trim();
 const tirText = readFileSync(
   fileURLToPath(
-    new URL("../../../crates/cp-core/tests/fixtures/synthetic_passenger.tir", import.meta.url),
+    new URL("../../../crates/skidpad-core/tests/fixtures/synthetic_passenger.tir", import.meta.url),
   ),
   "utf8",
 );
 
-let cp: ContactPatch;
+let sp: Skidpad;
 beforeAll(async () => {
-  cp = await init();
+  sp = await init();
 });
 
 describe("loading", () => {
   it("reports a version and a telemetry layout", () => {
-    expect(cp.version).toMatch(/^\d+\.\d+\.\d+/);
-    expect(cp.telemetryLayout.length).toBeGreaterThan(20);
-    expect(cp.channel("Speed")).toBeGreaterThanOrEqual(0);
-    expect(cp.channel("Nope")).toBe(-1);
+    expect(sp.version).toMatch(/^\d+\.\d+\.\d+/);
+    expect(sp.telemetryLayout.length).toBeGreaterThan(20);
+    expect(sp.channel("Speed")).toBeGreaterThanOrEqual(0);
+    expect(sp.channel("Nope")).toBe(-1);
   });
 
   it("math self-test hash matches the pinned native value", () => {
-    expect(cp.mathSelftestHash()).toBe(pinnedHash);
+    expect(sp.mathSelftestHash()).toBe(pinnedHash);
   });
 
   it("compat build produces the same hash", async () => {
@@ -47,7 +47,7 @@ describe("loading", () => {
   });
 
   it("exposes the default definition", () => {
-    const d = cp.defaultDefinition();
+    const d = sp.defaultDefinition();
     expect(d.formatVersion).toBe(CURRENT_FORMAT_VERSION);
     expect(d.axles).toHaveLength(2);
     expect(d.chassis.mass).toBe(1300);
@@ -57,7 +57,7 @@ describe("loading", () => {
 
 describe("world", () => {
   it("steps a vehicle and reads telemetry", () => {
-    const w = cp.createWorld(2);
+    const w = sp.createWorld(2);
     const i = w.addVehicle({ name: "t" });
     w.setInput(i, { throttle: 1 });
     for (let k = 0; k < 120; k++) w.step(1 / 60);
@@ -70,7 +70,7 @@ describe("world", () => {
 
   it("is deterministic and snapshot/restore round-trips", () => {
     const run = (): string[] => {
-      const w = cp.createWorld(1);
+      const w = sp.createWorld(1);
       const i = w.addVehicle({});
       const hashes: string[] = [];
       for (let k = 0; k < 600; k++) {
@@ -83,8 +83,8 @@ describe("world", () => {
     };
     expect(run()).toEqual(run());
 
-    const a = cp.createWorld(1);
-    const b = cp.createWorld(1);
+    const a = sp.createWorld(1);
+    const b = sp.createWorld(1);
     a.addVehicle({});
     b.addVehicle({});
     a.setInput(0, { throttle: 1, steer: 0.2 });
@@ -110,7 +110,7 @@ describe("world", () => {
   });
 
   it("rejects bad definitions with readable errors before the WASM boundary", () => {
-    const w = cp.createWorld(1);
+    const w = sp.createWorld(1);
     expect(() => w.addVehicle({ chassis: { mass: -5 } })).toThrow(
       /chassis\.mass must be a positive number/,
     );
@@ -122,14 +122,14 @@ describe("world", () => {
   });
 
   it("enforces capacity", () => {
-    const w = cp.createWorld(1);
+    const w = sp.createWorld(1);
     w.addVehicle({});
     expect(() => w.addVehicle({})).toThrow(/full/);
     w.free();
   });
 
   it("supports live definition swaps", () => {
-    const w = cp.createWorld(1);
+    const w = sp.createWorld(1);
     w.addVehicle({});
     // Gentle throttle so the driven wheel does not spin up; a spinning wheel
     // would keep pushing the car after torque is removed, which is correct.
@@ -145,7 +145,7 @@ describe("world", () => {
 
 describe("tire", () => {
   it("evaluates and sweeps", () => {
-    const t = cp.createTire({ model: "feel" });
+    const t = sp.createTire({ model: "feel" });
     const o = t.eval({ fz: 4000, slipRatio: 0, slipAngle: 0.05 });
     expect(o.fy).toBeLessThan(0);
     expect(o.mz).toBeGreaterThan(0);
@@ -157,24 +157,24 @@ describe("tire", () => {
   });
 
   it("imports .tir files with warnings", () => {
-    const imp = cp.importTir(tirText);
+    const imp = sp.importTir(tirText);
     expect(imp.params.model).toBe("magicFormula");
     expect(imp.params.pky1).toBe(-19);
     expect(imp.warnings.some((w) => w.key === "PTX1")).toBe(true);
-    const t = cp.createTire(imp.params);
+    const t = sp.createTire(imp.params);
     const o = t.eval({ fz: 4500, slipRatio: 0.1, slipAngle: 0 });
     expect(o.fx).toBeGreaterThan(3500);
     t.free();
   });
 
   it("rejects positive PKY1", () => {
-    expect(() => cp.createTire({ model: "magicFormula", pky1: 20 })).toThrow(/ISO sign convention/);
+    expect(() => sp.createTire({ model: "magicFormula", pky1: 20 })).toThrow(/ISO sign convention/);
   });
 });
 
 describe("scenarios", () => {
   it("runs the understeer gradient scenario", () => {
-    const r = cp.runScenario({
+    const r = sp.runScenario({
       scenario: "understeerGradient",
       definition: {},
       config: { speeds: [4, 8, 12] },
@@ -185,7 +185,7 @@ describe("scenarios", () => {
   });
 
   it("runs the straight line scenario", () => {
-    const r = cp.runScenario({ scenario: "straightLine", definition: {} });
+    const r = sp.runScenario({ scenario: "straightLine", definition: {} });
     expect(r.accelTime).not.toBeNull();
     expect(r.brakingDistance).toBeGreaterThan(30);
   });

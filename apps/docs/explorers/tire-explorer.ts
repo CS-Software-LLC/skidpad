@@ -3,7 +3,7 @@
  * curves from the real core (compat build) onto a canvas, with the current
  * load and camber. The Vue wrapper only handles mounting and controls.
  */
-import { init, type Tire, type ContactPatch, type TireDefinition } from "@contactpatch/core/compat";
+import { init, type Tire, type Skidpad, type TireDefinition } from "@skidpad/core/compat";
 
 export interface ExplorerState {
   fz: number;
@@ -28,14 +28,14 @@ export const defaultState: ExplorerState = {
 };
 
 export class TireExplorer {
-  private cp: ContactPatch | undefined;
+  private sp: Skidpad | undefined;
   private tire: Tire | undefined;
   private key = "";
 
   constructor(private readonly canvas: HTMLCanvasElement) {}
 
   async load(): Promise<void> {
-    this.cp = await init();
+    this.sp = await init();
   }
 
   private definition(s: ExplorerState): TireDefinition {
@@ -51,11 +51,11 @@ export class TireExplorer {
   }
 
   draw(s: ExplorerState): void {
-    if (!this.cp) return;
+    if (!this.sp) return;
     const key = JSON.stringify(this.definition(s));
     if (key !== this.key) {
       this.tire?.free();
-      this.tire = this.cp.createTire(this.definition(s));
+      this.tire = this.sp.createTire(this.definition(s));
       this.key = key;
     }
     const tire = this.tire!;

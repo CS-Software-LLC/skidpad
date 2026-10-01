@@ -1,5 +1,5 @@
-import { smoothWave, type ContactPatch } from "@contactpatch/core";
-import { presets } from "@contactpatch/presets";
+import { smoothWave, type Skidpad } from "@skidpad/core";
+import { presets } from "@skidpad/presets";
 
 /** Everything the determinism check compares across platforms. */
 export interface DeterminismReport {
@@ -17,8 +17,8 @@ export interface DeterminismReport {
 export const SCENARIO_STEPS = 3000;
 
 /** Run the fixed scenario: three presets, scripted inputs, 3000 host steps. */
-export function runScenario(cp: ContactPatch, platform: string): DeterminismReport {
-  const w = cp.createWorld(3);
+export function runScenario(sp: Skidpad, platform: string): DeterminismReport {
+  const w = sp.createWorld(3);
   const ids = [
     w.addVehicle(presets.hatchbackFwd),
     w.addVehicle(presets.sportsRwd),
@@ -41,8 +41,8 @@ export function runScenario(cp: ContactPatch, platform: string): DeterminismRepo
   }
   const report: DeterminismReport = {
     platform,
-    coreVersion: cp.version,
-    mathSelftestHash: cp.mathSelftestHash(),
+    coreVersion: sp.version,
+    mathSelftestHash: sp.mathSelftestHash(),
     vehicleHashes: ids.map((i) => w.stateHash(i)),
     worldHash: w.worldHash(),
     checkpoints,

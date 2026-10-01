@@ -1,9 +1,9 @@
 // Minimal headless use: drive a preset for ten seconds and print telemetry.
-import { init } from "@contactpatch/core";
-import { preset } from "@contactpatch/presets";
+import { init } from "@skidpad/core";
+import { preset } from "@skidpad/presets";
 
-const cp = await init();
-const world = cp.createWorld(1);
+const sp = await init();
+const world = sp.createWorld(1);
 const car = world.addVehicle(preset("sportsRwd"));
 
 for (let step = 0; step < 600; step++) {

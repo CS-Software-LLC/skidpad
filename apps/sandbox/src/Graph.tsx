@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import type { TelemetryRecorder } from "@contactpatch/telemetry";
+import type { TelemetryRecorder } from "@skidpad/telemetry";
 
 const SERIES: Array<{ channel: string; color: string; scale: number; label: string }> = [
   { channel: "SlipAngle_F", color: "#ffb454", scale: 0.2, label: "Slip angle F (±0.2 rad)" },

@@ -51,9 +51,7 @@ if (mode === "--update") {
     builtAt: new Date().toISOString(),
   };
   writeFileSync(prebuiltManifest, JSON.stringify(manifest, null, 2) + "\n");
-  log(
-    `updated prebuilt/contactpatch.wasm (${manifest.bytes} bytes, ${manifest.gzipBytes} gzipped)`,
-  );
+  log(`updated prebuilt/skidpad.wasm (${manifest.bytes} bytes, ${manifest.gzipBytes} gzipped)`);
 } else if (mode === "--install") {
   const m = readManifest();
   if (!m) {

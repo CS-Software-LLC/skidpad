@@ -2,10 +2,10 @@
  * The simulation loop, independent of React and of the renderer. Fixed
  * 60 Hz host steps with an accumulator; the core substeps at 1 kHz inside.
  */
-import { init, type ContactPatch, type World, type VehicleDefinition } from "@contactpatch/core";
-import { KeyboardInput, GamepadInput } from "@contactpatch/input";
-import { TelemetryRecorder } from "@contactpatch/telemetry";
-import { preset, presetIds, type PresetId } from "@contactpatch/presets";
+import { init, type Skidpad, type World, type VehicleDefinition } from "@skidpad/core";
+import { KeyboardInput, GamepadInput } from "@skidpad/input";
+import { TelemetryRecorder } from "@skidpad/telemetry";
+import { preset, presetIds, type PresetId } from "@skidpad/presets";
 
 export const HOST_DT = 1 / 60;
 
@@ -30,7 +30,7 @@ function emptySnapshot(): SimSnapshot {
 }
 
 export class Sim {
-  cp!: ContactPatch;
+  sp!: Skidpad;
   world!: World;
   vehicle = 0;
   recorder!: TelemetryRecorder;
@@ -65,9 +65,9 @@ export class Sim {
   stepCostMs = 0;
 
   async load(): Promise<void> {
-    this.cp = await init();
-    this.recorder = new TelemetryRecorder({ channels: this.cp.telemetryLayout, capacity: 60 * 60 });
-    this.world = this.cp.createWorld(1);
+    this.sp = await init();
+    this.recorder = new TelemetryRecorder({ channels: this.sp.telemetryLayout, capacity: 60 * 60 });
+    this.world = this.sp.createWorld(1);
     this.setPreset(this.presetId);
     this.detach = this.keyboard.attach(globalThis.window);
   }

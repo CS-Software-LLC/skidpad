@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Builds crates/cp-wasm for wasm32-unknown-unknown, optionally runs wasm-opt,
+// Builds crates/skidpad-wasm for wasm32-unknown-unknown, optionally runs wasm-opt,
 // copies the binary into packages/core/wasm/, and generates the inline
 // (base64) module used by the `-compat` build. See ADR-0003.
 import { execFileSync, spawnSync } from "node:child_process";
@@ -12,11 +12,19 @@ const release = process.argv.includes("--release") || process.env.CI === "true";
 const profile = release ? "wasm-release" : "dev";
 const profileDir = release ? "wasm-release" : "debug";
 
-const args = ["build", "-p", "cp-wasm", "--target", "wasm32-unknown-unknown", "--profile", profile];
+const args = [
+  "build",
+  "-p",
+  "skidpad-wasm",
+  "--target",
+  "wasm32-unknown-unknown",
+  "--profile",
+  profile,
+];
 console.log(`[build-wasm] cargo ${args.join(" ")}`);
 execFileSync("cargo", args, { cwd: root, stdio: "inherit" });
 
-const built = join(root, "target", "wasm32-unknown-unknown", profileDir, "cp_wasm.wasm");
+const built = join(root, "target", "wasm32-unknown-unknown", profileDir, "skidpad_wasm.wasm");
 let bytes = readFileSync(built);
 
 // Optional size optimisation. Never changes semantics: no fast-math, no
@@ -44,7 +52,7 @@ installWasm(bytes);
 
 const gz = gzipSync(bytes).length;
 console.log(
-  `[build-wasm] ${profile}: ${statSync(wasmOut).size} bytes (${gz} gzipped)${optimised ? ", wasm-opt applied" : ""} -> packages/core/wasm/contactpatch.wasm`,
+  `[build-wasm] ${profile}: ${statSync(wasmOut).size} bytes (${gz} gzipped)${optimised ? ", wasm-opt applied" : ""} -> packages/core/wasm/skidpad.wasm`,
 );
 if (release && gz > 200 * 1024) {
   console.error(`[build-wasm] gzipped size ${gz} exceeds the 200 KB budget`);

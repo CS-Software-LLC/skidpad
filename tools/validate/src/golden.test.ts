@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { init } from "@contactpatch/core";
+import { init } from "@skidpad/core";
 import { compare, DEFAULT_TOLERANCE, runAll, type ValidationReport } from "./scenarios.js";
 
 describe("validation scenarios", () => {
@@ -9,8 +9,8 @@ describe("validation scenarios", () => {
     const golden = JSON.parse(
       readFileSync(fileURLToPath(new URL("../golden/results.json", import.meta.url)), "utf8"),
     ) as ValidationReport;
-    const cp = await init();
-    const report = runAll(cp);
+    const sp = await init();
+    const report = runAll(sp);
     const diffs = compare(golden, report, DEFAULT_TOLERANCE);
     expect(
       diffs,
@@ -19,8 +19,8 @@ describe("validation scenarios", () => {
   });
 
   it("every preset understeers mildly and agrees with linear theory", async () => {
-    const cp = await init();
-    const report = runAll(cp);
+    const sp = await init();
+    const report = runAll(sp);
     for (const [id, v] of Object.entries(report.vehicles)) {
       expect(v.understeer.gradientDegPerG, id).toBeGreaterThan(0);
       expect(v.understeer.gradientDegPerG, id).toBeLessThan(8);

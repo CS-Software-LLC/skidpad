@@ -1,11 +1,11 @@
 {
-  "name": "@contactpatch/presets",
+  "name": "@skidpad/presets",
   "version": "0.1.0",
-  "description": "Reference vehicle definitions and surface tables for Contact Patch.",
+  "description": "Reference vehicle definitions and surface tables for Skidpad.",
   "license": "MIT OR Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "https://github.com/csummers88/oss-vehicle-physics",
+    "url": "https://github.com/csummers88/skidpad",
     "directory": "packages/presets"
   },
   "type": "module",
@@ -27,7 +27,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@contactpatch/core": "workspace:*"
+    "@skidpad/core": "workspace:*"
   },
   "devDependencies": {
     "typescript": "^5.6.0",

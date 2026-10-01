@@ -1,8 +1,8 @@
-import { smoothWave, type ContactPatch, type VehicleDefinition } from "@contactpatch/core";
-import { presetIds, preset, type PresetId } from "@contactpatch/presets";
+import { smoothWave, type Skidpad, type VehicleDefinition } from "@skidpad/core";
+import { presetIds, preset, type PresetId } from "@skidpad/presets";
 
 export interface VehicleResults {
-  understeer: ReturnType<ContactPatch["runScenario"]> & {
+  understeer: ReturnType<Skidpad["runScenario"]> & {
     gradientDegPerG: number;
     analyticGradientDegPerG: number;
     ackermannAngle: number;
@@ -26,8 +26,8 @@ export interface ValidationReport {
 }
 
 /** A deterministic scripted drive used both for regression and determinism. */
-export function scriptedDriveHash(cp: ContactPatch, def: VehicleDefinition, steps = 1800): string {
-  const w = cp.createWorld(1);
+export function scriptedDriveHash(sp: Skidpad, def: VehicleDefinition, steps = 1800): string {
+  const w = sp.createWorld(1);
   const i = w.addVehicle(def);
   for (let k = 0; k < steps; k++) {
     const t = k / 60;
@@ -45,12 +45,12 @@ export function scriptedDriveHash(cp: ContactPatch, def: VehicleDefinition, step
   return h;
 }
 
-export function runAll(cp: ContactPatch, ids: PresetId[] = presetIds): ValidationReport {
+export function runAll(sp: Skidpad, ids: PresetId[] = presetIds): ValidationReport {
   const vehicles: Record<string, VehicleResults> = {};
   for (const id of ids) {
     const def = preset(id);
-    const understeer = cp.runScenario({ scenario: "understeerGradient", definition: def });
-    const sl = cp.runScenario({ scenario: "straightLine", definition: def });
+    const understeer = sp.runScenario({ scenario: "understeerGradient", definition: def });
+    const sl = sp.runScenario({ scenario: "straightLine", definition: def });
     vehicles[id] = {
       understeer,
       straightLine: {
@@ -60,10 +60,10 @@ export function runAll(cp: ContactPatch, ids: PresetId[] = presetIds): Validatio
         meanDeceleration: sl.meanDeceleration,
         wheelLocked: sl.wheelLocked,
       },
-      scriptedDriveHash: scriptedDriveHash(cp, def),
+      scriptedDriveHash: scriptedDriveHash(sp, def),
     };
   }
-  return { coreVersion: cp.version, mathSelftestHash: cp.mathSelftestHash(), vehicles };
+  return { coreVersion: sp.version, mathSelftestHash: sp.mathSelftestHash(), vehicles };
 }
 
 export interface Tolerance {

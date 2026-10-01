@@ -41,6 +41,11 @@ jobs:
       - name: Assemble site with validation and benchmark results
         run: node scripts/assemble-site.mjs
       - uses: actions/configure-pages@v5
+        with:
+          # Creates the Pages site on first run so the repository owner does
+          # not have to enable it by hand (Settings → Pages → Source: GitHub
+          # Actions). Needs the `pages: write` permission declared above.
+          enablement: true
       - uses: actions/upload-pages-artifact@v3
         with:
           path: site

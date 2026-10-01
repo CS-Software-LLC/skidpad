@@ -13,8 +13,8 @@ export default defineConfig({
         ...devices["Desktop Chrome"],
         // Environments that ship their own Chromium (no CDN access) can
         // point at it; CI uses the Playwright-managed build.
-        ...(process.env.CP_CHROMIUM_PATH
-          ? { launchOptions: { executablePath: process.env.CP_CHROMIUM_PATH } }
+        ...(process.env.SKIDPAD_CHROMIUM_PATH
+          ? { launchOptions: { executablePath: process.env.SKIDPAD_CHROMIUM_PATH } }
           : {}),
       },
     },

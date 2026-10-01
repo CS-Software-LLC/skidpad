@@ -29,7 +29,7 @@ jobs:
       - run: cargo clippy --workspace --all-targets -- -D warnings
       - run: cargo test --workspace
       - name: Clippy on the WASM target
-        run: cargo clippy -p cp-wasm --target wasm32-unknown-unknown -- -D warnings
+        run: cargo clippy -p skidpad-wasm --target wasm32-unknown-unknown -- -D warnings
 
   typescript:
     name: WASM build, TypeScript, validation, benchmark
@@ -63,8 +63,8 @@ jobs:
       - name: Upload WASM artifact
         uses: actions/upload-artifact@v4
         with:
-          name: contactpatch-wasm
-          path: packages/core/wasm/contactpatch.wasm
+          name: skidpad-wasm
+          path: packages/core/wasm/skidpad.wasm
       - name: Upload benchmark result
         uses: actions/upload-artifact@v4
         with:
@@ -79,7 +79,7 @@ jobs:
             apps/docs/.vitepress/dist
             apps/bench/dist
       - name: Validation summary
-        run: pnpm --filter @contactpatch/validate run validate >> "$GITHUB_STEP_SUMMARY" || true
+        run: pnpm --filter @skidpad/validate run validate >> "$GITHUB_STEP_SUMMARY" || true
 
   determinism:
     name: Cross-browser determinism (Chromium, Firefox, WebKit, Node)
@@ -100,13 +100,13 @@ jobs:
       - run: pnpm build:wasm:release
       - run: pnpm -r --filter './packages/**' run build
       - name: Install Playwright browsers
-        run: pnpm --filter @contactpatch/determinism-tests exec playwright install --with-deps chromium firefox webkit
+        run: pnpm --filter @skidpad/determinism-tests exec playwright install --with-deps chromium firefox webkit
       - name: Node hashes
-        run: pnpm --filter @contactpatch/determinism-tests run hash:node
+        run: pnpm --filter @skidpad/determinism-tests run hash:node
       - name: Node determinism test
-        run: pnpm --filter @contactpatch/determinism-tests run test
+        run: pnpm --filter @skidpad/determinism-tests run test
       - name: Browser determinism test
-        run: pnpm --filter @contactpatch/determinism-tests run test:browsers
+        run: pnpm --filter @skidpad/determinism-tests run test:browsers
       - name: Upload hashes
         if: always()
         uses: actions/upload-artifact@v4

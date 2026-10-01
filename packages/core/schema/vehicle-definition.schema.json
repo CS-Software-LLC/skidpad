@@ -1,14 +1,14 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://contactpatch.dev/schema/vehicle-definition.schema.json",
-  "title": "Contact Patch vehicle definition",
+  "$id": "https://skidpad.dev/schema/vehicle-definition.schema.json",
+  "title": "Skidpad vehicle definition",
   "description": "A vehicle as plain data: chassis, axles with tires, steering, brakes, drive, aero, and simulation settings. All units SI unless the field name ends in Deg. Every field has a default; a definition may omit any of them.",
   "type": "object",
   "properties": {
     "formatVersion": {
       "type": "integer",
       "const": 1,
-      "description": "Format version. Migrations in @contactpatch/core bring older files forward."
+      "description": "Format version. Migrations in @skidpad/core bring older files forward."
     },
     "name": { "type": "string", "default": "Unnamed vehicle" },
     "chassis": {

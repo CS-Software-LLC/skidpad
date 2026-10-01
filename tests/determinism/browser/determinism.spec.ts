@@ -7,7 +7,7 @@ import type { DeterminismReport } from "../src/scenario.js";
 const here = dirname(fileURLToPath(import.meta.url));
 const harness = readFileSync(join(here, "..", "out", "harness", "harness.js"), "utf8");
 const pinned = readFileSync(
-  join(here, "..", "..", "..", "crates", "cp-math", "selftest.hash"),
+  join(here, "..", "..", "..", "crates", "skidpad-math", "selftest.hash"),
   "utf8",
 ).trim();
 const nodeReportPath = join(here, "..", "out", "node.json");
@@ -19,7 +19,7 @@ test("scripted scenario hashes identically in this browser and in Node", async (
   await page.goto("about:blank");
   await page.addScriptTag({ content: harness });
   const report = (await page
-    .waitForFunction(() => window.__cpDeterminism, null, { timeout: 90_000 })
+    .waitForFunction(() => window.__skidpadDeterminism, null, { timeout: 90_000 })
     .then((h) => h.jsonValue())) as DeterminismReport & { error?: string };
   expect(report.error, report.error).toBeUndefined();
 

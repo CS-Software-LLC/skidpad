@@ -1,11 +1,11 @@
 {
-  "name": "@contactpatch/input",
+  "name": "@skidpad/input",
   "version": "0.1.0",
-  "description": "Keyboard, gamepad, and wheel input filtering for Contact Patch.",
+  "description": "Keyboard, gamepad, and wheel input filtering for Skidpad.",
   "license": "MIT OR Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "https://github.com/csummers88/oss-vehicle-physics",
+    "url": "https://github.com/csummers88/skidpad",
     "directory": "packages/input"
   },
   "type": "module",

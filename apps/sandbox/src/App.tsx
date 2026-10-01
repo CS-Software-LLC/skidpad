@@ -57,7 +57,7 @@ export function App() {
   if (!sim)
     return (
       <div className="error" style={{ color: "#9aa4b5" }}>
-        Loading Contact Patch…
+        Loading Skidpad…
       </div>
     );
 
@@ -84,7 +84,7 @@ export function App() {
         <button
           onClick={() => {
             const csv = sim.recorder.toCSV();
-            download(new Blob([csv], { type: "text/csv" }), `contactpatch-${presetId}.csv`);
+            download(new Blob([csv], { type: "text/csv" }), `skidpad-${presetId}.csv`);
           }}
         >
           Export telemetry CSV
@@ -94,7 +94,7 @@ export function App() {
             if (!canvasRef.current) return;
             if (clip.current.recording) {
               const blob = await clip.current.stop();
-              download(blob, `contactpatch-${presetId}.webm`);
+              download(blob, `skidpad-${presetId}.webm`);
               setRecording(false);
             } else {
               clip.current.start(canvasRef.current);
@@ -139,7 +139,7 @@ function Hud({ sim }: { sim: Sim }) {
   }, [sim]);
   return (
     <div className="hud">
-      <h1>Contact Patch sandbox · {sim.definition.name}</h1>
+      <h1>Skidpad sandbox · {sim.definition.name}</h1>
       {hud && (
         <>
           <div className="big">{hud.speedKmh.toFixed(0)} km/h</div>

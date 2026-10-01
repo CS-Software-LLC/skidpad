@@ -1,7 +1,7 @@
 # Vehicle definitions
 
 A vehicle is plain JSON described by a published JSON Schema
-(`@contactpatch/core/schema`). It has a `formatVersion`, and
+(`@skidpad/core/schema`). It has a `formatVersion`, and
 `migrateDefinition()` brings older files forward. Every field has a default
 and SI units; the only non-SI fields end in `Deg`.
 

@@ -1,6 +1,6 @@
 # Governance
 
-Contact Patch is maintainer-led until 1.0.
+Skidpad is maintainer-led until 1.0.
 
 - **Maintainers** merge pull requests, cut releases, and own the roadmap in the
   README. Decisions that are not obvious are recorded as Architecture Decision
