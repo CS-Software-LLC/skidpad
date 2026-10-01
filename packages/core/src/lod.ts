@@ -1,4 +1,14 @@
-import type { Lod, World } from "./core.js";
+import type { Lod } from "./core.js";
+
+/**
+ * What {@link LodController} drives: a `World`, or anything that forwards
+ * to one (a replay recorder records the changes it passes on).
+ */
+export interface LodTarget {
+  readonly vehicleCount: number;
+  lod(vehicle: number): Lod;
+  setLod(vehicle: number, lod: Lod, substepRateHz?: number): void;
+}
 
 /** Distances at which {@link LodController} changes a vehicle's level. */
 export interface LodThresholds {
@@ -50,7 +60,7 @@ export class LodController {
   private readonly pinned = new Set<number>();
 
   constructor(
-    private readonly world: World,
+    private readonly world: LodTarget,
     public thresholds: LodThresholds = {},
   ) {}
 

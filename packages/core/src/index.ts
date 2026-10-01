@@ -31,7 +31,7 @@ export {
 export { ErrorCode, EXPECTED_ABI_VERSION } from "./wasm/abi.js";
 export { triangleWave, smoothWave } from "./wave.js";
 export { chooseLod, LodController } from "./lod.js";
-export type { LodThresholds } from "./lod.js";
+export type { LodThresholds, LodTarget } from "./lod.js";
 export type { CpExports } from "./wasm/abi.js";
 export type { WasmSource } from "./wasm/instantiate.js";
 
