@@ -26,18 +26,22 @@ sports car's limited-slip differential adds a little more under power. The
 kart is the exception: its solid rear axle ([drivetrain](/concepts/drivetrain))
 forces both rear wheels to one speed, so in a corner the inner wheel drives
 and the outer brakes, a yaw moment against the turn that doubles the steer
-angle needed at low speed. The push eases as load transfer unloads the
-inner wheel, so the fitted gradient comes out slightly negative. Real karts
-lift the inner rear wheel through steering-geometry jacking, which arrives in
-milestone 5; the single-track model, with one wheel per axle, shows the
-kart's underlying understeer.
+angle needed at low speed. The push eases as load transfer and steering jacking
+([ADR-0012](https://github.com/csummers88/skidpad/blob/main/docs/adr/0012-steering-geometry-and-rack-force.md))
+unload the inner rear wheel, so a linear fit over lateral acceleration reads
+it as a negative gradient: the number is a poor summary for a solid axle, and
+the per-point steer angles in the golden file tell the story (twice the
+Ackermann angle at 4 m/s, falling with speed). The single-track model, with
+one wheel per axle, shows the kart's underlying understeer.
 
 **Straight line** reports 0–100 km/h at full throttle, through the
 preset's drivetrain (the automatic launches on its clutch and shifts up, so
 the time includes wheelspin and the torque holes), and 100–0 km/h at full
 brake with no ABS, so cars whose brakes exceed tire grip lock their wheels
-and stop on sliding friction. Published road-test distances assume ABS and
-are shorter; the gap closes in milestone 5.
+and stop on sliding friction. Published road-test distances assume ABS; the
+table also shows the same stop with the ABS assist on
+([assists](/concepts/assists)), which brings the sports car to within a few
+metres of its data sheet.
 
 **Locked brakes** is measured on that same stop. A wheel that locks must lock
 once and stay locked: the scenario counts every change between rolling and

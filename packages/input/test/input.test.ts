@@ -90,3 +90,190 @@ describe("GamepadInput", () => {
     expect(g.poll()).toBeUndefined();
   });
 });
+
+describe("calibration", () => {
+  it("maps a centred axis through its dead zone and inversion", async () => {
+    const { calibrateCentred, defaultCentredCalibration } = await import("../src/index.js");
+    const c = { ...defaultCentredCalibration(), min: -0.9, max: 0.8, center: -0.05, deadzone: 0.1 };
+    expect(calibrateCentred(-0.05, c)).toBe(0);
+    expect(calibrateCentred(0.8, c)).toBeCloseTo(1);
+    expect(calibrateCentred(-0.9, c)).toBeCloseTo(-1);
+    expect(calibrateCentred(0.0, c)).toBe(0); // inside the dead zone
+    expect(calibrateCentred(0.8, { ...c, invert: true })).toBeCloseTo(-1);
+  });
+
+  it("maps a pedal from rest to full travel and learns an inverted one", async () => {
+    const { calibratePedal, AxisCalibrator } = await import("../src/index.js");
+    const cal = new AxisCalibrator(false);
+    cal.rest(0.95);
+    for (const v of [0.95, 0.5, -0.9, -0.95]) cal.sample(v);
+    const c = cal.result()!;
+    expect(c.invert).toBe(true);
+    expect(calibratePedal(0.95, c)).toBe(0);
+    expect(calibratePedal(-0.95, c)).toBeCloseTo(1);
+    expect(new AxisCalibrator(true).result()).toBeUndefined();
+  });
+
+  it("round-trips profiles through storage", async () => {
+    const { builtinProfiles, loadProfiles, saveProfiles } = await import("../src/index.js");
+    const store = new Map<string, string>();
+    const storage = {
+      getItem: (k: string) => store.get(k) ?? null,
+      setItem: (k: string, v: string) => void store.set(k, v),
+      removeItem: (k: string) => void store.delete(k),
+    };
+    expect(loadProfiles(storage)).toEqual([]);
+    saveProfiles(storage, builtinProfiles());
+    expect(loadProfiles(storage).map((p) => p.id)).toEqual(builtinProfiles().map((p) => p.id));
+  });
+});
+
+describe("WheelInput", () => {
+  const pads = (steer: number, throttle: number, brake: number, paddle = false) => [
+    {
+      id: "Logitech G PRO Racing Wheel (Vendor: 046d Product: 2111)",
+      index: 0,
+      connected: true,
+      axes: [steer, 0, 0, 0],
+      buttons: Array.from({ length: 8 }, (_, i) => ({ value: 0, pressed: paddle && i === 5 })),
+    },
+    {
+      id: "Logitech PRO Racing Pedals (Vendor: 046d Product: 2112)",
+      index: 1,
+      connected: true,
+      axes: [throttle, brake, -1],
+      buttons: [],
+    },
+  ];
+
+  it("matches the G PRO profile across the two devices and scales steering by the car's lock", async () => {
+    const { WheelInput } = await import("../src/index.js");
+    const w = new WheelInput({ steeringLockDeg: 14 * 35 });
+    w.match(pads(0.5, 1, -1));
+    expect(w.status.profile?.id).toBe("logitech-g-pro");
+    expect(w.status.pedals?.index).toBe(1);
+    const f = w.map()!;
+    // Half of a 900° wheel, less the 2 % dead zone, over a 490° lock.
+    const angle = ((0.5 - 0.02) / 0.98) * 450;
+    expect(w.status.wheelAngleDeg).toBeCloseTo(angle);
+    expect(f.steer).toBeCloseTo(angle / 490);
+    expect(f.throttle).toBeCloseTo(1);
+    expect(f.brake).toBe(0);
+    expect(f.gear).toBe(0);
+  });
+
+  it("shifts on the paddle's rising edge only", async () => {
+    const { WheelInput } = await import("../src/index.js");
+    const w = new WheelInput();
+    w.match(pads(0, -1, -1, true));
+    expect(w.map()!.gear).toBe(1);
+    expect(w.map()!.gear).toBe(1);
+    w.match(pads(0, -1, -1, false));
+    w.map();
+    w.match(pads(0, -1, -1, true));
+    expect(w.map()!.gear).toBe(2);
+  });
+
+  it("finds the axis the user is moving", async () => {
+    const { AxisFinder } = await import("../src/index.js");
+    const f = new AxisFinder();
+    const pad = { id: "x", index: 0, connected: true, axes: [0, -1, 0], buttons: [] };
+    f.sample("pedals", pad);
+    f.sample("pedals", { ...pad, axes: [0.05, 0.9, 0] });
+    expect(f.result()).toEqual({ device: "pedals", axis: 1, travel: 1.9 });
+  });
+});
+
+describe("TouchInput", () => {
+  it("steers from the strip and reads pedals from the column", async () => {
+    const { TouchInput } = await import("../src/index.js");
+    const t = new TouchInput();
+    t.pointerDown(1, 0.25, 0.5);
+    t.pointerMove(1, 0.35, 0.5); // 0.1 of a 0.2 travel
+    t.pointerDown(2, 0.8, 0.2); // upper pedal column: throttle
+    let f = t.update(1 / 60);
+    expect(f.steer).toBeCloseTo(0.5);
+    expect(f.throttle).toBeGreaterThan(0.5);
+    expect(f.brake).toBe(0);
+    t.pointerMove(2, 0.8, 0.9);
+    f = t.update(1 / 60);
+    expect(f.throttle).toBe(0);
+    expect(f.brake).toBeGreaterThan(0.7);
+    t.pointerUp(1);
+    t.pointerUp(2);
+    f = t.update(1 / 60);
+    expect(Math.abs(f.steer)).toBeLessThan(0.5);
+    for (let i = 0; i < 60; i++) f = t.update(1 / 60);
+    expect(f.steer).toBe(0);
+    expect(f.throttle).toBe(0);
+  });
+});
+
+describe("force feedback", () => {
+  it("scales torque to the device range with smoothing and clip statistics", async () => {
+    const { FfbScaler } = await import("../src/index.js");
+    const s = new FfbScaler({ maxTorque: 10, smoothing: 0 });
+    expect(s.scale(5, 1 / 60)).toBeCloseTo(0.5);
+    expect(s.scale(-20, 1 / 60)).toBe(-1);
+    expect(s.clipFraction).toBeCloseTo(0.5);
+    s.invert = true;
+    expect(s.scale(5, 1 / 60)).toBeCloseTo(-0.5);
+    const smooth = new FfbScaler({ maxTorque: 10, smoothing: 0.1 });
+    expect(smooth.scale(10, 0.01)).toBeCloseTo(0.1);
+  });
+
+  it("drives a Logitech device over a fake WebHID and logs the exchange", async () => {
+    const { LogitechWebHidSink } = await import("../src/index.js");
+    const sent: Array<{ id: number; data: number[] }> = [];
+    let listener: ((e: { reportId: number; data: DataView }) => void) | undefined;
+    const device = {
+      opened: false,
+      vendorId: 0x046d,
+      productId: 0x2111,
+      productName: "PRO Racing Wheel",
+      async open() {
+        this.opened = true;
+      },
+      async close() {
+        this.opened = false;
+      },
+      async sendReport(id: number, data: Uint8Array) {
+        const bytes = Array.from(data);
+        sent.push({ id, data: bytes });
+        // Answer HID++ requests: feature index 3 for the root query, slot
+        // ids 1, 2, 3 for downloads, echo otherwise.
+        const reply = new Uint8Array(19);
+        reply[0] = 0xff;
+        reply[1] = bytes[1]!;
+        reply[2] = bytes[2]!;
+        if (bytes[1] === 0 && bytes[2]! >> 4 === 0) reply[3] = 3;
+        else if (bytes[1] === 3 && bytes[2]! >> 4 === 2)
+          reply[3] = 1 + sent.filter((s) => s.data[1] === 3 && s.data[2]! >> 4 === 2).length;
+        queueMicrotask(() => listener?.({ reportId: 0x11, data: new DataView(reply.buffer) }));
+      },
+      addEventListener(_t: "inputreport", l: typeof listener) {
+        listener = l;
+      },
+      removeEventListener() {
+        listener = undefined;
+      },
+    };
+    const lines: string[] = [];
+    const sink = new LogitechWebHidSink({ log: (l) => lines.push(l), minInterval: 0 });
+    await sink.attach(device);
+    expect(sink.connected).toBe(true);
+    expect(lines.some((l) => l.includes("feature 0x8123 at index 3"))).toBe(true);
+    // Root query, get info, reset, aperture, gains, three downloads.
+    expect(sent.length).toBe(8);
+    await sink.update({ torque: 5.5, damping: 0, friction: 0 }, 1);
+    const last = sent[sent.length - 1]!;
+    expect(last.id).toBe(0x11);
+    expect(last.data[1]).toBe(3); // feature index
+    expect(last.data[2] >> 4).toBe(2); // download effect
+    expect(last.data[3]).toBe(2); // slot of the constant effect
+    const level = (last.data[8]! << 8) | last.data[9]!;
+    expect(level).toBeCloseTo(0x7fff / 2, -2);
+    await sink.disconnect();
+    expect(device.opened).toBe(false);
+  });
+});

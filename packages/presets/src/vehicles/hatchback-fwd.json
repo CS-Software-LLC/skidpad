@@ -7,7 +7,8 @@
       "Class-typical figures from manufacturer specification sheets for B/C-segment hatchbacks (mass 1150–1300 kg, wheelbase 2.5–2.65 m, Cd 0.30–0.33, 60/40 front weight bias).",
       "Tire feel parameters tuned to a ~0.85 g skidpad and ~38 m 100–0 km/h braking distance, typical of published road tests for the class.",
       "Suspension rates typical of a compact hatchback with ~1.4 Hz front and ~1.5 Hz rear ride frequencies, soft rear bar (Gillespie, Fundamentals of Vehicle Dynamics, ch. 5).",
-      "Drivetrain [ILLUSTRATIVE]: a 1.6 l naturally aspirated four (peak 172 N·m, 100 kW at 6000 rpm), five-speed ratios and a 4.1 final drive typical of the class; open front differential."
+      "Drivetrain [ILLUSTRATIVE]: a 1.6 l naturally aspirated four (peak 172 N·m, 100 kW at 6000 rpm), five-speed ratios and a 4.1 final drive typical of the class; open front differential.",
+      "Steering geometry [ILLUSTRATIVE]: 5–6° caster giving about 25 mm of mechanical trail, a small positive scrub radius and an electric assist removing roughly 60 % of the rack torque at the hand wheel, typical of a modern front-drive hatchback."
     ],
     "notes": "Not a specific production model. Values are class-representative."
   },
@@ -82,7 +83,14 @@
   "steering": {
     "maxWheelAngleDeg": 36,
     "ratio": 15.5,
-    "ackermann": 1.0
+    "ackermann": 1.0,
+    "mechanicalTrail": 0.025,
+    "scrubRadius": 0.005,
+    "steeringArm": 0.13,
+    "powerAssist": 0.6,
+    "columnFriction": 0.25,
+    "columnDamping": 0.04,
+    "jackingRate": 0.0
   },
   "brakes": {
     "handbrakeTorque": 1200

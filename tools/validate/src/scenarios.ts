@@ -95,6 +95,8 @@ export interface VehicleResults {
     /** … and the car springs back a few centimetres and comes to rest on the brake. */
     restSpeed: number;
     settledSpeed: number;
+    /** The same stop with the anti-lock assist enabled (ADR-0013), m. */
+    brakingDistanceAbs: number;
   };
   /** Standstill: at rest on flat ground and parked on slopes. */
   parked: ParkedResults;
@@ -173,6 +175,20 @@ export function runAll(sp: Skidpad, ids: PresetId[] = presetIds): ValidationRepo
     const def = preset(id);
     const understeer = sp.runScenario({ scenario: "understeerGradient", definition: def });
     const sl = sp.runScenario({ scenario: "straightLine", definition: def });
+    // The same stop with the anti-lock assist on (presets leave `assists`
+    // at the core defaults, so the block may be absent).
+    const withAbs = structuredClone(def) as VehicleDefinition & {
+      assists?: Partial<VehicleDefinition["assists"]>;
+    };
+    withAbs.assists = {
+      ...(withAbs.assists ?? {}),
+      abs: { ...(withAbs.assists?.abs ?? {}), enabled: true },
+    } as VehicleDefinition["assists"];
+    const slAbs = sp.runScenario({
+      scenario: "straightLine",
+      definition: withAbs,
+      config: { maxAccelTime: 0 },
+    });
     const single = structuredClone(def);
     single.simulation.model = "singleTrack";
     const understeerSingle = sp.runScenario({
@@ -194,6 +210,7 @@ export function runAll(sp: Skidpad, ids: PresetId[] = presetIds): ValidationRepo
         lockedDecelRipple: sl.lockedDecelRipple,
         restSpeed: sl.restSpeed,
         settledSpeed: sl.settledSpeed,
+        brakingDistanceAbs: slAbs.brakingDistance,
       },
       parked: runParked(sp, def),
       timestepSweep: runTimestepSweep(sp, def),

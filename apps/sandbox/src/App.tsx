@@ -3,6 +3,7 @@ import { Scene } from "./Scene.js";
 import { Graph } from "./Graph.js";
 import { Sim, presetIds, hostKinds, type HostKind, type PresetId } from "./sim.js";
 import { ClipRecorder, download } from "./record.js";
+import { WheelPanel } from "./WheelPanel.js";
 
 interface WheelHud {
   load: number;
@@ -105,6 +106,12 @@ export function App() {
     localStorage.setItem(VOLUME_KEY, String(volume));
   }, [sim, volume]);
 
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!sim || !canvas) return;
+    return sim.attachTouch(canvas);
+  }, [sim]);
+
   if (error) return <div className="error">Failed to load the core:\n{error}</div>;
   if (!sim)
     return (
@@ -117,6 +124,7 @@ export function App() {
     <>
       <Scene sim={sim} hostKind={hostKind} canvasRef={canvasRef} />
       <Hud sim={sim} />
+      <WheelPanel sim={sim} />
       <div className="controls">
         <select
           value={presetId}

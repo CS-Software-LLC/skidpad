@@ -443,8 +443,17 @@ impl Drivetrain {
             sys.mass[i][i] += wheels[i].inertia;
             sys.v[i] = wheels[i].omega;
         }
+        // An automatic lifts the throttle while the clutch is open for a
+        // shift, so the engine falls toward the next gear's speed instead of
+        // revving to the limiter and dumping its inertia into the wheels on
+        // re-engagement.
+        let engine_throttle = if interrupted && t.mode == TransmissionMode::Automatic {
+            0.0
+        } else {
+            input.throttle
+        };
         let (engine_torque, k_engine) = if has_engine {
-            self.power_unit_torque(self.engine_omega, input.throttle)
+            self.power_unit_torque(self.engine_omega, engine_throttle)
         } else {
             (0.0, 0.0)
         };

@@ -22,6 +22,7 @@
 //! accumulated impulses at the end; the proxy pose integrated here is only
 //! used to move the rays between substeps and is discarded.
 
+use crate::assists::{self, AssistTelemetry, WheelObs};
 use crate::definition::VehicleDefinition;
 use crate::drivetrain::{Drivetrain, WheelDyn};
 use crate::geom::{Quat, Vec3};
@@ -176,7 +177,12 @@ pub struct FourWheelVehicle {
     /// Body-frame acceleration from forces other than gravity, m/s².
     pub accel_body: Vec3,
     pub drag_force: f64,
+    /// Hand-wheel torque in the sign of the steer input, N·m (ADR-0012).
     pub steering_torque: f64,
+    /// Force on the steering rack, N.
+    pub rack_force: f64,
+    /// What the assists did this substep (ADR-0013).
+    pub assist_telemetry: AssistTelemetry,
     /// Ground slope under the built-in host as the rise per metre along
     /// world +x (grade) and world +y (cross slope). The built-in ground
     /// stays the plane z = 0 and gravity is tilted instead, which is the
@@ -207,6 +213,8 @@ impl FourWheelVehicle {
             accel_body: Vec3::ZERO,
             drag_force: 0.0,
             steering_torque: 0.0,
+            rack_force: 0.0,
+            assist_telemetry: AssistTelemetry::default(),
             ground_slope: [0.0, 0.0],
         };
         v.compute_geometry();
@@ -292,6 +300,7 @@ impl FourWheelVehicle {
         self.accel_body = Vec3::ZERO;
         self.drag_force = 0.0;
         self.steering_torque = 0.0;
+        self.rack_force = 0.0;
         self.steer_angle = 0.0;
         for (i, w) in self.wheels.iter_mut().enumerate() {
             let g = self.geometry[i];
@@ -395,7 +404,15 @@ impl FourWheelVehicle {
 
         // --- steering ----------------------------------------------------
         // Positive input steers right (toward −y): a negative angle about +z.
-        let delta = -input.steer * self.def.max_wheel_angle();
+        // The steering assist (ADR-0013) caps the angle at speed.
+        let steer_scale = assists::steer_scale(
+            &self.def.assists.steering_assist,
+            self.vx(),
+            self.def.chassis.wheelbase,
+            self.def.max_wheel_angle(),
+        );
+        self.assist_telemetry.steer_assist_scale = steer_scale;
+        let delta = -input.steer * steer_scale * self.def.max_wheel_angle();
         self.steer_angle = delta;
         let steers = [
             self.wheel_steer(FL, delta),
@@ -423,12 +440,17 @@ impl FourWheelVehicle {
             } else {
                 None
             };
+            // Jacking (ADR-0012): with steer, the inner wheel's contact moves
+            // down the ray and the outer's up, as caster and kingpin
+            // inclination do; the spring sees it as compression.
+            let jack = g.side * steer * self.def.steering.jacking_rate;
             match hit_t {
                 Some(tt) if tt <= g.ray_length => {
                     w.in_contact = true;
                     // At the static position the hit is one bump travel plus
                     // one radius down the ray; shorter hits are compression.
-                    w.travel = g.ray_length - self.def.axles[i / 2].suspension.travel_droop - tt;
+                    w.travel =
+                        g.ray_length - self.def.axles[i / 2].suspension.travel_droop - tt + jack;
                     let v_origin = self.vel + omega_world.cross(origin - self.pos);
                     w.travel_rate = (v_origin - c.surface_velocity).dot(c.normal) / dn;
                     w.contact_point = origin + down * tt;
@@ -584,7 +606,48 @@ impl FourWheelVehicle {
             tire_forces[i] = (fwd * out.fx + lat * out.fy, n, out.mz);
         }
 
-        self.drivetrain.step(dt, &input, &mut dyn_wheels);
+        // --- assists (ADR-0013): scale brakes, throttle for this substep ----
+        let mut drive_input = input;
+        if self.def.assists.any_enabled() {
+            let mut obs = [WheelObs::default(); WHEEL_COUNT];
+            let mut caps = [0.0; WHEEL_COUNT];
+            let (mut fy_max, mut load) = (0.0, 0.0);
+            for i in 0..WHEEL_COUNT {
+                let w = &self.wheels[i];
+                obs[i] = WheelObs {
+                    kappa: w.kinematic_ratio,
+                    driven: self.def.axles[i / 2].driven,
+                    front: i < 2,
+                    side: self.geometry[i].side,
+                };
+                caps[i] = dyn_wheels[i].brake_capacity;
+                if i < 2 {
+                    fy_max += w.out.fy_max;
+                    load += w.load;
+                }
+            }
+            let mu = if load > 0.0 { fy_max / load } else { 1.0 };
+            drive_input.throttle = assists::apply(
+                &self.def.assists,
+                &obs,
+                &mut caps,
+                self.vx(),
+                self.omega.z,
+                self.steer_angle,
+                self.def.chassis.wheelbase,
+                mu,
+                input.throttle,
+                &mut self.assist_telemetry,
+            );
+            for i in 0..WHEEL_COUNT {
+                dyn_wheels[i].brake_capacity = caps[i];
+                self.wheels[i].brake_torque = caps[i];
+            }
+        } else {
+            self.assist_telemetry.throttle_effective = input.throttle;
+        }
+
+        self.drivetrain.step(dt, &drive_input, &mut dyn_wheels);
 
         for i in 0..WHEEL_COUNT {
             let d = dyn_wheels[i];
@@ -644,10 +707,20 @@ impl FourWheelVehicle {
         self.orient = self.orient.integrate(self.omega, dt);
         self.time += dt;
 
-        // Steering torque at the hand wheel from the front aligning moments
-        // (rack geometry and power assist arrive in milestone 5).
-        self.steering_torque =
-            -(self.wheels[FL].out.mz + self.wheels[FR].out.mz) / self.def.steering.ratio;
+        // Kingpin torque of the steered wheels (ADR-0012): aligning moment,
+        // mechanical trail and scrub radius, through the ratio and the assist
+        // to the hand wheel, and over the knuckle arm to the rack.
+        let mut kingpin = 0.0;
+        for i in 0..WHEEL_COUNT {
+            if self.def.axles[i / 2].steered {
+                let o = &self.wheels[i].out;
+                kingpin += self
+                    .def
+                    .kingpin_torque(o.mz, o.fy, o.fx, self.geometry[i].side);
+            }
+        }
+        self.steering_torque = self.def.hand_wheel_torque(kingpin);
+        self.rack_force = kingpin / self.def.steering.steering_arm;
     }
 
     /// Write the telemetry record for the current state.
@@ -686,6 +759,7 @@ impl FourWheelVehicle {
         rec[t::BRAKE] = input.brake;
         rec[t::HANDBRAKE] = input.handbrake;
         rec[t::STEERING_TORQUE] = self.steering_torque;
+        rec[t::RACK_FORCE] = self.rack_force;
         rec[t::DRAG_FORCE] = self.drag_force;
 
         for axle in 0..2 {
@@ -723,7 +797,18 @@ impl FourWheelVehicle {
             rec[t::SPIN_ANGLE_FL + i] = w.spin_angle;
         }
         write_drivetrain_telemetry(&self.drivetrain, input, rec);
+        write_assist_telemetry(&self.assist_telemetry, rec);
     }
+}
+
+/// The assist channels, shared by both models.
+pub(crate) fn write_assist_telemetry(a: &AssistTelemetry, rec: &mut [f64]) {
+    rec[t::ABS_ACTIVITY] = a.abs_activity;
+    rec[t::TC_ACTIVITY] = a.tc_activity;
+    rec[t::ESC_YAW_ERROR] = a.esc_yaw_error;
+    rec[t::ESC_BRAKE_TORQUE] = a.esc_brake_torque;
+    rec[t::STEER_ASSIST_SCALE] = a.steer_assist_scale;
+    rec[t::THROTTLE_EFFECTIVE] = a.throttle_effective;
 }
 
 /// The drivetrain channels, shared by both models.

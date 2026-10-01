@@ -11,6 +11,7 @@
 //! pose. Since milestone 2 this is the level-of-detail model; the four-wheel
 //! model in `four_wheel.rs` is the default.
 
+use crate::assists::{self, AssistTelemetry, WheelObs};
 use crate::definition::VehicleDefinition;
 use crate::drivetrain::{Drivetrain, WheelDyn};
 use crate::input::VehicleInput;
@@ -65,7 +66,12 @@ pub struct BicycleVehicle {
     pub long_accel: f64,
     pub lat_accel: f64,
     pub drag_force: f64,
+    /// Hand-wheel torque in the sign of the steer input, N·m (ADR-0012).
     pub steering_torque: f64,
+    /// Force on the steering rack, N.
+    pub rack_force: f64,
+    /// What the assists did this substep (ADR-0013).
+    pub assist_telemetry: AssistTelemetry,
     /// Ground slope under the built-in host as the rise per metre along
     /// world +x (grade) and world +y (cross slope). Not part of the
     /// definition or the snapshot: it is the environment, set by the
@@ -97,6 +103,8 @@ impl BicycleVehicle {
             lat_accel: 0.0,
             drag_force: 0.0,
             steering_torque: 0.0,
+            rack_force: 0.0,
+            assist_telemetry: AssistTelemetry::default(),
             ground_slope: [0.0, 0.0],
         };
         v.compute_static_loads();
@@ -219,7 +227,14 @@ impl BicycleVehicle {
         // --- steering ------------------------------------------------------
         // Positive input steers right (toward −y), which is a negative road
         // wheel angle about +z.
-        let delta = -input.steer * self.def.max_wheel_angle();
+        let steer_scale = assists::steer_scale(
+            &self.def.assists.steering_assist,
+            self.vx,
+            self.def.chassis.wheelbase,
+            self.def.max_wheel_angle(),
+        );
+        self.assist_telemetry.steer_assist_scale = steer_scale;
+        let delta = -input.steer * steer_scale * self.def.max_wheel_angle();
         self.steer_angle = delta;
         let (sin_d, cos_d) = (m::sin(delta), m::cos(delta));
 
@@ -350,7 +365,47 @@ impl BicycleVehicle {
             };
         }
 
-        self.drivetrain.step(dt, &input, &mut dyn_wheels);
+        // --- assists (ADR-0013) ---------------------------------------------
+        let mut drive_input = input;
+        if self.def.assists.any_enabled() {
+            let mut obs = [WheelObs::default(); 2];
+            let mut caps = [0.0; 2];
+            for i in 0..2 {
+                obs[i] = WheelObs {
+                    kappa: self.axles[i].kinematic_ratio,
+                    driven: self.def.axles[i].driven,
+                    front: i == FRONT,
+                    side: 0.0,
+                };
+                caps[i] = dyn_wheels[i].brake_capacity;
+            }
+            let f = &self.axles[FRONT];
+            let mu = if f.load > 0.0 {
+                f.out.fy_max / f.load
+            } else {
+                1.0
+            };
+            drive_input.throttle = assists::apply(
+                &self.def.assists,
+                &obs,
+                &mut caps,
+                self.vx,
+                self.yaw_rate,
+                self.steer_angle,
+                self.def.chassis.wheelbase,
+                mu,
+                input.throttle,
+                &mut self.assist_telemetry,
+            );
+            for i in 0..2 {
+                dyn_wheels[i].brake_capacity = caps[i];
+                self.axles[i].brake_torque = caps[i];
+            }
+        } else {
+            self.assist_telemetry.throttle_effective = input.throttle;
+        }
+
+        self.drivetrain.step(dt, &drive_input, &mut dyn_wheels);
 
         for i in 0..2 {
             let d = dyn_wheels[i];
@@ -423,9 +478,16 @@ impl BicycleVehicle {
         }
         self.time += dt;
 
-        // Steering torque at the hand wheel from the front aligning moment
-        // (rack geometry and power assist arrive in milestone 5).
-        self.steering_torque = -self.axles[FRONT].out.mz / self.def.steering.ratio;
+        // Kingpin torque of the lumped front tire (ADR-0012): the scrub terms
+        // of a left and right wheel cancel, so the side is zero.
+        let o = &self.axles[FRONT].out;
+        let kingpin = if self.def.axles[FRONT].steered {
+            self.def.kingpin_torque(o.mz, o.fy, o.fx, 0.0)
+        } else {
+            0.0
+        };
+        self.steering_torque = self.def.hand_wheel_torque(kingpin);
+        self.rack_force = kingpin / self.def.steering.steering_arm;
     }
 
     /// Write the telemetry record for the current state.
@@ -453,6 +515,7 @@ impl BicycleVehicle {
         rec[t::BRAKE] = input.brake;
         rec[t::HANDBRAKE] = input.handbrake;
         rec[t::STEERING_TORQUE] = self.steering_torque;
+        rec[t::RACK_FORCE] = self.rack_force;
         rec[t::DRAG_FORCE] = self.drag_force;
         rec[t::WHEEL_SPEED_F] = f.omega;
         rec[t::WHEEL_SPEED_R] = r.omega;
@@ -512,6 +575,7 @@ impl BicycleVehicle {
             rec[t::SPIN_ANGLE_FL + i] = ax.spin_angle;
         }
         super::four_wheel::write_drivetrain_telemetry(&self.drivetrain, input, rec);
+        super::four_wheel::write_assist_telemetry(&self.assist_telemetry, rec);
     }
 }
 

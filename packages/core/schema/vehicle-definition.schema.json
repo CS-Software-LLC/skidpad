@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://skidpad.dev/schema/vehicle-definition.schema.json",
   "title": "Skidpad vehicle definition",
-  "description": "A vehicle as plain data: chassis, axles with tires and suspension, steering, brakes, drivetrain, aero, and simulation settings. All units SI unless the field name ends in Deg. Every field has a default; a definition may omit any of them.",
+  "description": "A vehicle as plain data: chassis, axles with tires and suspension, steering, brakes, drivetrain, assists, aero, and simulation settings. All units SI unless the field name ends in Deg. Every field has a default; a definition may omit any of them.",
   "type": "object",
   "properties": {
     "formatVersion": {
@@ -99,6 +99,52 @@
           "maximum": 1,
           "default": 1,
           "description": "Ackermann fraction: 0 parallel steer, 1 ideal Ackermann (four-wheel model)"
+        },
+        "mechanicalTrail": {
+          "type": "number",
+          "minimum": -0.5,
+          "maximum": 0.5,
+          "default": 0.02,
+          "description": "Mechanical (caster) trail on the ground, m (ADR-0012)"
+        },
+        "scrubRadius": {
+          "type": "number",
+          "minimum": -0.5,
+          "maximum": 0.5,
+          "default": 0.01,
+          "description": "Scrub radius, m, positive with the contact outboard of the kingpin axis"
+        },
+        "steeringArm": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "default": 0.12,
+          "description": "Knuckle arm the rack pulls on, m"
+        },
+        "powerAssist": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "default": 0,
+          "description": "Fraction of the rack torque the assist removes at the hand wheel"
+        },
+        "columnFriction": {
+          "type": "number",
+          "minimum": 0,
+          "default": 0.3,
+          "description": "Column friction for the force-feedback device, N·m"
+        },
+        "columnDamping": {
+          "type": "number",
+          "minimum": 0,
+          "default": 0.05,
+          "description": "Column damping for the force-feedback device, N·m per rad/s"
+        },
+        "jackingRate": {
+          "type": "number",
+          "minimum": -0.5,
+          "maximum": 0.5,
+          "default": 0,
+          "description": "Front contact travel along its ray per radian of steer, m/rad (inner down, outer up)"
         }
       },
       "additionalProperties": false
@@ -377,6 +423,117 @@
               "type": "number",
               "minimum": 1,
               "default": 1.5
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "assists": {
+      "type": "object",
+      "description": "Driving assists (ADR-0013), off by default. Stateless, applied inside the core so replays reproduce them.",
+      "properties": {
+        "abs": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "default": false
+            },
+            "slipTarget": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "default": 0.12,
+              "description": "Braking slip ratio where modulation starts"
+            },
+            "slipRelease": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "default": 0.3,
+              "description": "Braking slip ratio where the brake is at its floor"
+            },
+            "floor": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1,
+              "default": 0.15,
+              "description": "Smallest fraction of brake capacity left to the wheel"
+            },
+            "minSpeed": {
+              "type": "number",
+              "minimum": 0,
+              "default": 2,
+              "description": "Below this speed wheels may lock, m/s"
+            }
+          },
+          "additionalProperties": false
+        },
+        "tractionControl": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "default": false
+            },
+            "slipTarget": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "default": 0.1
+            },
+            "slipRelease": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "default": 0.25
+            }
+          },
+          "additionalProperties": false
+        },
+        "stabilityControl": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "default": false
+            },
+            "gain": {
+              "type": "number",
+              "minimum": 0,
+              "default": 1500,
+              "description": "Brake torque per rad/s of yaw-rate error, N·m/(rad/s)"
+            },
+            "deadBand": {
+              "type": "number",
+              "minimum": 0,
+              "default": 0.05,
+              "description": "Yaw-rate error ignored, rad/s"
+            },
+            "throttleCut": {
+              "type": "number",
+              "minimum": 0,
+              "default": 1,
+              "description": "Throttle cut per rad/s of error"
+            },
+            "minSpeed": {
+              "type": "number",
+              "minimum": 0,
+              "default": 3
+            }
+          },
+          "additionalProperties": false
+        },
+        "steeringAssist": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "default": false
+            },
+            "latAccelLimit": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "default": 9,
+              "description": "Lateral acceleration the steering limit aims for, m/s²"
             }
           },
           "additionalProperties": false

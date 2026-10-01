@@ -22,6 +22,7 @@ export default defineConfig({
           { text: "Vehicle definitions", link: "/guide/definitions" },
           { text: "Driving a Rapier body", link: "/guide/rapier" },
           { text: "Determinism contract", link: "/guide/determinism-contract" },
+          { text: "Wheels and force feedback", link: "/guide/force-feedback" },
         ],
       },
       {

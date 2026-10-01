@@ -7,7 +7,8 @@
       "Class-typical figures from manufacturer specification sheets for front-engine RWD sports cars (mass 1300–1450 kg, wheelbase 2.45–2.55 m, Cd 0.28–0.32, 52/48 front weight bias).",
       "Tire feel parameters tuned to a ~1.0 g skidpad and ~34 m 100–0 km/h braking distance from published road tests for the class.",
       "Suspension rates typical of a sports car with ~2.0 Hz front and ~2.2 Hz rear ride frequencies and a front-biased roll stiffness distribution (Milliken & Milliken, Race Car Vehicle Dynamics, ch. 16).",
-      "Drivetrain [ILLUSTRATIVE]: a 3.5 l naturally aspirated six (peak 405 N·m, 245 kW at 6000 rpm), six-speed ratios with a 3.6 final drive and a clutch-pack LSD in the 2–3:1 drive bias range typical of the class (Milliken & Milliken, Race Car Vehicle Dynamics, ch. 20)."
+      "Drivetrain [ILLUSTRATIVE]: a 3.5 l naturally aspirated six (peak 405 N·m, 245 kW at 6000 rpm), six-speed ratios with a 3.6 final drive and a clutch-pack LSD in the 2–3:1 drive bias range typical of the class (Milliken & Milliken, Race Car Vehicle Dynamics, ch. 20).",
+      "Steering geometry [ILLUSTRATIVE]: 7° caster (about 30 mm of trail), 12 mm scrub radius and a light assist, for the heavier, more communicative steering of a sports car."
     ],
     "notes": "Not a specific production model. The rear differential is a clutch-pack limited slip (preload 50 N·m, 2.5:1 drive, 1.8:1 coast)."
   },
@@ -82,7 +83,14 @@
   "steering": {
     "maxWheelAngleDeg": 32,
     "ratio": 13,
-    "ackermann": 1.0
+    "ackermann": 1.0,
+    "mechanicalTrail": 0.03,
+    "scrubRadius": 0.012,
+    "steeringArm": 0.12,
+    "powerAssist": 0.4,
+    "columnFriction": 0.3,
+    "columnDamping": 0.05,
+    "jackingRate": 0.0
   },
   "brakes": {
     "handbrakeTorque": 1500

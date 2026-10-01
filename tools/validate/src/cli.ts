@@ -44,13 +44,13 @@ for (const [id, v] of Object.entries(report.vehicles)) {
 }
 console.log("");
 console.log(
-  "| Vehicle | Wheels lock at (s) | Lock releases | Sliding decel ripple | Spring-back (m/s) | At rest after 2 s (m/s) |",
+  "| Vehicle | Wheels lock at (s) | Lock releases | Sliding decel ripple | Spring-back (m/s) | At rest after 2 s (m/s) | 100–0 km/h with ABS (m) |",
 );
-console.log("| --- | --- | --- | --- | --- | --- |");
+console.log("| --- | --- | --- | --- | --- | --- | --- |");
 for (const [id, v] of Object.entries(report.vehicles)) {
   const s = v.straightLine;
   console.log(
-    `| ${id} | ${fmt(s.lockTime)} | ${s.lockReleases === 0 ? "none" : `${s.lockReleases} (CHATTER)`} | ${(100 * s.lockedDecelRipple).toFixed(2)} % | ${fmt(s.restSpeed)} | ${s.settledSpeed.toExponential(1)} |`,
+    `| ${id} | ${fmt(s.lockTime)} | ${s.lockReleases === 0 ? "none" : `${s.lockReleases} (CHATTER)`} | ${(100 * s.lockedDecelRipple).toFixed(2)} % | ${fmt(s.restSpeed)} | ${s.settledSpeed.toExponential(1)} | ${fmt(s.brakingDistanceAbs, 1)} |`,
   );
 }
 console.log("");
