@@ -265,6 +265,34 @@ function validateDrivetrain(
   }
 }
 
+/** Validate a surface table before handing it to the core (ADR-0014). */
+export function validateSurfaces(surfaces: unknown): ValidationResult {
+  const errors: string[] = [];
+  const warnings: string[] = [];
+  if (!Array.isArray(surfaces)) {
+    return { ok: false, errors: ["surfaces must be an array"], warnings };
+  }
+  if (surfaces.length > 16)
+    errors.push(`a surface table holds at most 16 surfaces (got ${surfaces.length})`);
+  surfaces.forEach((s, i) => {
+    if (typeof s !== "object" || s === null) {
+      errors.push(`surfaces[${i}] must be an object`);
+      return;
+    }
+    const v = s as Record<string, unknown>;
+    const grip = v.grip;
+    if (grip !== undefined && (!isNum(grip) || grip < 0 || grip > 5)) {
+      errors.push(`surfaces[${i}].grip must be between 0 and 5 (got ${String(grip)})`);
+    }
+    nonNegative(errors, `surfaces[${i}].rollingResistance`, v.rollingResistance);
+    const drag = v.drag;
+    if (drag !== undefined && (!isNum(drag) || drag < 0 || drag > 1)) {
+      errors.push(`surfaces[${i}].drag must be between 0 and 1 (got ${String(drag)})`);
+    }
+  });
+  return { ok: errors.length === 0, errors, warnings };
+}
+
 export function validateDefinition(def: unknown): ValidationResult {
   const errors: string[] = [];
   const warnings: string[] = [];
@@ -330,6 +358,22 @@ export function validateDefinition(def: unknown): ValidationResult {
             nonNegative(errors, `${path}.suspension.reboundDamping`, s.reboundDamping);
             nonNegative(errors, `${path}.suspension.antiRollStiffness`, s.antiRollStiffness);
             nonNegative(errors, `${path}.suspension.bumpStopStiffness`, s.bumpStopStiffness);
+            if (s.kind !== undefined && s.kind !== "independent" && s.kind !== "solid") {
+              errors.push(
+                `${path}.suspension.kind must be "independent" or "solid" (got "${String(s.kind)}")`,
+              );
+            }
+            const rc = s.rollCenterHeight;
+            if (rc !== undefined && (!isNum(rc) || Math.abs(rc) > 1)) {
+              errors.push(
+                `${path}.suspension.rollCenterHeight must be within ±1 m (got ${String(rc)})`,
+              );
+            }
+            if (isNum(rc) && isNum(c.cgHeight) && rc > c.cgHeight) {
+              warnings.push(
+                `${path}.suspension.rollCenterHeight of ${rc} m is above the centre of mass (${c.cgHeight} m); the axle will jack the body outward in a corner`,
+              );
+            }
             // Static compression beyond the bump travel means the car sits
             // on its bump stops at rest; worth a warning, not an error.
             const mass = c.mass;
@@ -418,6 +462,16 @@ export function validateDefinition(def: unknown): ValidationResult {
   nonNegative(errors, "aero.dragCoefficient", d.aero?.dragCoefficient);
   nonNegative(errors, "aero.frontalArea", d.aero?.frontalArea);
   nonNegative(errors, "aero.airDensity", d.aero?.airDensity);
+  for (const k of ["liftCoefficientFront", "liftCoefficientRear"] as const) {
+    const v = d.aero?.[k];
+    if (v !== undefined && (!isNum(v) || Math.abs(v) > 10)) {
+      errors.push(`aero.${k} must be within ±10 (got ${String(v)})`);
+    }
+  }
+  const dh = d.aero?.dragHeightAboveCg;
+  if (dh !== undefined && (!isNum(dh) || Math.abs(dh) > 5)) {
+    errors.push(`aero.dragHeightAboveCg must be within ±5 m (got ${String(dh)})`);
+  }
   const rate = d.simulation?.substepRateHz;
   if (rate !== undefined && (!isNum(rate) || rate < 60 || rate > 10000)) {
     errors.push(`simulation.substepRateHz must be between 60 and 10000 (got ${String(rate)})`);

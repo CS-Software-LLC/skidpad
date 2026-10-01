@@ -15,6 +15,7 @@ fn eval(p: &FeelTireParams, fz: f64, kappa: f64, alpha: f64) -> skidpad_core::Ti
         slip_angle: alpha,
         camber: 0.0,
         vx: 10.0,
+        ..TireInput::default()
     })
 }
 
@@ -231,6 +232,7 @@ fn fx_moment_arm_has_the_magic_formula_sign() {
         slip_angle: alpha,
         camber: 0.0,
         vx: 10.0,
+        ..TireInput::default()
     };
     let mf0 = MagicFormulaParams::default().eval(&input);
     let mf = MagicFormulaParams {

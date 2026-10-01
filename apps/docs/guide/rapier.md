@@ -39,13 +39,38 @@ The sandbox's Rapier host (`apps/sandbox/src/sim.ts`) is the reference: a
 ground box, speed bumps, a ramp and a kerb, with the same obstacles rendered
 by three.js.
 
-## Moving platforms and surfaces
+## Moving platforms
 
 The adapter reads the velocity of whatever body a ray hits at the hit point
 and passes it to the core, so a car parked on a kinematic platform rides it,
-and one with free wheels spins them like a dyno roller. Pass a `surfaceId`
-callback to map colliders to surface ids ahead of the surface table of
-milestone 6.
+and one with free wheels spins them like a dyno roller.
+
+## Surfaces
+
+The core looks the ground under each wheel up in the world's
+[surface table](/concepts/surfaces) by an id the host attaches to each
+contact. Give the world a table, then pass a `surfaceId` callback that maps
+the collider a wheel ray hit to an id. A Rapier collider has no user data of
+its own (its body does), so a `Map` from collider handle to id is the plain
+way, filled when the scene is built:
+
+```ts
+import { surfaceTable, surfaceId } from "@skidpad/presets";
+
+world.setSurfaces(surfaceTable());
+
+const surfaceOf = new Map<number, number>();
+surfaceOf.set(gravelCollider.handle, surfaceId("gravel"));
+surfaceOf.set(iceCollider.handle, surfaceId("ice"));
+
+const car = new RapierVehicle(RAPIER, world, vehicle, body, scene, {
+  surfaceId: (collider) => surfaceOf.get(collider.handle) ?? 0,
+});
+```
+
+A collider the map does not know reads as id 0, the reference surface, as
+does any id beyond the table. If you drive the core without the adapter,
+set `surfaceId` on the `WheelContact` you pass to `writeWheelContact`.
 
 ## Determinism
 

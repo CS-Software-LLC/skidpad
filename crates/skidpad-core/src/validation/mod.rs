@@ -2,12 +2,16 @@
 //! pure function of a definition and a configuration, so the Rust tests, the
 //! Node CLI (through WASM), and the docs all run the same code.
 
+pub mod lane_change;
 pub mod parked;
+pub mod step_steer;
 pub mod straight_line;
 pub mod timestep_sweep;
 pub mod understeer;
 
+pub use lane_change::{LaneChangeAttempt, LaneChangeConfig, LaneChangeCourse, LaneChangeResult};
 pub use parked::{ParkedConfig, ParkedResult};
+pub use step_steer::{StepSteerConfig, StepSteerResult};
 pub use straight_line::{StraightLineConfig, StraightLineResult};
 pub use timestep_sweep::{SweepCell, TimestepSweepConfig, TimestepSweepResult};
 pub use understeer::{UndersteerConfig, UndersteerPoint, UndersteerResult};

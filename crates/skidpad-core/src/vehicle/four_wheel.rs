@@ -23,11 +23,12 @@
 //! used to move the rays between substeps and is discarded.
 
 use crate::assists::{self, AssistTelemetry, WheelObs};
-use crate::definition::VehicleDefinition;
+use crate::definition::{SuspensionKind, VehicleDefinition};
 use crate::drivetrain::{Drivetrain, WheelDyn};
 use crate::geom::{Quat, Vec3};
 use crate::input::VehicleInput;
 use crate::snapshot::Snapshottable;
+use crate::surface::SurfaceTable;
 use crate::telemetry as t;
 use crate::tire::{
     clamp_to_friction, kinematic_slip, low_speed_fade, TireInput, TireOutput, TireTransient,
@@ -144,6 +145,15 @@ pub struct WheelState {
     pub hub: Vec3,
     /// Contact point, world frame.
     pub contact_point: Vec3,
+    /// Surface id of the contact this substep ran on (ADR-0014).
+    pub surface_id: u32,
+    /// Grip scale of that surface.
+    pub surface_grip: f64,
+    /// Ploughing drag the surface put on the chassis at this contact, N.
+    pub surface_drag: f64,
+    /// Geometric lateral load transfer on this wheel through its axle's
+    /// roll centre, N (ADR-0016). Positive adds load.
+    pub geometric_load: f64,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -183,6 +193,18 @@ pub struct FourWheelVehicle {
     pub rack_force: f64,
     /// What the assists did this substep (ADR-0013).
     pub assist_telemetry: AssistTelemetry,
+    /// Aero lift at the front and rear axle this substep, N, positive up
+    /// (ADR-0015).
+    pub aero_lift: [f64; 2],
+    /// Lateral tire force of each axle in the body frame at the end of the
+    /// last substep, N: the input to the next substep's geometric load
+    /// transfer through the roll centres (ADR-0016). Lagging one substep
+    /// keeps the load–force loop explicit; the loop gain `h_rc / t` times
+    /// the load sensitivity is far below one. In the snapshot.
+    pub axle_fy_prev: [f64; 2],
+    /// Surface id the built-in flat ground carries under every wheel
+    /// (ADR-0014). An external host tags each contact itself.
+    pub builtin_surface_id: u32,
     /// Ground slope under the built-in host as the rise per metre along
     /// world +x (grade) and world +y (cross slope). The built-in ground
     /// stays the plane z = 0 and gravity is tilted instead, which is the
@@ -215,6 +237,9 @@ impl FourWheelVehicle {
             steering_torque: 0.0,
             rack_force: 0.0,
             assist_telemetry: AssistTelemetry::default(),
+            aero_lift: [0.0, 0.0],
+            axle_fy_prev: [0.0, 0.0],
+            builtin_surface_id: 0,
             ground_slope: [0.0, 0.0],
         };
         v.compute_geometry();
@@ -227,6 +252,17 @@ impl FourWheelVehicle {
     /// (`cross`). A car heading +x faces uphill on a positive grade.
     pub fn set_ground_slope(&mut self, grade: f64, cross: f64) {
         self.ground_slope = [grade, cross];
+    }
+
+    /// Surface id of the built-in flat ground under every wheel (ADR-0014).
+    /// Ignored in external host mode, where the host tags each contact.
+    pub fn set_surface(&mut self, id: u32) {
+        self.builtin_surface_id = id;
+        if self.host_mode == HostMode::Builtin {
+            for c in &mut self.contacts {
+                c.surface_id = id;
+            }
+        }
     }
 
     /// Gravity vector in the world frame, m/s². In the built-in host the
@@ -302,17 +338,22 @@ impl FourWheelVehicle {
         self.steering_torque = 0.0;
         self.rack_force = 0.0;
         self.steer_angle = 0.0;
+        self.aero_lift = [0.0, 0.0];
+        self.axle_fy_prev = [0.0, 0.0];
         for (i, w) in self.wheels.iter_mut().enumerate() {
             let g = self.geometry[i];
             *w = WheelState {
                 in_contact: true,
                 load: g.static_load,
                 susp_force: g.static_load,
+                surface_grip: 1.0,
                 ..WheelState::default()
             };
         }
         if self.host_mode == HostMode::Builtin {
-            self.contacts = [WheelContact::flat_ground(); WHEEL_COUNT];
+            let mut ground = WheelContact::flat_ground();
+            ground.surface_id = self.builtin_surface_id;
+            self.contacts = [ground; WHEEL_COUNT];
         }
         self.drivetrain.reset();
     }
@@ -394,13 +435,22 @@ impl FourWheelVehicle {
         delta + ack * (ideal - delta)
     }
 
-    /// One substep of the pipeline.
+    /// One substep of the pipeline on the reference surface everywhere.
+    #[inline]
     pub fn substep(&mut self, dt: f64, input: &VehicleInput) {
+        self.substep_on(dt, input, &SurfaceTable::REFERENCE);
+    }
+
+    /// One substep of the pipeline with the contacts' surface ids looked
+    /// up in `surfaces` (ADR-0014).
+    pub fn substep_on(&mut self, dt: f64, input: &VehicleInput, surfaces: &SurfaceTable) {
         let input = input.clamped();
         let mass = self.def.chassis.mass;
         let orient = self.orient;
         let omega_world = orient.rotate(self.omega);
         let down = orient.rotate(Vec3::new(0.0, 0.0, -1.0));
+        let up = -down;
+        let vb = self.vel_body();
 
         // --- steering ----------------------------------------------------
         // Positive input steers right (toward −y): a negative angle about +z.
@@ -495,9 +545,44 @@ impl FourWheelVehicle {
             w.susp_force = m::max(spring + damper + arb + stop, 0.0);
             let n = self.contacts[i].normal;
             w.load = w.susp_force * m::max(-down.dot(n), 0.0);
+            // Roll centre (ADR-0016): the part of this axle's lateral load
+            // transfer that the links carry straight to the ground, as a
+            // couple on the body through the two contacts. Left wheels
+            // (`side` +1) lose load when the axle pushes toward +y (a left
+            // turn, outer wheel on the right). Milliken & Milliken ch. 18,
+            // geometric load transfer `F_y · h_rc / t`.
+            let rc = s.roll_center_height;
+            w.geometric_load = if rc != 0.0 {
+                -g.side * self.axle_fy_prev[i / 2] * rc / self.def.chassis.track_width
+            } else {
+                0.0
+            };
+            w.load = m::max(w.load + w.geometric_load, 0.0);
             let f = n * w.load;
             force = force + f;
             torque = torque + (w.contact_point - self.pos).cross(f);
+        }
+
+        // --- aero lift (ADR-0015): at each axle, along the body's up axis ---
+        // Lift follows the forward airspeed squared through the frontal
+        // area; it reaches the tires through the springs, as it does on a
+        // real car, so the raycast suspension needs no special case.
+        {
+            let aero = &self.def.aero;
+            let q = aero.q_area() * vb.x * vb.x;
+            let c = &self.def.chassis;
+            let xs = [c.cg_to_front_axle, -self.def.cg_to_rear_axle()];
+            let cls = [aero.lift_coefficient_front, aero.lift_coefficient_rear];
+            for axle in 0..2 {
+                let lift = cls[axle] * q;
+                self.aero_lift[axle] = lift;
+                if lift != 0.0 {
+                    let f = up * lift;
+                    let r = orient.rotate(Vec3::new(xs[axle], 0.0, 0.0));
+                    force = force + f;
+                    torque = torque + r.cross(f);
+                }
+            }
         }
 
         // --- tires, then the drivetrain solve (ADR-0011) ---------------------
@@ -506,6 +591,23 @@ impl FourWheelVehicle {
         // tire stiffness goes into the wheel's effective inertia (ADR-0010).
         let mut dyn_wheels = [WheelDyn::default(); WHEEL_COUNT];
         let mut tire_forces = [(Vec3::ZERO, Vec3::ZERO, 0.0); WHEEL_COUNT];
+        // Solid axles (ADR-0016): the wheels stand on the beam, the line
+        // through the axle's two contacts, not on the body. Each axle's
+        // lateral axis (pointing left) is that line while both wheels touch.
+        let mut beam_lat = [None; 2];
+        for (axle, beam) in beam_lat.iter_mut().enumerate() {
+            if self.def.axles[axle].suspension.kind == SuspensionKind::Solid {
+                let l = &self.wheels[2 * axle];
+                let r = &self.wheels[2 * axle + 1];
+                if l.in_contact && r.in_contact {
+                    let d = l.contact_point - r.contact_point;
+                    if d.length() > 1e-6 {
+                        *beam = Some(d.normalized());
+                    }
+                }
+            }
+        }
+        let mut axle_fy = [0.0; 2];
         for i in 0..WHEEL_COUNT {
             let axle = i / 2;
             let adef = &self.def.axles[axle];
@@ -515,13 +617,22 @@ impl FourWheelVehicle {
             let floor = tire.low_speed_floor();
             let (sigma_x, sigma_y) = tire.relaxation_lengths();
             let c = self.contacts[i];
+            let surface = surfaces.get(c.surface_id);
             let w = &mut self.wheels[i];
+            w.surface_id = c.surface_id;
+            w.surface_grip = surface.grip;
 
             // Wheel axes at the contact: lateral axis from the steer angle,
             // forward and lateral in the contact plane from the normal.
             let (sd, cd) = (m::sin(w.steer), m::cos(w.steer));
-            let y_w = orient.rotate(Vec3::new(-sd, cd, 0.0));
             let n = c.normal;
+            let y_w = match beam_lat[axle] {
+                // The beam's lateral axis, steered about the contact normal
+                // (Rodrigues; the beam lies in the contact plane, so the
+                // axial term vanishes).
+                Some(b) => b * cd + n.cross(b) * sd,
+                None => orient.rotate(Vec3::new(-sd, cd, 0.0)),
+            };
             let fwd = y_w.cross(n).normalized();
             let lat = n.cross(fwd);
             // Static camber is quoted as negative = top toward the centreline;
@@ -569,6 +680,8 @@ impl FourWheelVehicle {
                     slip_angle: w.transient.slip_angle,
                     camber: w.camber,
                     vx: wx,
+                    grip: surface.grip,
+                    rolling_resistance: surface.rolling_resistance,
                 });
                 let fx = o.fx + c_x * slip_vx;
                 let fy = o.fy - c_y * wy;
@@ -603,8 +716,27 @@ impl FourWheelVehicle {
                 axle,
                 ..WheelDyn::default()
             };
-            tire_forces[i] = (fwd * out.fx + lat * out.fy, n, out.mz);
+            // Ploughing drag of the surface (ADR-0014): on the chassis at
+            // the contact, against the contact-patch motion in the plane.
+            let v_plane = v_contact - n * v_contact.dot(n);
+            let v_mag = v_plane.length();
+            w.surface_drag = if w.in_contact && w.load > 0.0 {
+                surface.drag_force(w.load, v_mag, floor)
+            } else {
+                0.0
+            };
+            let drag = if w.surface_drag > 0.0 && v_mag > 1e-9 {
+                v_plane * (-w.surface_drag / v_mag)
+            } else {
+                Vec3::ZERO
+            };
+            let f_tire = fwd * out.fx + lat * out.fy;
+            // Lateral force of the axle in the body frame, for the roll
+            // centre of the next substep.
+            axle_fy[axle] += orient.inverse_rotate(f_tire).y;
+            tire_forces[i] = (f_tire + drag, n, out.mz);
         }
+        self.axle_fy_prev = axle_fy;
 
         // --- assists (ADR-0013): scale brakes, throttle for this substep ----
         let mut drive_input = input;
@@ -670,12 +802,18 @@ impl FourWheelVehicle {
             }
         }
 
-        // --- aero --------------------------------------------------------------
+        // --- aero drag (ADR-0015) ----------------------------------------------
+        // Against the velocity, on a line `dragHeightAboveCg` above the
+        // centre of mass, so drag high on the body lifts the nose.
         let aero = &self.def.aero;
         let speed = self.vel.length();
-        let q = 0.5 * aero.air_density * aero.drag_coefficient * aero.frontal_area * speed;
+        let q = aero.q_area() * aero.drag_coefficient * speed;
         self.drag_force = q * speed;
-        force = force - self.vel * q;
+        let f_drag = -self.vel * q;
+        force = force + f_drag;
+        if aero.drag_height_above_cg != 0.0 {
+            torque = torque + (up * aero.drag_height_above_cg).cross(f_drag);
+        }
 
         // --- chassis proxy integration (semi-implicit Euler) ------------------
         self.impulse = self.impulse + force * dt;
@@ -795,6 +933,16 @@ impl FourWheelVehicle {
             rec[t::WHEEL_CONTACT_FL + i] = if w.in_contact { 1.0 } else { 0.0 };
             rec[t::WHEEL_LOCKED_FL + i] = if w.locked { 1.0 } else { 0.0 };
             rec[t::SPIN_ANGLE_FL + i] = w.spin_angle;
+            rec[t::SURFACE_ID_FL + i] = w.surface_id as f64;
+            rec[t::SURFACE_GRIP_FL + i] = w.surface_grip;
+        }
+        rec[t::AERO_LIFT_F] = self.aero_lift[0];
+        rec[t::AERO_LIFT_R] = self.aero_lift[1];
+        // Outer-wheel gain through the links, as a positive number.
+        for axle in 0..2 {
+            let l = self.wheels[2 * axle].geometric_load;
+            let r = self.wheels[2 * axle + 1].geometric_load;
+            rec[t::GEOMETRIC_TRANSFER_F + axle] = m::max(m::abs(l), m::abs(r));
         }
         write_drivetrain_telemetry(&self.drivetrain, input, rec);
         write_assist_telemetry(&self.assist_telemetry, rec);
@@ -825,7 +973,7 @@ pub(crate) fn write_drivetrain_telemetry(d: &Drivetrain, input: &VehicleInput, r
     rec[t::CLUTCH] = input.clutch;
 }
 
-const BODY_STATE_LEN: usize = 14;
+const BODY_STATE_LEN: usize = 16;
 const WHEEL_STATE_LEN: usize = 4;
 
 impl Snapshottable for FourWheelVehicle {
@@ -848,6 +996,8 @@ impl Snapshottable for FourWheelVehicle {
         out[11] = self.omega.x;
         out[12] = self.omega.y;
         out[13] = self.omega.z;
+        out[14] = self.axle_fy_prev[0];
+        out[15] = self.axle_fy_prev[1];
         for (i, w) in self.wheels.iter().enumerate() {
             let o = BODY_STATE_LEN + WHEEL_STATE_LEN * i;
             out[o] = w.omega;
@@ -866,6 +1016,7 @@ impl Snapshottable for FourWheelVehicle {
         self.orient = Quat::new(v[4], v[5], v[6], v[7]);
         self.vel = Vec3::new(v[8], v[9], v[10]);
         self.omega = Vec3::new(v[11], v[12], v[13]);
+        self.axle_fy_prev = [v[14], v[15]];
         for (i, w) in self.wheels.iter_mut().enumerate() {
             let o = BODY_STATE_LEN + WHEEL_STATE_LEN * i;
             w.omega = v[o];

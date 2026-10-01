@@ -70,7 +70,7 @@ proptest! {
     #[test]
     fn tire_outputs_are_finite_and_bounded(p in arb_feel(), fz in 0.0f64..12000.0, k in -2.0f64..2.0, a in -1.5f64..1.5, g in -0.2f64..0.2) {
         let m = TireModel::Feel(p);
-        let o = m.eval(&TireInput { fz, slip_ratio: k, slip_angle: a, camber: g, vx: 5.0 });
+        let o = m.eval(&TireInput { fz, slip_ratio: k, slip_angle: a, camber: g, vx: 5.0, ..TireInput::default() });
         prop_assert!(o.fx.is_finite() && o.fy.is_finite() && o.mz.is_finite());
         let limit = 1.5 * fz.max(1.0) * 2.0 + 1.0;
         prop_assert!(o.fx.abs() <= limit && o.fy.abs() <= limit);

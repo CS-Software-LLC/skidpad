@@ -15,8 +15,8 @@ Firefox, WebKit, Node, on x86 and ARM.
   randomness inside the core. A clippy configuration enforces the math rules
   mechanically.
 - CI runs a fixed scenario in all three browser engines and Node and asserts
-  identical state hashes: a 50 s scripted drive of the three presets, then a
-  recorded lap of the sandbox track for each preset. The laps were driven
+  identical state hashes: a 50 s scripted drive of three presets, then a
+  recorded lap of the sandbox track for each of the six presets. The laps were driven
   once by a closed-loop driver in Node (`tests/determinism/src/record-lap.ts`)
   and stored as integer input traces; the harness replays them open-loop, so
   every engine sees the same inputs and the test exercises forty seconds of

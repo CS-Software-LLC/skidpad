@@ -11,11 +11,21 @@ import type { LapTrace } from "./lap-format.js";
 import hatchbackFwd from "../data/lap-hatchbackFwd.json";
 import sportsRwd from "../data/lap-sportsRwd.json";
 import kart from "../data/lap-kart.json";
+import pickup4x4 from "../data/lap-pickup4x4.json";
+import crossoverEv from "../data/lap-crossoverEv.json";
+import openWheeler from "../data/lap-openWheeler.json";
 
 export type { LapTrace } from "./lap-format.js";
 export { LAP_RATE, LAP_QUANTUM } from "./lap-format.js";
 
-export const LAP_TRACES: LapTrace[] = [hatchbackFwd, sportsRwd, kart];
+export const LAP_TRACES: LapTrace[] = [
+  hatchbackFwd,
+  sportsRwd,
+  kart,
+  pickup4x4,
+  crossoverEv,
+  openWheeler,
+];
 
 export interface LapReport {
   preset: string;

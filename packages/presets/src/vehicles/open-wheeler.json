@@ -1,0 +1,169 @@
+{
+  "formatVersion": 1,
+  "name": "Open-wheeler",
+  "dataSheet": {
+    "description": "A generic junior single-seater in the 600 kg class with wings: roughly 180 kW, 2.8 m wheelbase, rear-biased weight, slick tires, stiff pushrod suspension, and a downforce-to-weight ratio near 0.8 at 180 km/h.",
+    "sources": [
+      "Class-typical figures from technical regulations and spec sheets for regional formula cars (minimum mass with driver 570–640 kg, wheelbase 2.75–2.85 m, 43/57 front weight bias, centre of mass near 0.28 m).",
+      "Tire feel parameters tuned to a ~1.6 g skidpad on slicks with ~12 % load sensitivity, in the range of published tire data for the class.",
+      "Suspension rates for ~3.5 Hz ride frequencies (Milliken & Milliken ch. 16) with roll centres a few centimetres above ground front and rear (ch. 17).",
+      "Aero [ILLUSTRATIVE]: lift coefficients of −1.2 front and −1.8 rear on a 1.0 m² frontal area with a drag coefficient of 0.9, giving about 4.6 kN of downforce at 180 km/h, in the range published for winged junior formula cars (Katz, Race Car Aerodynamics, ch. 7); the drag acts at the wing heights, above the centre of mass.",
+      "Drivetrain [ILLUSTRATIVE]: a 2.0 l turbocharged four (peak 300 N·m, 180 kW at 6500 rpm) through a six-speed sequential gearbox with a 4.0 final drive and a clutch-pack rear limited-slip differential.",
+      "Steering geometry [ILLUSTRATIVE]: 8° of caster (about 30 mm of trail), zero scrub radius, no assist, a quick 10:1 ratio."
+    ],
+    "notes": "Not a specific car. No handbrake, so the handbrake standstill cases are skipped. The downforce reaches the tires through the springs, so the car sits lower at speed and the stiff springs matter."
+  },
+  "chassis": {
+    "mass": 600,
+    "yawInertia": 620,
+    "rollInertia": 90,
+    "pitchInertia": 560,
+    "wheelbase": 2.8,
+    "cgToFrontAxle": 1.6,
+    "cgHeight": 0.28,
+    "trackWidth": 1.5
+  },
+  "axles": [
+    {
+      "tire": {
+        "model": "feel",
+        "radius": 0.28,
+        "nominalLoad": 1500,
+        "peakFriction": 1.6,
+        "loadSensitivity": 0.12,
+        "peakSlipAngleDeg": 6.0,
+        "peakSlipRatio": 0.1,
+        "corneringStiffness": 22,
+        "longitudinalStiffness": 26,
+        "stiffnessPeakLoad": 2600,
+        "relaxationLengthLat": 0.2,
+        "relaxationLengthLong": 0.15,
+        "rollingResistance": 0.01
+      },
+      "wheelInertia": 0.6,
+      "driven": false,
+      "steered": true,
+      "maxBrakeTorque": 3400,
+      "staticCamberDeg": -2.5,
+      "suspension": {
+        "kind": "independent",
+        "springRate": 70000,
+        "bumpDamping": 3200,
+        "reboundDamping": 4000,
+        "travelBump": 0.035,
+        "travelDroop": 0.03,
+        "antiRollStiffness": 30000,
+        "bumpStopStiffness": 600000,
+        "rollCenterHeight": 0.02
+      }
+    },
+    {
+      "tire": {
+        "model": "feel",
+        "radius": 0.3,
+        "nominalLoad": 1800,
+        "peakFriction": 1.62,
+        "loadSensitivity": 0.12,
+        "peakSlipAngleDeg": 6.0,
+        "peakSlipRatio": 0.1,
+        "corneringStiffness": 23,
+        "longitudinalStiffness": 27,
+        "stiffnessPeakLoad": 3200,
+        "relaxationLengthLat": 0.2,
+        "relaxationLengthLong": 0.15,
+        "rollingResistance": 0.01
+      },
+      "wheelInertia": 0.9,
+      "driven": true,
+      "steered": false,
+      "maxBrakeTorque": 2400,
+      "staticCamberDeg": -1.5,
+      "suspension": {
+        "kind": "independent",
+        "springRate": 80000,
+        "bumpDamping": 3600,
+        "reboundDamping": 4400,
+        "travelBump": 0.04,
+        "travelDroop": 0.035,
+        "antiRollStiffness": 20000,
+        "bumpStopStiffness": 600000,
+        "rollCenterHeight": 0.05
+      }
+    }
+  ],
+  "steering": {
+    "maxWheelAngleDeg": 22,
+    "ratio": 10,
+    "ackermann": 0.6,
+    "mechanicalTrail": 0.03,
+    "scrubRadius": 0.0,
+    "steeringArm": 0.09,
+    "powerAssist": 0.0,
+    "columnFriction": 0.2,
+    "columnDamping": 0.03,
+    "jackingRate": 0.0
+  },
+  "brakes": {
+    "handbrakeTorque": 0
+  },
+  "aero": {
+    "dragCoefficient": 0.9,
+    "frontalArea": 1.0,
+    "airDensity": 1.225,
+    "liftCoefficientFront": -1.2,
+    "liftCoefficientRear": -1.8,
+    "dragHeightAboveCg": 0.15
+  },
+  "simulation": {
+    "substepRateHz": 1000,
+    "model": "fourWheel"
+  },
+  "drivetrain": {
+    "powerUnit": {
+      "kind": "combustion",
+      "idleRpm": 1500,
+      "redlineRpm": 7000,
+      "inertia": 0.12,
+      "torqueCurve": [
+        [2000, 180],
+        [3000, 260],
+        [4000, 300],
+        [5000, 295],
+        [6000, 285],
+        [6500, 265],
+        [7000, 240]
+      ],
+      "engineBrakingIdle": 15,
+      "engineBrakingRedline": 70,
+      "idleTorqueMax": 60
+    },
+    "transmission": {
+      "gears": [2.9, 2.1, 1.65, 1.35, 1.15, 1.0],
+      "reverse": 3.0,
+      "finalDrive": 4.0,
+      "mode": "automatic",
+      "shiftTime": 0.05,
+      "shiftHold": 0.3,
+      "shiftUpAt": 0.97,
+      "shiftDownAt": 0.5,
+      "clutchMaxTorque": 600,
+      "clutchEngageTime": 0.2,
+      "clutchBiteRpm": 2500,
+      "inputInertia": 0.02,
+      "outputInertia": 0.03
+    },
+    "front": {
+      "kind": "open"
+    },
+    "rear": {
+      "kind": "lsd",
+      "preload": 40,
+      "biasDrive": 2.5,
+      "biasCoast": 2.0
+    },
+    "center": {
+      "kind": "open",
+      "frontTorqueFraction": 0.5
+    }
+  }
+}

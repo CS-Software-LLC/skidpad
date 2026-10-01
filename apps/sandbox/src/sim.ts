@@ -6,7 +6,13 @@
  * pose) and a Rapier scene with obstacles, driven through
  * `@skidpad/rapier` (ADR-0002).
  */
-import { init, type Skidpad, type World, type VehicleDefinition } from "@skidpad/core";
+import {
+  init,
+  validateDefinition,
+  type Skidpad,
+  type World,
+  type VehicleDefinition,
+} from "@skidpad/core";
 import {
   KeyboardInput,
   GamepadInput,
@@ -18,7 +24,7 @@ import {
   type InputFrame,
 } from "@skidpad/input";
 import { TelemetryRecorder } from "@skidpad/telemetry";
-import { preset, presetIds, type PresetId } from "@skidpad/presets";
+import { preset, presetIds, surfaceId, surfaceTable, type PresetId } from "@skidpad/presets";
 import { createChassisBody, RapierVehicle } from "@skidpad/rapier";
 import type RAPIER from "@dimforge/rapier3d-compat";
 import { OBSTACLES, obstacleQuaternion } from "./track.js";
@@ -96,6 +102,7 @@ export function coreQuatToThree(
 }
 
 const WHEELS = ["FL", "FR", "RL", "RR"] as const;
+const KERB_SURFACE = surfaceId("kerb");
 
 export class Sim {
   sp!: Skidpad;
@@ -122,6 +129,8 @@ export class Sim {
   readonly audio = new SandboxAudio();
   presetId: PresetId = "hatchbackFwd";
   hostKind: HostKind = "builtin";
+  /** Surface id (index into the preset surface table) of the ground the car drives on. */
+  surfaceId = 0;
   /**
    * Speed-sensitive steering for keyboards, as the core's steering assist
    * (ADR-0013): the road-wheel angle is capped so that the lateral
@@ -148,12 +157,16 @@ export class Sim {
   private scene: RAPIER.World | undefined;
   private body: RAPIER.RigidBody | undefined;
   private host: RapierVehicle | undefined;
+  /** Collider handles of the Rapier scene: the ground takes the selected surface, the kerb its own. */
+  private groundHandle = -1;
+  private readonly kerbHandles = new Set<number>();
   private readonly channel = new Map<string, number>();
 
   async load(): Promise<void> {
     this.sp = await init();
     this.recorder = new TelemetryRecorder({ channels: this.sp.telemetryLayout, capacity: 60 * 60 });
     this.world = this.sp.createWorld(1);
+    this.world.setSurfaces(surfaceTable());
     this.setPreset(this.presetId);
     this.detach = this.keyboard.attach(globalThis.window);
   }
@@ -176,14 +189,16 @@ export class Sim {
     return this.world.telemetryView(this.vehicle)[i] ?? 0;
   }
 
-  setPreset(id: PresetId): void {
-    this.presetId = id;
-    this.definition = preset(id);
-    // Presets leave `assists` at the core defaults; fill the block in so the
-    // panel can toggle each one, then set the steering limit.
+  /**
+   * A preset as the sandbox runs it. Presets leave `assists` at the core
+   * defaults; the block is filled in so the panels can toggle each one, and
+   * the steering limit is set.
+   */
+  presetDefinition(id: PresetId): VehicleDefinition {
+    const def = preset(id);
     const defaults = this.sp.defaultDefinition().assists;
-    const given = (this.definition as { assists?: Partial<typeof defaults> }).assists ?? {};
-    this.definition.assists = {
+    const given = (def as { assists?: Partial<typeof defaults> }).assists ?? {};
+    def.assists = {
       abs: { ...defaults.abs, ...given.abs },
       tractionControl: { ...defaults.tractionControl, ...given.tractionControl },
       stabilityControl: { ...defaults.stabilityControl, ...given.stabilityControl },
@@ -193,18 +208,62 @@ export class Sim {
         latAccelLimit: this.steeringLimitAccel,
       },
     };
-    this.wheel.steeringLockDeg =
-      this.definition.steering.ratio * this.definition.steering.maxWheelAngleDeg;
+    return def;
+  }
+
+  setPreset(id: PresetId): void {
+    this.presetId = id;
+    this.definition = this.presetDefinition(id);
+    this.syncSteeringLock();
     if (this.world.vehicleCount === 0) {
       this.vehicle = this.world.addVehicle(this.definition);
     } else {
       this.world.setDefinition(this.vehicle, this.definition);
       this.world.resetVehicle(this.vehicle, 0, 0, 0);
     }
+    this.syncSurface();
     if (this.hostKind === "rapier") this.rebuildRapierBody();
     this.audio.setDefinition(this.definition);
     this.recorder.clear();
     this.syncPoses();
+  }
+
+  /**
+   * Live tuning: swap the running car's definition, keeping its state. The
+   * definition is validated first and an invalid one is rejected with the
+   * validator's messages, leaving the car as it was.
+   */
+  applyDefinition(def: VehicleDefinition): void {
+    const v = validateDefinition(def);
+    if (!v.ok) throw new Error(v.errors.join("\n"));
+    this.definition = def;
+    this.speedSensitiveSteering = def.assists.steeringAssist.enabled;
+    this.steeringLimitAccel = def.assists.steeringAssist.latAccelLimit;
+    this.syncSteeringLock();
+    this.world.setDefinition(this.vehicle, def);
+    this.syncSurface();
+    if (this.hostKind === "rapier") this.host?.refreshGeometry();
+    this.audio.setDefinition(def);
+  }
+
+  /** Choose the ground surface by its id in the preset surface table. */
+  setSurface(id: number): void {
+    this.surfaceId = id;
+    this.syncSurface();
+  }
+
+  /**
+   * Tell the built-in host which surface its flat ground is. The core
+   * forgets it when the vehicle model is rebuilt, so this runs after every
+   * definition swap too. Under Rapier the wheel rays tag each contact.
+   */
+  private syncSurface(): void {
+    if (this.hostKind === "builtin") this.world.setSurface(this.vehicle, this.surfaceId);
+  }
+
+  private syncSteeringLock(): void {
+    this.wheel.steeringLockDeg =
+      this.definition.steering.ratio * this.definition.steering.maxWheelAngleDeg;
   }
 
   /** Switch hosts. The Rapier module loads on first use. */
@@ -227,6 +286,7 @@ export class Sim {
       this.scene = undefined;
       this.hostKind = kind;
       this.world.resetVehicle(this.vehicle, 0, 0, 0);
+      this.syncSurface();
     }
     this.recorder.clear();
     this.syncPoses();
@@ -238,15 +298,20 @@ export class Sim {
     const scene = new R.World({ x: 0, y: -9.80665, z: 0 });
     scene.timestep = HOST_DT;
     const ground = scene.createRigidBody(R.RigidBodyDesc.fixed());
-    scene.createCollider(R.ColliderDesc.cuboid(2000, 0.5, 2000).setTranslation(0, -0.5, 0), ground);
+    this.groundHandle = scene.createCollider(
+      R.ColliderDesc.cuboid(2000, 0.5, 2000).setTranslation(0, -0.5, 0),
+      ground,
+    ).handle;
+    this.kerbHandles.clear();
     for (const o of OBSTACLES) {
       const q = obstacleQuaternion(o);
-      scene.createCollider(
+      const collider = scene.createCollider(
         R.ColliderDesc.cuboid(o.size[0] / 2, o.size[1] / 2, o.size[2] / 2)
           .setTranslation(o.position[0], o.position[1], o.position[2])
           .setRotation({ x: q.x, y: q.y, z: q.z, w: q.w }),
         ground,
       );
+      if (o.label === "kerb") this.kerbHandles.add(collider.handle);
     }
     // Populate the query pipeline so the first wheel rays can hit.
     scene.step();
@@ -260,7 +325,17 @@ export class Sim {
     this.host?.detach();
     if (this.body) scene.removeRigidBody(this.body);
     this.body = createChassisBody(R, scene, this.definition, { up: "y" });
-    this.host = new RapierVehicle(R, this.world, this.vehicle, this.body, scene, { up: "y" });
+    this.host = new RapierVehicle(R, this.world, this.vehicle, this.body, scene, {
+      up: "y",
+      // The ground plane is whatever surface the sandbox selected; the kerb
+      // obstacle is painted concrete; bumps and the ramp are the reference.
+      surfaceId: (collider) =>
+        collider.handle === this.groundHandle
+          ? this.surfaceId
+          : this.kerbHandles.has(collider.handle)
+            ? KERB_SURFACE
+            : 0,
+    });
   }
 
   reset(): void {

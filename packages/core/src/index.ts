@@ -20,7 +20,7 @@ import { Skidpad } from "./core.js";
 
 export * from "./core.js";
 export * from "./definition/types.js";
-export { validateDefinition } from "./definition/validate.js";
+export { validateDefinition, validateSurfaces } from "./definition/validate.js";
 export type { ValidationResult } from "./definition/validate.js";
 export {
   migrateDefinition,

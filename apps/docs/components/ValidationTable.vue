@@ -1,7 +1,12 @@
 <script setup lang="ts">
 import results from "../../../tools/validate/golden/results.json";
 
-const rows = Object.entries(results.vehicles).map(([id, v]) => ({
+// The milestone 6 keys (`stepSteer`, `laneChange`, `surfaces`) are read with
+// optional chaining so the page builds against a golden file that predates
+// them; the cells then read "n/a".
+type Any = Record<string, any>;
+
+const rows = Object.entries(results.vehicles as Record<string, Any>).map(([id, v]) => ({
   id,
   kus: v.understeer.gradientDegPerG,
   kusSingle: v.understeerSingleTrack.gradientDegPerG,
@@ -15,14 +20,26 @@ const rows = Object.entries(results.vehicles).map(([id, v]) => ({
   chatter: v.straightLine.lockReleases > 0,
   ripple: v.straightLine.lockedDecelRipple,
   settled: v.straightLine.settledSpeed,
-  parks: Object.values(v.parked).every((c) => c === null || c.holds),
-  creep: Math.max(...Object.values(v.parked).map((c) => (c === null ? 0 : c.creepSpeed))),
+  parks: Object.values(v.parked as Record<string, Any | null>).every((c) => c === null || c.holds),
+  creep: Math.max(
+    ...Object.values(v.parked as Record<string, Any | null>).map((c) =>
+      c === null ? 0 : c.creepSpeed,
+    ),
+  ),
   sweepStable: v.timestepSweep.stable,
   sweepKus: v.timestepSweep.gradientSpreadDegPerG,
   sweepBrake: v.timestepSweep.brakingDistanceSpread,
+  stepResponse: (v.stepSteer?.yawRateResponseTime ?? null) as number | null,
+  stepOvershoot: (v.stepSteer?.yawRateOvershoot ?? null) as number | null,
+  lanePass: (v.laneChange?.maxPassingSpeed ?? null) as number | null,
+  laneRun: v.laneChange !== undefined,
+  iceBrake: (v.surfaces?.ice?.brakingDistance ?? null) as number | null,
+  iceBrakeAbs: (v.surfaces?.ice?.brakingDistanceAbs ?? null) as number | null,
+  iceSpun: (v.surfaces?.ice?.spun ?? false) as boolean,
   hash: v.scriptedDriveHash,
 }));
-const f = (v: number | null, d = 2) => (v === null ? "n/a" : v.toFixed(d));
+const f = (v: number | null | undefined, d = 2) => (v == null ? "n/a" : v.toFixed(d));
+const kmh = (v: number) => (3.6 * v).toFixed(0);
 </script>
 
 <template>
@@ -45,6 +62,9 @@ const f = (v: number | null, d = 2) => (v === null ? "n/a" : v.toFixed(d));
         <th>Wheels lock</th>
         <th>Parks on slopes</th>
         <th>Timestep sweep</th>
+        <th>Step steer: yaw-rate response (s) / overshoot (%)</th>
+        <th>Lane change passes up to (km/h)</th>
+        <th>100–0 km/h on ice (m), locked / ABS</th>
         <th>Scripted drive hash</th>
       </tr>
     </thead>
@@ -73,6 +93,17 @@ const f = (v: number | null, d = 2) => (v === null ? "n/a" : v.toFixed(d));
             r.sweepKus.toFixed(3)
           }}
           deg/g, braking ±{{ (100 * r.sweepBrake).toFixed(1) }} %)
+        </td>
+        <td>
+          {{ f(r.stepResponse) }} /
+          {{ r.stepOvershoot == null ? "n/a" : (100 * r.stepOvershoot).toFixed(1) }}
+        </td>
+        <td>{{ r.lanePass != null ? kmh(r.lanePass) : r.laneRun ? "none" : "n/a" }}</td>
+        <td>
+          <template v-if="r.iceSpun"
+            >spins ({{ f(r.iceBrake, 0) }} / {{ f(r.iceBrakeAbs, 0) }})</template
+          >
+          <template v-else>{{ f(r.iceBrake, 0) }} / {{ f(r.iceBrakeAbs, 0) }}</template>
         </td>
         <td>
           <code>{{ r.hash }}</code>

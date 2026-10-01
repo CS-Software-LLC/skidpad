@@ -116,6 +116,10 @@ pub struct AxleDef {
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(rename_all = "camelCase", default))]
 pub struct SuspensionDef {
+    /// Independent (each wheel on its own strut) or a solid beam axle that
+    /// keeps both wheels upright to the road (ADR-0016). Four-wheel model
+    /// only.
+    pub kind: SuspensionKind,
     /// Spring rate at the wheel, N/m, per wheel.
     pub spring_rate: f64,
     /// Damping in bump (compression), N·s/m, per wheel.
@@ -131,6 +135,26 @@ pub struct SuspensionDef {
     pub anti_roll_stiffness: f64,
     /// Bump-stop stiffness beyond the bump travel, N/m.
     pub bump_stop_stiffness: f64,
+    /// Roll-centre height above the ground at ride height, m (ADR-0016).
+    /// The share `h_rc / h_cg` of this axle's lateral load transfer goes
+    /// through the links straight to the tires (geometric transfer) instead
+    /// of rolling the body on its springs. Zero puts the roll centre on the
+    /// ground, which is what the raycast strut gives by itself. Four-wheel
+    /// model only.
+    pub roll_center_height: f64,
+}
+
+/// How the two wheels of an axle are held (ADR-0016).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
+pub enum SuspensionKind {
+    /// Each wheel on its own strut; the wheels lean with the body.
+    #[default]
+    Independent,
+    /// A rigid beam between the wheels; the wheels stay upright to the
+    /// line through the two contacts whatever the body does.
+    Solid,
 }
 
 impl Default for SuspensionDef {
@@ -142,6 +166,7 @@ impl Default for SuspensionDef {
 impl SuspensionDef {
     pub fn front_default() -> Self {
         Self {
+            kind: SuspensionKind::Independent,
             spring_rate: 28000.0,
             bump_damping: 2500.0,
             rebound_damping: 3500.0,
@@ -149,11 +174,13 @@ impl SuspensionDef {
             travel_droop: 0.10,
             anti_roll_stiffness: 15000.0,
             bump_stop_stiffness: 300000.0,
+            roll_center_height: 0.0,
         }
     }
 
     pub fn rear_default() -> Self {
         Self {
+            kind: SuspensionKind::Independent,
             spring_rate: 24000.0,
             bump_damping: 2200.0,
             rebound_damping: 3000.0,
@@ -161,6 +188,7 @@ impl SuspensionDef {
             travel_droop: 0.11,
             anti_roll_stiffness: 8000.0,
             bump_stop_stiffness: 300000.0,
+            roll_center_height: 0.0,
         }
     }
 
@@ -187,6 +215,12 @@ impl SuspensionDef {
                     "{prefix}.{name} must be zero or positive (got {v})"
                 ));
             }
+        }
+        if !self.roll_center_height.is_finite() || m::abs(self.roll_center_height) > 1.0 {
+            errors.push(format!(
+                "{prefix}.rollCenterHeight must be within ±1 m (got {})",
+                self.roll_center_height
+            ));
         }
     }
 }
@@ -297,10 +331,21 @@ impl Default for BrakesDef {
 #[cfg_attr(feature = "serde", serde(rename_all = "camelCase", default))]
 pub struct AeroDef {
     pub drag_coefficient: f64,
-    /// Frontal area, m².
+    /// Frontal area, m². The reference area of every coefficient here.
     pub frontal_area: f64,
     /// Air density, kg/m³.
     pub air_density: f64,
+    /// Lift coefficient at the front axle, referenced to `frontalArea`
+    /// (ADR-0015). Negative is downforce; a road car has a little lift, a
+    /// winged car a lot of downforce.
+    pub lift_coefficient_front: f64,
+    /// Lift coefficient at the rear axle, referenced to `frontalArea`.
+    pub lift_coefficient_rear: f64,
+    /// Height of the drag's line of action above the centre of mass, m
+    /// (ADR-0015). Drag acting above the centre of mass lifts the nose and
+    /// moves load rearward at speed; zero puts it through the centre of
+    /// mass.
+    pub drag_height_above_cg: f64,
 }
 
 impl Default for AeroDef {
@@ -309,7 +354,22 @@ impl Default for AeroDef {
             drag_coefficient: 0.32,
             frontal_area: 2.2,
             air_density: crate::AIR_DENSITY,
+            lift_coefficient_front: 0.0,
+            lift_coefficient_rear: 0.0,
+            drag_height_above_cg: 0.0,
         }
+    }
+}
+
+impl AeroDef {
+    /// Largest lift coefficient magnitude accepted, per axle.
+    pub const MAX_LIFT_COEFFICIENT: f64 = 10.0;
+
+    /// Dynamic pressure times the reference area, N per (m/s)²: the aero
+    /// forces are this times the squared airspeed and a coefficient.
+    #[inline]
+    pub fn q_area(&self) -> f64 {
+        0.5 * self.air_density * self.frontal_area
     }
 }
 
@@ -494,6 +554,25 @@ impl VehicleDefinition {
             && self.aero.air_density >= 0.0)
         {
             e.push(String::from("aero.dragCoefficient, aero.frontalArea and aero.airDensity must be zero or positive"));
+        }
+        for (name, v) in [
+            ("liftCoefficientFront", self.aero.lift_coefficient_front),
+            ("liftCoefficientRear", self.aero.lift_coefficient_rear),
+        ] {
+            if !v.is_finite() || m::abs(v) > AeroDef::MAX_LIFT_COEFFICIENT {
+                e.push(format!(
+                    "aero.{name} must be within ±{} (got {v})",
+                    AeroDef::MAX_LIFT_COEFFICIENT
+                ));
+            }
+        }
+        if !self.aero.drag_height_above_cg.is_finite()
+            || m::abs(self.aero.drag_height_above_cg) > 5.0
+        {
+            e.push(format!(
+                "aero.dragHeightAboveCg must be within ±5 m (got {})",
+                self.aero.drag_height_above_cg
+            ));
         }
         if !(self.simulation.substep_rate_hz >= 60.0 && self.simulation.substep_rate_hz <= 10000.0)
         {

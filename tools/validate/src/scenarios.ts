@@ -1,12 +1,14 @@
 import {
   smoothWave,
+  type LaneChangeAttempt,
   type ParkedConfig,
   type ParkedResult,
   type Skidpad,
+  type StepSteerResult,
   type SweepCell,
   type VehicleDefinition,
 } from "@skidpad/core";
-import { presetIds, preset, type PresetId } from "@skidpad/presets";
+import { presetIds, preset, surfaces, type PresetId, type SurfaceId } from "@skidpad/presets";
 
 /** One standstill case of the parked scenario (ADR-0005, ADR-0010). */
 export interface ParkedCase {
@@ -106,8 +108,116 @@ export interface VehicleResults {
    * reference cell the other scenarios run at.
    */
   timestepSweep: TimestepSweepSummary;
+  /**
+   * Step steer after ISO 7401 (milestone 6): 80 km/h, a step to 4 m/s² of
+   * lateral acceleration, the yaw-rate response.
+   */
+  stepSteer: StepSteerSummary;
+  /**
+   * Double lane change after ISO 3888-1 (milestone 6): one attempt per
+   * entry speed and the highest that kept every wheel between the cones.
+   */
+  laneChange: LaneChangeSummary;
+  /**
+   * The 100–0 km/h stop on other surfaces of the reference table
+   * (ADR-0014), locked wheels and with the ABS.
+   */
+  surfaces: Record<string, SurfaceBraking>;
   /** State hash after a fixed scripted drive. Any physics change moves it. */
   scriptedDriveHash: string;
+}
+
+export interface StepSteerSummary {
+  steerAngle: number;
+  yawRate: number;
+  yawRateGain: number;
+  yawRateOvershoot: number;
+  yawRateResponseTime: number | null;
+  latAccel: number;
+  latAccelResponseTime: number | null;
+  bodySlipAngle: number;
+  roll: number;
+  completed: boolean;
+}
+
+export interface LaneChangeSummary {
+  /** Highest entry speed that passed, m/s; `null` when none did. */
+  maxPassingSpeed: number | null;
+  attempts: Array<
+    Pick<
+      LaneChangeAttempt,
+      "entrySpeed" | "passed" | "coneOverlap" | "maxLatAccel" | "maxYawRate" | "maxBodySlipAngle"
+    >
+  >;
+}
+
+export interface SurfaceBraking {
+  /** Grip scale of the surface. */
+  grip: number;
+  /** 100–0 km/h braking distance with locked wheels, m. */
+  brakingDistance: number;
+  /** The same stop with the ABS, m. */
+  brakingDistanceAbs: number;
+  /** The wheels locked once and stayed locked; the car came to rest within 1 mm/s. */
+  cleanStop: boolean;
+  /** The car swapped ends during the stop (rear-only brakes on a slippery surface). */
+  spun: boolean;
+}
+
+/** Surfaces the braking comparison runs on, besides the reference. */
+export const BRAKING_SURFACES: SurfaceId[] = ["asphaltWet", "gravel", "snow", "ice"];
+
+export function runStepSteer(sp: Skidpad, def: VehicleDefinition): StepSteerSummary {
+  const r: StepSteerResult = sp.runScenario({ scenario: "stepSteer", definition: def });
+  return {
+    steerAngle: r.steerAngle,
+    yawRate: r.yawRate,
+    yawRateGain: r.yawRateGain,
+    yawRateOvershoot: r.yawRateOvershoot,
+    yawRateResponseTime: r.yawRateResponseTime,
+    latAccel: r.latAccel,
+    latAccelResponseTime: r.latAccelResponseTime,
+    bodySlipAngle: r.bodySlipAngle,
+    roll: r.roll,
+    completed: r.completed,
+  };
+}
+
+export function runLaneChange(sp: Skidpad, def: VehicleDefinition): LaneChangeSummary {
+  const r = sp.runScenario({ scenario: "doubleLaneChange", definition: def });
+  return {
+    maxPassingSpeed: r.maxPassingSpeed,
+    attempts: r.attempts.map((a) => ({
+      entrySpeed: a.entrySpeed,
+      passed: a.passed,
+      coneOverlap: a.coneOverlap,
+      maxLatAccel: a.maxLatAccel,
+      maxYawRate: a.maxYawRate,
+      maxBodySlipAngle: a.maxBodySlipAngle,
+    })),
+  };
+}
+
+export function runSurfaces(
+  sp: Skidpad,
+  def: VehicleDefinition,
+  withAbs: VehicleDefinition,
+): Record<string, SurfaceBraking> {
+  const out: Record<string, SurfaceBraking> = {};
+  for (const id of BRAKING_SURFACES) {
+    const surface = surfaces.find((s) => s.id === id)!;
+    const config = { maxAccelTime: 0, surface };
+    const locked = sp.runScenario({ scenario: "straightLine", definition: def, config });
+    const abs = sp.runScenario({ scenario: "straightLine", definition: withAbs, config });
+    out[id] = {
+      grip: surface.grip,
+      brakingDistance: locked.brakingDistance,
+      brakingDistanceAbs: abs.brakingDistance,
+      cleanStop: locked.lockReleases === 0 && locked.settledSpeed < 1e-3,
+      spun: locked.spun,
+    };
+  }
+  return out;
 }
 
 export interface TimestepSweepSummary {
@@ -214,6 +324,9 @@ export function runAll(sp: Skidpad, ids: PresetId[] = presetIds): ValidationRepo
       },
       parked: runParked(sp, def),
       timestepSweep: runTimestepSweep(sp, def),
+      stepSteer: runStepSteer(sp, def),
+      laneChange: runLaneChange(sp, def),
+      surfaces: runSurfaces(sp, def, withAbs),
       scriptedDriveHash: scriptedDriveHash(sp, def),
     };
   }

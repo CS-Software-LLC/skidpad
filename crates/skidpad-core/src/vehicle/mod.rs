@@ -13,6 +13,7 @@ pub use four_wheel::{
 use crate::definition::{VehicleDefinition, VehicleModelKind};
 use crate::input::VehicleInput;
 use crate::snapshot::Snapshottable;
+use crate::surface::SurfaceTable;
 
 // The four-wheel state is a few times larger than the single-track state;
 // both are stepped in place inside the world's vehicle list, and boxing the
@@ -64,11 +65,27 @@ impl VehicleModel {
         }
     }
 
+    /// One substep on the reference surface.
     #[inline]
     pub fn substep(&mut self, dt: f64, input: &VehicleInput) {
+        self.substep_on(dt, input, &SurfaceTable::REFERENCE);
+    }
+
+    /// One substep with the contacts' surface ids looked up in `surfaces`.
+    #[inline]
+    pub fn substep_on(&mut self, dt: f64, input: &VehicleInput, surfaces: &SurfaceTable) {
         match self {
-            VehicleModel::SingleTrack(v) => v.substep(dt, input),
-            VehicleModel::FourWheel(v) => v.substep(dt, input),
+            VehicleModel::SingleTrack(v) => v.substep_on(dt, input, surfaces),
+            VehicleModel::FourWheel(v) => v.substep_on(dt, input, surfaces),
+        }
+    }
+
+    /// Surface id of the built-in flat ground (ADR-0014). An external host
+    /// tags each contact itself and ignores this.
+    pub fn set_surface(&mut self, id: u32) {
+        match self {
+            VehicleModel::SingleTrack(v) => v.set_surface(id),
+            VehicleModel::FourWheel(v) => v.set_surface(id),
         }
     }
 
@@ -157,6 +174,15 @@ impl VehicleModel {
         match self {
             VehicleModel::SingleTrack(v) => v.yaw_rate,
             VehicleModel::FourWheel(v) => v.yaw_rate(),
+        }
+    }
+
+    /// Body-frame lateral acceleration from forces other than gravity, m/s²
+    /// (what an accelerometer on the body reads).
+    pub fn lat_accel(&self) -> f64 {
+        match self {
+            VehicleModel::SingleTrack(v) => v.lat_accel,
+            VehicleModel::FourWheel(v) => v.accel_body.y,
         }
     }
 

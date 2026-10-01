@@ -82,6 +82,27 @@ pub struct UndersteerResult {
     pub analytic_gradient_deg_per_g: f64,
 }
 
+/// Linear-theory understeer gradient at the static loads, rad per m/s²,
+/// with the moment arms corrected for pneumatic trail (Milliken ch. 5).
+pub fn linear_understeer_gradient(def: &VehicleDefinition) -> f64 {
+    let c = &def.chassis;
+    let a = c.cg_to_front_axle;
+    let b = def.cg_to_rear_axle();
+    let l = c.wheelbase;
+    let wf = c.mass * GRAVITY * b / l;
+    let wr = c.mass * GRAVITY * a / l;
+    // Axle cornering stiffness: two tires, each at half the axle load.
+    let cf = 2.0 * def.axles[0].tire.cornering_stiffness(0.5 * wf);
+    let cr = 2.0 * def.axles[1].tire.cornering_stiffness(0.5 * wr);
+    // Trail moves the force application points rearward.
+    let tf = def.axles[0].tire.static_trail(0.5 * wf);
+    let tr = def.axles[1].tire.static_trail(0.5 * wr);
+    let a_eff = a - tf;
+    let b_eff = b + tr;
+    let l_eff = a_eff + b_eff;
+    (c.mass / l_eff) * (b_eff / cf - a_eff / cr)
+}
+
 pub fn run(def: &VehicleDefinition, cfg: &UndersteerConfig) -> Result<UndersteerResult, String> {
     def.validate().map_err(|e| e.join("; "))?;
     if cfg.speeds.is_empty() {
@@ -193,21 +214,7 @@ pub fn run(def: &VehicleDefinition, cfg: &UndersteerConfig) -> Result<Understeer
         .collect();
     let (gradient, intercept) = linear_fit(&xs, &ys);
 
-    let c = &def.chassis;
-    let a = c.cg_to_front_axle;
-    let b = def.cg_to_rear_axle();
-    let wf = c.mass * GRAVITY * b / l;
-    let wr = c.mass * GRAVITY * a / l;
-    // Axle cornering stiffness: two tires, each at half the axle load.
-    let cf = 2.0 * def.axles[0].tire.cornering_stiffness(0.5 * wf);
-    let cr = 2.0 * def.axles[1].tire.cornering_stiffness(0.5 * wr);
-    // Trail moves the force application points rearward.
-    let tf = def.axles[0].tire.static_trail(0.5 * wf);
-    let tr = def.axles[1].tire.static_trail(0.5 * wr);
-    let a_eff = a - tf;
-    let b_eff = b + tr;
-    let l_eff = a_eff + b_eff;
-    let analytic = (c.mass / l_eff) * (b_eff / cf - a_eff / cr);
+    let analytic = linear_understeer_gradient(def);
 
     let deg_per_g = |k: f64| m::rad_to_deg(k) * GRAVITY;
     Ok(UndersteerResult {

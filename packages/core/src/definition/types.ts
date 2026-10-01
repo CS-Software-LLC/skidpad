@@ -111,7 +111,16 @@ export interface ChassisDefinition {
  * One corner's spring, damper, travel limits and the axle's anti-roll bar
  * (ADR-0009). Values are per wheel.
  */
+/** How the two wheels of an axle are held (ADR-0016). */
+export type SuspensionKind = "independent" | "solid";
+
 export interface SuspensionDefinition {
+  /**
+   * `"independent"` (default): each wheel on its own strut, leaning with
+   * the body. `"solid"`: a beam axle that keeps both wheels upright to the
+   * line through its two contacts (ADR-0016).
+   */
+  kind: SuspensionKind;
   /** Spring rate at the wheel, N/m. */
   springRate: number;
   /** Damping in compression, N·s/m. */
@@ -126,6 +135,13 @@ export interface SuspensionDefinition {
   antiRollStiffness: number;
   /** Bump-stop stiffness beyond the bump travel, N/m. */
   bumpStopStiffness: number;
+  /**
+   * Roll-centre height above the ground at ride height, m (ADR-0016). The
+   * share `h_rc / h_cg` of this axle's lateral load transfer goes through
+   * the links straight to the tires instead of rolling the body. Zero puts
+   * the roll centre on the ground.
+   */
+  rollCenterHeight: number;
 }
 
 export interface AxleDefinition {
@@ -322,10 +338,30 @@ export interface DrivetrainDefinition {
 
 export interface AeroDefinition {
   dragCoefficient: number;
-  /** Frontal area, m². */
+  /** Frontal area, m²; the reference area of every coefficient here. */
   frontalArea: number;
   /** Air density, kg/m³. */
   airDensity: number;
+  /** Lift coefficient at the front axle on `frontalArea`; negative is downforce (ADR-0015). */
+  liftCoefficientFront: number;
+  /** Lift coefficient at the rear axle on `frontalArea`; negative is downforce. */
+  liftCoefficientRear: number;
+  /** Height of the drag's line of action above the centre of mass, m; drag up high lifts the nose. */
+  dragHeightAboveCg: number;
+}
+
+/**
+ * One entry of a world's surface table (ADR-0014): what the ground under a
+ * wheel does to its tire. Wheel contacts carry a surface id that indexes
+ * the table set with {@link World.setSurfaces}.
+ */
+export interface SurfaceDefinition {
+  /** Scale on the tire's peak and sliding friction; 1 is the surface the tire was tuned on. */
+  grip: number;
+  /** Scale on the tire's rolling resistance. */
+  rollingResistance: number;
+  /** Ploughing drag, N per N of load, opposing the contact-patch motion (gravel, sand, snow). */
+  drag: number;
 }
 
 /** The vehicle models. Both read the same definition. */

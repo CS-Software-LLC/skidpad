@@ -1,0 +1,165 @@
+{
+  "formatVersion": 1,
+  "name": "Pickup 4x4",
+  "dataSheet": {
+    "description": "A generic full-size pickup in the 2.4 t class with full-time four-wheel drive: roughly 220 kW, 3.7 m wheelbase, nose-heavy, high centre of mass, independent front and a leaf-sprung solid rear axle.",
+    "sources": [
+      "Class-typical figures from manufacturer specification sheets for full-size pickups (kerb mass 2200–2600 kg, wheelbase 3.5–3.9 m, Cd 0.40–0.47, 56/44 front weight bias unladen, centre of mass 0.7–0.8 m).",
+      "Tire feel parameters tuned to a ~0.75 g skidpad and ~44 m 100–0 km/h braking distance on all-terrain tires, in the range of published road tests for the class.",
+      "Suspension rates for ~1.3 Hz front and ~1.5 Hz rear ride frequencies unladen (Gillespie, Fundamentals of Vehicle Dynamics, ch. 5); a leaf-sprung solid rear axle has its roll centre near the spring-seat height, about 0.4 m, and the independent front near 0.1 m (Milliken & Milliken, Race Car Vehicle Dynamics, ch. 17).",
+      "Drivetrain [ILLUSTRATIVE]: a 3.5 l V6 (peak 520 N·m at 3000 rpm, 220 kW at 5600 rpm) through a six-speed automatic with a 3.7 final drive, open axle differentials and a centre differential sending 40 % forward, as on a full-time 4WD system.",
+      "Steering geometry [ILLUSTRATIVE]: 4° of caster (about 25 mm of trail), a 20 mm scrub radius and strong hydraulic assist; aero after Hucho, Aerodynamics of Road Vehicles, ch. 4: a tall bluff body with mild lift and the drag centred well above the centre of mass."
+    ],
+    "notes": "Not a specific production model. The rear axle is a solid beam (suspension.kind \"solid\", ADR-0016) with a high roll centre, so most of its lateral load transfer goes through the links and the body rolls less than the soft springs alone would allow."
+  },
+  "chassis": {
+    "mass": 2400,
+    "yawInertia": 5200,
+    "rollInertia": 1100,
+    "pitchInertia": 4800,
+    "wheelbase": 3.7,
+    "cgToFrontAxle": 1.63,
+    "cgHeight": 0.75,
+    "trackWidth": 1.7
+  },
+  "axles": [
+    {
+      "tire": {
+        "model": "feel",
+        "radius": 0.4,
+        "nominalLoad": 6500,
+        "peakFriction": 0.85,
+        "loadSensitivity": 0.1,
+        "peakSlipAngleDeg": 8.0,
+        "peakSlipRatio": 0.13,
+        "corneringStiffness": 15,
+        "longitudinalStiffness": 18,
+        "stiffnessPeakLoad": 8000,
+        "relaxationLengthLat": 0.45,
+        "relaxationLengthLong": 0.3,
+        "rollingResistance": 0.013
+      },
+      "wheelInertia": 3.2,
+      "driven": true,
+      "steered": true,
+      "maxBrakeTorque": 7000,
+      "staticCamberDeg": 0.0,
+      "suspension": {
+        "kind": "independent",
+        "springRate": 44000,
+        "bumpDamping": 3800,
+        "reboundDamping": 5200,
+        "travelBump": 0.1,
+        "travelDroop": 0.12,
+        "antiRollStiffness": 20000,
+        "bumpStopStiffness": 400000,
+        "rollCenterHeight": 0.1
+      }
+    },
+    {
+      "tire": {
+        "model": "feel",
+        "radius": 0.4,
+        "nominalLoad": 6500,
+        "peakFriction": 0.85,
+        "loadSensitivity": 0.1,
+        "peakSlipAngleDeg": 8.0,
+        "peakSlipRatio": 0.13,
+        "corneringStiffness": 15,
+        "longitudinalStiffness": 18,
+        "stiffnessPeakLoad": 8000,
+        "relaxationLengthLat": 0.45,
+        "relaxationLengthLong": 0.3,
+        "rollingResistance": 0.013
+      },
+      "wheelInertia": 3.4,
+      "driven": true,
+      "steered": false,
+      "maxBrakeTorque": 4500,
+      "staticCamberDeg": 0.0,
+      "suspension": {
+        "kind": "solid",
+        "springRate": 48000,
+        "bumpDamping": 3600,
+        "reboundDamping": 5000,
+        "travelBump": 0.12,
+        "travelDroop": 0.14,
+        "antiRollStiffness": 4000,
+        "bumpStopStiffness": 400000,
+        "rollCenterHeight": 0.4
+      }
+    }
+  ],
+  "steering": {
+    "maxWheelAngleDeg": 33,
+    "ratio": 17,
+    "ackermann": 1.0,
+    "mechanicalTrail": 0.025,
+    "scrubRadius": 0.02,
+    "steeringArm": 0.14,
+    "powerAssist": 0.7,
+    "columnFriction": 0.4,
+    "columnDamping": 0.06,
+    "jackingRate": 0.0
+  },
+  "brakes": {
+    "handbrakeTorque": 2800
+  },
+  "aero": {
+    "dragCoefficient": 0.45,
+    "frontalArea": 3.4,
+    "airDensity": 1.225,
+    "liftCoefficientFront": 0.15,
+    "liftCoefficientRear": 0.1,
+    "dragHeightAboveCg": 0.2
+  },
+  "simulation": {
+    "substepRateHz": 1000,
+    "model": "fourWheel"
+  },
+  "drivetrain": {
+    "powerUnit": {
+      "kind": "combustion",
+      "idleRpm": 650,
+      "redlineRpm": 6200,
+      "inertia": 0.35,
+      "torqueCurve": [
+        [1000, 330],
+        [2000, 460],
+        [3000, 520],
+        [4000, 505],
+        [5000, 470],
+        [5600, 420],
+        [6200, 360]
+      ],
+      "engineBrakingIdle": 25,
+      "engineBrakingRedline": 110,
+      "idleTorqueMax": 120
+    },
+    "transmission": {
+      "gears": [4.0, 2.5, 1.65, 1.2, 1.0, 0.78],
+      "reverse": 3.4,
+      "finalDrive": 3.7,
+      "mode": "automatic",
+      "shiftTime": 0.3,
+      "shiftHold": 0.6,
+      "shiftUpAt": 0.85,
+      "shiftDownAt": 0.4,
+      "clutchMaxTorque": 1100,
+      "clutchEngageTime": 0.3,
+      "clutchBiteRpm": 1200,
+      "inputInertia": 0.08,
+      "outputInertia": 0.1
+    },
+    "front": {
+      "kind": "open"
+    },
+    "rear": {
+      "kind": "open"
+    },
+    "center": {
+      "kind": "open",
+      "frontTorqueFraction": 0.4
+    }
+  }
+}

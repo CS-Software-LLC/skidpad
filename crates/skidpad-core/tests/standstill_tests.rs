@@ -292,6 +292,7 @@ fn sliding_force_bound_is_reported_by_both_models() {
             slip_angle: 0.0,
             camber: 0.0,
             vx: 10.0,
+            ..TireInput::default()
         });
         assert!(o.fx_slide > 0.0 && o.fx_slide <= o.fx_max);
         assert!(o.fy_slide > 0.0 && o.fy_slide <= o.fy_max);
@@ -302,6 +303,7 @@ fn sliding_force_bound_is_reported_by_both_models() {
             slip_angle: 0.0,
             camber: 0.0,
             vx: 10.0,
+            ..TireInput::default()
         });
         assert!(
             (big.fx - o.fx_slide).abs() < 0.03 * o.fx_slide,

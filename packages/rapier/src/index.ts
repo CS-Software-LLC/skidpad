@@ -57,7 +57,11 @@ export interface RapierVehicleOptions {
   filterGroups?: number;
   /** Extra predicate on colliders the rays may hit. */
   filterPredicate?: (collider: RAPIER.Collider) => boolean;
-  /** Map a hit collider to a surface id for the core (surfaces land in M6). Default 0. */
+  /**
+   * Map a hit collider to a surface id, an index into the world's surface
+   * table (`World.setSurfaces()`, ADR-0014). A common choice is to keep the
+   * id in the collider's user data. Default 0, the reference surface.
+   */
   surfaceId?: (collider: RAPIER.Collider) => number;
   /**
    * Read the velocity of the hit body at the contact so the car rides moving

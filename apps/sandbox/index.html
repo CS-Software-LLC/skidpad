@@ -86,16 +86,28 @@
         height: 100%;
         background: #4fd1c5;
       }
-      .panel {
+      /* The right-hand column: a row of panel toggles above the controls. */
+      .right {
         position: absolute;
-        right: 12px;
         top: 12px;
-        max-width: 520px;
+        right: 12px;
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 8px;
+        z-index: 3;
+      }
+      .panels {
+        position: relative;
+        display: flex;
+        justify-content: flex-end;
+        gap: 2px;
+      }
+      .panel {
         font:
           13px/1.4 system-ui,
           sans-serif;
         color: #e6e9ef;
-        z-index: 3;
       }
       .panel-toggle,
       .panel-body button,
@@ -108,14 +120,20 @@
         margin: 2px;
         cursor: pointer;
       }
+      /* An open panel drops down over the controls instead of pushing them. */
       .panel-body {
-        margin-top: 6px;
+        position: absolute;
+        right: 0;
+        top: calc(100% + 4px);
+        width: min(520px, calc(100vw - 24px));
+        box-sizing: border-box;
         background: rgba(16, 19, 27, 0.92);
         border: 1px solid #3a4256;
         border-radius: 8px;
         padding: 10px 12px;
         max-height: 80vh;
         overflow: auto;
+        z-index: 5;
       }
       .panel-body h2 {
         font-size: 13px;
@@ -146,10 +164,64 @@
       .panel-body label {
         margin-right: 10px;
       }
+      .panel-body .error {
+        color: #ff8080;
+        white-space: pre-wrap;
+      }
+      .tuning-filter {
+        width: 100%;
+        box-sizing: border-box;
+        font: inherit;
+        padding: 4px 8px;
+        background: #0b0d13;
+        color: #e6e9ef;
+        border: 1px solid #3a4256;
+        border-radius: 6px;
+      }
+      .tuning section {
+        margin-bottom: 6px;
+      }
+      .tuning-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 128px;
+        gap: 2px 8px;
+        align-items: center;
+        font-size: 12px;
+      }
+      .tuning-grid label {
+        margin: 0;
+        overflow: hidden;
+        white-space: nowrap;
+        text-overflow: ellipsis;
+        cursor: help;
+      }
+      .tuning-grid input[type="number"],
+      .tuning-grid select {
+        width: 100%;
+        box-sizing: border-box;
+        margin: 0;
+        padding: 2px 6px;
+        font: inherit;
+        font-variant-numeric: tabular-nums;
+        background: #0b0d13;
+        color: #e6e9ef;
+        border: 1px solid #3a4256;
+        border-radius: 4px;
+      }
+      .tuning-grid input[type="checkbox"] {
+        margin: 0;
+        justify-self: start;
+      }
+      .tuning-grid textarea {
+        grid-column: 1 / -1;
+        box-sizing: border-box;
+        resize: vertical;
+      }
+      .tuning-grid .const {
+        color: #9aa4b5;
+        font-family: ui-monospace, monospace;
+      }
       .controls {
-        position: absolute;
-        top: 12px;
-        right: 12px;
         background: rgba(10, 12, 18, 0.75);
         padding: 10px 12px;
         border-radius: 8px;

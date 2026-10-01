@@ -256,12 +256,17 @@ impl MagicFormulaParams {
         let gamma_y = gamma * self.lgay;
         let gamma_z = gamma * self.lgaz;
         let r0 = self.unloaded_radius;
+        // The surface's grip scale multiplies the friction scaling factors
+        // `λμx`, `λμy` (ADR-0014), which is where Pacejka puts a change of
+        // road surface; everything else is untouched.
+        let lmux = self.lmux * m::max(i.grip, 0.0);
+        let lmuy = self.lmuy * m::max(i.grip, 0.0);
 
         // ---- Pure longitudinal, eq. 4.E9–4.E18 ----
         let shx = (self.phx1 + self.phx2 * dfz) * self.lhx;
         let kx = kappa + shx;
         let cx = self.pcx1 * self.lcx;
-        let mux = (self.pdx1 + self.pdx2 * dfz) * (1.0 - self.pdx3 * gamma * gamma) * self.lmux;
+        let mux = (self.pdx1 + self.pdx2 * dfz) * (1.0 - self.pdx3 * gamma * gamma) * lmux;
         let dx = mux * fz;
         let ex = m::min(
             (self.pex1 + self.pex2 * dfz + self.pex3 * dfz * dfz)
@@ -271,7 +276,7 @@ impl MagicFormulaParams {
         );
         let kxk = fz * (self.pkx1 + self.pkx2 * dfz) * m::exp(self.pkx3 * dfz) * self.lkx;
         let bx = kxk / m::max(cx * dx, 1e-9);
-        let svx = fz * (self.pvx1 + self.pvx2 * dfz) * self.lvx * self.lmux;
+        let svx = fz * (self.pvx1 + self.pvx2 * dfz) * self.lvx * lmux;
         let fx0 = magic(bx, cx, dx, ex, kx) + svx;
 
         // ---- Pure lateral, eq. 4.E19–4.E30 ----
@@ -279,7 +284,7 @@ impl MagicFormulaParams {
         let shy = (self.phy1 + self.phy2 * dfz) * self.lhy + self.phy3 * gamma_y;
         let ay = alpha + shy;
         let cy = self.pcy1 * self.lcy;
-        let muy = (self.pdy1 + self.pdy2 * dfz) * (1.0 - self.pdy3 * gamma_y * gamma_y) * self.lmuy;
+        let muy = (self.pdy1 + self.pdy2 * dfz) * (1.0 - self.pdy3 * gamma_y * gamma_y) * lmuy;
         let dy = muy * fz;
         let ey = m::min(
             (self.pey1 + self.pey2 * dfz)
@@ -290,7 +295,7 @@ impl MagicFormulaParams {
         let by = kya / m::max(cy * dy, 1e-9);
         let svy = fz
             * ((self.pvy1 + self.pvy2 * dfz) * self.lvy + (self.pvy3 + self.pvy4 * dfz) * gamma_y)
-            * self.lmuy;
+            * lmuy;
         let fy0 = magic(by, cy, dy, ey, ay) + svy;
 
         // ---- Combined slip, eq. 4.E50–4.E67 ----
@@ -329,18 +334,18 @@ impl MagicFormulaParams {
         let bt = (self.qbz1 + self.qbz2 * dfz + self.qbz3 * dfz * dfz)
             * (1.0 + self.qbz4 * gamma_z + self.qbz5 * m::abs(gamma_z))
             * self.lky
-            / m::max(self.lmuy, 1e-9);
+            / m::max(lmuy, 1e-9);
         let ct = self.qcz1;
         let dt = fz
             * (self.qdz1 + self.qdz2 * dfz)
             * (1.0 + self.qdz3 * gamma_z + self.qdz4 * gamma_z * gamma_z)
             * (r0 / f0)
             * self.ltr;
-        let br = self.qbz9 * self.lky / m::max(self.lmuy, 1e-9) + self.qbz10 * by * cy;
+        let br = self.qbz9 * self.lky / m::max(lmuy, 1e-9) + self.qbz10 * by * cy;
         let dr = fz
             * ((self.qdz6 + self.qdz7 * dfz) * self.lres + (self.qdz8 + self.qdz9 * dfz) * gamma_z)
             * r0
-            * self.lmuy;
+            * lmuy;
 
         // Equivalent slip angles for combined slip (eq. 4.E77, 4.E78).
         let ratio = kxk / if m::abs(kya) > 1e-9 { kya } else { 1e-9 };
@@ -382,7 +387,8 @@ impl MagicFormulaParams {
                 + self.qsy2 * fx / f0
                 + self.qsy3 * m::abs(v_ratio)
                 + self.qsy4 * m::powi(v_ratio, 4))
-            * self.lmy;
+            * self.lmy
+            * m::max(i.rolling_resistance, 0.0);
         // Smooth through zero below the speed floor so a parked car never
         // sees a sign-switching torque (ADR-0005).
         let my = -m::clamp(i.vx / m::max(self.low_speed_floor, 1e-6), -1.0, 1.0) * my_mag;

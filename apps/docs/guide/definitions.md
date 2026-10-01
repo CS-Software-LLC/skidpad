@@ -7,16 +7,16 @@ and SI units; the only non-SI fields end in `Deg`.
 
 ## Components
 
-| Component    | What it holds                                                                                                     |
-| ------------ | ----------------------------------------------------------------------------------------------------------------- |
-| `chassis`    | Mass, yaw, roll and pitch inertia, wheelbase, centre-of-mass position and height, track width                     |
-| `axles`      | Front then rear. Each has a tire, a `suspension`, wheel inertia, `driven`, `steered`, brake torque, static camber |
-| `steering`   | Maximum road-wheel angle, steering ratio, Ackermann fraction                                                      |
-| `brakes`     | Handbrake torque                                                                                                  |
-| `drivetrain` | Power unit (`direct`, `combustion` or `electric`), transmission, axle and centre differentials (ADR-0011)         |
-| `aero`       | Drag coefficient, frontal area, air density                                                                       |
-| `simulation` | Internal substep rate and `model`: `"fourWheel"` (default) or `"singleTrack"`                                     |
-| `dataSheet`  | Sources for reference vehicles                                                                                    |
+| Component    | What it holds                                                                                                                                              |
+| ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `chassis`    | Mass, yaw, roll and pitch inertia, wheelbase, centre-of-mass position and height, track width                                                              |
+| `axles`      | Front then rear. Each has a tire, a `suspension` (with its `kind` and roll-centre height), wheel inertia, `driven`, `steered`, brake torque, static camber |
+| `steering`   | Maximum road-wheel angle, steering ratio, Ackermann fraction                                                                                               |
+| `brakes`     | Handbrake torque                                                                                                                                           |
+| `drivetrain` | Power unit (`direct`, `combustion` or `electric`), transmission, axle and centre differentials (ADR-0011)                                                  |
+| `aero`       | Drag coefficient, frontal area, air density, lift coefficient per axle, height of the drag line above the centre of mass (ADR-0015)                        |
+| `simulation` | Internal substep rate and `model`: `"fourWheel"` (default) or `"singleTrack"`                                                                              |
+| `dataSheet`  | Sources for reference vehicles                                                                                                                             |
 
 Tire and suspension parameters are quoted **per wheel**. The single-track
 model evaluates one tire at half the axle load and doubles the result, so the
@@ -30,6 +30,25 @@ stiffness, and the bump-stop stiffness. Ride height is `chassis.cgHeight`;
 the spring is preloaded to hold it, so changing the spring rate changes
 stiffness, not height. See [suspension](/concepts/suspension) for what each
 does and the [tuning guide](/tuning/) for which to touch.
+
+Two fields describe the geometry rather than the springs, and only the
+four-wheel model reads them. `kind` is `"independent"` (default) or
+`"solid"`: a solid axle keeps both wheels upright to the line through their
+contacts instead of leaning with the body. `rollCenterHeight` (m, default 0) is the axle's roll-centre height above the ground; the share
+`rollCenterHeight / cgHeight` of that axle's lateral load transfer then goes
+through the links to the tires instead of rolling the body
+([roll centres](/concepts/suspension#roll-centres)). It is accepted within
+±1 m.
+
+## Aero
+
+`aero` has the drag coefficient, the frontal area every coefficient is
+referenced to, and the air density. `liftCoefficientFront` and
+`liftCoefficientRear` (default 0, accepted within ±10) give a lift force at
+each axle from the forward speed squared; negative is downforce.
+`dragHeightAboveCg` (m, default 0) is how far above the centre of mass the
+drag acts, which pitches the nose up at speed. See
+[aerodynamics](/concepts/aero).
 
 `validateDefinition()` warns when the static load would compress a spring
 beyond its bump travel, which means the car rests on its bump stops.

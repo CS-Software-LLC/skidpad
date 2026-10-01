@@ -29,7 +29,7 @@ test("the scripted scenario and the recorded laps hash identically in this brows
 
   expect(report.mathSelftestHash).toBe(pinned);
   expect(report.checkpoints.length).toBeGreaterThan(5);
-  expect(report.laps.length).toBe(3);
+  expect(report.laps.length).toBe(6);
   for (const lap of report.laps) expect(lap.steps).toBeGreaterThan(30 * 60);
 
   if (existsSync(nodeReportPath)) {

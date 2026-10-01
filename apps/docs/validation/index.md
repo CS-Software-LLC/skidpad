@@ -80,6 +80,48 @@ On the built-in host the host rate only changes how often the inputs update
 the substep rate; the host-rate dimension is there for the external-host
 contract, where the impulse exchange runs at the host rate.
 
+**Step steer** follows ISO 7401: the car runs straight at 80 km/h, then
+the road-wheel angle is ramped over 0.1 s (the standard allows up to 0.15 s;
+a ramp keeps the result independent of which host step the input lands on)
+to the angle linear theory needs for 4 m/s² of lateral acceleration, with
+the definition's own cornering stiffnesses and trail, and held for 5 s. The
+table shows the time for the yaw rate to first reach 90 % of its steady
+state and its overshoot past it; the golden file also has the steady yaw
+rate and its gain per radian of steer, the lateral-acceleration response
+time, the steady side-slip angle and the roll. A short wheelbase and a small
+yaw inertia answer fastest: the kart in under two tenths of a second, the
+road cars in two to three. The lateral acceleration comes out a little under the
+4 m/s² aimed for because the steer angle is the linear one and the tires
+are not.
+
+**Double lane change** lays out the ISO 3888-1 course: 15, 30, 25, 25 and
+15 m sections with lane widths of 1.1, 1.2 and 1.3 times the vehicle width
+plus 0.25 m and a 3.5 m offset between the lane centres (the ISO 3888-2
+"moose test" course is an option). The vehicle width defaults to the track
+width plus 0.25 m. A scripted driver steers through at each entry speed
+from 50 to 110 km/h in steps of 10: path-curvature feedforward with the
+linear understeer gradient, pure pursuit on a smooth centreline, and up to
+four practice runs per speed in which it learns a steering correction
+along the course from the path error of the previous run, as a test driver
+does; the best run counts. A speed passes when every wheel stayed inside
+the coned lanes of sections 1, 3 and 5, and the table shows the highest
+speed that passed. The number depends on this driver as much as on the car,
+so compare presets against each other and against road tests only loosely;
+the per-speed attempts with their cone overlap, peak lateral acceleration,
+yaw rate and side slip are in the golden file.
+
+**Surfaces** repeats the 100–0 km/h stop on wet asphalt, gravel, snow and
+ice from the [reference table](/concepts/surfaces), with locked wheels and
+with the ABS. The distance scales roughly with the inverse of the grip, so
+ice at 0.12 takes about seven times the dry distance; the ABS gains less on ice
+than on asphalt because the surface scales the friction and not the
+stiffness, so the force peaks at a smaller slip and the ABS's default slip
+target of 0.12 sits past it. The table shows the ice column. A car
+with rear-only brakes locks its rear wheels and swaps ends on snow and ice
+(the kart does); the scenario flags it as spun, the distance is then what
+it travelled before coming to rest, and the table shows "spins" instead of a
+number.
+
 **Scripted drive hash** is the state hash after a fixed 30 s drive. It changes
 whenever anything physics-visible changes, and it must match across Chromium,
 Firefox, WebKit, and Node. The determinism harness also replays a recorded lap
@@ -88,5 +130,6 @@ of the sandbox track for each preset; see the
 
 ## Coming with later milestones
 
-Step steer (ISO 7401), double lane change (ISO 3888) and a rest-jitter
-measurement on an external host.
+A rest-jitter measurement on an external host: the standstill scenarios run
+on the built-in host, and the external-host contract has only the timestep
+sweep's host-rate dimension to cover it.

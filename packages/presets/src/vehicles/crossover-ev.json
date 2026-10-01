@@ -1,0 +1,162 @@
+{
+  "formatVersion": 1,
+  "name": "Electric crossover AWD",
+  "dataSheet": {
+    "description": "A generic dual-motor electric crossover in the 2.1 t class: roughly 300 kW, 2.9 m wheelbase, a floor-mounted battery for a low centre of mass, near 50/50 weight distribution, single-speed reduction gears.",
+    "sources": [
+      "Class-typical figures from manufacturer specification sheets for mid-size electric crossovers (mass 2000–2250 kg, wheelbase 2.85–2.95 m, Cd 0.26–0.29, centre of mass 0.5–0.55 m, 51/49 front weight bias).",
+      "Tire feel parameters tuned to a ~0.9 g skidpad and ~37 m 100–0 km/h braking distance on all-season tires, in the range of published road tests for the class.",
+      "Suspension rates for ~1.5 Hz front and ~1.6 Hz rear ride frequencies (Gillespie ch. 5), roll centres of a strut front near 80 mm and a multilink rear near 130 mm (Milliken & Milliken ch. 17).",
+      "Drivetrain [ILLUSTRATIVE]: two motors modelled as one unit of 520 N·m and 300 kW to 16 000 rpm through a 9:1 reduction, torque split evenly through an open centre differential, 90 N·m of lift-off regeneration. An electric motor's torque is instant, so the preset ships with traction control on, as every production EV does (ADR-0013).",
+      "Steering geometry [ILLUSTRATIVE]: 6° of caster (about 28 mm of trail), a small scrub radius and strong electric assist; aero after Hucho ch. 4, a smooth body with a little front lift."
+    ],
+    "notes": "Not a specific production model. The two motors share one torque curve in this format; the centre differential's torque split stands in for the independent rear-biased control a real dual-motor car has."
+  },
+  "chassis": {
+    "mass": 2100,
+    "yawInertia": 3600,
+    "rollInertia": 700,
+    "pitchInertia": 3300,
+    "wheelbase": 2.9,
+    "cgToFrontAxle": 1.42,
+    "cgHeight": 0.52,
+    "trackWidth": 1.65
+  },
+  "axles": [
+    {
+      "tire": {
+        "model": "feel",
+        "radius": 0.36,
+        "nominalLoad": 5500,
+        "peakFriction": 1.0,
+        "loadSensitivity": 0.1,
+        "peakSlipAngleDeg": 7.0,
+        "peakSlipRatio": 0.12,
+        "corneringStiffness": 18,
+        "longitudinalStiffness": 22,
+        "stiffnessPeakLoad": 7000,
+        "relaxationLengthLat": 0.35,
+        "relaxationLengthLong": 0.25,
+        "rollingResistance": 0.009
+      },
+      "wheelInertia": 2.2,
+      "driven": true,
+      "steered": true,
+      "maxBrakeTorque": 5500,
+      "staticCamberDeg": -0.5,
+      "suspension": {
+        "kind": "independent",
+        "springRate": 48000,
+        "bumpDamping": 3800,
+        "reboundDamping": 5200,
+        "travelBump": 0.08,
+        "travelDroop": 0.1,
+        "antiRollStiffness": 24000,
+        "bumpStopStiffness": 400000,
+        "rollCenterHeight": 0.08
+      }
+    },
+    {
+      "tire": {
+        "model": "feel",
+        "radius": 0.36,
+        "nominalLoad": 5500,
+        "peakFriction": 1.0,
+        "loadSensitivity": 0.1,
+        "peakSlipAngleDeg": 7.0,
+        "peakSlipRatio": 0.12,
+        "corneringStiffness": 18,
+        "longitudinalStiffness": 22,
+        "stiffnessPeakLoad": 7000,
+        "relaxationLengthLat": 0.35,
+        "relaxationLengthLong": 0.25,
+        "rollingResistance": 0.009
+      },
+      "wheelInertia": 2.2,
+      "driven": true,
+      "steered": false,
+      "maxBrakeTorque": 3200,
+      "staticCamberDeg": -1.0,
+      "suspension": {
+        "kind": "independent",
+        "springRate": 52000,
+        "bumpDamping": 4000,
+        "reboundDamping": 5400,
+        "travelBump": 0.09,
+        "travelDroop": 0.11,
+        "antiRollStiffness": 14000,
+        "bumpStopStiffness": 400000,
+        "rollCenterHeight": 0.13
+      }
+    }
+  ],
+  "steering": {
+    "maxWheelAngleDeg": 34,
+    "ratio": 14.5,
+    "ackermann": 1.0,
+    "mechanicalTrail": 0.028,
+    "scrubRadius": 0.008,
+    "steeringArm": 0.13,
+    "powerAssist": 0.65,
+    "columnFriction": 0.3,
+    "columnDamping": 0.05,
+    "jackingRate": 0.0
+  },
+  "brakes": {
+    "handbrakeTorque": 2200
+  },
+  "aero": {
+    "dragCoefficient": 0.27,
+    "frontalArea": 2.7,
+    "airDensity": 1.225,
+    "liftCoefficientFront": 0.06,
+    "liftCoefficientRear": 0.02,
+    "dragHeightAboveCg": 0.1
+  },
+  "simulation": {
+    "substepRateHz": 1000,
+    "model": "fourWheel"
+  },
+  "drivetrain": {
+    "powerUnit": {
+      "kind": "electric",
+      "maxTorque": 520,
+      "maxPower": 300000,
+      "maxRpm": 16000,
+      "inertia": 0.08,
+      "regenTorque": 90
+    },
+    "transmission": {
+      "gears": [9.0],
+      "reverse": 9.0,
+      "finalDrive": 1.0,
+      "mode": "automatic",
+      "shiftTime": 0,
+      "shiftHold": 0,
+      "shiftUpAt": 1.0,
+      "shiftDownAt": 0,
+      "clutchMaxTorque": 2000,
+      "clutchEngageTime": 0,
+      "clutchBiteRpm": 0,
+      "inputInertia": 0.02,
+      "outputInertia": 0.04
+    },
+    "front": {
+      "kind": "open"
+    },
+    "rear": {
+      "kind": "open"
+    },
+    "center": {
+      "kind": "open",
+      "frontTorqueFraction": 0.5
+    }
+  },
+  "assists": {
+    "tractionControl": {
+      "enabled": true,
+      "slipTarget": 0.1,
+      "slipRelease": 0.25
+    }
+  }
+}

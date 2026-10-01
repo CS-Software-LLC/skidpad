@@ -13,20 +13,20 @@ use skidpad_core::input::VehicleInput;
 use skidpad_core::telemetry;
 use skidpad_core::tire::{tir, TireInput, TireModel};
 use skidpad_core::validation::{
-    parked, straight_line, timestep_sweep, understeer, ParkedConfig, StraightLineConfig,
-    TimestepSweepConfig, UndersteerConfig,
+    lane_change, parked, step_steer, straight_line, timestep_sweep, understeer, LaneChangeConfig,
+    ParkedConfig, StepSteerConfig, StraightLineConfig, TimestepSweepConfig, UndersteerConfig,
 };
 use skidpad_core::vehicle::{HostMode, WHEEL_COUNT};
 use skidpad_core::world::{
     HOST_CONTACT_STRIDE, HOST_IN_BODY_LEN, HOST_IN_STRIDE, HOST_OUT_BODY_LEN, HOST_OUT_STRIDE,
     HOST_OUT_WHEEL_STRIDE, WHEEL_RAY_STRIDE,
 };
-use skidpad_core::{VehicleDefinition, World};
+use skidpad_core::{Surface, VehicleDefinition, World};
 use std::cell::RefCell;
 
 /// Bump this whenever an exported signature changes. The TypeScript loader
 /// refuses to run against a different ABI version.
-pub const ABI_VERSION: u32 = 3;
+pub const ABI_VERSION: u32 = 4;
 
 pub const OK: i32 = 0;
 pub const ERR_INVALID_HANDLE: i32 = -1;
@@ -484,6 +484,56 @@ pub extern "C" fn sp_world_set_ground_slope(
     )
 }
 
+/// Replace a world's surface table from a JSON array of
+/// `{"grip", "rollingResistance", "drag"}` objects; entry `i` is the surface
+/// id `i` that wheel contacts carry (ADR-0014).
+///
+/// # Safety
+/// See `str_from`.
+#[no_mangle]
+pub unsafe extern "C" fn sp_world_set_surfaces(
+    handle: u32,
+    json_ptr: *const u8,
+    json_len: usize,
+) -> i32 {
+    let json = match str_from(json_ptr, json_len) {
+        Ok(s) => s,
+        Err(c) => return c,
+    };
+    let list: Vec<Surface> = match serde_json::from_str(json) {
+        Ok(l) => l,
+        Err(e) => {
+            set_error(format!(
+                "surface table is not valid JSON for this format: {e}"
+            ));
+            return ERR_INVALID_JSON;
+        }
+    };
+    unwrap_code(with_world(handle, |w| w.set_surfaces(&list)), |r| match r {
+        Ok(()) => OK,
+        Err(e) => {
+            set_error(e.to_string());
+            ERR_INVALID_DEFINITION
+        }
+    })
+}
+
+/// Surface id of the built-in flat ground under a vehicle. An external host
+/// tags each wheel contact itself through the host-sync record.
+#[no_mangle]
+pub extern "C" fn sp_world_set_surface(handle: u32, vehicle: u32, surface: u32) -> i32 {
+    unwrap_code(
+        with_world(handle, |w| w.set_surface(vehicle as usize, surface)),
+        |r| match r {
+            Ok(()) => OK,
+            Err(e) => {
+                set_error(e.to_string());
+                ERR_NO_SUCH_VEHICLE
+            }
+        },
+    )
+}
+
 #[no_mangle]
 pub extern "C" fn sp_world_reset_vehicle(
     handle: u32,
@@ -672,6 +722,7 @@ pub unsafe extern "C" fn sp_tire_eval(
                 slip_angle,
                 camber,
                 vx,
+                ..TireInput::default()
             });
             write_tire_out(&o, out);
         }),
@@ -718,6 +769,7 @@ pub unsafe extern "C" fn sp_tire_sweep(
                         slip_angle: other_slip,
                         camber,
                         vx: 10.0,
+                        ..TireInput::default()
                     }
                 } else {
                     TireInput {
@@ -726,6 +778,7 @@ pub unsafe extern "C" fn sp_tire_sweep(
                         slip_angle: s,
                         camber,
                         vx: 10.0,
+                        ..TireInput::default()
                     }
                 };
                 let o = t.eval(&input);
@@ -785,6 +838,16 @@ enum ScenarioRequest {
         #[serde(default)]
         config: TimestepSweepConfig,
     },
+    StepSteer {
+        definition: VehicleDefinition,
+        #[serde(default)]
+        config: StepSteerConfig,
+    },
+    DoubleLaneChange {
+        definition: VehicleDefinition,
+        #[serde(default)]
+        config: LaneChangeConfig,
+    },
 }
 
 /// Run a validation scenario described by JSON. The result JSON is available
@@ -817,6 +880,12 @@ pub unsafe extern "C" fn sp_run_scenario(ptr: *const u8, len: usize) -> i32 {
         }
         ScenarioRequest::TimestepSweep { definition, config } => {
             timestep_sweep::run(&definition, &config).map(|r| serde_json::to_string(&r))
+        }
+        ScenarioRequest::StepSteer { definition, config } => {
+            step_steer::run(&definition, &config).map(|r| serde_json::to_string(&r))
+        }
+        ScenarioRequest::DoubleLaneChange { definition, config } => {
+            lane_change::run(&definition, &config).map(|r| serde_json::to_string(&r))
         }
     };
     match result {
