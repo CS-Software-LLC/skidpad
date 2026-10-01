@@ -8,66 +8,71 @@
         "points": [
           {
             "targetSpeed": 4,
-            "speed": 3.956812308548595,
-            "steerAngle": 0.06506174633416044,
-            "latAccel": 0.39568034521314466,
-            "yawRate": 0.0999997761729276,
-            "frontSlipAngle": -0.0025194076615274786,
-            "rearSlipAngle": -0.0018231989328591235
+            "speed": 3.9568122877127303,
+            "steerAngle": 0.06506140055051576,
+            "latAccel": 0.39567820220251476,
+            "yawRate": 0.09999923509923134,
+            "frontSlipAngle": -0.0025194015359870318,
+            "rearSlipAngle": -0.001823189090850651
           },
           {
             "targetSpeed": 6,
-            "speed": 5.951006540771516,
-            "steerAngle": 0.06579904951779786,
-            "latAccel": 0.8926545756610335,
-            "yawRate": 0.15000060402308055,
-            "frontSlipAngle": -0.005733142262712884,
-            "rearSlipAngle": -0.0041402177590068754
+            "speed": 5.9510067548729815,
+            "steerAngle": 0.06580370488258486,
+            "latAccel": 0.8927196546048236,
+            "yawRate": 0.15001153441366696,
+            "frontSlipAngle": -0.005733410565536841,
+            "rearSlipAngle": -0.004140523620107282
           },
           {
             "targetSpeed": 8,
-            "speed": 7.941184291228746,
-            "steerAngle": 0.06704588796715098,
-            "latAccel": 1.5882381444745388,
-            "yawRate": 0.20000016196939188,
-            "frontSlipAngle": -0.010325432241612966,
-            "rearSlipAngle": -0.007446504403747309
+            "speed": 7.9411839232004695,
+            "steerAngle": 0.06704977844313337,
+            "latAccel": 1.588333827575537,
+            "yawRate": 0.2000122202100807,
+            "frontSlipAngle": -0.01032590867479802,
+            "rearSlipAngle": -0.007446975429508014
           },
           {
             "targetSpeed": 10,
-            "speed": 9.924608943522703,
-            "steerAngle": 0.06884797228228502,
-            "latAccel": 2.481152955687836,
-            "yawRate": 0.2500000725275084,
-            "frontSlipAngle": -0.016533617954400403,
-            "rearSlipAngle": -0.011879937506998658
+            "speed": 9.92460701929977,
+            "steerAngle": 0.06885176608938832,
+            "latAccel": 2.4812948670085517,
+            "yawRate": 0.25001441993477297,
+            "frontSlipAngle": -0.016534457067774375,
+            "rearSlipAngle": -0.011880690947427355
           },
           {
             "targetSpeed": 12,
-            "speed": 11.896612793308163,
-            "steerAngle": 0.07151107592238634,
-            "latAccel": 3.5689844716576324,
-            "yawRate": 0.30000005326433654,
-            "frontSlipAngle": -0.024984567960890137,
-            "rearSlipAngle": -0.01775197542796676
+            "speed": 11.896606021932117,
+            "steerAngle": 0.07151582676882572,
+            "latAccel": 3.5692249239484966,
+            "yawRate": 0.30002043586033833,
+            "frontSlipAngle": -0.024986351518751743,
+            "rearSlipAngle": -0.017753421358399097
           }
         ],
         "ackermannAngle": 0.06375,
-        "fittedIntercept": 0.06402038360009,
-        "gradient": 0.0020347712674446306,
-        "gradientDegPerG": 1.1432965801200423,
+        "fittedIntercept": 0.06402191663363124,
+        "gradient": 0.0020356650214785003,
+        "gradientDegPerG": 1.1437987623292865,
         "analyticGradient": 0.0016549717988929011,
         "analyticGradientDegPerG": 0.9298949853196982
       },
       "understeerSingleTrack": {
-        "gradientDegPerG": 0.9078120105095802
+        "gradientDegPerG": 0.9081726593446993
       },
       "straightLine": {
         "accelTime": 9.02000000000044,
         "quarterMileTime": 16.80999999999756,
         "brakingDistance": 46.76216247466203,
         "meanDeceleration": 8.194034742707943,
-        "wheelLocked": true
+        "wheelLocked": true,
+        "lockTime": 0.34100000000000025,
+        "lockReleases": 0,
+        "lockedDecelRipple": 0.00007970999585325733,
+        "restSpeed": 0.2675263134417431,
+        "settledSpeed": 0.00005368760951452925
       },
       "parked": {
         "flatRest": {
@@ -106,6 +111,80 @@
           "holds": true
         }
       },
+      "timestepSweep": {
+        "gradientSpreadDegPerG": 0.000779076441590254,
+        "brakingDistanceSpread": 0.0014919198428728021,
+        "allFinite": true,
+        "allHold": true,
+        "cleanStops": true,
+        "stable": true,
+        "cells": {
+          "250/30": {
+            "gradientDegPerG": 1.156897449648346,
+            "brakingDistance": 46.69239707657044
+          },
+          "250/60": {
+            "gradientDegPerG": 1.156852761364875,
+            "brakingDistance": 46.6933833831163
+          },
+          "250/120": {
+            "gradientDegPerG": 1.156830611345964,
+            "brakingDistance": 46.6933833831163
+          },
+          "250/240": {
+            "gradientDegPerG": 1.156819557800808,
+            "brakingDistance": 46.6933833831163
+          },
+          "500/30": {
+            "gradientDegPerG": 1.1574357590322,
+            "brakingDistance": 46.74514502109612
+          },
+          "500/60": {
+            "gradientDegPerG": 1.157360362401876,
+            "brakingDistance": 46.74347268678347
+          },
+          "500/120": {
+            "gradientDegPerG": 1.1573370509941177,
+            "brakingDistance": 46.74347268678347
+          },
+          "500/240": {
+            "gradientDegPerG": 1.157325582028641,
+            "brakingDistance": 46.74347268678347
+          },
+          "1000/30": {
+            "gradientDegPerG": 1.1576614432277763,
+            "brakingDistance": 46.76137396600841
+          },
+          "1000/60": {
+            "gradientDegPerG": 1.157622079689869,
+            "brakingDistance": 46.76243872981112
+          },
+          "1000/120": {
+            "gradientDegPerG": 1.1575841827452817,
+            "brakingDistance": 46.7615432821722
+          },
+          "1000/240": {
+            "gradientDegPerG": 1.1575726182609243,
+            "brakingDistance": 46.7615432821722
+          },
+          "2000/30": {
+            "gradientDegPerG": 1.1577814594706246,
+            "brakingDistance": 46.76815954578729
+          },
+          "2000/60": {
+            "gradientDegPerG": 1.1577333751164647,
+            "brakingDistance": 46.76867014050133
+          },
+          "2000/120": {
+            "gradientDegPerG": 1.1577133239060902,
+            "brakingDistance": 46.76884336048397
+          },
+          "2000/240": {
+            "gradientDegPerG": 1.1576946249413569,
+            "brakingDistance": 46.76848459960099
+          }
+        }
+      },
       "scriptedDriveHash": "3c7549f977fbbc5f"
     },
     "sportsRwd": {
@@ -114,66 +193,71 @@
         "points": [
           {
             "targetSpeed": 4,
-            "speed": 3.975856071208721,
-            "steerAngle": 0.06295205434397634,
-            "latAccel": 0.39758532053261625,
-            "yawRate": 0.09999992791784948,
-            "frontSlipAngle": -0.0019056415214880789,
-            "rearSlipAngle": -0.001757992885460338
+            "speed": 3.9758560685806774,
+            "steerAngle": 0.0629519265769125,
+            "latAccel": 0.3975845021409921,
+            "yawRate": 0.09999972214359457,
+            "frontSlipAngle": -0.001905639734635712,
+            "rearSlipAngle": -0.0017579891940246754
           },
           {
             "targetSpeed": 6,
-            "speed": 5.9734417903027035,
-            "steerAngle": 0.06297975709962307,
-            "latAccel": 0.8960172418117278,
-            "yawRate": 0.15000016293225188,
-            "frontSlipAngle": -0.004250976347157919,
-            "rearSlipAngle": -0.0039835366280246845
+            "speed": 5.97344181127134,
+            "steerAngle": 0.06298144048236716,
+            "latAccel": 0.8960417492901336,
+            "yawRate": 0.1500042651456612,
+            "frontSlipAngle": -0.004251050158541655,
+            "rearSlipAngle": -0.003983649187737251
           },
           {
             "targetSpeed": 8,
-            "speed": 7.969370189451297,
-            "steerAngle": 0.06314545172076032,
-            "latAccel": 1.593874224642358,
-            "yawRate": 0.20000002343373385,
-            "frontSlipAngle": -0.007587686372956734,
-            "rearSlipAngle": -0.007128677523324165
+            "speed": 7.969370155759334,
+            "steerAngle": 0.06314624081947122,
+            "latAccel": 1.5938947673180288,
+            "yawRate": 0.20000260198306333,
+            "frontSlipAngle": -0.007587760003320022,
+            "rearSlipAngle": -0.007128774254403523
           },
           {
             "targetSpeed": 10,
-            "speed": 9.962614291997602,
-            "steerAngle": 0.06347075172040023,
-            "latAccel": 2.4906536272235424,
-            "yawRate": 0.25000000544276224,
-            "frontSlipAngle": -0.012035402750478083,
-            "rearSlipAngle": -0.011258800563749012
+            "speed": 9.96261424494876,
+            "steerAngle": 0.06347099709480084,
+            "latAccel": 2.4906636065450956,
+            "yawRate": 0.2500010083003982,
+            "frontSlipAngle": -0.01203544407193996,
+            "rearSlipAngle": -0.01125884952524189
           },
           {
             "targetSpeed": 12,
-            "speed": 11.951596922516957,
-            "steerAngle": 0.06407374547607315,
-            "latAccel": 3.5854791063074054,
-            "yawRate": 0.30000000247266684,
-            "frontSlipAngle": -0.017870000955273264,
-            "rearSlipAngle": -0.016522536157212393
+            "speed": 11.95159696318196,
+            "steerAngle": 0.06407366602387685,
+            "latAccel": 3.5854745093651377,
+            "yawRate": 0.29999961682196424,
+            "frontSlipAngle": -0.017869978566652976,
+            "rearSlipAngle": -0.01652251196838802
           }
         ],
         "ackermannAngle": 0.0625,
-        "fittedIntercept": 0.06268647414959903,
-        "gradient": 0.0003558153225592267,
-        "gradientDegPerG": 0.19992539109673832,
+        "fittedIntercept": 0.06268737444638972,
+        "gradient": 0.0003555912510277649,
+        "gradientDegPerG": 0.19979948986168486,
         "analyticGradient": 0.0001829837194767,
         "analyticGradientDegPerG": 0.10281482938280634
       },
       "understeerSingleTrack": {
-        "gradientDegPerG": 0.09840037990464402
+        "gradientDegPerG": 0.09840869142784951
       },
       "straightLine": {
         "accelTime": 4.849999999999954,
         "quarterMileTime": 12.739999999998378,
         "brakingDistance": 39.54996482492203,
         "meanDeceleration": 9.712509712510405,
-        "wheelLocked": true
+        "wheelLocked": true,
+        "lockTime": 0.20800000000000016,
+        "lockReleases": 0,
+        "lockedDecelRipple": 0.000034845432349043505,
+        "restSpeed": 0.2680737196607758,
+        "settledSpeed": 0.000007500457460732117
       },
       "parked": {
         "flatRest": {
@@ -212,6 +296,80 @@
           "holds": true
         }
       },
+      "timestepSweep": {
+        "gradientSpreadDegPerG": 0.0006402168671995334,
+        "brakingDistanceSpread": 0.0012703845736144622,
+        "allFinite": true,
+        "allHold": true,
+        "cleanStops": true,
+        "stable": true,
+        "cells": {
+          "250/30": {
+            "gradientDegPerG": 0.19934040260840635,
+            "brakingDistance": 39.49972115972145
+          },
+          "250/60": {
+            "gradientDegPerG": 0.19970312160017817,
+            "brakingDistance": 39.49972115972145
+          },
+          "250/120": {
+            "gradientDegPerG": 0.19987764385400264,
+            "brakingDistance": 39.50019668450021
+          },
+          "250/240": {
+            "gradientDegPerG": 0.19996437516092036,
+            "brakingDistance": 39.50019668450021
+          },
+          "500/30": {
+            "gradientDegPerG": 0.1989950281077193,
+            "brakingDistance": 39.53682769862455
+          },
+          "500/60": {
+            "gradientDegPerG": 0.19943123930827752,
+            "brakingDistance": 39.53504670471514
+          },
+          "500/120": {
+            "gradientDegPerG": 0.19963796841832815,
+            "brakingDistance": 39.53540431151104
+          },
+          "500/240": {
+            "gradientDegPerG": 0.1997384619764599,
+            "brakingDistance": 39.53540431151104
+          },
+          "1000/30": {
+            "gradientDegPerG": 0.19901594428919037,
+            "brakingDistance": 39.5495373892552
+          },
+          "1000/60": {
+            "gradientDegPerG": 0.199466903187875,
+            "brakingDistance": 39.54990172493592
+          },
+          "1000/120": {
+            "gradientDegPerG": 0.1996753476812557,
+            "brakingDistance": 39.549461277102154
+          },
+          "1000/240": {
+            "gradientDegPerG": 0.19977932969486384,
+            "brakingDistance": 39.549461277102154
+          },
+          "2000/30": {
+            "gradientDegPerG": 0.19907162939772668,
+            "brakingDistance": 39.55552965963197
+          },
+          "2000/60": {
+            "gradientDegPerG": 0.19952208488291467,
+            "brakingDistance": 39.55544632058577
+          },
+          "2000/120": {
+            "gradientDegPerG": 0.19973931101449258,
+            "brakingDistance": 39.555904256386015
+          },
+          "2000/240": {
+            "gradientDegPerG": 0.19983960212468044,
+            "brakingDistance": 39.55556617854717
+          }
+        }
+      },
       "scriptedDriveHash": "b60ced2e1bb649f5"
     },
     "kart": {
@@ -220,66 +378,71 @@
         "points": [
           {
             "targetSpeed": 4,
-            "speed": 3.964429402064772,
-            "steerAngle": 0.02679394696775247,
-            "latAccel": 0.39644293627766347,
-            "yawRate": 0.0999999990089838,
-            "frontSlipAngle": -0.002668113904467512,
-            "rearSlipAngle": -0.0023547924849222075
+            "speed": 3.9644294046559447,
+            "steerAngle": 0.026793760875141924,
+            "latAccel": 0.3964401382431402,
+            "yawRate": 0.09999929315869492,
+            "frontSlipAngle": -0.0026680989363673325,
+            "rearSlipAngle": -0.00235477569637978
           },
           {
             "targetSpeed": 6,
-            "speed": 5.9526099638064975,
-            "steerAngle": 0.027128840459666775,
-            "latAccel": 0.8928915159104861,
-            "yawRate": 0.15000000358489982,
-            "frontSlipAngle": -0.005959518562899009,
-            "rearSlipAngle": -0.005285983968471925
+            "speed": 5.9526098332173305,
+            "steerAngle": 0.02713017537510902,
+            "latAccel": 0.8929365976087289,
+            "yawRate": 0.15000758030972539,
+            "frontSlipAngle": -0.005959781978880894,
+            "rearSlipAngle": -0.005286256104477528
           },
           {
             "targetSpeed": 8,
-            "speed": 7.934008058456315,
-            "steerAngle": 0.027636209198584352,
-            "latAccel": 1.5868016219466328,
-            "yawRate": 0.20000000129258366,
-            "frontSlipAngle": -0.010483438849011817,
-            "rearSlipAngle": -0.009312791932483928
+            "speed": 7.934007621141078,
+            "steerAngle": 0.027637493749496388,
+            "latAccel": 1.58687792793801,
+            "yawRate": 0.20000962990127835,
+            "frontSlipAngle": -0.01048389700291131,
+            "rearSlipAngle": -0.009313247286349942
           },
           {
             "targetSpeed": 10,
-            "speed": 9.90608566741015,
-            "steerAngle": 0.02828615000128562,
-            "latAccel": 2.476521424471627,
-            "yawRate": 0.25000000076913215,
-            "frontSlipAngle": -0.016091356814578687,
-            "rearSlipAngle": -0.014301197476656334
+            "speed": 9.906084403497578,
+            "steerAngle": 0.028287596052666748,
+            "latAccel": 2.4766532317026595,
+            "yawRate": 0.25001333835087736,
+            "frontSlipAngle": -0.016092140735427772,
+            "rearSlipAngle": -0.014301958723098385
           },
           {
             "targetSpeed": 12,
-            "speed": 11.865394997569346,
-            "steerAngle": 0.02907766901222154,
-            "latAccel": 3.5596185068025092,
-            "yawRate": 0.3000000006347621,
-            "frontSlipAngle": -0.02260128385248829,
-            "rearSlipAngle": -0.020066729127321964
+            "speed": 11.86539163397655,
+            "steerAngle": 0.02907947441253002,
+            "latAccel": 3.5598488062066385,
+            "yawRate": 0.3000194950175947,
+            "frontSlipAngle": -0.022602615419645394,
+            "rearSlipAngle": -0.020067994716098797
           }
         ],
         "ackermannAngle": 0.026250000000000002,
-        "fittedIntercept": 0.026492757986243023,
-        "gradient": 0.0007247335814527763,
-        "gradientDegPerG": 0.40721305555571813,
+        "fittedIntercept": 0.026493070719213307,
+        "gradient": 0.000725156883015261,
+        "gradientDegPerG": 0.4074509000920998,
         "analyticGradient": 0.0006388356428862476,
         "analyticGradientDegPerG": 0.35894875136893506
       },
       "understeerSingleTrack": {
-        "gradientDegPerG": 0.30290811921060307
+        "gradientDegPerG": 0.30312658760608346
       },
       "straightLine": {
         "accelTime": 10.29999999999973,
         "quarterMileTime": 17.149999999997977,
         "brakingDistance": 58.99824260357935,
         "meanDeceleration": 6.284565108094789,
-        "wheelLocked": true
+        "wheelLocked": true,
+        "lockTime": 0.2610000000000002,
+        "lockReleases": 0,
+        "lockedDecelRipple": 0.00005213311672093847,
+        "restSpeed": 0.17624790886646016,
+        "settledSpeed": 3.954586570270935e-11
       },
       "parked": {
         "flatRest": {
@@ -308,6 +471,80 @@
           "creepSpeed": 2.473336205982557e-20,
           "velocityRms": 1.0329490743038933e-17,
           "holds": true
+        }
+      },
+      "timestepSweep": {
+        "gradientSpreadDegPerG": 0.0003965058549523781,
+        "brakingDistanceSpread": 0.00620716230338773,
+        "allFinite": true,
+        "allHold": true,
+        "cleanStops": true,
+        "stable": true,
+        "cells": {
+          "250/30": {
+            "gradientDegPerG": 0.4064962860593817,
+            "brakingDistance": 59.36445427103441
+          },
+          "250/60": {
+            "gradientDegPerG": 0.40648887931557837,
+            "brakingDistance": 59.36445427103441
+          },
+          "250/120": {
+            "gradientDegPerG": 0.40648505187576334,
+            "brakingDistance": 59.36445427103441
+          },
+          "250/240": {
+            "gradientDegPerG": 0.406483224923581,
+            "brakingDistance": 59.36445427103441
+          },
+          "500/30": {
+            "gradientDegPerG": 0.4067681211367071,
+            "brakingDistance": 59.07552801883982
+          },
+          "500/60": {
+            "gradientDegPerG": 0.40674650186856187,
+            "brakingDistance": 59.0879584595721
+          },
+          "500/120": {
+            "gradientDegPerG": 0.4067426242551241,
+            "brakingDistance": 59.0879584595721
+          },
+          "500/240": {
+            "gradientDegPerG": 0.4067408052414266,
+            "brakingDistance": 59.0879584595721
+          },
+          "1000/30": {
+            "gradientDegPerG": 0.4068874802785642,
+            "brakingDistance": 58.99883439947407
+          },
+          "1000/60": {
+            "gradientDegPerG": 0.4068853001786903,
+            "brakingDistance": 58.99709175926877
+          },
+          "1000/120": {
+            "gradientDegPerG": 0.4068737035624027,
+            "brakingDistance": 59.000847279093286
+          },
+          "1000/240": {
+            "gradientDegPerG": 0.40687187517572154,
+            "brakingDistance": 59.000744365212086
+          },
+          "2000/30": {
+            "gradientDegPerG": 0.40695261567213037,
+            "brakingDistance": 58.9756066942973
+          },
+          "2000/60": {
+            "gradientDegPerG": 0.4069458497635088,
+            "brakingDistance": 58.97605066678572
+          },
+          "2000/120": {
+            "gradientDegPerG": 0.406943948965232,
+            "brakingDistance": 58.97561338886882
+          },
+          "2000/240": {
+            "gradientDegPerG": 0.4069381971033327,
+            "brakingDistance": 58.97653071943897
+          }
         }
       },
       "scriptedDriveHash": "56f1bf05225eda33"

@@ -90,6 +90,9 @@ pub fn run(def: &VehicleDefinition, cfg: &UndersteerConfig) -> Result<Understeer
     if !(cfg.radius > 0.0) {
         return Err(String::from("understeer: radius must be positive"));
     }
+    if cfg.speeds.iter().any(|&v| !(v > 0.0)) {
+        return Err(String::from("understeer: speeds must be positive"));
+    }
 
     let mut car = VehicleModel::new(def.clone());
     car.set_speed(cfg.speeds[0]);
@@ -99,12 +102,20 @@ pub fn run(def: &VehicleDefinition, cfg: &UndersteerConfig) -> Result<Understeer
     let sub_dt = cfg.host_dt / n_sub as f64;
     let max_angle = def.max_wheel_angle();
 
-    // Controllers. Steering is PI on yaw-rate error; speed is P with the
-    // negative half going to the brake.
-    let kp_steer = 0.4;
-    let ki_steer = 1.2;
+    // Controllers. Steering is PI on yaw-rate error, with the gains
+    // normalised by the kinematic yaw-rate gain `V / L` (the steer angle is
+    // measured in units of the Ackermann angle for the error): the loop
+    // then has the same dimensionless gain for a kart and a limousine, and
+    // stays stable at any host rate, including one slower than the yaw
+    // time constant of a kart (the discrete loop `e_{k+1} = −kp' e_k`
+    // converges for `kp' < 1`). Speed is P with the negative half going to
+    // the brake.
+    let kp_steer = 0.5;
+    let ki_steer = 1.5;
     let kp_speed = 0.6;
-    let mut steer_integral = def.chassis.wheelbase / cfg.radius;
+    let wheelbase = def.chassis.wheelbase;
+    // Integral state in steer-angle units, started at the Ackermann angle.
+    let mut steer_integral = wheelbase / cfg.radius;
 
     let mut points = Vec::with_capacity(cfg.speeds.len());
     for &target in &cfg.speeds {
@@ -115,7 +126,9 @@ pub fn run(def: &VehicleDefinition, cfg: &UndersteerConfig) -> Result<Understeer
         for step in 0..settle_steps {
             let speed = car.vx();
             let r_target = target / cfg.radius;
-            let err = r_target - car.yaw_rate();
+            // Yaw-rate error as a steer angle, through the kinematic gain at
+            // the target speed.
+            let err = (r_target - car.yaw_rate()) * wheelbase / target;
             steer_integral += ki_steer * err * cfg.host_dt;
             steer_integral = m::clamp(steer_integral, -max_angle, max_angle);
             let delta = m::clamp(kp_steer * err + steer_integral, -max_angle, max_angle);

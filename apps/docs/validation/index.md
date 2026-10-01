@@ -25,6 +25,19 @@ brake with no ABS, so cars whose brakes exceed tire grip lock their wheels and
 stop on sliding friction. Published road-test distances assume ABS and are
 shorter; the gap closes in milestone 5.
 
+**Locked brakes** is measured on that same stop. A wheel that locks must lock
+once and stay locked: the scenario counts every change between rolling and
+locked at substep resolution and reports the releases while the car is still
+moving, which is lock chatter; the reference vehicles show none. The
+deceleration on sliding friction is reported as its relative RMS ripple about
+a 0.2 s moving average (below 0.01 % for every preset; the slow drift with
+speed from aero drag and the friction curve is not counted). After the stop
+the brake stays held for two seconds: the sliding tires release the
+contact-patch deflection they stored
+([ADR-0010](https://github.com/csummers88/skidpad/blob/main/docs/adr/0010-contact-patch-deflection-at-standstill.md)),
+a spring-back of a few centimetres at under 0.3 m/s, and the car must then be
+at rest below 0.1 mm/s.
+
 **Parks on slopes** runs the standstill scenarios: at rest on flat ground
 with no inputs, parked facing uphill on 10 %, 20 % and 30 % grades on the
 service brake, on 10 % and 20 % grades on the handbrake alone (skipped for
@@ -33,12 +46,26 @@ settle the car must sit below 0.1 mm/s, drift less than 1 mm over the next
 10 s and show no sustained oscillation (velocity RMS below 0.1 mm/s over the
 last 5 s). The table shows the worst creep speed over the cases.
 
+**Timestep sweep** runs the skidpad (three speeds), the locked-wheel stop and
+a parked hold on a 30 % grade at every combination of internal substep rate
+(250, 500, 1000, 2000 Hz) and host step rate (30, 60, 120, 240 Hz), and
+compares each cell with a reference cell at the definition's own substep rate
+and the 100 Hz host step the other scenarios use. A vehicle passes when every
+cell is finite, parks, stops without chatter and comes to rest, the understeer
+gradient stays within 0.05 deg/g of the reference and the braking distance
+within 1 %. The presets sit at a thousandth of a degree per g and under 1 %.
+On the built-in host the host rate only changes how often the inputs update
+(the proxy integrates at the substep rate), so the sweep is mostly a check on
+the substep rate; the host-rate dimension is there for the external-host
+contract, where the impulse exchange runs at the host rate.
+
 **Scripted drive hash** is the state hash after a fixed 30 s drive. It changes
 whenever anything physics-visible changes, and it must match across Chromium,
-Firefox, WebKit, and Node.
+Firefox, WebKit, and Node. The determinism harness also replays a recorded lap
+of the sandbox track for each preset; see the
+[determinism contract](/guide/determinism-contract).
 
 ## Coming with later milestones
 
-Step steer (ISO 7401), double lane change (ISO 3888), rest-jitter
-measurement, and the full timestep sweep (internal 250 to 2000 Hz, host 30
-to 240 Hz).
+Step steer (ISO 7401), double lane change (ISO 3888) and a rest-jitter
+measurement on an external host.

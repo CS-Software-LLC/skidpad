@@ -135,6 +135,8 @@ export interface UndersteerResult {
 export interface StraightLineConfig {
   targetSpeed?: number;
   maxAccelTime?: number;
+  /** How long the brake stays held after the stop, s (default 2). */
+  restTime?: number;
   hostDt?: number;
 }
 
@@ -146,6 +148,20 @@ export interface StraightLineResult {
   brakingTime: number;
   meanDeceleration: number;
   wheelLocked: boolean;
+  /** Time from brake application to the first wheel lock, s; `null` if none locked. */
+  lockTime: number | null;
+  /** Substeps at which some wheel changed between rolling and locked. */
+  lockTransitions: number;
+  /** Times a locked wheel released while still moving. Above zero is lock chatter. */
+  lockReleases: number;
+  /** Relative RMS ripple of the deceleration while sliding, about its 0.2 s moving average. */
+  lockedDecelRipple: number;
+  /** Largest speed after the stop with the brake held, m/s: the spring-back of the tires. */
+  restSpeed: number;
+  /** Speed at the end of the rest window, m/s. */
+  settledSpeed: number;
+  /** Displacement over the rest window, m. */
+  restDistance: number;
 }
 
 /** Parked on a slope, or at rest on flat ground (ADR-0005, ADR-0010). */
@@ -181,6 +197,55 @@ export interface ParkedResult {
   holds: boolean;
 }
 
+/**
+ * Timestep sweep (milestone 3): the skidpad, a locked-wheel stop and a parked
+ * hold at every combination of substep rate and host rate, compared against
+ * a reference cell at the definition's own substep rate and a 100 Hz host.
+ */
+export interface TimestepSweepConfig {
+  /** Internal substep rates, Hz (default 250, 500, 1000, 2000). */
+  substepRates?: number[];
+  /** Host step rates, Hz (default 30, 60, 120, 240). */
+  hostRates?: number[];
+  referenceHostRate?: number;
+  radius?: number;
+  speeds?: number[];
+  settleTime?: number;
+  measureTime?: number;
+  brakingSpeed?: number;
+  grade?: number;
+  /** Largest acceptable gradient spread, deg/g (default 0.05). */
+  gradientToleranceDegPerG?: number;
+  /** Largest acceptable relative braking-distance spread (default 0.01). */
+  brakingTolerance?: number;
+}
+
+export interface SweepCell {
+  substepRateHz: number;
+  hostRateHz: number;
+  gradientDegPerG: number;
+  brakingDistance: number;
+  lockReleases: number;
+  settledSpeed: number;
+  parkedCreepSpeed: number;
+  parkedHolds: boolean;
+  finite: boolean;
+}
+
+export interface TimestepSweepResult {
+  reference: SweepCell;
+  cells: SweepCell[];
+  /** Largest |cell − reference| of the understeer gradient, deg/g. */
+  gradientSpreadDegPerG: number;
+  /** Largest relative |cell − reference| of the braking distance. */
+  brakingDistanceSpread: number;
+  allFinite: boolean;
+  allHold: boolean;
+  cleanStops: boolean;
+  /** Everything finite, parked, stopped cleanly, and both spreads within tolerance. */
+  stable: boolean;
+}
+
 export type ScenarioRequest =
   | {
       scenario: "understeerGradient";
@@ -188,13 +253,20 @@ export type ScenarioRequest =
       config?: UndersteerConfig;
     }
   | { scenario: "straightLine"; definition: PartialVehicleDefinition; config?: StraightLineConfig }
-  | { scenario: "parkedOnSlope"; definition: PartialVehicleDefinition; config?: ParkedConfig };
+  | { scenario: "parkedOnSlope"; definition: PartialVehicleDefinition; config?: ParkedConfig }
+  | {
+      scenario: "timestepSweep";
+      definition: PartialVehicleDefinition;
+      config?: TimestepSweepConfig;
+    };
 
 export type ScenarioResult<R extends ScenarioRequest> = R extends { scenario: "understeerGradient" }
   ? UndersteerResult
   : R extends { scenario: "straightLine" }
     ? StraightLineResult
-    : ParkedResult;
+    : R extends { scenario: "parkedOnSlope" }
+      ? ParkedResult
+      : TimestepSweepResult;
 
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
