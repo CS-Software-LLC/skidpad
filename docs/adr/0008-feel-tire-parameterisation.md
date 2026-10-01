@@ -101,12 +101,76 @@ theoretical-slip space `(σx, σy)`, which is exactly the slip-velocity
 direction, with a weight that rises from 0 at the peak to 1 at full sliding.
 Adopt it if a preset ever needs widely different peaks.
 
+### Amendment B: a trail that crosses zero, and combined-slip trail
+
+The original trail was `t0 · clamp(1 − (α/αp)², 0, 1)`: never negative, and
+blind to longitudinal slip. The sandbox's steering torque is the front
+aligning moment over the steering ratio, so that curve was the force
+feedback, and it never gave the "going light" warning a wheel driver reads.
+The published reference shape is the Magic Formula cosine trail
+`Dt · cos(Ct · atan(Bt · α_t,eq − Et · (…)))` (Pacejka ch. 4, eq. 4.E42
+**[VERIFY]**), which falls from its zero-slip value, crosses zero near the
+lateral peak, dips negative and returns toward zero; Milliken & Milliken
+ch. 2 describe the same shape against slip angle, and `magic_formula.rs`
+already implements it. The feel model now uses a libm-free curve with the
+same features, which is this project's own form, not a published law
+**[DERIVED]**:
+
+```text
+trail = t0 · (1 − x²) / (1 + k · x⁴),   x = α_t,eq / (trailZeroCrossing · αp)
+```
+
+- `pneumaticTrail` (`t0`) keeps its meaning as the trail at zero slip, so
+  `static_trail` and the "linear theory with trail" understeer column are
+  unchanged.
+- `trailZeroCrossing` (default 1.0) is the equivalent slip angle, in
+  multiples of `peakSlipAngle`, at which the trail crosses zero. Below it
+  the curve is close to the old quadratic.
+- `trailReversal` (default 0.1) is the depth of the negative lobe as a
+  fraction of `t0`. The deepest point of `(1 − x²)/(1 + k x⁴)` is at
+  `x² = 1 + √(1 + 1/k)` with value `−(√(1 + 1/k) − 1)/2`, so a depth `D`
+  needs `k = 1 / (4 D (1 + D))` **[DERIVED]**, in closed form. Reference
+  points: `k = 2 → 0.11`, `k = 1 → 0.21`, `k = 0.5 → 0.37` of `t0`. The
+  depth is floored at 0.001 (a zero depth would make `k` infinite and
+  collapse the curve) and capped at 0.5.
+- Combined slip enters through the MF 5.2 equivalent slip angle
+  `α_t,eq = sign(α) · √(α² + (Kx/Ky)² κ²)` (Pacejka 2nd ed. eq. 4.E77
+  **[VERIFY]**), with `Kx` and `Ky` the stiffnesses the evaluation already
+  computes; MF 6.1 uses an `atan(√(tan² α + …))` variant, which
+  `magic_formula.rs` implements. Cost: one `sqrt`, no libm call. Braking or
+  drive therefore shortens the trail and lightens the wheel.
+- `fxMomentArm` (default 0, opt-in) adds the contact-patch shift of the
+  longitudinal force, `Mz += s · Fx` with `s = fxMomentArm · (Fy / Fz0)`,
+  the Magic Formula `SSZ2` term (eq. 4.E76 **[VERIFY]**) with `fxMomentArm`
+  standing in for `R0 · SSZ2`, same sign convention.
+- The residual torque `Mzr` and the `cos α` factor of the Magic Formula are
+  left out of the feel model.
+
+Measured with the default tire (crossing 1.0, reversal 0.1, so `k = 2.27`):
+`Mz` peaks at 0.41 `αp` while `Fy` peaks at `αp`, `Mz` is zero at `αp`, and
+its deepest value is about −18 % of its peak near 1.5 `αp`. A crossing of
+1.2 moves the `Mz` peak to 0.47 `αp`. `TireOutput.trail` reports the signed
+trail; the tire explorer's vertical range now reaches below zero to show
+it. Steering lightens before grip runs out, and braking at a fixed slip
+angle in the linear region lowers `|Mz|`, both tested in
+`tire_aligning_moment_tests.rs` together with continuity of `Mz` and of its
+slope over the slip plane.
+
+Understeer validation moves only slightly, because the aligning moment
+feeds the yaw balance: four-wheel gradients change by less than 0.01 deg/g
+for every preset (the straight-line results do not move at all).
+
 ## Alternatives considered
 
 - **Piecewise linear / cubic "arcade" curves.** Simple but discontinuous
   slope at the knee shows up as a force-feedback artifact. Rejected.
 - **Expose raw B, C, D, E.** Not tunable by feel. Rejected; available through
   the Magic Formula model anyway.
+- **Port the Magic Formula cosine trail into the feel model** (amendment
+  B). Gives the published shape directly, but costs a `cos` and two `atan`
+  per evaluation and its `Bt`, `Ct`, `Et` are not feel parameters. The
+  rational curve has the same features for two intuitive knobs and no libm
+  call. Rejected.
 
 ## Consequences
 

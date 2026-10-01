@@ -36,6 +36,14 @@ pub const KAPPA_STAR_MIN_DENOM: f64 = 1e-3;
 /// clamp the lateral curve is at its asymptote regardless. ADR-0008.
 pub const ALPHA_TAN_LIMIT: f64 = 1.5;
 
+/// Range of `trailReversal` the trail curve accepts. Zero would make the
+/// shape factor infinite (the curve would collapse to zero for any slip), so
+/// the depth is floored at a tenth of a percent, which is indistinguishable
+/// from no reversal; above half of `t0` the lobe is deeper than any
+/// published trail curve. ADR-0008.
+pub const TRAIL_REVERSAL_MIN: f64 = 1e-3;
+pub const TRAIL_REVERSAL_MAX: f64 = 0.5;
+
 /// Largest `peakSlipRatio` the theoretical-slip normalisation accepts. The
 /// braking peak `κp / (1 − κp)` needs `κp < 1`; definitions are validated to
 /// stay below it and this clamp only protects the arithmetic.
@@ -79,6 +87,18 @@ pub struct FeelTireParams {
     pub camber_stiffness: f64,
     /// Pneumatic trail at zero slip, m.
     pub pneumatic_trail: f64,
+    /// Equivalent slip angle at which the trail crosses zero, as a multiple
+    /// of `peakSlipAngleDeg`. Steering torque peaks well before this and is
+    /// zero here, which is the "going light" cue (ADR-0008 amendment B).
+    pub trail_zero_crossing: f64,
+    /// Depth of the negative trail lobe past the zero crossing, as a
+    /// fraction of `pneumaticTrail`. Past the limit the steering torque
+    /// reverses by this much of its peak scale.
+    pub trail_reversal: f64,
+    /// Lateral offset of the longitudinal force from the wheel centre plane
+    /// per unit of `Fy / nominalLoad`, m. Adds `s · Fx` to the aligning
+    /// moment, the Magic Formula `SSZ2` term. Zero (the default) disables it.
+    pub fx_moment_arm: f64,
     /// Rolling resistance coefficient.
     pub rolling_resistance: f64,
     /// Longitudinal relaxation length, m.
@@ -109,6 +129,9 @@ impl Default for FeelTireParams {
             falloff_lat: 0.85,
             camber_stiffness: 0.8,
             pneumatic_trail: 0.03,
+            trail_zero_crossing: 1.0,
+            trail_reversal: 0.1,
+            fx_moment_arm: 0.0,
             rolling_resistance: 0.012,
             relaxation_length_long: 0.25,
             relaxation_length_lat: 0.35,
@@ -234,12 +257,35 @@ impl FeelTireParams {
         };
         let fx = dir * fx;
 
-        // Pneumatic trail falls to zero as the lateral slip reaches its peak
-        // (Milliken & Milliken, ch. 2, pneumatic trail vs slip angle); a quadratic
-        // keeps the derivative continuous at the origin.
-        let sa = m::abs(alpha_eff) / alpha_peak;
-        let trail = self.pneumatic_trail * m::clamp(1.0 - sa * sa, 0.0, 1.0);
-        let mz = -trail * fy;
+        // Pneumatic trail. The published reference shape is the Magic
+        // Formula cosine trail `Dt·cos(Ct·atan(Bt·α_t,eq − …))` (Pacejka ch. 4,
+        // eq. 4.E42 [VERIFY]), which falls from `t0`, crosses zero near the
+        // lateral peak, dips negative and returns toward zero; Milliken &
+        // Milliken ch. 2 describe the same shape against slip angle. The feel
+        // model uses a libm-free curve with the same features [DERIVED]:
+        //   trail = t0 · (1 − x²) / (1 + k·x⁴),   x = α_t,eq / (c·αp),
+        // where `c` is `trailZeroCrossing` and `k` sets the lobe depth: the
+        // deepest point is at x² = 1 + √(1 + 1/k) with value −(√(1 + 1/k) − 1)/2
+        // of t0, so a depth D (`trailReversal`) needs k = 1 / (4·D·(1 + D))
+        // [DERIVED]. Below the crossing it is close to the quadratic
+        // `t0·(1 − x²)` the model used before.
+        //
+        // Combined slip enters through the MF 5.2 equivalent slip angle
+        // `α_t,eq = sign(α)·√(α² + (Kx/Ky)²·κ²)` (Pacejka 2nd ed. eq. 4.E77
+        // [VERIFY]; MF 6.1 uses the atan/tan variant that `magic_formula.rs`
+        // implements). Only its square is needed here, so the sign is moot.
+        let stiffness_ratio = kx / m::max(ky, 1e-9);
+        let alpha_eq_sq = alpha_eff * alpha_eff + stiffness_ratio * stiffness_ratio * kappa * kappa;
+        let crossing = m::max(self.trail_zero_crossing, 1e-3) * alpha_peak;
+        let x2 = alpha_eq_sq / (crossing * crossing);
+        let depth = m::clamp(self.trail_reversal, TRAIL_REVERSAL_MIN, TRAIL_REVERSAL_MAX);
+        let k = 1.0 / (4.0 * depth * (1.0 + depth));
+        let trail = self.pneumatic_trail * (1.0 - x2) / (1.0 + k * x2 * x2);
+        // Contact-patch shift of the longitudinal force: `Mz += s·Fx` with
+        // `s = R0·SSZ2·(Fy/Fz0)` in the Magic Formula (eq. 4.E76 [VERIFY]);
+        // here `fxMomentArm` plays the part of `R0·SSZ2`.
+        let arm = self.fx_moment_arm * (fy / m::max(self.nominal_load, 1.0));
+        let mz = -trail * fy + arm * fx;
 
         // Rolling resistance moment opposes rolling; it goes smoothly through
         // zero below the speed floor so a parked car never sees a
@@ -306,6 +352,24 @@ impl FeelTireParams {
             errors.push(format!(
                 "{prefix}.loadSensitivity must be in [0, 1) (got {})",
                 self.load_sensitivity
+            ));
+        }
+        if !(self.trail_zero_crossing > 0.0 && self.trail_zero_crossing <= 5.0) {
+            errors.push(format!(
+                "{prefix}.trailZeroCrossing must be in (0, 5] multiples of the peak slip angle (got {})",
+                self.trail_zero_crossing
+            ));
+        }
+        if !(self.trail_reversal >= 0.0 && self.trail_reversal <= TRAIL_REVERSAL_MAX) {
+            errors.push(format!(
+                "{prefix}.trailReversal must be in [0, {TRAIL_REVERSAL_MAX}] of the trail at zero slip (got {})",
+                self.trail_reversal
+            ));
+        }
+        if !self.fx_moment_arm.is_finite() || m::abs(self.fx_moment_arm) > 1.0 {
+            errors.push(format!(
+                "{prefix}.fxMomentArm must be within ±1 m (got {})",
+                self.fx_moment_arm
             ));
         }
         for (name, v) in [

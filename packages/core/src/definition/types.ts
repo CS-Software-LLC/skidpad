@@ -35,6 +35,21 @@ export interface FeelTireParams {
   camberStiffness?: number;
   /** Pneumatic trail at zero slip, m. */
   pneumaticTrail?: number;
+  /**
+   * Equivalent slip angle at which the trail crosses zero, as a multiple of
+   * `peakSlipAngleDeg` (ADR-0008). Default 1.
+   */
+  trailZeroCrossing?: number;
+  /**
+   * Depth of the negative trail lobe past the zero crossing, as a fraction
+   * of `pneumaticTrail` (ADR-0008). Default 0.1.
+   */
+  trailReversal?: number;
+  /**
+   * Lateral offset of the longitudinal force per unit of `Fy / nominalLoad`,
+   * m; adds `s · Fx` to the aligning moment (Magic Formula SSZ2). Default 0.
+   */
+  fxMomentArm?: number;
   /** Rolling resistance coefficient. */
   rollingResistance?: number;
   /** Longitudinal relaxation length, m. */

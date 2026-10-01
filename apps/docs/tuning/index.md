@@ -52,6 +52,26 @@ helps. Parameters are per tire unless noted.
 - Raise `pneumaticTrail` for more aligning torque at small slip.
 - Reduce `steering.ratio` for more road-wheel angle per hand-wheel degree.
 
+## Steering does not go light before the limit
+
+- The trail crosses zero at `trailZeroCrossing` times the peak slip angle
+  (default 1.0). Steering torque peaks at about 0.4 of that and is zero at
+  the crossing, so with the default the wheel goes light while lateral grip
+  is still rising and is weightless at the lateral peak. Raise the crossing
+  (1.2 moves the torque peak to about 0.47 of the peak slip angle) for a
+  wheel that stays loaded closer to the limit; lower it for an earlier
+  warning.
+- `trailReversal` (default 0.1) is how far the trail goes negative past the
+  crossing, as a fraction of `pneumaticTrail`. The torque reverses by
+  roughly a fifth of its peak at 1.5 peak slip angles with the default;
+  raise it for a stronger "pulling into the slide" past the limit, set it
+  near zero for a wheel that just goes dead.
+- Braking or drive shortens the trail through the combined equivalent slip
+  angle, so the wheel also lightens under trail braking. `fxMomentArm`
+  (default 0) adds the Magic Formula `SSZ2` effect, where the longitudinal
+  force acting off the wheel centre plane adds its own moment; a few
+  centimetres is a road-tire value.
+
 ## Wheels lock under braking
 
 - Lower `maxBrakeTorque` on the axle that locks, or shift bias toward the
