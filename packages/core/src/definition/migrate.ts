@@ -32,7 +32,7 @@ export function migrateDefinition(input: unknown): PartialVehicleDefinition {
   let version = typeof def.formatVersion === "number" ? def.formatVersion : 0;
   if (version > CURRENT_FORMAT_VERSION) {
     throw new MigrationError(
-      `definition formatVersion ${version} is newer than this package supports (${CURRENT_FORMAT_VERSION}); upgrade @contactpatch/core`,
+      `definition formatVersion ${version} is newer than this package supports (${CURRENT_FORMAT_VERSION}); upgrade @skidpad/core`,
     );
   }
   while (version < CURRENT_FORMAT_VERSION) {

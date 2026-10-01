@@ -11,7 +11,7 @@ Two things follow:
    speed.
 2. At very low speed the time constant would go to infinity and the slip
    definition would divide by zero. The core floors the speed used in both
-   ([ADR-0005](https://github.com/csummers88/oss-vehicle-physics/blob/main/docs/adr/0005-tire-low-speed-handling.md)),
+   ([ADR-0005](https://github.com/csummers88/skidpad/blob/main/docs/adr/0005-tire-low-speed-handling.md)),
    so a parked car behaves like a spring between the contact patch and the
    road instead of a limit cycle. That is what makes standstill stable.
 

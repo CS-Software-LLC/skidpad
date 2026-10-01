@@ -1,7 +1,7 @@
 import { useRef } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
 import type { DirectionalLight, Group, Mesh } from "three";
-import type { TireDefinition } from "@contactpatch/core";
+import type { TireDefinition } from "@skidpad/core";
 import type { Sim, SimSnapshot } from "./sim.js";
 
 function tireRadius(tire: TireDefinition): number {
@@ -132,7 +132,7 @@ function Car({ sim }: { sim: Sim }) {
 /** Per-frame samples for the smoothness check, enabled with `?debug`. */
 const debug: number[] | null =
   typeof window !== "undefined" && new URLSearchParams(window.location.search).has("debug")
-    ? ((window as unknown as { __cpFrames: number[] }).__cpFrames = [])
+    ? ((window as unknown as { __skidpadFrames: number[] }).__skidpadFrames = [])
     : null;
 
 const CAMERA = { position: [-8, 3, 0] as [number, number, number], fov: 60, near: 0.5, far: 3000 };

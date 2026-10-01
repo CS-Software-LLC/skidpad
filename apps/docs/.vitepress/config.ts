@@ -1,7 +1,7 @@
 import { defineConfig } from "vitepress";
 
 export default defineConfig({
-  title: "Contact Patch",
+  title: "Skidpad",
   description: "Deterministic, sim-grade vehicle physics for the web.",
   base: process.env.DOCS_BASE ?? "/",
   cleanUrls: true,
@@ -12,7 +12,7 @@ export default defineConfig({
       { text: "Tuning", link: "/tuning/" },
       { text: "Validation", link: "/validation/" },
       { text: "Roadmap", link: "/roadmap" },
-      { text: "GitHub", link: "https://github.com/csummers88/oss-vehicle-physics" },
+      { text: "GitHub", link: "https://github.com/csummers88/skidpad" },
     ],
     sidebar: [
       {
@@ -41,7 +41,7 @@ export default defineConfig({
           { text: "Roadmap", link: "/roadmap" },
           {
             text: "Architecture decisions",
-            link: "https://github.com/csummers88/oss-vehicle-physics/tree/main/docs/adr",
+            link: "https://github.com/csummers88/skidpad/tree/main/docs/adr",
           },
         ],
       },
@@ -51,6 +51,6 @@ export default defineConfig({
   },
   vite: {
     server: { fs: { allow: ["../.."] } },
-    ssr: { noExternal: ["@contactpatch/core", "@contactpatch/presets"] },
+    ssr: { noExternal: ["@skidpad/core", "@skidpad/presets"] },
   },
 });

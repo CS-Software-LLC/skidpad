@@ -1,5 +1,5 @@
 {
-  "name": "@contactpatch/determinism-tests",
+  "name": "@skidpad/determinism-tests",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -11,8 +11,8 @@
     "test:browsers": "pnpm build:harness && playwright test"
   },
   "dependencies": {
-    "@contactpatch/core": "workspace:*",
-    "@contactpatch/presets": "workspace:*"
+    "@skidpad/core": "workspace:*",
+    "@skidpad/presets": "workspace:*"
   },
   "devDependencies": {
     "@playwright/test": "^1.48.0",

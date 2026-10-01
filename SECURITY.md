@@ -1,6 +1,6 @@
 # Security policy
 
-Contact Patch is a simulation library; it does not handle credentials or network
+Skidpad is a simulation library; it does not handle credentials or network
 traffic. The realistic security surface is:
 
 - Parsing untrusted vehicle definitions and `.tir` files (denial of service via

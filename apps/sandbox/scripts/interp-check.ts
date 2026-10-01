@@ -1,5 +1,5 @@
 // Drives Sim.frame() with synthetic frame times and checks that the rendered
-// (interpolated) pose advances evenly. Run: pnpm --filter @contactpatch/validate exec tsx ../../apps/sandbox/scripts/interp-check.ts
+// (interpolated) pose advances evenly. Run: pnpm --filter @skidpad/validate exec tsx ../../apps/sandbox/scripts/interp-check.ts
 import { Sim } from "../src/sim.js";
 
 const sim = new Sim();

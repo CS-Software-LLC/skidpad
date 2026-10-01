@@ -1,5 +1,5 @@
 /**
- * @contactpatch/telemetry — a ring-buffer recorder for telemetry records and
+ * @skidpad/telemetry — a ring-buffer recorder for telemetry records and
  * exporters to CSV and JSON. Channel names follow iRacing / Assetto Corsa
  * conventions where equivalents exist so external tools can diff exports.
  */

@@ -1,11 +1,11 @@
 {
-  "name": "@contactpatch/core",
+  "name": "@skidpad/core",
   "version": "0.1.0",
   "description": "Deterministic, sim-grade vehicle physics core for the web (Rust compiled to WebAssembly).",
   "license": "MIT OR Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "https://github.com/csummers88/oss-vehicle-physics",
+    "url": "https://github.com/csummers88/skidpad",
     "directory": "packages/core"
   },
   "type": "module",
@@ -22,7 +22,7 @@
       "import": "./dist/compat.js"
     },
     "./schema": "./schema/vehicle-definition.schema.json",
-    "./wasm": "./wasm/contactpatch.wasm"
+    "./wasm": "./wasm/skidpad.wasm"
   },
   "files": [
     "dist",

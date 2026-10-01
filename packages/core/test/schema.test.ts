@@ -7,8 +7,8 @@ describe("JSON schema", () => {
   it("accepts the core default definition", async () => {
     const ajv = new Ajv2020({ strict: false });
     const validate = ajv.compile(schema);
-    const cp = await init();
-    const d = cp.defaultDefinition();
+    const sp = await init();
+    const d = sp.defaultDefinition();
     expect(validate(d), JSON.stringify(validate.errors)).toBe(true);
   });
 

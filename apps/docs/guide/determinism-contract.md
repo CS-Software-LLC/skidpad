@@ -10,7 +10,7 @@ Firefox, WebKit, Node, on x86 and ARM.
   arithmetic is specified by IEEE-754 and is correctly rounded everywhere.
 - Every transcendental function (`sin`, `atan2`, `exp`, `pow`, …) comes from a
   vendored software implementation, never from the platform
-  ([ADR-0006](https://github.com/csummers88/oss-vehicle-physics/blob/main/docs/adr/0006-f64-and-deterministic-math.md)).
+  ([ADR-0006](https://github.com/csummers88/skidpad/blob/main/docs/adr/0006-f64-and-deterministic-math.md)).
 - No relaxed SIMD, no fused multiply-add, no hash-map iteration, no time or
   randomness inside the core. A clippy configuration enforces the math rules
   mechanically.
@@ -35,5 +35,5 @@ Firefox, WebKit, Node, on x86 and ARM.
   `Math.sin` differing in the last bit between Chromium and Node for an
   ordinary argument, which changed the scenario hash from the first step.
   Scripted inputs for replays and tests should use basic arithmetic only;
-  `triangleWave` and `smoothWave` in `@contactpatch/core` exist for that.
+  `triangleWave` and `smoothWave` in `@skidpad/core` exist for that.
 - NaN payload bits. The core never depends on them.

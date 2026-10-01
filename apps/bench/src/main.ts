@@ -1,4 +1,4 @@
-import { init } from "@contactpatch/core/compat";
+import { init } from "@skidpad/core/compat";
 import { formatTable, runAll, type BenchReport } from "./bench.js";
 
 const out = document.getElementById("out")!;
@@ -27,9 +27,9 @@ async function loadDashboard(): Promise<void> {
 button.addEventListener("click", async () => {
   button.disabled = true;
   out.textContent = "running…";
-  const cp = await init();
+  const sp = await init();
   await new Promise((r) => setTimeout(r, 50));
-  const report = runAll(cp, navigator.userAgent, () => performance.now());
+  const report = runAll(sp, navigator.userAgent, () => performance.now());
   out.textContent = formatTable(report) + "\n\n" + JSON.stringify(report, null, 2);
   button.disabled = false;
 });

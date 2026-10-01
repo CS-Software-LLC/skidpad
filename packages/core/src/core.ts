@@ -9,13 +9,13 @@ import type {
 import { validateDefinition } from "./definition/validate.js";
 
 /** Thrown for any error reported by the core. */
-export class ContactPatchError extends Error {
+export class SkidpadError extends Error {
   constructor(
     message: string,
     public readonly code: ErrorCode,
   ) {
     super(message);
-    this.name = "ContactPatchError";
+    this.name = "SkidpadError";
   }
 }
 
@@ -134,7 +134,7 @@ function hex64(v: bigint): string {
  * A loaded core module. Create one with {@link init}. Owns the memory views
  * and refreshes them when WASM memory grows.
  */
-export class ContactPatch {
+export class Skidpad {
   private buffer: ArrayBufferLike;
   private u8: Uint8Array;
   private f64: Float64Array;
@@ -148,9 +148,9 @@ export class ContactPatch {
 
   /** @internal */
   constructor(readonly exports: CpExports) {
-    const abi = exports.cp_abi_version();
+    const abi = exports.sp_abi_version();
     if (abi !== EXPECTED_ABI_VERSION) {
-      throw new ContactPatchError(
+      throw new SkidpadError(
         `core ABI version ${abi} does not match this loader (${EXPECTED_ABI_VERSION}); rebuild the WASM`,
         ErrorCode.InvalidHandle,
       );
@@ -158,15 +158,15 @@ export class ContactPatch {
     this.buffer = exports.memory.buffer;
     this.u8 = new Uint8Array(this.buffer);
     this.f64 = new Float64Array(this.buffer);
-    this.version = this.readString(exports.cp_version_ptr(), exports.cp_version_len());
-    this.inputStride = exports.cp_input_stride();
-    this.telemetryStride = exports.cp_telemetry_stride();
+    this.version = this.readString(exports.sp_version_ptr(), exports.sp_version_len());
+    this.inputStride = exports.sp_input_stride();
+    this.telemetryStride = exports.sp_telemetry_stride();
     this.telemetryLayout = JSON.parse(
-      this.readString(exports.cp_telemetry_layout_ptr(), exports.cp_telemetry_layout_len()),
+      this.readString(exports.sp_telemetry_layout_ptr(), exports.sp_telemetry_layout_len()),
     ) as TelemetryChannel[];
     this.channelIndex = new Map(this.telemetryLayout.map((c, i) => [c.name, i]));
-    this.tireOutStride = exports.cp_tire_out_stride();
-    this.tireScratchPtr = exports.cp_alloc(this.tireOutStride * 8 * 1024);
+    this.tireOutStride = exports.sp_tire_out_stride();
+    this.tireScratchPtr = exports.sp_alloc(this.tireOutStride * 8 * 1024);
   }
 
   /** Refresh typed-array views if the memory grew. Cheap; call before reads. */
@@ -199,7 +199,7 @@ export class ContactPatch {
   /** @internal Allocate and write a UTF-8 string. Caller frees. */
   writeString(s: string): { ptr: number; len: number } {
     const bytes = encoder.encode(s);
-    const ptr = this.exports.cp_alloc(bytes.length);
+    const ptr = this.exports.sp_alloc(bytes.length);
     this.refresh();
     this.u8.set(bytes, ptr);
     return { ptr, len: bytes.length };
@@ -207,31 +207,31 @@ export class ContactPatch {
 
   /** @internal */
   free(ptr: number, len: number): void {
-    this.exports.cp_free(ptr, len);
+    this.exports.sp_free(ptr, len);
   }
 
   /** @internal */
   lastError(): string {
-    return this.readString(this.exports.cp_last_error_ptr(), this.exports.cp_last_error_len());
+    return this.readString(this.exports.sp_last_error_ptr(), this.exports.sp_last_error_len());
   }
 
   /** @internal */
   result(): string {
-    return this.readString(this.exports.cp_result_ptr(), this.exports.cp_result_len());
+    return this.readString(this.exports.sp_result_ptr(), this.exports.sp_result_len());
   }
 
   /** @internal */
   check(code: number): number {
-    if (code < 0) throw new ContactPatchError(this.lastError(), code as ErrorCode);
+    if (code < 0) throw new SkidpadError(this.lastError(), code as ErrorCode);
     return code;
   }
 
   /**
    * Hash of the deterministic math self-test (ADR-0006). Identical on every
-   * platform; the pinned value lives in `crates/cp-math/selftest.hash`.
+   * platform; the pinned value lives in `crates/skidpad-math/selftest.hash`.
    */
   mathSelftestHash(): string {
-    return hex64(this.exports.cp_math_selftest());
+    return hex64(this.exports.skidpad_math_selftest());
   }
 
   /** Index of a telemetry channel by name, or −1. */
@@ -241,20 +241,20 @@ export class ContactPatch {
 
   /** The core's default definition with every field filled in. */
   defaultDefinition(): VehicleDefinition {
-    this.check(this.exports.cp_default_definition());
+    this.check(this.exports.sp_default_definition());
     return JSON.parse(this.result()) as VehicleDefinition;
   }
 
   /** Create a world with room for `capacity` vehicles. */
   createWorld(capacity = 1): World {
-    return new World(this, this.exports.cp_world_new(capacity));
+    return new World(this, this.exports.sp_world_new(capacity));
   }
 
   /** Create a standalone tire for curve exploration. */
   createTire(def: TireDefinition): Tire {
     const { ptr, len } = this.writeString(JSON.stringify(def));
     try {
-      const handle = this.check(this.exports.cp_tire_new(ptr, len));
+      const handle = this.check(this.exports.sp_tire_new(ptr, len));
       return new Tire(this, handle, this.tireScratchPtr, this.tireOutStride);
     } finally {
       this.free(ptr, len);
@@ -265,7 +265,7 @@ export class ContactPatch {
   importTir(text: string): TirImport {
     const { ptr, len } = this.writeString(text);
     try {
-      this.check(this.exports.cp_tir_import(ptr, len));
+      this.check(this.exports.sp_tir_import(ptr, len));
       const raw = JSON.parse(this.result()) as {
         params: Record<string, number>;
         warnings: TirWarning[];
@@ -280,7 +280,7 @@ export class ContactPatch {
   runScenario<R extends ScenarioRequest>(request: R): ScenarioResult<R> {
     const { ptr, len } = this.writeString(JSON.stringify(request));
     try {
-      this.check(this.exports.cp_run_scenario(ptr, len));
+      this.check(this.exports.sp_run_scenario(ptr, len));
       return JSON.parse(this.result()) as ScenarioResult<R>;
     } finally {
       this.free(ptr, len);
@@ -297,20 +297,20 @@ export class World {
 
   /** @internal */
   constructor(
-    private readonly cp: ContactPatch,
+    private readonly sp: Skidpad,
     readonly handle: number,
   ) {
-    this.capacity = cp.exports.cp_world_capacity(handle);
-    this.inputsPtr = cp.exports.cp_world_inputs_ptr(handle);
-    this.telemetryPtr = cp.exports.cp_world_telemetry_ptr(handle);
+    this.capacity = sp.exports.sp_world_capacity(handle);
+    this.inputsPtr = sp.exports.sp_world_inputs_ptr(handle);
+    this.telemetryPtr = sp.exports.sp_world_telemetry_ptr(handle);
   }
 
   get vehicleCount(): number {
-    return this.cp.exports.cp_world_vehicle_count(this.handle);
+    return this.sp.exports.sp_world_vehicle_count(this.handle);
   }
 
   get stepCount(): number {
-    return Number(this.cp.exports.cp_world_step_count(this.handle));
+    return Number(this.sp.exports.sp_world_step_count(this.handle));
   }
 
   /**
@@ -319,31 +319,31 @@ export class World {
    */
   addVehicle(def: PartialVehicleDefinition): number {
     const v = validateDefinition(def);
-    if (!v.ok) throw new ContactPatchError(v.errors.join("; "), ErrorCode.InvalidDefinition);
-    const { ptr, len } = this.cp.writeString(JSON.stringify(def));
+    if (!v.ok) throw new SkidpadError(v.errors.join("; "), ErrorCode.InvalidDefinition);
+    const { ptr, len } = this.sp.writeString(JSON.stringify(def));
     try {
-      return this.cp.check(this.cp.exports.cp_world_add_vehicle(this.handle, ptr, len));
+      return this.sp.check(this.sp.exports.sp_world_add_vehicle(this.handle, ptr, len));
     } finally {
-      this.cp.free(ptr, len);
+      this.sp.free(ptr, len);
     }
   }
 
   /** Replace a vehicle's definition in place, keeping its state (live tuning). */
   setDefinition(vehicle: number, def: PartialVehicleDefinition): void {
     const v = validateDefinition(def);
-    if (!v.ok) throw new ContactPatchError(v.errors.join("; "), ErrorCode.InvalidDefinition);
-    const { ptr, len } = this.cp.writeString(JSON.stringify(def));
+    if (!v.ok) throw new SkidpadError(v.errors.join("; "), ErrorCode.InvalidDefinition);
+    const { ptr, len } = this.sp.writeString(JSON.stringify(def));
     try {
-      this.cp.check(this.cp.exports.cp_world_set_definition(this.handle, vehicle, ptr, len));
+      this.sp.check(this.sp.exports.sp_world_set_definition(this.handle, vehicle, ptr, len));
     } finally {
-      this.cp.free(ptr, len);
+      this.sp.free(ptr, len);
     }
   }
 
   /** Write a vehicle's input. No allocation. */
   setInput(vehicle: number, input: Partial<VehicleInput>): void {
-    const f = this.cp.floats();
-    const o = this.inputsPtr / 8 + vehicle * this.cp.inputStride;
+    const f = this.sp.floats();
+    const o = this.inputsPtr / 8 + vehicle * this.sp.inputStride;
     if (input.steer !== undefined) f[o] = input.steer;
     if (input.throttle !== undefined) f[o + 1] = input.throttle;
     if (input.brake !== undefined) f[o + 2] = input.brake;
@@ -352,8 +352,8 @@ export class World {
 
   /** Live view of a vehicle's input slots (`[steer, throttle, brake, handbrake]`). */
   inputView(vehicle: number): Float64Array {
-    const o = this.inputsPtr / 8 + vehicle * this.cp.inputStride;
-    return this.cp.floats().subarray(o, o + this.cp.inputStride);
+    const o = this.inputsPtr / 8 + vehicle * this.sp.inputStride;
+    return this.sp.floats().subarray(o, o + this.sp.inputStride);
   }
 
   /**
@@ -361,23 +361,23 @@ export class World {
    * memory grows; re-fetch it after adding vehicles or creating worlds.
    */
   telemetryView(vehicle: number): Float64Array {
-    const o = this.telemetryPtr / 8 + vehicle * this.cp.telemetryStride;
-    return this.cp.floats().subarray(o, o + this.cp.telemetryStride);
+    const o = this.telemetryPtr / 8 + vehicle * this.sp.telemetryStride;
+    return this.sp.floats().subarray(o, o + this.sp.telemetryStride);
   }
 
   /** Read one telemetry channel by name. */
   read(vehicle: number, channel: string): number {
-    const i = this.cp.channel(channel);
+    const i = this.sp.channel(channel);
     if (i < 0)
-      throw new ContactPatchError(`unknown telemetry channel "${channel}"`, ErrorCode.InvalidJson);
-    return this.cp.floats()[this.telemetryPtr / 8 + vehicle * this.cp.telemetryStride + i] ?? NaN;
+      throw new SkidpadError(`unknown telemetry channel "${channel}"`, ErrorCode.InvalidJson);
+    return this.sp.floats()[this.telemetryPtr / 8 + vehicle * this.sp.telemetryStride + i] ?? NaN;
   }
 
   /** Copy a vehicle's telemetry into a plain object keyed by channel name. */
   readAll(vehicle: number): Record<string, number> {
     const view = this.telemetryView(vehicle);
     const out: Record<string, number> = {};
-    this.cp.telemetryLayout.forEach((c, i) => {
+    this.sp.telemetryLayout.forEach((c, i) => {
       out[c.name] = view[i] ?? NaN;
     });
     return out;
@@ -385,49 +385,49 @@ export class World {
 
   /** Advance every vehicle by one host step of `dt` seconds. */
   step(dt: number): void {
-    this.cp.check(this.cp.exports.cp_world_step(this.handle, dt));
+    this.sp.check(this.sp.exports.sp_world_step(this.handle, dt));
   }
 
   /** Per-vehicle state hash as a 16-hex-digit string. */
   stateHash(vehicle: number): string {
-    return hex64(this.cp.exports.cp_world_state_hash(this.handle, vehicle));
+    return hex64(this.sp.exports.sp_world_state_hash(this.handle, vehicle));
   }
 
   /** Hash of every vehicle plus the step count. */
   worldHash(): string {
-    return hex64(this.cp.exports.cp_world_hash(this.handle));
+    return hex64(this.sp.exports.sp_world_hash(this.handle));
   }
 
   resetVehicle(vehicle: number, x = 0, y = 0, yaw = 0): void {
-    this.cp.check(this.cp.exports.cp_world_reset_vehicle(this.handle, vehicle, x, y, yaw));
+    this.sp.check(this.sp.exports.sp_world_reset_vehicle(this.handle, vehicle, x, y, yaw));
   }
 
   /** Versioned binary snapshot of one vehicle's full state. */
   snapshot(vehicle: number): Uint8Array {
-    const len = this.cp.check(this.cp.exports.cp_world_snapshot_len(this.handle, vehicle));
-    const ptr = this.cp.exports.cp_alloc(len);
+    const len = this.sp.check(this.sp.exports.sp_world_snapshot_len(this.handle, vehicle));
+    const ptr = this.sp.exports.sp_alloc(len);
     try {
-      const n = this.cp.check(this.cp.exports.cp_world_snapshot(this.handle, vehicle, ptr, len));
-      return this.cp.bytes().slice(ptr, ptr + n);
+      const n = this.sp.check(this.sp.exports.sp_world_snapshot(this.handle, vehicle, ptr, len));
+      return this.sp.bytes().slice(ptr, ptr + n);
     } finally {
-      this.cp.free(ptr, len);
+      this.sp.free(ptr, len);
     }
   }
 
   /** Restore a snapshot taken with {@link snapshot}. */
   restore(vehicle: number, bytes: Uint8Array): void {
-    const ptr = this.cp.exports.cp_alloc(bytes.length);
+    const ptr = this.sp.exports.sp_alloc(bytes.length);
     try {
-      this.cp.bytes().set(bytes, ptr);
-      this.cp.check(this.cp.exports.cp_world_restore(this.handle, vehicle, ptr, bytes.length));
+      this.sp.bytes().set(bytes, ptr);
+      this.sp.check(this.sp.exports.sp_world_restore(this.handle, vehicle, ptr, bytes.length));
     } finally {
-      this.cp.free(ptr, bytes.length);
+      this.sp.free(ptr, bytes.length);
     }
   }
 
   free(): void {
     if (!this.freed) {
-      this.cp.exports.cp_world_free(this.handle);
+      this.sp.exports.sp_world_free(this.handle);
       this.freed = true;
     }
   }
@@ -439,15 +439,15 @@ export class Tire {
 
   /** @internal */
   constructor(
-    private readonly cp: ContactPatch,
+    private readonly sp: Skidpad,
     readonly handle: number,
     private readonly scratchPtr: number,
     private readonly stride: number,
   ) {}
 
   eval(input: TireInput): TireOutput {
-    this.cp.check(
-      this.cp.exports.cp_tire_eval(
+    this.sp.check(
+      this.sp.exports.sp_tire_eval(
         this.handle,
         input.fz,
         input.slipRatio,
@@ -457,7 +457,7 @@ export class Tire {
         this.scratchPtr,
       ),
     );
-    const f = this.cp.floats();
+    const f = this.sp.floats();
     const o = this.scratchPtr / 8;
     return {
       fx: f[o]!,
@@ -485,8 +485,8 @@ export class Tire {
     camber?: number;
   }): Float64Array {
     const n = Math.min(Math.max(1, opts.n | 0), 1024);
-    this.cp.check(
-      this.cp.exports.cp_tire_sweep(
+    this.sp.check(
+      this.sp.exports.sp_tire_sweep(
         this.handle,
         opts.axis === "slipRatio" ? 0 : 1,
         opts.from,
@@ -499,12 +499,12 @@ export class Tire {
       ),
     );
     const o = this.scratchPtr / 8;
-    return this.cp.floats().slice(o, o + n * this.stride);
+    return this.sp.floats().slice(o, o + n * this.stride);
   }
 
   free(): void {
     if (!this.freed) {
-      this.cp.exports.cp_tire_free(this.handle);
+      this.sp.exports.sp_tire_free(this.handle);
       this.freed = true;
     }
   }

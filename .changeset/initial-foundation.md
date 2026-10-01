@@ -1,8 +1,8 @@
 ---
-"@contactpatch/core": minor
-"@contactpatch/presets": minor
-"@contactpatch/telemetry": minor
-"@contactpatch/input": minor
+"@skidpad/core": minor
+"@skidpad/presets": minor
+"@skidpad/telemetry": minor
+"@skidpad/input": minor
 ---
 
 Initial public release of the foundation (milestone 0) and the tire lab with the single-track model (milestone 1).

@@ -1,13 +1,13 @@
 [workspace]
 resolver = "2"
-members = ["crates/cp-math", "crates/cp-core", "crates/cp-wasm"]
+members = ["crates/skidpad-math", "crates/skidpad-core", "crates/skidpad-wasm"]
 
 [workspace.package]
 version = "0.1.0"
 edition = "2021"
 license = "MIT OR Apache-2.0"
-repository = "https://github.com/csummers88/oss-vehicle-physics"
-authors = ["Contact Patch contributors"]
+repository = "https://github.com/csummers88/skidpad"
+authors = ["Skidpad contributors"]
 rust-version = "1.85"
 
 [workspace.dependencies]

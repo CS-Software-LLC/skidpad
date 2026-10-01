@@ -1,19 +1,20 @@
-# Contact Patch
+# Skidpad
 
 **Deterministic, sim-grade vehicle physics for the web.** A Rust core compiled
 to WebAssembly, TypeScript everywhere else, built in public from the published
 literature.
 
-[![CI](https://github.com/csummers88/oss-vehicle-physics/actions/workflows/ci.yml/badge.svg)](https://github.com/csummers88/oss-vehicle-physics/actions/workflows/ci.yml)
+[![CI](https://github.com/csummers88/skidpad/actions/workflows/ci.yml/badge.svg)](https://github.com/csummers88/skidpad/actions/workflows/ci.yml)
 [![License: MIT OR Apache-2.0](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)](#license)
 
-> Working name. npm scope `@contactpatch/*`, crate prefix `cp-`. Availability on
-> npm, crates.io, and GitHub gets checked before the public launch.
+> The name comes from the skidpad, the constant-radius circle used to measure a
+> car's grip and balance, and the manoeuvre this project's validation runner
+> runs on every commit (ISO 4138).
 
 ## Why another vehicle physics package
 
 Existing web options (Rapier's raycast vehicle, cannon-es, Jolt's wheeled
-vehicle, assorted demos) each cover part of the problem. Contact Patch aims to
+vehicle, assorted demos) each cover part of the problem. Skidpad aims to
 win on specific, measurable axes, together:
 
 1. **Sim-grade fidelity.** Slip-based tires with combined slip, load
@@ -65,15 +66,15 @@ Chromium, Firefox, WebKit, and Node and asserts identical state hashes.
 ## Quick start
 
 ```sh
-pnpm add @contactpatch/core @contactpatch/presets
+pnpm add @skidpad/core @skidpad/presets
 ```
 
 ```ts
-import { init } from "@contactpatch/core";
-import { preset } from "@contactpatch/presets";
+import { init } from "@skidpad/core";
+import { preset } from "@skidpad/presets";
 
-const cp = await init();
-const world = cp.createWorld(1);
+const sp = await init();
+const world = sp.createWorld(1);
 const car = world.addVehicle(preset("sportsRwd"));
 world.setInput(car, { throttle: 1, steer: 0.2 });
 world.step(1 / 60);
@@ -86,10 +87,10 @@ Three.js / React Three Fiber pattern.
 ## Repository layout
 
 ```
-crates/cp-math      deterministic software math (ADR-0006)
-crates/cp-core      the simulation: tires, vehicle, world, snapshots, validation
-crates/cp-wasm      plain C-style WASM ABI (ADR-0003)
-packages/core       @contactpatch/core: loader, World, Tire, definitions, schema, migrations
+crates/skidpad-math      deterministic software math (ADR-0006)
+crates/skidpad-core      the simulation: tires, vehicle, world, snapshots, validation
+crates/skidpad-wasm      plain C-style WASM ABI (ADR-0003)
+packages/core       @skidpad/core: loader, World, Tire, definitions, schema, migrations
 packages/presets    reference vehicles with data sheets
 packages/telemetry  ring-buffer recorder, CSV and JSON export
 packages/input      keyboard ramps, gamepad and wheel mapping
@@ -141,7 +142,7 @@ is out of sync with the Rust sources.
 
 ### Troubleshooting
 
-- **"Failed to resolve entry for package @contactpatch/core"** or a blank
+- **"Failed to resolve entry for package @skidpad/core"** or a blank
   sandbox: the packages are not built. Run `pnpm bootstrap`.
 - **"cargo not found"** in the preflight output: fine unless you are
   changing `crates/`; the prebuilt core is used. To build the core yourself,

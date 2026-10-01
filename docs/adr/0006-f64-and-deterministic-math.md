@@ -18,7 +18,7 @@ outside relaxed SIMD, and its availability varies by CPU on native targets.
 - The core uses `f64` everywhere. `f32` saves memory but loses precision in
   exactly the places that hurt stability (small slips, stiff forces summed over
   thousands of substeps).
-- All transcendental and power functions come from `crates/cp-math`, which
+- All transcendental and power functions come from `crates/skidpad-math`, which
   wraps the `libm` crate (a pure-Rust port of the MUSL C library's math
   functions). `libm` uses only basic arithmetic and bit manipulation, so its
   results are identical on every target. `sqrt` maps to the WASM `f64.sqrt`
@@ -28,7 +28,7 @@ outside relaxed SIMD, and its availability varies by CPU on native targets.
   crates run clippy with `-D warnings` in CI.
 - No relaxed SIMD. SIMD128 (non-relaxed) is allowed in a future batched build
   because its lane operations are the same correctly-rounded basic operations.
-- A cross-browser self-test (`cp_math_selftest`) hashes the outputs of every
+- A cross-browser self-test (`skidpad_math_selftest`) hashes the outputs of every
   math function over a fixed sweep of inputs; CI asserts the hash is identical
   in Chromium, Firefox, WebKit, and Node.
 
@@ -39,7 +39,7 @@ outside relaxed SIMD, and its availability varies by CPU on native targets.
   and not a guarantee. The explicit module makes the guarantee ours.
 - **Purpose-written minimax polynomials.** Smaller and faster but a maintenance
   burden and a correctness risk. Can replace individual `libm` functions later
-  behind the same `cp_math` API if profiling justifies it.
+  behind the same `skidpad_math` API if profiling justifies it.
 
 ## Consequences
 

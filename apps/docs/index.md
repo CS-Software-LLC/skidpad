@@ -1,7 +1,7 @@
 ---
 layout: home
 hero:
-  name: Contact Patch
+  name: Skidpad
   text: Deterministic, sim-grade vehicle physics for the web.
   tagline: Slip-based tires, an implicit drivetrain, and bit-exact results on every browser. Built in public, from the literature.
   actions:
@@ -10,7 +10,7 @@ hero:
       link: /guide/getting-started
     - theme: alt
       text: Try the sandbox
-      link: https://github.com/csummers88/oss-vehicle-physics#sandbox
+      link: https://github.com/csummers88/skidpad#sandbox
 features:
   - title: Sim-grade tires
     details: Feel model for tuning by intuition, Magic Formula 5.2 subset with .tir import, combined slip, load sensitivity, relaxation length, aligning torque.

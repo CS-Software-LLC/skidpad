@@ -1,12 +1,12 @@
 {
-  "name": "@contactpatch/validate",
+  "name": "@skidpad/validate",
   "version": "0.1.0",
   "private": true,
   "description": "Headless validation runner: standard manoeuvres with golden-result regression checks.",
   "license": "MIT OR Apache-2.0",
   "type": "module",
   "bin": {
-    "cp-validate": "./dist/cli.js"
+    "skidpad-validate": "./dist/cli.js"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
@@ -16,8 +16,8 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@contactpatch/core": "workspace:*",
-    "@contactpatch/presets": "workspace:*"
+    "@skidpad/core": "workspace:*",
+    "@skidpad/presets": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

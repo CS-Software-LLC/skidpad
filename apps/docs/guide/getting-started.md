@@ -1,13 +1,13 @@
 # Getting started
 
-Contact Patch is a TypeScript package backed by a WebAssembly core. You never
+Skidpad is a TypeScript package backed by a WebAssembly core. You never
 need a Rust toolchain to use it.
 
 ## Install
 
-Install `@contactpatch/core` and, for reference vehicles, `@contactpatch/presets`.
+Install `@skidpad/core` and, for reference vehicles, `@skidpad/presets`.
 If your bundler has trouble serving the separate `.wasm` file, import from
-`@contactpatch/core/compat` instead; it inlines the module.
+`@skidpad/core/compat` instead; it inlines the module.
 
 ## Drive a car in Node
 
@@ -30,7 +30,7 @@ The sandbox in `apps/sandbox` is the reference integration. The pattern is:
 - Read `PosX`, `PosY`, `Yaw`, `SteerAngle`, and the wheel speeds to place the
   meshes. The core uses ISO axes (x forward, y left, z up); map them to your
   renderer's convention once, in one place.
-- Feed inputs through `@contactpatch/input` so keyboard, gamepad, and wheel
+- Feed inputs through `@skidpad/input` so keyboard, gamepad, and wheel
   all produce the same normalised frame.
 
 Until the Rapier adapter lands in milestone 2, the built-in minimal host

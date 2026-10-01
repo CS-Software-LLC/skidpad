@@ -6,15 +6,15 @@
 ## Context
 
 The spec lists `wasm-bindgen` plus `wasm-opt` as the WASM build tooling. The
-public surface of `cp-wasm` is deliberately tiny: create a world, add vehicles
+public surface of `skidpad-wasm` is deliberately tiny: create a world, add vehicles
 from a definition, step N vehicles in one call, read state and telemetry through
 typed-array views into linear memory, snapshot and hash. There are no
 per-wheel, per-channel, or per-frame object round-trips to bind.
 
 ## Decision
 
-`crates/cp-wasm` exports plain `extern "C"` functions with integer and float
-arguments and uses linear memory for every buffer. `@contactpatch/core`
+`crates/skidpad-wasm` exports plain `extern "C"` functions with integer and float
+arguments and uses linear memory for every buffer. `@skidpad/core`
 instantiates the module with `WebAssembly.instantiate` directly and owns the
 typed-array views, refreshing them whenever `memory.buffer` changes identity
 (memory growth). Strings cross the boundary as UTF-8 byte ranges.

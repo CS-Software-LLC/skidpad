@@ -13,8 +13,8 @@ users needing a Rust toolchain.
 
 ## Decision
 
-The entire simulation lives in a Rust crate (`crates/cp-core`) compiled to
-WebAssembly through a thin binding crate (`crates/cp-wasm`). Everything users
+The entire simulation lives in a Rust crate (`crates/skidpad-core`) compiled to
+WebAssembly through a thin binding crate (`crates/skidpad-wasm`). Everything users
 touch directly is TypeScript: the public API, host adapters, renderer helpers,
 input, telemetry, the editor, the sandbox, and the docs.
 

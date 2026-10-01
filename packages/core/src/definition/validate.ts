@@ -84,7 +84,7 @@ function validateTire(errors: string[], warnings: string[], path: string, tire: 
     const pky1 = t.pky1;
     if (isNum(pky1) && pky1 > 0) {
       errors.push(
-        `${path}.pky1 is positive; Contact Patch uses the ISO sign convention in which PKY1 is negative (ADR-0007)`,
+        `${path}.pky1 is positive; Skidpad uses the ISO sign convention in which PKY1 is negative (ADR-0007)`,
       );
     }
     for (const [k, v] of Object.entries(t)) {
@@ -100,7 +100,7 @@ function validateTire(errors: string[], warnings: string[], path: string, tire: 
 /**
  * Validate a (possibly partial) definition and explain problems in plain
  * language. Partial definitions are fine: missing fields take defaults in
- * the core. This mirrors the checks in `cp-core` so problems surface before
+ * the core. This mirrors the checks in `skidpad-core` so problems surface before
  * the WASM boundary.
  */
 export function validateDefinition(def: unknown): ValidationResult {

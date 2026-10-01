@@ -40,7 +40,7 @@ const cargo = has("cargo");
 log(cargo ? cargo : "cargo not found  <- fine for TypeScript work; the prebuilt core will be used");
 
 // 2. WASM artifact (needs Rust).
-const wasm = join(root, "packages", "core", "wasm", "contactpatch.wasm");
+const wasm = join(root, "packages", "core", "wasm", "skidpad.wasm");
 const inline = join(root, "packages", "core", "src", "generated", "wasm-inline.ts");
 const wasmMissing = !existsSync(wasm) || !existsSync(inline);
 if (wasmMissing || force) {
@@ -48,10 +48,10 @@ if (wasmMissing || force) {
     problems.push(
       "WASM core not installed: run `pnpm bootstrap` (uses Rust if present, else the prebuilt core).",
     );
-  } else if (!cargo || process.env.CP_USE_PREBUILT === "1") {
+  } else if (!cargo || process.env.SKIDPAD_USE_PREBUILT === "1") {
     log(
       cargo
-        ? "using the prebuilt core (CP_USE_PREBUILT=1)"
+        ? "using the prebuilt core (SKIDPAD_USE_PREBUILT=1)"
         : "Rust not installed: using the prebuilt core from prebuilt/",
     );
     const r = spawnSync(process.execPath, [join(root, "scripts", "prebuilt.mjs"), "--install"], {

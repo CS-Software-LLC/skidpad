@@ -1,5 +1,5 @@
 {
-  "name": "@contactpatch/docs",
+  "name": "@skidpad/docs",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -10,8 +10,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@contactpatch/core": "workspace:*",
-    "@contactpatch/presets": "workspace:*",
+    "@skidpad/core": "workspace:*",
+    "@skidpad/presets": "workspace:*",
     "vue": "^3.5.0"
   },
   "devDependencies": {

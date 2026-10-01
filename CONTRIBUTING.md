@@ -1,4 +1,4 @@
-# Contributing to Contact Patch
+# Contributing to Skidpad
 
 Thanks for looking. This project is built in public, and contributions of every
 size are welcome: bug reports, physics corrections, docs, presets, and code.
@@ -30,7 +30,7 @@ in `prebuilt/` is used.
 
 ```sh
 pnpm install
-pnpm bootstrap             # compiles crates/cp-wasm into packages/core and builds the packages
+pnpm bootstrap             # compiles crates/skidpad-wasm into packages/core and builds the packages
 pnpm dev:sandbox       # Vite playground (runs the same preflight first)
 pnpm test:rust         # cargo test --workspace
 pnpm test              # vitest across packages, tools and tests

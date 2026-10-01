@@ -2,11 +2,11 @@ import { mkdirSync, writeFileSync, readFileSync, existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { performance } from "node:perf_hooks";
-import { init } from "@contactpatch/core";
+import { init } from "@skidpad/core";
 import { formatTable, runAll } from "./bench.js";
 
-const cp = await init();
-const report = runAll(cp, `node-${process.versions.node}-${process.platform}-${process.arch}`, () =>
+const sp = await init();
+const report = runAll(sp, `node-${process.versions.node}-${process.platform}-${process.arch}`, () =>
   performance.now(),
 );
 console.log(formatTable(report));

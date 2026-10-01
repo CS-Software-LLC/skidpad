@@ -1,0 +1,25 @@
+[package]
+name = "skidpad-core"
+description = "Skidpad vehicle physics core: deterministic, allocation-free, host-agnostic"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+skidpad-math = { path = "../skidpad-math" }
+serde = { workspace = true, optional = true }
+
+[dev-dependencies]
+proptest = { workspace = true }
+serde_json = { workspace = true }
+
+[features]
+default = ["serde"]
+serde = ["dep:serde"]
+
+[lints.clippy]
+disallowed_methods = "deny"
+disallowed_types = "deny"

@@ -1,5 +1,5 @@
 /**
- * Vehicle definition types. These mirror `crates/cp-core/src/definition.rs`
+ * Vehicle definition types. These mirror `crates/skidpad-core/src/definition.rs`
  * and the JSON Schema in `schema/vehicle-definition.schema.json`. All units
  * are SI unless the field name says otherwise (`...Deg`).
  */
@@ -48,7 +48,7 @@ export interface FeelTireParams {
 /**
  * Magic Formula 5.2 subset. Keys are the lower-cased `.tir` coefficient
  * names (`pky1`, `qbz1`, …) plus the structural fields below. Use
- * {@link ContactPatch.importTir} to build one from a `.tir` file.
+ * {@link Skidpad.importTir} to build one from a `.tir` file.
  */
 export interface MagicFormulaParams {
   model: "magicFormula";

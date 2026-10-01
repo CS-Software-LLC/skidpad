@@ -6,7 +6,7 @@ export default defineConfig({
     emptyOutDir: true,
     lib: {
       entry: "browser/harness.ts",
-      name: "cpDeterminism",
+      name: "skidpadDeterminism",
       formats: ["iife"],
       fileName: () => "harness.js",
     },

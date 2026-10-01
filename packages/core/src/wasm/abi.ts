@@ -1,61 +1,61 @@
 /**
- * The raw WebAssembly export surface of `crates/cp-wasm` (ADR-0003).
+ * The raw WebAssembly export surface of `crates/skidpad-wasm` (ADR-0003).
  * Pointers are byte offsets into `memory`. Status codes: 0 = ok, negative =
- * error (see {@link ErrorCode}); call `cp_last_error_*` for the message.
+ * error (see {@link ErrorCode}); call `sp_last_error_*` for the message.
  */
 export interface CpExports {
   memory: WebAssembly.Memory;
 
-  cp_alloc(len: number): number;
-  cp_free(ptr: number, len: number): void;
+  sp_alloc(len: number): number;
+  sp_free(ptr: number, len: number): void;
 
-  cp_abi_version(): number;
-  cp_version_ptr(): number;
-  cp_version_len(): number;
-  cp_last_error_ptr(): number;
-  cp_last_error_len(): number;
-  cp_result_ptr(): number;
-  cp_result_len(): number;
-  cp_math_selftest(): bigint;
-  cp_default_definition(): number;
+  sp_abi_version(): number;
+  sp_version_ptr(): number;
+  sp_version_len(): number;
+  sp_last_error_ptr(): number;
+  sp_last_error_len(): number;
+  sp_result_ptr(): number;
+  sp_result_len(): number;
+  skidpad_math_selftest(): bigint;
+  sp_default_definition(): number;
 
-  cp_input_stride(): number;
-  cp_telemetry_stride(): number;
-  cp_telemetry_layout_ptr(): number;
-  cp_telemetry_layout_len(): number;
+  sp_input_stride(): number;
+  sp_telemetry_stride(): number;
+  sp_telemetry_layout_ptr(): number;
+  sp_telemetry_layout_len(): number;
 
-  cp_world_new(capacity: number): number;
-  cp_world_free(handle: number): void;
-  cp_world_add_vehicle(handle: number, jsonPtr: number, jsonLen: number): number;
-  cp_world_set_definition(
+  sp_world_new(capacity: number): number;
+  sp_world_free(handle: number): void;
+  sp_world_add_vehicle(handle: number, jsonPtr: number, jsonLen: number): number;
+  sp_world_set_definition(
     handle: number,
     vehicle: number,
     jsonPtr: number,
     jsonLen: number,
   ): number;
-  cp_world_vehicle_count(handle: number): number;
-  cp_world_capacity(handle: number): number;
-  cp_world_inputs_ptr(handle: number): number;
-  cp_world_telemetry_ptr(handle: number): number;
-  cp_world_step(handle: number, dt: number): number;
-  cp_world_step_count(handle: number): bigint;
-  cp_world_state_hash(handle: number, vehicle: number): bigint;
-  cp_world_hash(handle: number): bigint;
-  cp_world_reset_vehicle(
+  sp_world_vehicle_count(handle: number): number;
+  sp_world_capacity(handle: number): number;
+  sp_world_inputs_ptr(handle: number): number;
+  sp_world_telemetry_ptr(handle: number): number;
+  sp_world_step(handle: number, dt: number): number;
+  sp_world_step_count(handle: number): bigint;
+  sp_world_state_hash(handle: number, vehicle: number): bigint;
+  sp_world_hash(handle: number): bigint;
+  sp_world_reset_vehicle(
     handle: number,
     vehicle: number,
     x: number,
     y: number,
     yaw: number,
   ): number;
-  cp_world_snapshot_len(handle: number, vehicle: number): number;
-  cp_world_snapshot(handle: number, vehicle: number, out: number, cap: number): number;
-  cp_world_restore(handle: number, vehicle: number, ptr: number, len: number): number;
+  sp_world_snapshot_len(handle: number, vehicle: number): number;
+  sp_world_snapshot(handle: number, vehicle: number, out: number, cap: number): number;
+  sp_world_restore(handle: number, vehicle: number, ptr: number, len: number): number;
 
-  cp_tire_new(jsonPtr: number, jsonLen: number): number;
-  cp_tire_free(handle: number): void;
-  cp_tire_out_stride(): number;
-  cp_tire_eval(
+  sp_tire_new(jsonPtr: number, jsonLen: number): number;
+  sp_tire_free(handle: number): void;
+  sp_tire_out_stride(): number;
+  sp_tire_eval(
     handle: number,
     fz: number,
     slipRatio: number,
@@ -64,7 +64,7 @@ export interface CpExports {
     vx: number,
     out: number,
   ): number;
-  cp_tire_sweep(
+  sp_tire_sweep(
     handle: number,
     axis: number,
     from: number,
@@ -75,9 +75,9 @@ export interface CpExports {
     camber: number,
     out: number,
   ): number;
-  cp_tir_import(ptr: number, len: number): number;
+  sp_tir_import(ptr: number, len: number): number;
 
-  cp_run_scenario(ptr: number, len: number): number;
+  sp_run_scenario(ptr: number, len: number): number;
 }
 
 /** ABI version this loader was written against. */

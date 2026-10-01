@@ -16,7 +16,7 @@ cpSync(join(root, "apps", "docs", ".vitepress", "dist"), join(site, "docs"), { r
 cpSync(join(root, "apps", "bench", "dist"), join(site, "bench"), { recursive: true });
 
 // Validation report.
-execFileSync("pnpm", ["--filter", "@contactpatch/validate", "run", "validate"], {
+execFileSync("pnpm", ["--filter", "@skidpad/validate", "run", "validate"], {
   cwd: root,
   stdio: "inherit",
 });
@@ -27,7 +27,7 @@ cpSync(
 );
 
 // Benchmark: run, then merge with history from the live site.
-execFileSync("pnpm", ["--filter", "@contactpatch/bench", "run", "bench:node"], {
+execFileSync("pnpm", ["--filter", "@skidpad/bench", "run", "bench:node"], {
   cwd: root,
   stdio: "inherit",
 });
@@ -60,10 +60,10 @@ writeFileSync(join(resultsDir, "index.json"), JSON.stringify(index, null, 2));
 
 writeFileSync(
   join(site, "index.html"),
-  `<!doctype html><meta charset="utf-8"><title>Contact Patch</title>
+  `<!doctype html><meta charset="utf-8"><title>Skidpad</title>
 <style>body{font:16px/1.5 system-ui;max-width:720px;margin:4rem auto;padding:0 1rem}</style>
-<h1>Contact Patch</h1><p>Deterministic, sim-grade vehicle physics for the web.</p>
+<h1>Skidpad</h1><p>Deterministic, sim-grade vehicle physics for the web.</p>
 <ul><li><a href="sandbox/">Sandbox</a></li><li><a href="docs/">Documentation</a></li><li><a href="bench/">Benchmarks</a></li><li><a href="validation/results.json">Validation results (JSON)</a></li></ul>
-<p>Built from commit <code>${sha}</code>. ${existsSync(join(root, "CHANGELOG.md")) ? '<a href="https://github.com/csummers88/oss-vehicle-physics/blob/main/CHANGELOG.md">Changelog</a>' : ""}</p>`,
+<p>Built from commit <code>${sha}</code>. ${existsSync(join(root, "CHANGELOG.md")) ? '<a href="https://github.com/csummers88/skidpad/blob/main/CHANGELOG.md">Changelog</a>' : ""}</p>`,
 );
 console.log(`[assemble-site] site assembled in ${site}`);

@@ -1,6 +1,6 @@
 # Clean-room policy
 
-Contact Patch is written from published literature only.
+Skidpad is written from published literature only.
 
 - No code, structure, or parameter sets ported or derived from commercial
   vehicle physics packages (Vehicle Physics Pro, UnityCar, Edy's Vehicle
