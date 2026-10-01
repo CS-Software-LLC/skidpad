@@ -311,17 +311,34 @@ change:
 
 ## Roadmap
 
-| Milestone | Scope                                                                                                                                                                                    | Status |
-| --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
-| M0        | Monorepo, CI with cross-browser determinism, licences and community files, deterministic math, sandbox, docs, bench skeleton                                                             | done   |
-| M1        | Feel and Magic Formula tires with `.tir` import, combined slip, load sensitivity, aligning moment, single-track model, tire explorer, understeer validation                              | done   |
-| M2        | Four wheels, suspension, Rapier adapter, chassis proxy, R3F track, telemetry overlay, benchmark baseline                                                                                 | done   |
-| M3        | Standstill and slope stability, locked brakes, timestep sweep, snapshot and hash on the full model, cross-browser test on a real drive                                                   | done   |
-| M4        | Drivetrain graph with implicit solver: engine, clutch, gearboxes, differentials, AWD, electric                                                                                           | done   |
-| M5        | Steering geometry, rack force and jacking; assists (ABS, traction and stability control, speed-sensitive steering); input calibration, wheel profiles, touch; force feedback over WebHID | done   |
-| M6        | Surfaces, aero, solid axles, tuning editor, full validation runner, reference vehicles                                                                                                   | done   |
-| M7        | LOD, batched stepping, worker mode, replays and ghosts, AI helper, Jolt, Babylon                                                                                                         | done   |
-| M8        | API freeze, docs complete, performance targets met, format version 1, release 1.0                                                                                                        | next   |
+| Milestone | Scope                                                                                                                                                                                                                                                                          | Status |
+| --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------ |
+| M0        | Monorepo, CI with cross-browser determinism, licences and community files, deterministic math, sandbox, docs, bench skeleton                                                                                                                                                   | done   |
+| M1        | Feel and Magic Formula tires with `.tir` import, combined slip, load sensitivity, aligning moment, single-track model, tire explorer, understeer validation                                                                                                                    | done   |
+| M2        | Four wheels, suspension, Rapier adapter, chassis proxy, R3F track, telemetry overlay, benchmark baseline                                                                                                                                                                       | done   |
+| M3        | Standstill and slope stability, locked brakes, timestep sweep, snapshot and hash on the full model, cross-browser test on a real drive                                                                                                                                         | done   |
+| M4        | Drivetrain graph with implicit solver: engine, clutch, gearboxes, differentials, AWD, electric                                                                                                                                                                                 | done   |
+| M5        | Steering geometry, rack force and jacking; assists (ABS, traction and stability control, speed-sensitive steering); input calibration, wheel profiles, touch; force feedback over WebHID                                                                                       | done   |
+| M6        | Surfaces, aero, solid axles, tuning editor, full validation runner, reference vehicles                                                                                                                                                                                         | done   |
+| M7        | LOD, batched stepping, worker mode, replays and ghosts, AI helper, Jolt, Babylon                                                                                                                                                                                               | done   |
+| M8        | Dogfooding: publish 0.x to npm; build a small game outside this repo on the published packages; fix the API, packaging and docs friction it exposes; drive the sandbox on keyboard, gamepad and wheel and tune the feel; try the [VERIFY] force-feedback constants on hardware | next   |
+| M9        | Hardening: clear errors for invalid and extreme definitions, NaN guards, long-run soak tests, performance at realistic car counts, docs gaps found in M8                                                                                                                       | later  |
+
+### 1.0
+
+1.0 has no date. It comes after the packages have been used for real, and
+means an API freeze and format version 1. The bar:
+
+- At least one project outside this repository built on the published
+  packages.
+- One minor release with no breaking API or format change.
+- Definition, snapshot and replay formats settled at version 1, with
+  migrations from 0.x.
+- Every public API documented; performance targets met or revised.
+- Force feedback verified on hardware, or the unverified devices listed as
+  such.
+
+Until then the packages stay 0.x and breaking changes go in changesets.
 
 Not before 1.0: multibody suspension, tire thermals and wear, damage,
 motorcycles and trailers, netcode, a full racing AI, native bindings.
