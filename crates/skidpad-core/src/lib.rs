@@ -31,6 +31,7 @@
 // for NaN, which is exactly what a validator wants to reject.
 #![allow(clippy::neg_cmp_op_on_partial_ord)]
 
+pub mod ai;
 pub mod assists;
 pub mod curve;
 pub mod definition;

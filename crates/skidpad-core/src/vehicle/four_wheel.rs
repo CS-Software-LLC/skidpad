@@ -1015,12 +1015,17 @@ pub(crate) fn write_drivetrain_telemetry(d: &Drivetrain, input: &VehicleInput, r
     rec[t::CLUTCH] = input.clutch;
 }
 
-const BODY_STATE_LEN: usize = 18;
-const WHEEL_STATE_LEN: usize = 4;
+/// Snapshot values of the body, before the wheels.
+pub const BODY_STATE_LEN: usize = 18;
+/// Snapshot values per wheel.
+pub const WHEEL_STATE_LEN: usize = 4;
+/// Snapshot values of the whole four-wheel vehicle.
+pub const STATE_LEN: usize =
+    BODY_STATE_LEN + WHEEL_COUNT * WHEEL_STATE_LEN + crate::drivetrain::STATE_LEN;
 
 impl Snapshottable for FourWheelVehicle {
     fn state_len(&self) -> usize {
-        BODY_STATE_LEN + WHEEL_COUNT * WHEEL_STATE_LEN + crate::drivetrain::STATE_LEN
+        STATE_LEN
     }
 
     fn write_state(&self, out: &mut [f64]) {

@@ -640,11 +640,14 @@ impl BicycleVehicle {
     }
 }
 
-const BICYCLE_STATE_LEN: usize = 8 + 2 * 4;
+/// Snapshot values of the single-track body and axles, before the drivetrain.
+pub const BICYCLE_STATE_LEN: usize = 8 + 2 * 4;
+/// Snapshot values of the whole single-track vehicle.
+pub const STATE_LEN: usize = BICYCLE_STATE_LEN + crate::drivetrain::STATE_LEN;
 
 impl Snapshottable for BicycleVehicle {
     fn state_len(&self) -> usize {
-        BICYCLE_STATE_LEN + crate::drivetrain::STATE_LEN
+        STATE_LEN
     }
 
     fn write_state(&self, out: &mut [f64]) {

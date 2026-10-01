@@ -34,6 +34,89 @@ impl VehicleModel {
         }
     }
 
+    /// Number of snapshot values of a model kind; the snapshot of each
+    /// kind has its own fixed length.
+    pub fn state_len_of(kind: VehicleModelKind) -> usize {
+        match kind {
+            VehicleModelKind::SingleTrack => bicycle::STATE_LEN,
+            VehicleModelKind::FourWheel => four_wheel::STATE_LEN,
+        }
+    }
+
+    /// Rebuild the vehicle as the other model, carrying its motion over
+    /// (ADR-0019): planar pose and velocity, yaw rate, wheel speeds and
+    /// transient slips (an axle's mean on the way down to the single-track
+    /// model; each wheel's share of the yaw rate on the way up), the
+    /// drivetrain state, the clock, the built-in surface id and the ground
+    /// slope. Going up, the body starts level at ride height and settles
+    /// into its roll and pitch over the next few hundred milliseconds.
+    /// `def` is the definition to build from; its `simulation.model` is
+    /// overridden by `kind`. Does nothing if the vehicle already is `kind`.
+    pub fn convert_to(&mut self, kind: VehicleModelKind, def: &VehicleDefinition) {
+        if kind == self.kind() {
+            return;
+        }
+        let mut def = def.clone();
+        def.simulation.model = kind;
+        let mut dt_state = [0.0; crate::drivetrain::STATE_LEN];
+        let fresh = match self {
+            VehicleModel::FourWheel(f) => {
+                f.drivetrain.write_state(&mut dt_state);
+                let mut b = BicycleVehicle::new(def);
+                b.set_surface(f.builtin_surface_id);
+                b.set_ground_slope(f.ground_slope[0], f.ground_slope[1]);
+                let (yaw, _, _) = f.orient.to_yaw_pitch_roll();
+                b.reset(f.pos.x, f.pos.y, yaw);
+                b.time = f.time;
+                let (sy, cy) = (skidpad_math::sin(yaw), skidpad_math::cos(yaw));
+                b.vx = f.vel.x * cy + f.vel.y * sy;
+                b.vy = -f.vel.x * sy + f.vel.y * cy;
+                b.yaw_rate = f.omega.z;
+                b.ax_prev = f.accel_body.x;
+                for (a, ax) in b.axles.iter_mut().enumerate() {
+                    let (l, r) = (&f.wheels[2 * a], &f.wheels[2 * a + 1]);
+                    ax.omega = 0.5 * (l.omega + r.omega);
+                    ax.transient.slip_ratio =
+                        0.5 * (l.transient.slip_ratio + r.transient.slip_ratio);
+                    ax.transient.slip_angle =
+                        0.5 * (l.transient.slip_angle + r.transient.slip_angle);
+                    ax.spin_angle = l.spin_angle;
+                }
+                b.drivetrain.read_state(&dt_state);
+                VehicleModel::SingleTrack(b)
+            }
+            VehicleModel::SingleTrack(b) => {
+                b.drivetrain.write_state(&mut dt_state);
+                let mut f = FourWheelVehicle::new(def);
+                f.set_surface(b.surface_id);
+                f.set_ground_slope(b.ground_slope[0], b.ground_slope[1]);
+                f.reset(b.x, b.y, b.yaw);
+                f.time = b.time;
+                let (sy, cy) = (skidpad_math::sin(b.yaw), skidpad_math::cos(b.yaw));
+                f.vel = crate::geom::Vec3::new(b.vx * cy - b.vy * sy, b.vx * sy + b.vy * cy, 0.0);
+                f.omega = crate::geom::Vec3::new(0.0, 0.0, b.yaw_rate);
+                let geometry = *f.geometry();
+                let half_tracks = [
+                    0.5 * f.definition().axle_track(0),
+                    0.5 * f.definition().axle_track(1),
+                ];
+                for (i, w) in f.wheels.iter_mut().enumerate() {
+                    let ax = &b.axles[i / 2];
+                    let g = geometry[i];
+                    let half_track = half_tracks[i / 2];
+                    // A left wheel (side +1) runs slower than the axle centre
+                    // by the yaw rate times its half track.
+                    w.omega = ax.omega - g.side * b.yaw_rate * half_track / g.radius;
+                    w.transient = ax.transient;
+                    w.spin_angle = ax.spin_angle;
+                }
+                f.drivetrain.read_state(&dt_state);
+                VehicleModel::FourWheel(f)
+            }
+        };
+        *self = fresh;
+    }
+
     pub fn kind(&self) -> VehicleModelKind {
         match self {
             VehicleModel::SingleTrack(_) => VehicleModelKind::SingleTrack,

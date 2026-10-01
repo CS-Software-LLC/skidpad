@@ -53,6 +53,19 @@ export interface CpExports {
   sp_world_set_surface(handle: number, vehicle: number, surface: number): number;
   sp_world_wheel_rays(handle: number, vehicle: number, out: number, cap: number): number;
   sp_world_step(handle: number, dt: number): number;
+  sp_world_step_many(handle: number, dt: number, count: number): number;
+  sp_world_set_lod(handle: number, vehicle: number, lod: number, substepRateHz: number): number;
+  sp_world_lod(handle: number, vehicle: number): number;
+  sp_world_set_ai(
+    handle: number,
+    vehicle: number,
+    points: number,
+    n: number,
+    cfg: number,
+    cfgLen: number,
+  ): number;
+  sp_world_clear_ai(handle: number, vehicle: number): number;
+  sp_world_ai_status(handle: number, vehicle: number, out: number, cap: number): number;
   sp_world_step_count(handle: number): bigint;
   sp_world_state_hash(handle: number, vehicle: number): bigint;
   sp_world_hash(handle: number): bigint;
@@ -96,7 +109,7 @@ export interface CpExports {
 }
 
 /** ABI version this loader was written against. */
-export const EXPECTED_ABI_VERSION = 4;
+export const EXPECTED_ABI_VERSION = 5;
 
 export enum ErrorCode {
   Ok = 0,

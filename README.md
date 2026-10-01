@@ -117,7 +117,7 @@ Benchmarks on a Node 22 x64 container, 60 Hz host step, release build:
 
 Targets: under 0.2 ms for one car and under 3 ms for twenty on M1-class
 hardware; under 2 ms for two hundred traffic cars; core WASM under 200 KB
-gzipped (currently 196 KB). `apps/bench/baseline` holds the committed
+gzipped (currently 199.4 KB). `apps/bench/baseline` holds the committed
 baseline the benchmark compares against.
 
 An independent check drives Skidpad and Project Chrono's multibody BMW E90
@@ -167,6 +167,23 @@ host.afterStep(1 / 60); // tire and suspension impulse onto the body
 scene.step();
 ```
 
+Jolt works the same way through `@skidpad/jolt` (`createChassisBody`,
+`JoltVehicle`); `examples/babylon` runs it in Babylon.js.
+
+For many cars, a vehicle can drop to the single-track model or freeze and
+come back without a jump, the core can drive cars along a path by itself,
+and a world can take many steps in one call:
+
+```ts
+world.setLod(trafficCar, "singleTrack", 240);
+world.setAi(trafficCar, centreline, { maxSpeed: 25, lateralOffset: 2 });
+world.stepMany(1 / 60, 600);
+```
+
+`@skidpad/replay` records replays (inputs plus keyframes, re-simulated bit
+for bit and seekable) and ghosts (pose tracks), and `@skidpad/worker` runs a
+world in a Web Worker. The docs' guides cover each.
+
 ## Repository layout
 
 ```
@@ -176,6 +193,9 @@ crates/skidpad-wasm      plain C-style WASM ABI (ADR-0003)
 packages/core       @skidpad/core: loader, World, Tire, definitions, schema, migrations
 packages/presets    reference vehicles with data sheets, the surface table
 packages/rapier     @skidpad/rapier: Rapier 3D host adapter
+packages/jolt       @skidpad/jolt: Jolt Physics host adapter
+packages/replay     @skidpad/replay: deterministic replays and ghosts
+packages/worker     @skidpad/worker: run a world in a Web Worker
 packages/telemetry  ring-buffer recorder, CSV and JSON export
 packages/input      keyboard ramps, gamepad and wheel mapping
 apps/sandbox        Vite + React Three Fiber playground
@@ -184,6 +204,8 @@ apps/bench          benchmark page and Node runner
 tools/validate      headless validation CLI with golden results
 tools/chrono-compare  behavioural comparison against Project Chrono's multibody BMW E90
 tests/determinism   cross-browser determinism harness (Playwright), recorded laps
+examples/headless-node  a world in plain Node
+examples/babylon    Babylon.js on Jolt: AI traffic with level of detail, a lap ghost
 docs/adr            architecture decision records
 ```
 
@@ -298,8 +320,8 @@ change:
 | M4        | Drivetrain graph with implicit solver: engine, clutch, gearboxes, differentials, AWD, electric                                                                                           | done   |
 | M5        | Steering geometry, rack force and jacking; assists (ABS, traction and stability control, speed-sensitive steering); input calibration, wheel profiles, touch; force feedback over WebHID | done   |
 | M6        | Surfaces, aero, solid axles, tuning editor, full validation runner, reference vehicles                                                                                                   | done   |
-| M7        | LOD, batched stepping, worker mode, replays and ghosts, AI helper, Jolt, Babylon                                                                                                         | next   |
-| M8        | API freeze, docs complete, performance targets met, format version 1, release 1.0                                                                                                        |        |
+| M7        | LOD, batched stepping, worker mode, replays and ghosts, AI helper, Jolt, Babylon                                                                                                         | done   |
+| M8        | API freeze, docs complete, performance targets met, format version 1, release 1.0                                                                                                        | next   |
 
 Not before 1.0: multibody suspension, tire thermals and wear, damage,
 motorcycles and trailers, netcode, a full racing AI, native bindings.

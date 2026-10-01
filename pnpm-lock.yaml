@@ -123,6 +123,37 @@ importers:
         specifier: ^5.4.0
         version: 5.4.21(@types/node@22.20.4)
 
+  examples/babylon:
+    dependencies:
+      '@babylonjs/core':
+        specifier: ^9.0.0
+        version: 9.29.0
+      '@skidpad/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      '@skidpad/input':
+        specifier: workspace:*
+        version: link:../../packages/input
+      '@skidpad/jolt':
+        specifier: workspace:*
+        version: link:../../packages/jolt
+      '@skidpad/presets':
+        specifier: workspace:*
+        version: link:../../packages/presets
+      '@skidpad/replay':
+        specifier: workspace:*
+        version: link:../../packages/replay
+      jolt-physics:
+        specifier: ^1.1.0
+        version: 1.1.0
+    devDependencies:
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
+      vite:
+        specifier: ^5.4.0
+        version: 5.4.21(@types/node@22.20.4)
+
   examples/headless-node:
     dependencies:
       '@skidpad/core':
@@ -166,6 +197,25 @@ importers:
         specifier: ^2.1.0
         version: 2.1.9(@types/node@22.20.4)
 
+  packages/jolt:
+    dependencies:
+      '@skidpad/core':
+        specifier: workspace:*
+        version: link:../core
+    devDependencies:
+      '@skidpad/presets':
+        specifier: workspace:*
+        version: link:../presets
+      jolt-physics:
+        specifier: ^1.1.0
+        version: 1.1.0
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
+      vitest:
+        specifier: ^2.1.0
+        version: 2.1.9(@types/node@22.20.4)
+
   packages/presets:
     dependencies:
       '@skidpad/core':
@@ -198,8 +248,40 @@ importers:
         specifier: ^2.1.0
         version: 2.1.9(@types/node@22.20.4)
 
+  packages/replay:
+    dependencies:
+      '@skidpad/core':
+        specifier: workspace:*
+        version: link:../core
+    devDependencies:
+      '@skidpad/presets':
+        specifier: workspace:*
+        version: link:../presets
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
+      vitest:
+        specifier: ^2.1.0
+        version: 2.1.9(@types/node@22.20.4)
+
   packages/telemetry:
     devDependencies:
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
+      vitest:
+        specifier: ^2.1.0
+        version: 2.1.9(@types/node@22.20.4)
+
+  packages/worker:
+    dependencies:
+      '@skidpad/core':
+        specifier: workspace:*
+        version: link:../core
+    devDependencies:
+      '@skidpad/presets':
+        specifier: workspace:*
+        version: link:../presets
       typescript:
         specifier: ^5.6.0
         version: 5.9.3
@@ -440,6 +522,9 @@ packages:
   '@babel/types@7.29.8':
     resolution: {integrity: sha512-Vj1jF3cPfxg7OAfoI7QnVKLoILlm2JF9pnVHrX8qx7AHMiYWT+NDAA7jChlNgRS4WTLc/fD1lXLmPixluj+3Gg==}
     engines: {node: '>=6.9.0'}
+
+  '@babylonjs/core@9.29.0':
+    resolution: {integrity: sha512-qWrtTRsZF0DO6IouYTEZrcQtUEJzlKbc3i/7Ek2T1INFJ+zp9fxO+CIRJ9HRInOG6HYjQl1i6RhxXVyUbx8yxQ==}
 
   '@changesets/apply-release-plan@7.1.1':
     resolution: {integrity: sha512-9qPCm/rLx/xoOFXIHGB229+4GOL76S4MC+7tyOuTsR6+1jYlfFDQORdvwR5hDA6y4FL2BPt3qpbcQIS+dW85LA==}
@@ -1832,6 +1917,9 @@ packages:
     peerDependencies:
       react: '>=18.0'
 
+  jolt-physics@1.1.0:
+    resolution: {integrity: sha512-Erl+X0yK2f9/8Wrl55Nb2y9FYS5xDx375EabnHq+TbSDYEuPZBLvpaLV4nbc1M5gyA5Llbug81wSj1zSMRUr7Q==}
+
   js-tokens@4.0.0:
     resolution: {integrity: sha512-RdJUflcE3cUzKiMqQgsCu06FPu9UdIJO0beYbPhHN4k6apgJtifcoCtT9bcxOpYBtpD2kCM6Sbzg4CausW/PKQ==}
 
@@ -2703,6 +2791,8 @@ snapshots:
     dependencies:
       '@babel/helper-string-parser': 7.29.7
       '@babel/helper-validator-identifier': 7.29.7
+
+  '@babylonjs/core@9.29.0': {}
 
   '@changesets/apply-release-plan@7.1.1':
     dependencies:
@@ -4107,6 +4197,8 @@ snapshots:
       react: 18.3.1
     transitivePeerDependencies:
       - '@types/react'
+
+  jolt-physics@1.1.0: {}
 
   js-tokens@4.0.0: {}
 

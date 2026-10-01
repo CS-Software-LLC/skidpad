@@ -581,6 +581,92 @@ export class Skidpad {
   }
 }
 
+/**
+ * Level of detail of one vehicle (ADR-0019): `full` runs the model the
+ * definition asks for, `singleTrack` the cheap single-track model whatever
+ * the definition asks for, `frozen` does not step it at all.
+ */
+export type Lod = "full" | "singleTrack" | "frozen";
+
+const LOD_CODES: readonly Lod[] = ["full", "singleTrack", "frozen"];
+
+/**
+ * Tuning of the path-following driver (ADR-0020). Every field is optional;
+ * missing ones take the core defaults shown.
+ */
+export interface AiConfig {
+  /** Top speed the driver asks for, m/s. Default 30. */
+  maxSpeed?: number;
+  /** Lateral acceleration the speed profile allows in a curve, m/s². Default 6. */
+  lateralAccel?: number;
+  /** Deceleration the speed profile plans for, m/s². Default 6. */
+  brakeDecel?: number;
+  /** Acceleration the speed profile plans for, m/s². Default 3. */
+  driveAccel?: number;
+  /** Steering look-ahead in seconds of travel. Default 0.5. */
+  previewTime?: number;
+  /** Smallest steering look-ahead, m. Default 5. */
+  minPreview?: number;
+  /** How far ahead, in seconds of travel, the target speed is read. Default 0.3. */
+  speedLead?: number;
+  /** Proportional pedal gain per m/s of speed error. Default 0.6. */
+  speedGain?: number;
+  /** Integral pedal gain per metre of accumulated speed error. Default 0.3. */
+  speedIntegralGain?: number;
+  /** Offset from the path, m, positive to the left of its direction. Default 0. */
+  lateralOffset?: number;
+  /** Whether the last point joins the first. Default true. */
+  closed?: boolean;
+}
+
+/** Order of {@link AiConfig} fields in the flat form the core reads. */
+const AI_CONFIG_FIELDS = [
+  "maxSpeed",
+  "lateralAccel",
+  "brakeDecel",
+  "driveAccel",
+  "previewTime",
+  "minPreview",
+  "speedLead",
+  "speedGain",
+  "speedIntegralGain",
+  "lateralOffset",
+] as const;
+
+/** Check a driver config; returns one message per bad field. */
+export function validateAiConfig(config: AiConfig): string[] {
+  const errors: string[] = [];
+  AI_CONFIG_FIELDS.forEach((name, i) => {
+    const v = config[name];
+    if (v === undefined) return;
+    if (typeof v !== "number" || !Number.isFinite(v)) {
+      errors.push(`ai.${name} must be a finite number (got ${String(v)})`);
+    } else if (i < 6 && !(v > 0)) {
+      errors.push(`ai.${name} must be positive (got ${v})`);
+    } else if (i >= 6 && i < 9 && v < 0) {
+      errors.push(`ai.${name} must be zero or positive (got ${v})`);
+    }
+  });
+  if (config.closed !== undefined && typeof config.closed !== "boolean") {
+    errors.push("ai.closed must be a boolean");
+  }
+  return errors;
+}
+
+/** What a path-following driver did on its last step. */
+export interface AiStatus {
+  /** Distance along the path of the car's nearest point, m. */
+  distance: number;
+  /** Completed laps of a closed path. */
+  laps: number;
+  /** Signed distance from the (offset) path, m, positive to the left. */
+  lateralError: number;
+  /** Speed the driver aimed for, m/s. */
+  targetSpeed: number;
+  /** Whether an open path has been driven to its end. */
+  finished: boolean;
+}
+
 /** A set of vehicles stepped together. */
 export class World {
   private freed = false;
@@ -666,6 +752,22 @@ export class World {
     return this.sp.floats().subarray(o, o + this.sp.telemetryStride);
   }
 
+  /**
+   * Live view of the whole input buffer, `capacity × inputStride` values in
+   * vehicle order. For moving every vehicle's inputs at once (a worker, a
+   * network layer).
+   */
+  inputBuffer(): Float64Array {
+    const o = this.inputsPtr / 8;
+    return this.sp.floats().subarray(o, o + this.capacity * this.sp.inputStride);
+  }
+
+  /** Live view of the whole telemetry buffer, `capacity × telemetryStride` values. */
+  telemetryBuffer(): Float64Array {
+    const o = this.telemetryPtr / 8;
+    return this.sp.floats().subarray(o, o + this.capacity * this.sp.telemetryStride);
+  }
+
   /** Read one telemetry channel by name. */
   read(vehicle: number, channel: string): number {
     const i = this.sp.channel(channel);
@@ -687,6 +789,113 @@ export class World {
   /** Advance every vehicle by one host step of `dt` seconds. */
   step(dt: number): void {
     this.sp.check(this.sp.exports.sp_world_step(this.handle, dt));
+  }
+
+  /**
+   * Take `count` host steps of `dt` seconds in one call, with the inputs as
+   * they stand (path-following drivers update theirs every step).
+   * Bit-identical to `count` calls of {@link step}, without the per-call
+   * overhead: for running ahead on a server, seeking a replay, or a worker
+   * catching up.
+   */
+  stepMany(dt: number, count: number): void {
+    if (!Number.isInteger(count) || count < 0) {
+      throw new SkidpadError(
+        `step count must be a whole number (got ${count})`,
+        ErrorCode.InvalidDefinition,
+      );
+    }
+    this.sp.check(this.sp.exports.sp_world_step_many(this.handle, dt, count));
+  }
+
+  // ---- level of detail (ADR-0019) ------------------------------------------
+
+  /**
+   * Set a vehicle's level of detail. Moving between `full` and
+   * `singleTrack` rebuilds the vehicle as the other model and carries its
+   * motion over; `frozen` stops stepping it until it is raised again.
+   * `substepRateHz` overrides the definition's substep rate at this level
+   * (0 keeps it). A vehicle on an external host can be frozen but not
+   * reduced to the single-track model.
+   */
+  setLod(vehicle: number, lod: Lod, substepRateHz = 0): void {
+    const code = LOD_CODES.indexOf(lod);
+    if (code < 0)
+      throw new SkidpadError(
+        `unknown level of detail "${String(lod)}"`,
+        ErrorCode.InvalidDefinition,
+      );
+    this.sp.check(this.sp.exports.sp_world_set_lod(this.handle, vehicle, code, substepRateHz));
+  }
+
+  /** A vehicle's level of detail. */
+  lod(vehicle: number): Lod {
+    return LOD_CODES[this.sp.check(this.sp.exports.sp_world_lod(this.handle, vehicle))]!;
+  }
+
+  // ---- path-following driver (ADR-0020) ------------------------------------
+
+  /**
+   * Hand a vehicle to the path-following driver. `path` is either a flat
+   * list `[x0, y0, x1, y1, …]` or a list of `[x, y]` points, world frame.
+   * From the next step on the driver writes the vehicle's steer, throttle
+   * and brake inputs (handbrake, clutch and gear stay yours).
+   */
+  setAi(
+    vehicle: number,
+    path: ArrayLike<number> | ReadonlyArray<readonly [number, number]>,
+    config: AiConfig = {},
+  ): void {
+    const errors = validateAiConfig(config);
+    if (errors.length > 0) throw new SkidpadError(errors.join("; "), ErrorCode.InvalidDefinition);
+    const flat = flattenPath(path);
+    const cfgLen = AI_CONFIG_FIELDS.length + 1;
+    const bytes = (flat.length + cfgLen) * 8;
+    const ptr = this.sp.exports.sp_alloc(bytes);
+    try {
+      const f = this.sp.floats();
+      const o = ptr / 8;
+      f.set(flat, o);
+      const c = o + flat.length;
+      AI_CONFIG_FIELDS.forEach((name, i) => {
+        f[c + i] = config[name] ?? Number.NaN;
+      });
+      f[c + AI_CONFIG_FIELDS.length] =
+        config.closed === undefined ? Number.NaN : config.closed ? 1 : 0;
+      this.sp.check(
+        this.sp.exports.sp_world_set_ai(
+          this.handle,
+          vehicle,
+          ptr,
+          flat.length,
+          ptr + flat.length * 8,
+          cfgLen,
+        ),
+      );
+    } finally {
+      this.sp.free(ptr, bytes);
+    }
+  }
+
+  /** Take the driver away; the inputs keep their last values. */
+  clearAi(vehicle: number): void {
+    this.sp.check(this.sp.exports.sp_world_clear_ai(this.handle, vehicle));
+  }
+
+  /** What the vehicle's driver did on its last step, or `null` without one. */
+  aiStatus(vehicle: number): AiStatus | null {
+    const ptr = this.sp.scratchPtr;
+    const n = this.sp.check(this.sp.exports.sp_world_ai_status(this.handle, vehicle, ptr, 8));
+    if (n === 0) return null;
+    const f = this.sp.floats();
+    const o = ptr / 8;
+    return {
+      distance: f[o]!,
+      laps: f[o + 1]!,
+      lateralError: f[o + 2]!,
+      targetSpeed: f[o + 3]!,
+      finished: f[o + 4]! > 0.5,
+    };
   }
 
   // ---- external host contract (ADR-0002) ----------------------------------
@@ -893,7 +1102,10 @@ export class World {
     }
   }
 
-  /** Restore a snapshot taken with {@link snapshot}. */
+  /**
+   * Restore a snapshot taken with {@link snapshot}. A snapshot taken at the
+   * other level of detail switches the vehicle to that model (and level).
+   */
   restore(vehicle: number, bytes: Uint8Array): void {
     const ptr = this.sp.exports.sp_alloc(bytes.length);
     try {
@@ -910,6 +1122,22 @@ export class World {
       this.freed = true;
     }
   }
+}
+
+function flattenPath(
+  path: ArrayLike<number> | ReadonlyArray<readonly [number, number]>,
+): Float64Array {
+  const first = path.length > 0 ? (path as ArrayLike<unknown>)[0] : undefined;
+  if (Array.isArray(first)) {
+    const pts = path as ReadonlyArray<readonly [number, number]>;
+    const out = new Float64Array(pts.length * 2);
+    pts.forEach((p, i) => {
+      out[2 * i] = p[0];
+      out[2 * i + 1] = p[1];
+    });
+    return out;
+  }
+  return Float64Array.from(path as ArrayLike<number>);
 }
 
 /** A standalone tire model for plots and explorers. */
