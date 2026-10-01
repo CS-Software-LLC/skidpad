@@ -71,8 +71,37 @@ helps. Parameters are per tire unless noted.
 ## Steering feels numb
 
 - Lower `relaxationLengthLat` for a faster lateral response.
-- Raise `pneumaticTrail` for more aligning torque at small slip.
+- Raise `pneumaticTrail` for more aligning torque at small slip, or
+  `steering.mechanicalTrail` for torque that also stays when the pneumatic
+  trail fades at the limit (more caster).
+- Lower `steering.powerAssist`; it removes that fraction of the rack torque
+  at the hand wheel.
 - Reduce `steering.ratio` for more road-wheel angle per hand-wheel degree.
+
+## Steering tugs under power or over bumps
+
+- That is the scrub radius: `steering.scrubRadius` turns any left to right
+  difference in longitudinal force into torque. Lower it, or soften the
+  front differential's `biasDrive` if the pull comes with the throttle.
+
+## A keyboard driver cannot keep the car straight at speed
+
+- Turn on `assists.steeringAssist`; `latAccelLimit` is the lateral
+  acceleration full lock aims for, so lower it for gentler steering at speed.
+- `assists.stabilityControl` catches the slide itself; raise `gain` for a
+  firmer hand, widen `deadBand` to let the car move around first.
+
+## Wheels spin up on the launch
+
+- `assists.tractionControl` scales the throttle on drive slip between
+  `slipTarget` and `slipRelease`; set the target a little below the rear
+  tire's `peakSlipRatio`.
+
+## Braking distance is longer than road-test figures
+
+- Road tests have ABS; turn on `assists.abs`. Its `slipTarget` should sit at
+  the tire's `peakSlipRatio`; the `floor` is how much brake stays when a
+  wheel runs away.
 
 ## Steering does not go light before the limit
 

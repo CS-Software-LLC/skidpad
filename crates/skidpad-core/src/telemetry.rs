@@ -156,6 +156,15 @@ channels! {
     DIFF_LOCK_TORQUE_R => ("DiffLockTorque_R", "N*m"),
     CENTER_LOCK_TORQUE => ("CenterLockTorque", "N*m"),
     CLUTCH => ("Clutch", "-"),
+    // Steering geometry (ADR-0012).
+    RACK_FORCE => ("RackForce", "N"),
+    // Assists (ADR-0013).
+    ABS_ACTIVITY => ("AbsActivity", "-"),
+    TC_ACTIVITY => ("TcActivity", "-"),
+    ESC_YAW_ERROR => ("EscYawError", "rad/s"),
+    ESC_BRAKE_TORQUE => ("EscBrakeTorque", "N*m"),
+    STEER_ASSIST_SCALE => ("SteerAssistScale", "-"),
+    THROTTLE_EFFECTIVE => ("ThrottleEffective", "-"),
 }
 
 /// Index of the first channel in each per-wheel group; the four wheels follow
@@ -208,7 +217,7 @@ mod tests {
         assert_eq!(CHANNELS[WHEEL_LOCKED_R].name, "WheelLocked_R");
         assert_eq!(CHANNELS[SPIN_ANGLE_RR].name, "SpinAngle_RR");
         assert_eq!(CHANNELS[ENGINE_RPM].name, "EngineRpm");
-        assert_eq!(STRIDE, CLUTCH + 1);
+        assert_eq!(STRIDE, THROTTLE_EFFECTIVE + 1);
         for &g in WHEEL_GROUPS {
             let base = CHANNELS[g].name.trim_end_matches("_FL");
             for (k, side) in ["_FL", "_FR", "_RL", "_RR"].iter().enumerate() {

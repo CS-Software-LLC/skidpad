@@ -6,7 +6,8 @@
     "sources": [
       "Class-typical figures from kart homologation sheets (wheelbase 1040–1060 mm, track 1.2–1.4 m, dry mass with driver 155–175 kg, 125 cc engines of 20–30 kW).",
       "Tire feel parameters tuned to a ~1.4 g skidpad on slick kart tires.",
-      "Drivetrain [ILLUSTRATIVE]: a 125 cc two-stroke (peak 17 N·m, 18 kW at 11000 rpm) through a centrifugal clutch that engages between 1800 and 4300 rpm and an 11:80 chain reduction (7.3:1) to a solid rear axle, as on a rental or junior kart."
+      "Drivetrain [ILLUSTRATIVE]: a 125 cc two-stroke (peak 17 N·m, 18 kW at 11000 rpm) through a centrifugal clutch that engages between 1800 and 4300 rpm and an 11:80 chain reduction (7.3:1) to a solid rear axle, as on a rental or junior kart.",
+      "Steering geometry [ILLUSTRATIVE]: kart spindles with large caster and kingpin inclination jack the frame with steer; the linearised jacking rate of 10 mm per radian unloads the inner rear wheel by about a quarter in a steady corner. No assist; direct steering with a short arm."
     ],
     "notes": "Not a specific chassis. The solid rear axle (inside-rear lift under frame flex) arrives in milestone 6; until then the rear wheels are independent. The solid rear axle is a locked differential: on the four-wheel model it pushes at low speed because the inner wheel does not lift (no steering-geometry jacking until milestone 5), so the kart's skidpad gradient is slightly negative there."
   },
@@ -85,7 +86,14 @@
   "steering": {
     "maxWheelAngleDeg": 25,
     "ratio": 2.5,
-    "ackermann": 1.0
+    "ackermann": 1.0,
+    "mechanicalTrail": 0.012,
+    "scrubRadius": 0.0,
+    "steeringArm": 0.06,
+    "powerAssist": 0.0,
+    "columnFriction": 0.4,
+    "columnDamping": 0.02,
+    "jackingRate": 0.01
   },
   "brakes": {
     "handbrakeTorque": 0

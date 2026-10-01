@@ -48,14 +48,19 @@ across the supported timestep range, and snapshots restore the full model
 exactly. Milestone 4 added the drivetrain: a combustion engine or electric
 motor, a clutch, a gearbox with reverse, open, locked and limited-slip
 differentials and a centre differential, solved implicitly with the wheels.
-Every number below comes from the validation runner that CI executes on each
-commit.
+Milestone 5 added steering geometry (mechanical trail, scrub radius, power
+assist, jacking) so the steering torque is a force-feedback signal, a
+stateless assists layer (ABS, traction and stability control, speed-sensitive
+steering) that replays reproduce, and in `@skidpad/input` calibrated wheel
+profiles, touch controls and force-feedback sinks over WebHID, Logitech
+first. Every number below comes from the validation runner that CI executes
+on each commit.
 
 | Vehicle (preset)    | Understeer gradient, four-wheel | Single-track | Linear theory with trail | 0–100 km/h | 100–0 km/h, no ABS        |
 | ------------------- | ------------------------------- | ------------ | ------------------------ | ---------- | ------------------------- |
-| Light FWD hatchback | 1.16 deg/g                      | 0.93 deg/g   | 0.93 deg/g               | 9.4 s      | 46.3 m                    |
-| RWD sports car      | 0.29 deg/g                      | 0.12 deg/g   | 0.10 deg/g               | 5.5 s      | 39.6 m                    |
-| Kart                | −0.18 deg/g (solid axle push)   | 0.29 deg/g   | 0.36 deg/g               | 10.9 s     | 58.8 m (rear brakes only) |
+| Light FWD hatchback | 1.16 deg/g                      | 0.93 deg/g   | 0.93 deg/g               | 9.5 s      | 46.3 m (42.4 m with ABS)  |
+| RWD sports car      | 0.29 deg/g                      | 0.12 deg/g   | 0.10 deg/g               | 5.5 s      | 39.6 m (36.2 m with ABS)  |
+| Kart                | −0.27 deg/g (solid axle push)   | 0.29 deg/g   | 0.36 deg/g               | 10.9 s     | 58.8 m (rear brakes only) |
 
 The four-wheel gradient sits above the single-track one by the load
 sensitivity cost of lateral load transfer, which the single-track model does
@@ -214,7 +219,10 @@ Contributors who only know TypeScript can work on everything outside
 `pnpm dev:sandbox` opens a scene with a car on a looped track, a 40 m
 skidpad, and a set of obstacles. WASD or arrows drive, Space is the
 handbrake, Q and E shift (the presets are automatics; E from neutral is
-drive, Q below first is reverse), C is the clutch, gamepads work. The host selector switches between the built-in
+drive, Q below first is reverse), C is the clutch; gamepads, steering wheels
+and touch work, and the **Wheel setup** panel assigns and calibrates a
+wheel's controls, connects force feedback over WebHID (Chromium) and
+toggles the assists. The host selector switches between the built-in
 flat-ground host and a Rapier scene where the speed bumps, the ramp and the
 kerb are real. The overlay shows speed, lateral g, roll and pitch, slip
 angles, steering torque, step cost, the live state hash, and per wheel the
@@ -241,21 +249,35 @@ change:
 
 ## Roadmap
 
-| Milestone | Scope                                                                                                                                                       | Status |
-| --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
-| M0        | Monorepo, CI with cross-browser determinism, licences and community files, deterministic math, sandbox, docs, bench skeleton                                | done   |
-| M1        | Feel and Magic Formula tires with `.tir` import, combined slip, load sensitivity, aligning moment, single-track model, tire explorer, understeer validation | done   |
-| M2        | Four wheels, suspension, Rapier adapter, chassis proxy, R3F track, telemetry overlay, benchmark baseline                                                    | done   |
-| M3        | Standstill and slope stability, locked brakes, timestep sweep, snapshot and hash on the full model, cross-browser test on a real drive                      | next   |
-| M4        | Drivetrain graph with implicit solver: engine, clutch, gearboxes, differentials, AWD, electric                                                              |        |
-| M5        | Steering geometry and rack force, input package with calibration, assists, WebHID force feedback                                                            |        |
-| M6        | Surfaces, aero, solid axles, tuning editor, full validation runner, reference vehicles                                                                      |        |
-| M7        | LOD, batched stepping, worker mode, replays and ghosts, AI helper, Jolt, Babylon                                                                            |        |
-| M8        | API freeze, docs complete, performance targets met, format version 1, release 1.0                                                                           |        |
+| Milestone | Scope                                                                                                                                                                                    | Status |
+| --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
+| M0        | Monorepo, CI with cross-browser determinism, licences and community files, deterministic math, sandbox, docs, bench skeleton                                                             | done   |
+| M1        | Feel and Magic Formula tires with `.tir` import, combined slip, load sensitivity, aligning moment, single-track model, tire explorer, understeer validation                              | done   |
+| M2        | Four wheels, suspension, Rapier adapter, chassis proxy, R3F track, telemetry overlay, benchmark baseline                                                                                 | done   |
+| M3        | Standstill and slope stability, locked brakes, timestep sweep, snapshot and hash on the full model, cross-browser test on a real drive                                                   | next   |
+| M4        | Drivetrain graph with implicit solver: engine, clutch, gearboxes, differentials, AWD, electric                                                                                           |        |
+| M5        | Steering geometry, rack force and jacking; assists (ABS, traction and stability control, speed-sensitive steering); input calibration, wheel profiles, touch; force feedback over WebHID | done   |
+| M6        | Surfaces, aero, solid axles, tuning editor, full validation runner, reference vehicles                                                                                                   | next   |
+| M7        | LOD, batched stepping, worker mode, replays and ghosts, AI helper, Jolt, Babylon                                                                                                         |        |
+| M8        | API freeze, docs complete, performance targets met, format version 1, release 1.0                                                                                                        |        |
 
 Not before 1.0: multibody suspension, tire thermals and wear, damage,
-motorcycles and trailers, netcode, a full racing AI, native bindings,
-proprietary FFB protocols.
+motorcycles and trailers, netcode, a full racing AI, native bindings.
+
+### Force feedback platform
+
+The core produces the steering torque; getting it to a wheel is the input
+package's job, and the web has no standard channel for it. The Gamepad API
+reads wheels and pedals everywhere but outputs only rumble. So the target
+is **WebHID in Chromium-based browsers**, which can send a wheel its own
+reports after a permission prompt. Each wheel speaks its own protocol, so
+support is per device: the **Logitech G PRO** (direct drive) is first, over
+Logitech's HID++ force-feedback feature as documented by open-source
+drivers, with the G923 and G29 families expected to follow on the same
+code path. Other makers' protocols belong in separate community packages,
+not in the core. A torque-to-rumble fallback covers gamepads, and an
+Electron example with `node-hid` is the route to a desktop build. Protocol
+constants are marked **[VERIFY]** until tested on hardware.
 
 ## Principles
 

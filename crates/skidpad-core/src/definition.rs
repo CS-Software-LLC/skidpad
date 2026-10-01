@@ -3,6 +3,7 @@
 //! the TypeScript side owns migrations and friendly validation messages, this
 //! side guards the simulation and gives the same messages for Rust callers.
 
+use crate::assists::AssistsDef;
 use crate::drivetrain::DrivetrainDef;
 use crate::tire::TireModel;
 use skidpad_math as m;
@@ -24,6 +25,8 @@ pub struct VehicleDefinition {
     /// Power unit, transmission and differentials (ADR-0011). Which axles
     /// it drives comes from `axles[].driven`.
     pub drivetrain: DrivetrainDef,
+    /// Driving assists (ADR-0013), all off by default.
+    pub assists: AssistsDef,
     pub aero: AeroDef,
     pub simulation: SimulationDef,
 }
@@ -38,6 +41,7 @@ impl Default for VehicleDefinition {
             steering: SteeringDef::default(),
             brakes: BrakesDef::default(),
             drivetrain: DrivetrainDef::default(),
+            assists: AssistsDef::default(),
             aero: AeroDef::default(),
             simulation: SimulationDef::default(),
         }
@@ -231,6 +235,28 @@ pub struct SteeringDef {
     /// inner wheel steers more so both roll about the same centre). Four-wheel
     /// model only.
     pub ackermann: f64,
+    /// Mechanical (caster) trail on the ground, m (ADR-0012). Acts on the
+    /// lateral force like the pneumatic trail.
+    pub mechanical_trail: f64,
+    /// Scrub radius, m, positive with the contact outboard of the kingpin
+    /// axis: a left to right difference in longitudinal force steers.
+    pub scrub_radius: f64,
+    /// Knuckle arm the rack pulls on, m; `RackForce` is the kingpin torque
+    /// over this arm.
+    pub steering_arm: f64,
+    /// Fraction of the rack torque the power assist removes at the hand
+    /// wheel, 0 (manual) … 1.
+    pub power_assist: f64,
+    /// Column friction, N·m at the hand wheel, for the force-feedback device
+    /// (not simulated: the hand wheel is the input).
+    pub column_friction: f64,
+    /// Column damping, N·m per rad/s of hand-wheel rate, for the device.
+    pub column_damping: f64,
+    /// Jacking: how far each front contact moves along its ray per radian of
+    /// road-wheel steer, m/rad (inner wheel down, outer up). Zero for a car
+    /// with suspension; a kart lifts its inner rear with it. Four-wheel
+    /// model only.
+    pub jacking_rate: f64,
 }
 
 impl Default for SteeringDef {
@@ -239,6 +265,13 @@ impl Default for SteeringDef {
             max_wheel_angle_deg: 35.0,
             ratio: 14.0,
             ackermann: 1.0,
+            mechanical_trail: 0.02,
+            scrub_radius: 0.01,
+            steering_arm: 0.12,
+            power_assist: 0.0,
+            column_friction: 0.3,
+            column_damping: 0.05,
+            jacking_rate: 0.0,
         }
     }
 }
@@ -423,7 +456,39 @@ impl VehicleDefinition {
                 self.steering.ackermann
             ));
         }
+        if !(0.0..=1.0).contains(&self.steering.power_assist) {
+            e.push(format!(
+                "steering.powerAssist must be between 0 and 1 (got {})",
+                self.steering.power_assist
+            ));
+        }
+        if !(self.steering.steering_arm > 0.0) {
+            e.push(format!(
+                "steering.steeringArm must be positive (got {})",
+                self.steering.steering_arm
+            ));
+        }
+        for (name, v) in [
+            ("mechanicalTrail", self.steering.mechanical_trail),
+            ("scrubRadius", self.steering.scrub_radius),
+            ("jackingRate", self.steering.jacking_rate),
+        ] {
+            if !v.is_finite() || m::abs(v) > 0.5 {
+                e.push(format!("steering.{name} must be within ±0.5 m (got {v})"));
+            }
+        }
+        for (name, v) in [
+            ("columnFriction", self.steering.column_friction),
+            ("columnDamping", self.steering.column_damping),
+        ] {
+            if !(v >= 0.0) {
+                e.push(format!(
+                    "steering.{name} must be zero or positive (got {v})"
+                ));
+            }
+        }
         self.drivetrain.validate("drivetrain", &mut e);
+        self.assists.validate("assists", &mut e);
         if !(self.aero.drag_coefficient >= 0.0
             && self.aero.frontal_area >= 0.0
             && self.aero.air_density >= 0.0)
@@ -458,6 +523,23 @@ impl VehicleDefinition {
         } else {
             Err(e)
         }
+    }
+
+    /// Kingpin torque of one steered wheel (ADR-0012): the tire's aligning
+    /// moment, the mechanical trail on the lateral force, and the scrub
+    /// radius on the longitudinal force. `side` is +1 left, −1 right (0 for
+    /// the single-track model's lumped tire).
+    #[inline]
+    pub fn kingpin_torque(&self, mz: f64, fy: f64, fx: f64, side: f64) -> f64 {
+        let st = &self.steering;
+        mz - st.mechanical_trail * fy - side * st.scrub_radius * fx
+    }
+
+    /// Hand-wheel torque in the sign of the steer input (positive turns
+    /// right) from a total kingpin torque, after the power assist.
+    #[inline]
+    pub fn hand_wheel_torque(&self, kingpin_torque: f64) -> f64 {
+        -(1.0 - self.steering.power_assist) * kingpin_torque / self.steering.ratio
     }
 
     /// Which axles are driven, front then rear.

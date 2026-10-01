@@ -8,6 +8,7 @@ const rows = Object.entries(results.vehicles).map(([id, v]) => ({
   kusLin: v.understeer.analyticGradientDegPerG,
   accel: v.straightLine.accelTime,
   brake: v.straightLine.brakingDistance,
+  brakeAbs: v.straightLine.brakingDistanceAbs,
   decel: v.straightLine.meanDeceleration,
   locked: v.straightLine.wheelLocked,
   lockTime: v.straightLine.lockTime,
@@ -39,7 +40,7 @@ const f = (v: number | null, d = 2) => (v === null ? "n/a" : v.toFixed(d));
         <th>K<sub>us</sub> single-track (deg/g)</th>
         <th>K<sub>us</sub> linear theory (deg/g)</th>
         <th>0–100 km/h (s)</th>
-        <th>100–0 km/h (m)</th>
+        <th>100–0 km/h (m), locked / ABS</th>
         <th>Mean decel (m/s²)</th>
         <th>Wheels lock</th>
         <th>Parks on slopes</th>
@@ -54,7 +55,7 @@ const f = (v: number | null, d = 2) => (v === null ? "n/a" : v.toFixed(d));
         <td>{{ f(r.kusSingle) }}</td>
         <td>{{ f(r.kusLin) }}</td>
         <td>{{ f(r.accel) }}</td>
-        <td>{{ f(r.brake, 1) }}</td>
+        <td>{{ f(r.brake, 1) }} / {{ f(r.brakeAbs, 1) }}</td>
         <td>{{ f(r.decel) }}</td>
         <td>
           {{ r.locked ? `at ${f(r.lockTime)} s` : "no" }}

@@ -149,6 +149,20 @@ export interface SteeringDefinition {
   ratio: number;
   /** Ackermann fraction: 0 parallel steer, 1 ideal Ackermann (four-wheel model). */
   ackermann: number;
+  /** Mechanical (caster) trail on the ground, m (ADR-0012). */
+  mechanicalTrail: number;
+  /** Scrub radius, m, positive with the contact outboard of the kingpin axis. */
+  scrubRadius: number;
+  /** Knuckle arm the rack pulls on, m; `RackForce` is the kingpin torque over it. */
+  steeringArm: number;
+  /** Fraction of the rack torque the power assist removes at the hand wheel, 0 … 1. */
+  powerAssist: number;
+  /** Column friction for the force-feedback device, N·m (not simulated). */
+  columnFriction: number;
+  /** Column damping for the force-feedback device, N·m per rad/s. */
+  columnDamping: number;
+  /** Front contact travel along its ray per radian of steer, m/rad: inner down, outer up. */
+  jackingRate: number;
 }
 
 export interface BrakesDefinition {
@@ -252,6 +266,48 @@ export interface CenterDifferentialDefinition extends DifferentialDefinition {
   frontTorqueFraction: number;
 }
 
+/** Driving assists (ADR-0013), all off by default; stateless, inside the core. */
+export interface AssistsDefinition {
+  abs: {
+    enabled: boolean;
+    /** Braking slip ratio where the modulation starts. */
+    slipTarget: number;
+    /** Braking slip ratio where the brake is at its floor. */
+    slipRelease: number;
+    /** Smallest fraction of the brake capacity left to the wheel. */
+    floor: number;
+    /** Below this speed, m/s, wheels may lock. */
+    minSpeed: number;
+  };
+  tractionControl: {
+    enabled: boolean;
+    slipTarget: number;
+    slipRelease: number;
+  };
+  stabilityControl: {
+    enabled: boolean;
+    /** Brake torque per rad/s of yaw-rate error, N·m/(rad/s). */
+    gain: number;
+    /** Yaw-rate error ignored, rad/s. */
+    deadBand: number;
+    /** Throttle cut per rad/s of error. */
+    throttleCut: number;
+    minSpeed: number;
+  };
+  steeringAssist: {
+    enabled: boolean;
+    /** Lateral acceleration the steering limit aims for, m/s². */
+    latAccelLimit: number;
+  };
+}
+
+export type PartialAssistsDefinition = {
+  abs?: Partial<AssistsDefinition["abs"]>;
+  tractionControl?: Partial<AssistsDefinition["tractionControl"]>;
+  stabilityControl?: Partial<AssistsDefinition["stabilityControl"]>;
+  steeringAssist?: Partial<AssistsDefinition["steeringAssist"]>;
+};
+
 /** Power unit, transmission and differentials (ADR-0011). */
 export interface DrivetrainDefinition {
   powerUnit: PowerUnitDefinition;
@@ -302,6 +358,7 @@ export interface VehicleDefinition {
   steering: SteeringDefinition;
   brakes: BrakesDefinition;
   drivetrain: DrivetrainDefinition;
+  assists: AssistsDefinition;
   aero: AeroDefinition;
   simulation: SimulationDefinition;
   dataSheet?: DataSheet;
@@ -326,6 +383,7 @@ export type PartialVehicleDefinition = {
   steering?: Partial<SteeringDefinition>;
   brakes?: Partial<BrakesDefinition>;
   drivetrain?: PartialDrivetrainDefinition;
+  assists?: PartialAssistsDefinition;
   aero?: Partial<AeroDefinition>;
   simulation?: Partial<SimulationDefinition>;
   dataSheet?: DataSheet;

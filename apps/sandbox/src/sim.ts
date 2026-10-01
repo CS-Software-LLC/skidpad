@@ -7,7 +7,16 @@
  * `@skidpad/rapier` (ADR-0002).
  */
 import { init, type Skidpad, type World, type VehicleDefinition } from "@skidpad/core";
-import { KeyboardInput, GamepadInput } from "@skidpad/input";
+import {
+  KeyboardInput,
+  GamepadInput,
+  WheelInput,
+  TouchInput,
+  ffbFrameFromTelemetry,
+  loadProfiles,
+  type FfbSink,
+  type InputFrame,
+} from "@skidpad/input";
 import { TelemetryRecorder } from "@skidpad/telemetry";
 import { preset, presetIds, type PresetId } from "@skidpad/presets";
 import { createChassisBody, RapierVehicle } from "@skidpad/rapier";
@@ -97,17 +106,27 @@ export class Sim {
   // floor a 250 kW car.
   readonly keyboard = new KeyboardInput({ throttle: { riseRate: 1.5, fallRate: 6 } });
   readonly gamepad = new GamepadInput();
+  /** Steering wheels and pedals through calibrated profiles (saved ones first). */
+  readonly wheel = new WheelInput(
+    loadProfiles(globalThis.localStorage).length > 0
+      ? { profiles: loadProfiles(globalThis.localStorage) }
+      : {},
+  );
+  /** On-screen controls for touch devices. */
+  readonly touch = new TouchInput();
+  /** Force-feedback output, when the user connected a device. */
+  ffbSink: FfbSink | undefined;
+  /** Which device produced the last frame, for the HUD. */
+  inputSource: "touch" | "wheel" | "gamepad" | "keyboard" = "keyboard";
   /** Synthesised engine and tire-slip sound; off until the user enables it. */
   readonly audio = new SandboxAudio();
   presetId: PresetId = "hatchbackFwd";
   hostKind: HostKind = "builtin";
   /**
-   * Sandbox-side speed-sensitive steering for keyboards: the road-wheel angle
-   * is capped so that the lateral acceleration a steady turn would need stays
-   * near the tire limit (`δ ≈ L · a_lim / v²`). Full lock at walking pace, a
-   * few degrees at highway speed. The proper assist moves into the core's
-   * assists layer in milestone 5 so it is deterministic and recorded in
-   * replays.
+   * Speed-sensitive steering for keyboards, as the core's steering assist
+   * (ADR-0013): the road-wheel angle is capped so that the lateral
+   * acceleration a steady turn would need stays near the tire limit. Set on
+   * the definition, so it is deterministic and recorded in replays.
    */
   speedSensitiveSteering = true;
   /** Lateral acceleration the steering limit aims for, m/s². */
@@ -160,6 +179,22 @@ export class Sim {
   setPreset(id: PresetId): void {
     this.presetId = id;
     this.definition = preset(id);
+    // Presets leave `assists` at the core defaults; fill the block in so the
+    // panel can toggle each one, then set the steering limit.
+    const defaults = this.sp.defaultDefinition().assists;
+    const given = (this.definition as { assists?: Partial<typeof defaults> }).assists ?? {};
+    this.definition.assists = {
+      abs: { ...defaults.abs, ...given.abs },
+      tractionControl: { ...defaults.tractionControl, ...given.tractionControl },
+      stabilityControl: { ...defaults.stabilityControl, ...given.stabilityControl },
+      steeringAssist: {
+        ...defaults.steeringAssist,
+        enabled: this.speedSensitiveSteering,
+        latAccelLimit: this.steeringLimitAccel,
+      },
+    };
+    this.wheel.steeringLockDeg =
+      this.definition.steering.ratio * this.definition.steering.maxWheelAngleDeg;
     if (this.world.vehicleCount === 0) {
       this.vehicle = this.world.addVehicle(this.definition);
     } else {
@@ -278,20 +313,7 @@ export class Sim {
     this.accumulator += dt;
     this.stepsThisFrame = 0;
     while (this.accumulator >= HOST_DT) {
-      const pad = this.gamepad.poll();
-      const padActive =
-        pad !== undefined &&
-        (pad.steer !== 0 || pad.throttle !== 0 || pad.brake !== 0 || pad.handbrake !== 0);
-      const keys = this.keyboard.update(HOST_DT);
-      const frame = padActive ? pad : keys;
-      if (this.speedSensitiveSteering) {
-        const speed = this.read("Speed");
-        const maxLock = (this.definition.steering.maxWheelAngleDeg * Math.PI) / 180;
-        const limit =
-          (this.definition.chassis.wheelbase * this.steeringLimitAccel) /
-          Math.max(speed * speed, 1e-3);
-        frame.steer *= Math.min(1, limit / maxLock);
-      }
+      const frame = this.pollInputs();
       this.world.setInput(this.vehicle, frame);
       copySnapshot(this.prevPose, this.currPose);
       const t0 = performance.now();
@@ -310,11 +332,90 @@ export class Sim {
       this.accumulator -= HOST_DT;
       this.stepsThisFrame++;
     }
+    if (this.stepsThisFrame > 0 && this.ffbSink?.connected) {
+      void this.ffbSink.update(
+        ffbFrameFromTelemetry(this.readChannel, this.definition.steering),
+        this.stepsThisFrame * HOST_DT,
+      );
+    }
     this.alpha = Math.min(1, Math.max(0, this.accumulator / HOST_DT));
     this.audio.update(dt, this.readChannel, this.definition);
   }
 
   private readonly readChannel = (name: string): number => this.read(name);
+
+  /**
+   * One frame from the highest-priority active device: touch while a finger
+   * is down, a known wheel when one is connected, a gamepad when it is
+   * doing something, else the keyboard.
+   */
+  private pollInputs(): InputFrame {
+    const keys = this.keyboard.update(HOST_DT);
+    if (this.touch.active) {
+      this.inputSource = "touch";
+      return this.touch.update(HOST_DT);
+    }
+    this.touch.update(HOST_DT);
+    const wheel = this.wheel.poll();
+    if (wheel) {
+      this.inputSource = "wheel";
+      // The keyboard can still shift and reset alongside a wheel.
+      if (keys.gear !== 0 && wheel.gear === 0) wheel.gear = keys.gear;
+      return wheel;
+    }
+    const pad = this.gamepad.poll();
+    const padActive =
+      pad !== undefined &&
+      (pad.steer !== 0 || pad.throttle !== 0 || pad.brake !== 0 || pad.handbrake !== 0);
+    if (padActive) {
+      this.inputSource = "gamepad";
+      return pad;
+    }
+    this.inputSource = "keyboard";
+    return keys;
+  }
+
+  /** Route touch pointers on the canvas to the on-screen controls. */
+  attachTouch(canvas: HTMLCanvasElement): () => void {
+    const pos = (e: PointerEvent): [number, number] => {
+      const r = canvas.getBoundingClientRect();
+      return [(e.clientX - r.left) / r.width, (e.clientY - r.top) / r.height];
+    };
+    const down = (e: PointerEvent): void => {
+      if (e.pointerType !== "touch") return;
+      e.preventDefault();
+      this.touch.pointerDown(e.pointerId, ...pos(e));
+    };
+    const move = (e: PointerEvent): void => {
+      if (e.pointerType !== "touch") return;
+      this.touch.pointerMove(e.pointerId, ...pos(e));
+    };
+    const up = (e: PointerEvent): void => {
+      if (e.pointerType !== "touch") return;
+      this.touch.pointerUp(e.pointerId);
+    };
+    canvas.addEventListener("pointerdown", down);
+    canvas.addEventListener("pointermove", move);
+    canvas.addEventListener("pointerup", up);
+    canvas.addEventListener("pointercancel", up);
+    return () => {
+      canvas.removeEventListener("pointerdown", down);
+      canvas.removeEventListener("pointermove", move);
+      canvas.removeEventListener("pointerup", up);
+      canvas.removeEventListener("pointercancel", up);
+    };
+  }
+
+  /** Turn an assist on or off on the running car (live definition swap). */
+  setAssist(
+    name: "abs" | "tractionControl" | "stabilityControl" | "steeringAssist",
+    enabled: boolean,
+  ): void {
+    const a = this.definition.assists;
+    this.definition.assists = { ...a, [name]: { ...a[name], enabled } };
+    if (name === "steeringAssist") this.speedSensitiveSteering = enabled;
+    this.world.setDefinition(this.vehicle, this.definition);
+  }
 
   /** Render pose, interpolated between the last two sim steps. */
   snapshot(out: SimSnapshot): SimSnapshot {

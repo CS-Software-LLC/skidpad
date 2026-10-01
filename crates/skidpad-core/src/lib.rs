@@ -23,11 +23,14 @@
 //! Units are SI throughout: metres, kilograms, seconds, newtons, radians.
 
 #![forbid(unsafe_code)]
+// The telemetry channel list is one recursive macro invocation per channel.
+#![recursion_limit = "512"]
 #![deny(clippy::disallowed_methods, clippy::disallowed_types)]
 // Validation code writes `!(x > 0.0)` on purpose: the negated form is false
 // for NaN, which is exactly what a validator wants to reject.
 #![allow(clippy::neg_cmp_op_on_partial_ord)]
 
+pub mod assists;
 pub mod curve;
 pub mod definition;
 pub mod drivetrain;

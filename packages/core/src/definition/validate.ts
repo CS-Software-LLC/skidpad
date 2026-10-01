@@ -371,8 +371,45 @@ export function validateDefinition(def: unknown): ValidationResult {
   if (s.ackermann !== undefined && (!isNum(s.ackermann) || s.ackermann < 0 || s.ackermann > 1)) {
     errors.push(`steering.ackermann must be between 0 and 1 (got ${String(s.ackermann)})`);
   }
+  if (
+    s.powerAssist !== undefined &&
+    (!isNum(s.powerAssist) || s.powerAssist < 0 || s.powerAssist > 1)
+  ) {
+    errors.push(`steering.powerAssist must be between 0 and 1 (got ${String(s.powerAssist)})`);
+  }
+  positive(errors, "steering.steeringArm", s.steeringArm);
+  for (const k of ["mechanicalTrail", "scrubRadius", "jackingRate"] as const) {
+    const v = s[k];
+    if (v !== undefined && (!isNum(v) || Math.abs(v) > 0.5)) {
+      errors.push(`steering.${k} must be within ±0.5 m (got ${String(v)})`);
+    }
+  }
+  nonNegative(errors, "steering.columnFriction", s.columnFriction);
+  nonNegative(errors, "steering.columnDamping", s.columnDamping);
   nonNegative(errors, "brakes.handbrakeTorque", d.brakes?.handbrakeTorque);
   validateDrivetrain(errors, warnings, d.drivetrain);
+  const as = d.assists;
+  if (as !== undefined) {
+    const abs = as.abs ?? {};
+    if (isNum(abs.slipTarget) && isNum(abs.slipRelease) && abs.slipRelease <= abs.slipTarget) {
+      errors.push("assists.abs.slipRelease must exceed slipTarget");
+    }
+    positive(errors, "assists.abs.slipTarget", abs.slipTarget);
+    if (abs.floor !== undefined && (!isNum(abs.floor) || abs.floor < 0 || abs.floor > 1)) {
+      errors.push(`assists.abs.floor must be in [0, 1] (got ${String(abs.floor)})`);
+    }
+    nonNegative(errors, "assists.abs.minSpeed", abs.minSpeed);
+    const tc = as.tractionControl ?? {};
+    positive(errors, "assists.tractionControl.slipTarget", tc.slipTarget);
+    if (isNum(tc.slipTarget) && isNum(tc.slipRelease) && tc.slipRelease <= tc.slipTarget) {
+      errors.push("assists.tractionControl.slipRelease must exceed slipTarget");
+    }
+    const esc = as.stabilityControl ?? {};
+    for (const k of ["gain", "deadBand", "throttleCut", "minSpeed"] as const) {
+      nonNegative(errors, `assists.stabilityControl.${k}`, esc[k]);
+    }
+    positive(errors, "assists.steeringAssist.latAccelLimit", as.steeringAssist?.latAccelLimit);
+  }
   if ((d as Record<string, unknown>).drive !== undefined) {
     warnings.push(
       'the "drive" block was replaced by "drivetrain" (ADR-0011); migrateDefinition() converts it to a direct power unit',
