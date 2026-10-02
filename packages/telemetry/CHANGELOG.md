@@ -1,5 +1,7 @@
 # @skidpad/telemetry
 
+## 0.5.0
+
 ## 0.3.0
 
 ### Patch Changes

@@ -1,6 +1,6 @@
 {
   "name": "@skidpad/validate",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "private": true,
   "description": "Headless validation runner: standard manoeuvres with golden-result regression checks.",
   "license": "MIT OR Apache-2.0",
