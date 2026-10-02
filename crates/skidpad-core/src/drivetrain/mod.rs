@@ -26,6 +26,10 @@ use solver::{Constraint, System, MAX_CONSTRAINTS, MAX_DOF};
 pub const SOLVER_ROUNDS: usize = 8;
 /// Carrier speed below which the automatic may change direction, rad/s.
 pub const DIRECTION_CHANGE_SPEED: f64 = 5.0;
+/// Share of the clutch's capacity an automatic lets the engine make while
+/// the clutch re-engages after a shift and the engine is still above the
+/// new gear's speed. Below one, so the clutch always pulls the engine down.
+pub const SYNC_TORQUE_FRACTION: f64 = 0.7;
 /// Number of `f64` values of drivetrain state in a snapshot.
 pub const STATE_LEN: usize = 4;
 
@@ -397,6 +401,31 @@ impl Drivetrain {
         }
     }
 
+    /// Throttle ceiling an automatic applies while its clutch re-engages
+    /// after a shift and the engine is still above the gearbox input speed:
+    /// enough for the engine to make a fraction of what the clutch can
+    /// carry, so the clutch keeps pulling it down instead of it flaring up,
+    /// opening fully again over the last few per cent of redline. Launches
+    /// (input below idle) and downshifts (engine below input) are untouched.
+    fn sync_throttle_limit(&self, input: &VehicleInput, gearbox_input_omega: f64) -> f64 {
+        let PowerUnitDef::Combustion(c) = &self.def.power_unit else {
+            return 1.0;
+        };
+        if self.clutch_engagement >= 1.0 || gearbox_input_omega < c.idle_rpm * RPM_TO_RAD {
+            return 1.0;
+        }
+        let band = 0.03 * c.redline_rpm * RPM_TO_RAD;
+        let synced = m::clamp(
+            1.0 - (self.engine_omega - gearbox_input_omega) / band,
+            0.0,
+            1.0,
+        );
+        let wot = Self::curve_torque(&c.torque_curve, self.engine_omega * RAD_TO_RPM);
+        let held = SYNC_TORQUE_FRACTION * self.clutch_capacity(input, gearbox_input_omega)
+            / m::max(wot, 1.0);
+        m::clamp(m::max(synced, held), 0.0, 1.0)
+    }
+
     /// Locking torque an LSD may transfer at a given carrier torque, N·m;
     /// infinite for a locked differential.
     fn lock_capacity(
@@ -472,10 +501,19 @@ impl Drivetrain {
         // shift, so the engine falls toward the next gear's speed instead of
         // revving to the limiter and dumping its inertia into the wheels on
         // re-engagement.
-        let engine_throttle = if interrupted && t.mode == TransmissionMode::Automatic {
+        // It keeps the torque reduced while the clutch re-engages until the
+        // engine has come down to the new gear's speed; full throttle on a
+        // barely-bitten clutch would flare the engine back up toward the
+        // limiter before the clutch drags it down again.
+        let engine_throttle = if t.mode != TransmissionMode::Automatic {
+            input.throttle
+        } else if interrupted {
             0.0
         } else {
-            input.throttle
+            m::min(
+                input.throttle,
+                self.sync_throttle_limit(input, r * carrier_omega),
+            )
         };
         let (engine_torque, k_engine) = if has_engine {
             self.power_unit_torque(self.engine_omega, engine_throttle)

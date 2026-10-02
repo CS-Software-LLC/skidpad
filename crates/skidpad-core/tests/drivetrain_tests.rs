@@ -328,6 +328,40 @@ fn a_combustion_car_launches_and_shifts_up_through_the_gears() {
 }
 
 #[test]
+fn an_automatic_upshift_brings_the_engine_down_without_a_flare() {
+    // Through the clutch re-engagement after an upshift the engine only
+    // falls toward the new gear's speed: full throttle on a barely-bitten
+    // clutch used to rev it back up to near the shift point first.
+    let mut w = World::new(1);
+    w.add_vehicle(combustion_def()).unwrap();
+    w.set_input(0, throttle(1.0)).unwrap();
+    let mut gear = 0;
+    let mut since_shift = f64::INFINITY;
+    let mut prev_rpm = 0.0;
+    let mut upshifts = 0;
+    for _ in 0..1500 {
+        w.step(0.01);
+        let v = w.telemetry_of(0);
+        let g = v[t::GEAR] as i32;
+        if g > gear && gear > 0 {
+            since_shift = 0.0;
+            upshifts += 1;
+        }
+        gear = g;
+        if since_shift < 0.5 && v[t::CLUTCH_SLIP].abs() > 1.0 {
+            assert!(
+                v[t::ENGINE_RPM] <= prev_rpm + 1.0,
+                "gear {g}: {prev_rpm} -> {} rpm with the clutch slipping",
+                v[t::ENGINE_RPM]
+            );
+        }
+        since_shift += 0.01;
+        prev_rpm = v[t::ENGINE_RPM];
+    }
+    assert!(upshifts >= 2, "{upshifts} upshifts");
+}
+
+#[test]
 fn an_automatic_idles_with_the_brakes_held_and_creeps_little_without() {
     let d = combustion_def();
     let mut w = World::new(1);

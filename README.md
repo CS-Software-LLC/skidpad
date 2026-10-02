@@ -65,10 +65,10 @@ commit.
 
 | Vehicle (preset)       | Understeer gradient, four-wheel | Single-track | Linear theory with trail | 0–100 km/h | 100–0 km/h, no ABS        |
 | ---------------------- | ------------------------------- | ------------ | ------------------------ | ---------- | ------------------------- |
-| Light FWD hatchback    | 1.13 deg/g                      | 0.93 deg/g   | 0.93 deg/g               | 9.5 s      | 46.5 m (42.6 m with ABS)  |
-| RWD sports car         | 0.72 deg/g                      | 0.59 deg/g   | 0.58 deg/g               | 6.6 s      | 38.7 m (35.5 m with ABS)  |
+| Light FWD hatchback    | 1.13 deg/g                      | 0.93 deg/g   | 0.93 deg/g               | 9.8 s      | 46.5 m (42.6 m with ABS)  |
+| RWD sports car         | 0.72 deg/g                      | 0.59 deg/g   | 0.58 deg/g               | 4.9 s      | 38.7 m (35.5 m with ABS)  |
 | Kart                   | -0.21 deg/g (solid axle push)   | 0.31 deg/g   | 0.36 deg/g               | 10.9 s     | 58.0 m (rear brakes only) |
-| Pickup 4x4             | 0.98 deg/g                      | 0.72 deg/g   | 0.71 deg/g               | 7.3 s      | 52.1 m (47.1 m with ABS)  |
+| Pickup 4x4             | 0.98 deg/g                      | 0.72 deg/g   | 0.71 deg/g               | 7.4 s      | 52.1 m (47.1 m with ABS)  |
 | Electric crossover AWD | 0.30 deg/g                      | 0.22 deg/g   | 0.21 deg/g               | 5.0 s      | 44.5 m (40.1 m with ABS)  |
 | Open-wheeler           | 0.15 deg/g                      | 0.11 deg/g   | 0.10 deg/g               | 3.2 s      | 24.8 m (23.3 m with ABS)  |
 
