@@ -8,8 +8,8 @@ dist
 .turbo
 *.tsbuildinfo
 .vite
-.vitepress/cache
-.vitepress/dist
+**/.vitepress/cache
+**/.vitepress/dist
 
 # Generated artifacts
 packages/core/wasm/*.wasm
