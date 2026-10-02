@@ -9,7 +9,7 @@ use skidpad_core::validation::{straight_line, StraightLineConfig};
 use skidpad_core::{VehicleDefinition, VehicleInput, World};
 
 /// A car that needs its assists: the sports preset with every assist off,
-/// its engine doubled to 405 N·m, a 2.5:1 locking differential and rear
+/// its engine back up to 405 N·m, a 2.5:1 locking differential and rear
 /// tires no grippier than the fronts, so full throttle spins the rear wheels
 /// and a hard step of steer under power steps the tail out.
 fn wild_rwd() -> VehicleDefinition {
@@ -20,7 +20,7 @@ fn wild_rwd() -> VehicleDefinition {
     d.assists = Default::default();
     if let PowerUnitDef::Combustion(c) = &mut d.drivetrain.power_unit {
         for p in c.torque_curve.iter_mut() {
-            p[1] *= 2.025;
+            p[1] *= 405.0 / 280.0;
         }
     }
     let rear = &mut d.drivetrain.rear;

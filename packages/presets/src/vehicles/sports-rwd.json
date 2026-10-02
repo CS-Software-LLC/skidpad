@@ -2,12 +2,12 @@
   "formatVersion": 1,
   "name": "RWD sports car",
   "dataSheet": {
-    "description": "A generic rear-wheel-drive two-seat sports car in the 1.35 t class: roughly 125 kW, 2.5 m wheelbase, 48/52 front/rear weight distribution, wider rear tires, with ABS, traction and stability control on by default.",
+    "description": "A generic rear-wheel-drive two-seat sports car in the 1.35 t class: roughly 175 kW, 2.5 m wheelbase, 48/52 front/rear weight distribution, wider rear tires, with ABS, traction and stability control on by default.",
     "sources": [
       "Class-typical figures from manufacturer specification sheets for front-engine RWD sports cars (mass 1300–1450 kg, wheelbase 2.45–2.55 m, Cd 0.28–0.32, 48–52 % on the front axle).",
       "Tire feel parameters tuned to a ~1.0 g skidpad and ~34 m 100–0 km/h braking distance from published road tests for the class; the rear tire is a wider staggered fitment with more grip and cornering stiffness than the front, so the car settles into mild understeer rather than near-neutral handling.",
       "Suspension rates typical of a sports car with ~2.0 Hz front and ~2.2 Hz rear ride frequencies and a front-biased roll stiffness distribution (Milliken & Milliken, Race Car Vehicle Dynamics, ch. 16).",
-      "Drivetrain [ILLUSTRATIVE]: a 2.0 l naturally aspirated four (peak 200 N·m at 5000 rpm, about 125 kW at 7000 rpm), six-speed ratios with a 3.6 final drive and a mild clutch-pack LSD at the low end of the class's drive bias range (Milliken & Milliken, Race Car Vehicle Dynamics, ch. 20).",
+      "Drivetrain [ILLUSTRATIVE]: a 3.0 l naturally aspirated six (peak 280 N·m at 5000 rpm, about 175 kW at 7000 rpm), six-speed ratios with a 3.6 final drive and a mild clutch-pack LSD at the low end of the class's drive bias range (Milliken & Milliken, Race Car Vehicle Dynamics, ch. 20).",
       "Steering geometry [ILLUSTRATIVE]: 7° caster (about 30 mm of trail), 12 mm scrub radius and a light assist, for the heavier, more communicative steering of a sports car.",
       "Roll centres [ILLUSTRATIVE]: double-wishbone front near 50 mm and multilink rear near 100 mm (Milliken & Milliken ch. 17); a small rear spoiler leaves a touch of rear downforce and near-zero front lift (Hucho ch. 4)."
     ],
@@ -119,14 +119,14 @@
       "redlineRpm": 7200,
       "inertia": 0.28,
       "torqueCurve": [
-        [1000, 123],
-        [2000, 163],
-        [3000, 188],
-        [4000, 198],
-        [5000, 200],
-        [6000, 193],
-        [7000, 170],
-        [7200, 158]
+        [1000, 173],
+        [2000, 228],
+        [3000, 263],
+        [4000, 277],
+        [5000, 280],
+        [6000, 270],
+        [7000, 239],
+        [7200, 221]
       ],
       "engineBrakingIdle": 20,
       "engineBrakingRedline": 90,
