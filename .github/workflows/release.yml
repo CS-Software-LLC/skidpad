@@ -44,4 +44,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          # setup-node's registry-url points npm at its own .npmrc, which reads
+          # NODE_AUTH_TOKEN (a placeholder unless set), not the ~/.npmrc the
+          # changesets action writes NPM_TOKEN into.
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           NPM_CONFIG_PROVENANCE: "true"
