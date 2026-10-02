@@ -200,7 +200,7 @@ importers:
   packages/jolt:
     dependencies:
       '@skidpad/core':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../core
     devDependencies:
       '@skidpad/presets':
@@ -219,7 +219,7 @@ importers:
   packages/presets:
     dependencies:
       '@skidpad/core':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../core
     devDependencies:
       typescript:
@@ -232,7 +232,7 @@ importers:
   packages/rapier:
     dependencies:
       '@skidpad/core':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../core
     devDependencies:
       '@dimforge/rapier3d-compat':
@@ -251,7 +251,7 @@ importers:
   packages/replay:
     dependencies:
       '@skidpad/core':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../core
     devDependencies:
       '@skidpad/presets':
@@ -276,7 +276,7 @@ importers:
   packages/worker:
     dependencies:
       '@skidpad/core':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../core
     devDependencies:
       '@skidpad/presets':

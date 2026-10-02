@@ -27,7 +27,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@skidpad/core": "workspace:*"
+    "@skidpad/core": "workspace:^"
   },
   "peerDependencies": {
     "@dimforge/rapier3d-compat": ">=0.14.0"
