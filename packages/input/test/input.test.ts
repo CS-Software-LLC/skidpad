@@ -241,14 +241,14 @@ describe("force feedback", () => {
         const bytes = Array.from(data);
         sent.push({ id, data: bytes });
         // Answer HID++ requests: feature index 3 for the root query, slot
-        // ids 1, 2, 3 for downloads, echo otherwise.
+        // ids 1, 2, 3, 4 for downloads, echo otherwise.
         const reply = new Uint8Array(19);
         reply[0] = 0xff;
         reply[1] = bytes[1]!;
         reply[2] = bytes[2]!;
         if (bytes[1] === 0 && bytes[2]! >> 4 === 0) reply[3] = 3;
         else if (bytes[1] === 3 && bytes[2]! >> 4 === 2)
-          reply[3] = 1 + sent.filter((s) => s.data[1] === 3 && s.data[2]! >> 4 === 2).length;
+          reply[3] = sent.filter((s) => s.data[1] === 3 && s.data[2]! >> 4 === 2).length;
         queueMicrotask(() => listener?.({ reportId: 0x11, data: new DataView(reply.buffer) }));
       },
       addEventListener(_t: "inputreport", l: typeof listener) {
@@ -263,16 +263,52 @@ describe("force feedback", () => {
     await sink.attach(device);
     expect(sink.connected).toBe(true);
     expect(lines.some((l) => l.includes("feature 0x8123 at index 3"))).toBe(true);
-    // Root query, get info, reset, aperture, gains, three downloads.
-    expect(sent.length).toBe(8);
+    const ff = (func: number) => sent.filter((s) => s.data[1] === 3 && s.data[2]! >> 4 === func);
+    // Root query, get info, reset, zero centring spring, aperture, gains,
+    // then three effects, each downloaded and started.
+    expect(sent.length).toBe(12);
+    // The first download replaces the firmware's centring spring with a
+    // zero-strength one, autostarted, in a very long report (18 params).
+    const spring = ff(2)[0]!;
+    expect(spring.id).toBe(0x12);
+    expect(spring.data[3]).toBe(0); // new slot
+    expect(spring.data[4]).toBe(0x86); // spring | autostart
+    expect(spring.data.slice(9, 21).every((b) => b === 0)).toBe(true); // zero coefficients
+    expect(lines.some((l) => l.includes("centring spring set to zero"))).toBe(true);
+    // Full gain, no boost.
+    expect(ff(8)[0]!.data.slice(3, 7)).toEqual([0xff, 0xff, 0, 0]);
+    // Each new effect is started with the play state, 0x02.
+    expect(ff(3).map((s) => s.data.slice(3, 5))).toEqual([
+      [2, 2],
+      [3, 2],
+      [4, 2],
+    ]);
     await sink.update({ torque: 5.5, damping: 0, friction: 0 }, 1);
     const last = sent[sent.length - 1]!;
     expect(last.id).toBe(0x11);
     expect(last.data[1]).toBe(3); // feature index
     expect(last.data[2] >> 4).toBe(2); // download effect
     expect(last.data[3]).toBe(2); // slot of the constant effect
-    const level = (last.data[8]! << 8) | last.data[9]!;
+    expect(last.data[4]).toBe(0); // constant force
+    const level = (last.data[9]! << 8) | last.data[10]!;
     expect(level).toBeCloseTo(0x7fff / 2, -2);
+    // A HID++ 2.0 error reply resolves the request it names and is logged.
+    listener?.({
+      reportId: 0x11,
+      data: new DataView(
+        new Uint8Array([0xff, 0xff, 3, 0x2a, 0x02, ...new Array(14).fill(0)]).buffer,
+      ),
+    });
+    await sink.stop();
+    expect(
+      ff(3)
+        .slice(-3)
+        .map((s) => s.data.slice(3, 5)),
+    ).toEqual([
+      [2, 1],
+      [3, 1],
+      [4, 1],
+    ]);
     await sink.disconnect();
     expect(device.opened).toBe(false);
   });
