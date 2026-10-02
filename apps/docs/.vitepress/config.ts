@@ -12,7 +12,7 @@ export default defineConfig({
       { text: "Tuning", link: "/tuning/" },
       { text: "Validation", link: "/validation/" },
       { text: "Roadmap", link: "/roadmap" },
-      { text: "GitHub", link: "https://github.com/csummers88/skidpad" },
+      { text: "GitHub", link: "https://github.com/CS-Software-LLC/skidpad" },
     ],
     sidebar: [
       {
@@ -50,7 +50,7 @@ export default defineConfig({
           { text: "Roadmap", link: "/roadmap" },
           {
             text: "Architecture decisions",
-            link: "https://github.com/csummers88/skidpad/tree/main/docs/adr",
+            link: "https://github.com/CS-Software-LLC/skidpad/tree/main/docs/adr",
           },
         ],
       },

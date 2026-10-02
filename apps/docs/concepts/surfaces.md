@@ -6,7 +6,7 @@ tags every wheel contact with a surface id, the world holds a small table
 that says what each id means, and the tire models apply the scales inside
 their own equations, so the surface is part of the physics, of every replay
 and of the state hash
-([ADR-0014](https://github.com/csummers88/skidpad/blob/main/docs/adr/0014-surface-table.md)).
+([ADR-0014](https://github.com/CS-Software-LLC/skidpad/blob/main/docs/adr/0014-surface-table.md)).
 
 The table holds at most 16 surfaces. Id 0 is the surface the tire
 parameters describe, usually dry asphalt, and an id beyond the table reads
@@ -35,7 +35,7 @@ chassis at the contact, not on the wheel, so it slows the car without
 changing the wheel's spin or its slip; the tire still rolls freely over
 sand, it is the car that is held back. Below the tire's `lowSpeedFloor` the
 force fades linearly to zero with speed, the same treatment rolling
-resistance gets ([ADR-0005](https://github.com/csummers88/skidpad/blob/main/docs/adr/0005-tire-low-speed-handling.md)),
+resistance gets ([ADR-0005](https://github.com/CS-Software-LLC/skidpad/blob/main/docs/adr/0005-tire-low-speed-handling.md)),
 so a car parked on gravel sees a small viscous force and never one that
 switches sign.
 

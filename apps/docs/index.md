@@ -10,7 +10,7 @@ hero:
       link: /guide/getting-started
     - theme: alt
       text: Try the sandbox
-      link: https://github.com/csummers88/skidpad#sandbox
+      link: https://github.com/CS-Software-LLC/skidpad#sandbox
 features:
   - title: Sim-grade tires
     details: Feel model for tuning by intuition, Magic Formula 5.2 subset with .tir import, combined slip, load sensitivity, relaxation length, aligning torque.

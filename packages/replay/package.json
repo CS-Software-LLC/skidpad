@@ -5,7 +5,7 @@
   "license": "MIT OR Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "https://github.com/csummers88/skidpad",
+    "url": "https://github.com/CS-Software-LLC/skidpad",
     "directory": "packages/replay"
   },
   "type": "module",

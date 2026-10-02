@@ -2,7 +2,7 @@
 
 `@skidpad/worker` runs a world in a Web Worker so the simulation does not
 compete with rendering on the main thread
-([ADR-0022](https://github.com/csummers88/skidpad/blob/main/docs/adr/0022-worker-mode.md)).
+([ADR-0022](https://github.com/CS-Software-LLC/skidpad/blob/main/docs/adr/0022-worker-mode.md)).
 
 ```ts
 // sim.worker.ts
