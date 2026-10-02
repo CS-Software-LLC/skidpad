@@ -2,27 +2,21 @@
 //! the steering limit, each against the same car with the assist off.
 
 use skidpad_core::definition::VehicleModelKind;
-use skidpad_core::drivetrain::def::PowerUnitDef;
 use skidpad_core::telemetry as t;
 use skidpad_core::tire::TireModel;
 use skidpad_core::validation::{straight_line, StraightLineConfig};
 use skidpad_core::{VehicleDefinition, VehicleInput, World};
 
-/// A car that needs its assists: the sports preset with every assist off,
-/// its engine back up to 405 N·m, a 2.5:1 locking differential and rear
-/// tires no grippier than the fronts, so full throttle spins the rear wheels
-/// and a hard step of steer under power steps the tail out.
+/// A car that needs its assists: the sports preset with every assist off, a
+/// 2.5:1 locking differential and rear tires no grippier than the fronts, so
+/// full throttle spins the rear wheels and a hard step of steer under power
+/// steps the tail out.
 fn wild_rwd() -> VehicleDefinition {
     let mut d: VehicleDefinition = serde_json::from_str(include_str!(
         "../../../packages/presets/src/vehicles/sports-rwd.json"
     ))
     .unwrap();
     d.assists = Default::default();
-    if let PowerUnitDef::Combustion(c) = &mut d.drivetrain.power_unit {
-        for p in c.torque_curve.iter_mut() {
-            p[1] *= 405.0 / 350.0;
-        }
-    }
     let rear = &mut d.drivetrain.rear;
     rear.preload = 50.0;
     rear.bias_drive = 2.5;
