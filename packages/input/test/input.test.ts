@@ -212,14 +212,60 @@ describe("TouchInput", () => {
 describe("force feedback", () => {
   it("scales torque to the device range with smoothing and clip statistics", async () => {
     const { FfbScaler } = await import("../src/index.js");
-    const s = new FfbScaler({ maxTorque: 10, smoothing: 0 });
+    const s = new FfbScaler({ maxTorque: 10, smoothing: 0, gain: 1, slewRate: Infinity });
     expect(s.scale(5, 1 / 60)).toBeCloseTo(0.5);
     expect(s.scale(-20, 1 / 60)).toBe(-1);
     expect(s.clipFraction).toBeCloseTo(0.5);
     s.invert = true;
     expect(s.scale(5, 1 / 60)).toBeCloseTo(-0.5);
-    const smooth = new FfbScaler({ maxTorque: 10, smoothing: 0.1 });
+    const smooth = new FfbScaler({ maxTorque: 10, smoothing: 0.1, gain: 1, slewRate: Infinity });
     expect(smooth.scale(10, 0.01)).toBeCloseTo(0.1);
+  });
+
+  it("defaults to half gain, limits the output and its rate of change", async () => {
+    const { FfbScaler } = await import("../src/index.js");
+    const s = new FfbScaler({ maxTorque: 10, smoothing: 0 });
+    expect(s.gain).toBe(0.5);
+    // Full-scale demand is reached no faster than 5 full scales per second.
+    expect(s.scale(100, 0.1)).toBeCloseTo(0.5);
+    expect(s.scale(100, 0.1)).toBeCloseTo(1);
+    const capped = new FfbScaler({ maxTorque: 10, smoothing: 0, slewRate: Infinity, limit: 0.3 });
+    expect(capped.scale(100, 1 / 60)).toBeCloseTo(0.3);
+    expect(capped.clipFraction).toBe(1);
+  });
+
+  it("latches the output at zero when the wheel runs away under force", async () => {
+    const { FfbScaler } = await import("../src/index.js");
+    const dt = 1 / 120;
+    const s = new FfbScaler({ maxTorque: 10, smoothing: 0, slewRate: Infinity });
+    // The wheel spins away from the centre at 20 rad/s while being pushed.
+    let angle = 0.2;
+    let out = 0;
+    for (let i = 0; i < 30; i++) {
+      out = s.scale(5, dt, angle);
+      angle += 20 * dt;
+    }
+    expect(s.tripped).toMatch(/ran away/);
+    expect(out).toBe(0);
+    s.rearm();
+    expect(s.tripped).toBeUndefined();
+    expect(s.scale(5, dt, 0)).toBeCloseTo(0.25);
+    // A fast return to the centre (hands off, self-centring) does not trip.
+    const r = new FfbScaler({ maxTorque: 10, smoothing: 0, slewRate: Infinity });
+    angle = 3;
+    for (let i = 0; i < 30; i++) {
+      r.scale(-5, dt, angle);
+      angle -= 20 * dt;
+    }
+    expect(r.tripped).toBeUndefined();
+    // Nor does a fast outward move with no force on the wheel.
+    const z = new FfbScaler({ maxTorque: 10, smoothing: 0, slewRate: Infinity });
+    angle = 0.2;
+    for (let i = 0; i < 30; i++) {
+      z.scale(0, dt, angle);
+      angle += 20 * dt;
+    }
+    expect(z.tripped).toBeUndefined();
   });
 
   it("drives a Logitech device over a fake WebHID and logs the exchange", async () => {
@@ -259,7 +305,16 @@ describe("force feedback", () => {
       },
     };
     const lines: string[] = [];
-    const sink = new LogitechWebHidSink({ log: (l) => lines.push(l), minInterval: 0 });
+    const defaults = new LogitechWebHidSink();
+    expect(defaults.maxOutput).toBe(0.4);
+    expect(defaults.maxTorque).toBeCloseTo(4.4); // 40 % of a G PRO's 11 N·m
+    const sink = new LogitechWebHidSink({
+      log: (l) => lines.push(l),
+      minInterval: 0,
+      gain: 1,
+      maxOutput: 1,
+      watchdog: 0.05,
+    });
     await sink.attach(device);
     expect(sink.connected).toBe(true);
     expect(lines.some((l) => l.includes("feature 0x8123 at index 3"))).toBe(true);
@@ -290,8 +345,15 @@ describe("force feedback", () => {
     expect(last.data[2] >> 4).toBe(2); // download effect
     expect(last.data[3]).toBe(2); // slot of the constant effect
     expect(last.data[4]).toBe(0); // constant force
-    const level = (last.data[9]! << 8) | last.data[10]!;
-    expect(level).toBeCloseTo(0x7fff / 2, -2);
+    // Half of full output to the right is a negative HID++ level on a G PRO.
+    const level = (((last.data[9]! << 8) | last.data[10]!) << 16) >> 16;
+    expect(level).toBeCloseTo(-0x7fff / 2, -2);
+    // With no further updates the watchdog zeroes the force.
+    await new Promise((r) => setTimeout(r, 300));
+    expect(lines.some((l) => l.includes("watchdog"))).toBe(true);
+    const zeroed = sent[sent.length - 1]!;
+    expect(zeroed.data[9]).toBe(0);
+    expect(zeroed.data[10]).toBe(0);
     // A HID++ 2.0 error reply resolves the request it names and is logged.
     listener?.({
       reportId: 0x11,

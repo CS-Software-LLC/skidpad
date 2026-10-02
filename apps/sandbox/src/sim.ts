@@ -409,7 +409,12 @@ export class Sim {
     }
     if (this.stepsThisFrame > 0 && this.ffbSink?.connected) {
       void this.ffbSink.update(
-        ffbFrameFromTelemetry(this.readChannel, this.definition.steering),
+        ffbFrameFromTelemetry(
+          this.readChannel,
+          this.definition.steering,
+          // The runaway guard watches the hand wheel; only a wheel has one.
+          this.wheel.status.wheel ? this.wheel.status.wheelAngleDeg : undefined,
+        ),
         this.stepsThisFrame * HOST_DT,
       );
     }

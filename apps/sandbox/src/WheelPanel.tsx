@@ -36,6 +36,7 @@ interface Status {
   angle: number;
   ffb: string;
   clip: number;
+  tripped: string | undefined;
   torque: number;
 }
 
@@ -46,7 +47,10 @@ export function WheelPanel({ sim }: { sim: Sim }) {
   const [message, setMessage] = useState("");
   const [protocol, setProtocol] = useState<LogitechProtocol>("hidpp");
   const [updateMode, setUpdateMode] = useState<"modify" | "recreate">("modify");
-  const [gain, setGain] = useState(1);
+  // Conservative defaults: this page is public and a direct-drive wheel is
+  // strong enough to hurt. Raise them deliberately.
+  const [gain, setGain] = useState(0.5);
+  const [maxOutput, setMaxOutput] = useState(0.4);
   const [invert, setInvert] = useState(false);
   const [log, setLog] = useState<string[]>([]);
   const [assists, setAssists] = useState(() => currentAssists(sim));
@@ -65,6 +69,7 @@ export function WheelPanel({ sim }: { sim: Sim }) {
         angle: w.wheelAngleDeg,
         ffb: s ? `${s.name}${s.connected ? "" : " (not connected)"}` : "off",
         clip: sink.current?.scaler.clipFraction ?? 0,
+        tripped: sink.current?.scaler.tripped,
         torque: sim.world.read(sim.vehicle, "SteeringTorque"),
       });
       if (sink.current) setLog(sink.current.diagnostics.slice(-12));
@@ -139,6 +144,7 @@ export function WheelPanel({ sim }: { sim: Sim }) {
         rotationDeg: rotation,
         gain,
         invert,
+        maxOutput,
       });
       await s.connect(webHid());
       sink.current = s;
@@ -153,8 +159,9 @@ export function WheelPanel({ sim }: { sim: Sim }) {
     if (sink.current) {
       sink.current.scaler.gain = gain;
       sink.current.scaler.invert = invert;
+      sink.current.maxOutput = maxOutput;
     }
-  }, [gain, invert]);
+  }, [gain, invert, maxOutput]);
 
   const rumble = () => {
     const s = new GamepadRumbleSink(() => {
@@ -239,12 +246,25 @@ export function WheelPanel({ sim }: { sim: Sim }) {
               <input
                 type="range"
                 min={0}
-                max={3}
+                max={1}
                 step={0.05}
                 value={gain}
                 onChange={(e) => setGain(Number(e.target.value))}
               />
               {gain.toFixed(2)}
+            </label>
+            <label>
+              Max output
+              <input
+                type="range"
+                min={0.1}
+                max={1}
+                step={0.05}
+                value={maxOutput}
+                onChange={(e) => setMaxOutput(Number(e.target.value))}
+              />
+              {(100 * maxOutput).toFixed(0)}%
+              {sink.current ? ` (${(sink.current.peakTorque * maxOutput).toFixed(1)} N·m)` : ""}
             </label>
             <label>
               <input
@@ -257,6 +277,27 @@ export function WheelPanel({ sim }: { sim: Sim }) {
             <span>
               {status.ffb} · clipping {(100 * status.clip).toFixed(0)}%
             </span>
+          </div>
+          {status.tripped && (
+            <div className="row message">
+              Force feedback stopped: {status.tripped}. Check the sign with Test pulse (it should
+              turn the wheel right) before re-enabling.{" "}
+              <button
+                onClick={() => {
+                  sink.current?.scaler.rearm();
+                  setMessage("Force feedback re-enabled.");
+                }}
+              >
+                Re-enable
+              </button>
+            </div>
+          )}
+          <div className="row small">
+            Safety: a force-feedback wheel is a motor and can spin hard on its own, for example if
+            the sign is wrong or the car spins. Keep your hands clear for the first test, start with
+            low gain and max output, and press Test pulse first: it should turn the wheel gently to
+            the right; if it turns left, tick invert. The force stops if the wheel runs away under
+            force, if the tab is hidden and if the simulation stops.
           </div>
           {log.length > 0 && (
             <div className="row">

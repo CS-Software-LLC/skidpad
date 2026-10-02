@@ -29,6 +29,34 @@ const wheel = new WheelInput({
 const frame = wheel.poll(); // undefined until a known wheel is connected
 ```
 
+## Safety first
+
+A force-feedback wheel is a motor. A direct-drive base like the G PRO can
+spin faster than a hand can follow and hard enough to hurt a wrist or a
+thumb in the spokes, most easily when the torque's sign is wrong (the
+self-centring force then drives the wheel away from the centre) or when the
+car spins. The input package defaults are chosen for that:
+
+- `maxOutput` (Logitech sink, default 0.4): the largest fraction of the
+  device's peak torque ever sent, about 4.4 N·m on a G PRO. It applies
+  after every gain.
+- `gain` (default 0.5) on the physical torque, and a rate limit
+  (`slewRate`, default 5 full scales per second) so no frame can snap the
+  wheel.
+- A runaway guard: when the hand wheel moves away from the centre faster
+  than `runawayRate` (default 10 rad/s, about 570°/s) for `runawayTime`
+  (0.1 s) while a force is applied, the output latches at zero until
+  `scaler.rearm()`. It needs the hand-wheel angle in the frame
+  (`ffbFrameFromTelemetry`'s third argument).
+- A watchdog: the force goes to zero when the page is hidden or closed, or
+  when no update has arrived for `watchdog` seconds (default 0.25), so a
+  paused host cannot leave a force playing.
+
+On a new wheel or a new protocol, keep your hands clear, press the
+sandbox's **Test pulse** first (it should turn the wheel gently to the
+right; if it turns left, tick **invert**), and raise gain and max output
+only after that.
+
 ## Sending torque back
 
 The web has no standard force-feedback channel. The Gamepad API only
@@ -54,19 +82,22 @@ version, and try the other protocol and the other update mode (`modify`
 re-sends the effect with its slot id, `recreate` destroys and downloads it).
 
 ```ts
-const sink = new LogitechWebHidSink({ protocol: "hidpp", rotationDeg: 900, gain: 1 });
+const sink = new LogitechWebHidSink({ protocol: "hidpp", rotationDeg: 900 });
 button.onclick = () => sink.connect(); // must be a user gesture
-// each host step
+// each host step; the hand-wheel angle feeds the runaway guard
 sink.update(
-  ffbFrameFromTelemetry((c) => world.read(car, c), def.steering),
+  ffbFrameFromTelemetry((c) => world.read(car, c), def.steering, wheel.status.wheelAngleDeg),
   1 / 60,
 );
 ```
 
 `FfbScaler` turns N·m into the device's −1 … 1 with a gain, a smoothing time
-constant and clipping statistics, so the panel can show how much of the
-signal the wheel cannot reproduce. A direct-drive G PRO is taken as 11 N·m
-at full output; belt wheels as 2 to 3.
+constant, the rate limit, the runaway guard and clipping statistics, so the
+panel can show how much of the signal the wheel cannot reproduce. A
+direct-drive G PRO is taken as 11 N·m peak, belt wheels as 2 to 3, and
+`maxOutput` scales that down. The HID++ sign was found on a G PRO, where a
+positive constant force turns the wheel left, so the sink flips it; on a
+G923 or G920 check it with the test pulse.
 
 Column friction and damping are definition values (`steering.columnFriction`,
 `steering.columnDamping`) meant for the device's own friction and damper
