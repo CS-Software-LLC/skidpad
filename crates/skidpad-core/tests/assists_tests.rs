@@ -20,7 +20,7 @@ fn wild_rwd() -> VehicleDefinition {
     d.assists = Default::default();
     if let PowerUnitDef::Combustion(c) = &mut d.drivetrain.power_unit {
         for p in c.torque_curve.iter_mut() {
-            p[1] *= 405.0 / 280.0;
+            p[1] *= 405.0 / 350.0;
         }
     }
     let rear = &mut d.drivetrain.rear;
