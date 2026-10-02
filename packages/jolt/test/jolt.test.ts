@@ -87,7 +87,7 @@ describe.each<UpAxis>(["y", "z"])("Jolt host with %s up", (up) => {
     const loads = ["FL", "FR", "RL", "RR"].map((s) => world.read(car, `TireLoad_${s}`));
     expect(loads.reduce((a, b) => a + b, 0)).toBeCloseTo(def.chassis.mass * 9.80665, -1);
 
-    world.setInput(car, { throttle: 0.6 });
+    world.setInput(car, { throttle: 1 });
     for (let k = 0; k < 240; k++) tick();
     const p = position(body, up);
     expect(p.x).toBeGreaterThan(10);

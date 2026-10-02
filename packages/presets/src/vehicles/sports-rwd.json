@@ -2,16 +2,16 @@
   "formatVersion": 1,
   "name": "RWD sports car",
   "dataSheet": {
-    "description": "A generic rear-wheel-drive two-seat sports car in the 1.35 t class: roughly 250 kW, 2.5 m wheelbase, near 50/50 weight distribution, wide performance tires.",
+    "description": "A generic rear-wheel-drive two-seat sports car in the 1.35 t class: roughly 175 kW, 2.5 m wheelbase, 48/52 front/rear weight distribution, wider rear tires, with ABS, traction and stability control on by default.",
     "sources": [
-      "Class-typical figures from manufacturer specification sheets for front-engine RWD sports cars (mass 1300–1450 kg, wheelbase 2.45–2.55 m, Cd 0.28–0.32, 52/48 front weight bias).",
-      "Tire feel parameters tuned to a ~1.0 g skidpad and ~34 m 100–0 km/h braking distance from published road tests for the class.",
+      "Class-typical figures from manufacturer specification sheets for front-engine RWD sports cars (mass 1300–1450 kg, wheelbase 2.45–2.55 m, Cd 0.28–0.32, 48–52 % on the front axle).",
+      "Tire feel parameters tuned to a ~1.0 g skidpad and ~34 m 100–0 km/h braking distance from published road tests for the class; the rear tire is a wider staggered fitment with more grip and cornering stiffness than the front, so the car settles into mild understeer rather than near-neutral handling.",
       "Suspension rates typical of a sports car with ~2.0 Hz front and ~2.2 Hz rear ride frequencies and a front-biased roll stiffness distribution (Milliken & Milliken, Race Car Vehicle Dynamics, ch. 16).",
-      "Drivetrain [ILLUSTRATIVE]: a 3.5 l naturally aspirated six (peak 405 N·m, 245 kW at 6000 rpm), six-speed ratios with a 3.6 final drive and a clutch-pack LSD in the 2–3:1 drive bias range typical of the class (Milliken & Milliken, Race Car Vehicle Dynamics, ch. 20).",
+      "Drivetrain [ILLUSTRATIVE]: a 3.0 l naturally aspirated six (peak 280 N·m at 5000 rpm, about 175 kW at 7000 rpm), six-speed ratios with a 3.6 final drive and a mild clutch-pack LSD at the low end of the class's drive bias range (Milliken & Milliken, Race Car Vehicle Dynamics, ch. 20).",
       "Steering geometry [ILLUSTRATIVE]: 7° caster (about 30 mm of trail), 12 mm scrub radius and a light assist, for the heavier, more communicative steering of a sports car.",
       "Roll centres [ILLUSTRATIVE]: double-wishbone front near 50 mm and multilink rear near 100 mm (Milliken & Milliken ch. 17); a small rear spoiler leaves a touch of rear downforce and near-zero front lift (Hucho ch. 4)."
     ],
-    "notes": "Not a specific production model. The rear differential is a clutch-pack limited slip (preload 50 N·m, 2.5:1 drive, 1.8:1 coast)."
+    "notes": "Not a specific production model. The rear differential is a clutch-pack limited slip (preload 20 N·m, 1.6:1 drive, 1.2:1 coast). ABS, traction control and stability control are on at the core's default settings; turn them off in `assists` for an unassisted car."
   },
   "chassis": {
     "mass": 1380,
@@ -59,10 +59,10 @@
         "model": "feel",
         "radius": 0.34,
         "nominalLoad": 4000,
-        "peakFriction": 1.12,
+        "peakFriction": 1.2,
         "loadSensitivity": 0.1,
         "peakSlipAngleDeg": 6.5,
-        "corneringStiffness": 21,
+        "corneringStiffness": 26,
         "longitudinalStiffness": 25,
         "stiffnessPeakLoad": 5600,
         "relaxationLengthLat": 0.3
@@ -119,14 +119,14 @@
       "redlineRpm": 7200,
       "inertia": 0.28,
       "torqueCurve": [
-        [1000, 250],
-        [2000, 330],
-        [3000, 380],
-        [4000, 400],
-        [5000, 405],
-        [6000, 390],
-        [7000, 345],
-        [7200, 320]
+        [1000, 173],
+        [2000, 228],
+        [3000, 263],
+        [4000, 277],
+        [5000, 280],
+        [6000, 270],
+        [7000, 239],
+        [7200, 221]
       ],
       "engineBrakingIdle": 20,
       "engineBrakingRedline": 90,
@@ -152,13 +152,38 @@
     },
     "rear": {
       "kind": "lsd",
-      "preload": 50,
-      "biasDrive": 2.5,
-      "biasCoast": 1.8
+      "preload": 20,
+      "biasDrive": 1.6,
+      "biasCoast": 1.2
     },
     "center": {
       "kind": "open",
       "frontTorqueFraction": 0.4
+    }
+  },
+  "assists": {
+    "abs": {
+      "enabled": true,
+      "slipTarget": 0.12,
+      "slipRelease": 0.3,
+      "floor": 0.15,
+      "minSpeed": 2.0
+    },
+    "tractionControl": {
+      "enabled": true,
+      "slipTarget": 0.1,
+      "slipRelease": 0.25
+    },
+    "stabilityControl": {
+      "enabled": true,
+      "gain": 1500,
+      "deadBand": 0.05,
+      "throttleCut": 1.0,
+      "minSpeed": 3.0
+    },
+    "steeringAssist": {
+      "enabled": false,
+      "latAccelLimit": 9.0
     }
   }
 }
