@@ -76,11 +76,21 @@ export interface LogitechSinkOptions extends FfbScalerOptions {
   minInterval?: number;
 }
 
-// --- HID++ 2.0 constants [VERIFY] -------------------------------------------
-/** Short report: 7 bytes including the id. */
+// --- HID++ 2.0 constants -----------------------------------------------------
+// Checked against the Linux driver's G920 / G923 path (`hid-logitech-hidpp.c`,
+// feature 0x8123); still [VERIFY] on a G PRO, which that driver does not list.
+/** Short report: 7 bytes including the id, 3 parameter bytes. */
 const HIDPP_SHORT = 0x10;
-/** Long report: 20 bytes including the id. */
+/** Long report: 20 bytes including the id, 16 parameter bytes. */
 const HIDPP_LONG = 0x11;
+/** Very long report: 64 bytes including the id; condition effects need it. */
+const HIDPP_VERY_LONG = 0x12;
+const HIDPP_SHORT_PARAMS = 3;
+const HIDPP_LONG_PARAMS = 16;
+const HIDPP_VERY_LONG_PARAMS = 60;
+/** Feature-index byte of a HID++ 2.0 error reply, and sub id of a 1.0 one. */
+const HIDPP20_ERROR = 0xff;
+const HIDPP10_ERROR = 0x8f;
 /** Device index of a directly attached (wired) device. */
 const HIDPP_DEVICE_INDEX = 0xff;
 /** Software id in the low nibble of the function byte; any non-zero value. */
@@ -98,11 +108,29 @@ const FF_SET_APERTURE = 6;
 const FF_SET_GLOBAL_GAINS = 8;
 /** Effect types. */
 const FF_EFFECT_CONSTANT = 0x00;
+const FF_EFFECT_SPRING = 0x06;
 const FF_EFFECT_DAMPER = 0x07;
 const FF_EFFECT_FRICTION = 0x08;
 const FF_EFFECT_AUTOSTART = 0x80;
-const FF_STATE_PLAY = 0x01;
-const FF_STATE_STOP = 0x00;
+/** Effect states of `setEffectState` (0 reads the state). */
+const FF_STATE_STOP = 0x01;
+const FF_STATE_PLAY = 0x02;
+/** Parameter bytes of a constant-force and of a condition effect. */
+const FF_CONSTANT_PARAMS = 14;
+const FF_CONDITION_PARAMS = 18;
+
+/** A HID++ reply: its parameter bytes, or the error code it carried. */
+interface HidppReply {
+  ok: boolean;
+  params: Uint8Array;
+  error?: number;
+}
+
+interface HidppWaiter {
+  featureIndex: number;
+  functionByte: number;
+  resolve: (reply: HidppReply) => void;
+}
 
 // --- classic protocol constants [VERIFY] -------------------------------------
 /** Report id of the 7-byte command reports. */
@@ -124,6 +152,44 @@ function hex(bytes: ArrayLike<number>): string {
 }
 
 /**
+ * Parameters of a constant-force download: slot (0 for a new effect), type,
+ * duration and delay (0 and 0: play until stopped), then the signed level.
+ * The attack and fade envelope bytes stay zero.
+ */
+function constantParams(slot: number, level: number): number[] {
+  const l = Math.round(Math.max(-1, Math.min(1, level)) * 0x7fff) & 0xffff;
+  const p = new Array<number>(FF_CONSTANT_PARAMS).fill(0);
+  p[0] = slot;
+  p[1] = FF_EFFECT_CONSTANT;
+  p[6] = l >> 8;
+  p[7] = l & 0xff;
+  return p;
+}
+
+/**
+ * Parameters of a condition effect (spring, damper, friction): slot, type,
+ * duration, delay, then left saturation, left coefficient, deadband, centre,
+ * right coefficient, right saturation. Saturations are 15-bit, the
+ * coefficient a signed 16-bit fraction of full output.
+ */
+function conditionParams(slot: number, type: number, coefficient: number): number[] {
+  const c = Math.round(Math.max(-1, Math.min(1, coefficient)) * 0x7fff) & 0xffff;
+  const saturation = coefficient === 0 ? 0 : 0x7fff;
+  const p = new Array<number>(FF_CONDITION_PARAMS).fill(0);
+  p[0] = slot;
+  p[1] = type;
+  p[6] = saturation >> 8;
+  p[7] = saturation & 0xff;
+  p[8] = c >> 8;
+  p[9] = c & 0xff;
+  p[14] = c >> 8;
+  p[15] = c & 0xff;
+  p[16] = saturation >> 8;
+  p[17] = saturation & 0xff;
+  return p;
+}
+
+/**
  * Force-feedback sink for Logitech wheels over WebHID. Construct, then
  * `connect()` from a click handler.
  */
@@ -137,7 +203,7 @@ export class LogitechWebHidSink implements FfbSink {
   private slot: number | undefined;
   private damperSlot: number | undefined;
   private frictionSlot: number | undefined;
-  private pending: Array<(data: Uint8Array) => void> = [];
+  private pending: HidppWaiter[] = [];
   private lastSent = -Infinity;
   private readonly minInterval: number;
   private readonly rotationDeg: number;
@@ -147,11 +213,35 @@ export class LogitechWebHidSink implements FfbSink {
   private readonly onReport = (e: HidInputReportEventLike): void => {
     const data = new Uint8Array(e.data.buffer, e.data.byteOffset, e.data.byteLength);
     this.record(`<- id ${e.reportId.toString(16)} ${hex(data)}`);
-    if (e.reportId === HIDPP_SHORT || e.reportId === HIDPP_LONG) {
-      const waiter = this.pending.shift();
-      waiter?.(data);
+    if (e.reportId === HIDPP_SHORT || e.reportId === HIDPP_LONG || e.reportId === HIDPP_VERY_LONG) {
+      this.resolveReply(data);
     }
   };
+
+  /**
+   * Hand a reply to the request it answers. A reply echoes the request's
+   * feature index and function byte; an error reply puts 0xff (2.0) or 0x8f
+   * (1.0) there and moves them one byte along, followed by the error code.
+   */
+  private resolveReply(data: Uint8Array): void {
+    const isError = data[1] === HIDPP20_ERROR || data[1] === HIDPP10_ERROR;
+    const featureIndex = isError ? data[2] : data[1];
+    const functionByte = isError ? data[3] : data[2];
+    const i = this.pending.findIndex(
+      (w) => w.featureIndex === featureIndex && w.functionByte === functionByte,
+    );
+    if (i < 0) return;
+    const [waiter] = this.pending.splice(i, 1);
+    if (isError) {
+      const code = data[4] ?? 0;
+      this.record(
+        `   error 0x${code.toString(16).padStart(2, "0")} from feature ${featureIndex} function ${(functionByte ?? 0) >> 4}`,
+      );
+      waiter!.resolve({ ok: false, params: new Uint8Array(0), error: code });
+    } else {
+      waiter!.resolve({ ok: true, params: data.subarray(3) });
+    }
+  }
 
   constructor(options: LogitechSinkOptions = {}) {
     this.protocol = options.protocol ?? "hidpp";
@@ -212,39 +302,66 @@ export class LogitechWebHidSink implements FfbSink {
     await this.device.sendReport(reportId, data);
   }
 
-  /** Send a HID++ command and wait for the matching response (or time out). */
-  private async hidpp(featureIndex: number, func: number, params: number[]): Promise<Uint8Array> {
-    const long = params.length > 3;
-    const data = new Uint8Array(long ? 19 : 6);
+  /** Send a HID++ command and wait for the matching reply (or time out). */
+  private async hidpp(featureIndex: number, func: number, params: number[]): Promise<HidppReply> {
+    let reportId = HIDPP_SHORT;
+    let length = HIDPP_SHORT_PARAMS;
+    if (params.length > HIDPP_LONG_PARAMS) {
+      reportId = HIDPP_VERY_LONG;
+      length = HIDPP_VERY_LONG_PARAMS;
+    } else if (params.length > HIDPP_SHORT_PARAMS) {
+      reportId = HIDPP_LONG;
+      length = HIDPP_LONG_PARAMS;
+    }
+    const data = new Uint8Array(3 + length);
     data[0] = HIDPP_DEVICE_INDEX;
     data[1] = featureIndex;
     data[2] = ((func & 0x0f) << 4) | HIDPP_SOFTWARE_ID;
     params.forEach((p, i) => {
       data[3 + i] = p & 0xff;
     });
-    const response = new Promise<Uint8Array>((resolve) => {
+    const reply = new Promise<HidppReply>((resolve) => {
+      const waiter: HidppWaiter = {
+        featureIndex,
+        functionByte: data[2]!,
+        resolve: (r) => {
+          clearTimeout(timer);
+          resolve(r);
+        },
+      };
       const timer = setTimeout(() => {
-        const i = this.pending.indexOf(resolve);
+        const i = this.pending.indexOf(waiter);
         if (i >= 0) this.pending.splice(i, 1);
         this.record("   (no response within 250 ms)");
-        resolve(new Uint8Array(0));
+        resolve({ ok: false, params: new Uint8Array(0) });
       }, 250);
-      this.pending.push((d) => {
-        clearTimeout(timer);
-        resolve(d);
-      });
+      this.pending.push(waiter);
     });
-    await this.send(long ? HIDPP_LONG : HIDPP_SHORT, data);
-    return response;
+    try {
+      await this.send(reportId, data);
+    } catch (e) {
+      this.record(`   send failed: ${String(e)}`);
+      const i = this.pending.findIndex(
+        (w) => w.functionByte === data[2] && w.featureIndex === featureIndex,
+      );
+      if (i >= 0) this.pending.splice(i, 1)[0]!.resolve({ ok: false, params: new Uint8Array(0) });
+    }
+    return reply;
   }
 
+  /**
+   * The Linux driver's G920 / G923 start-up: find the feature, reset every
+   * effect, then replace the firmware's own centring spring with one of zero
+   * strength. The reset alone leaves that spring on, which holds the wheel
+   * stiffly to the centre whatever the host sends.
+   */
   private async setupHidpp(): Promise<void> {
     const r = await this.hidpp(HIDPP_ROOT_INDEX, 0, [
       HIDPP_FEATURE_FORCE_FEEDBACK >> 8,
       HIDPP_FEATURE_FORCE_FEEDBACK & 0xff,
     ]);
-    // Response params: [featureIndex, featureType, featureVersion].
-    this.featureIndex = r[3] ?? 0;
+    // Reply params: [featureIndex, featureType, featureVersion].
+    this.featureIndex = r.ok ? (r.params[0] ?? 0) : 0;
     if (this.featureIndex === 0) {
       this.record(
         "force-feedback feature 0x8123 not reported; the wheel may be in a different mode or need the classic protocol",
@@ -254,31 +371,35 @@ export class LogitechWebHidSink implements FfbSink {
     this.record(`feature 0x8123 at index ${this.featureIndex}`);
     await this.hidpp(this.featureIndex, FF_GET_INFO, []);
     await this.hidpp(this.featureIndex, FF_RESET_ALL, []);
+    const centring = await this.hidpp(
+      this.featureIndex,
+      FF_DOWNLOAD_EFFECT,
+      conditionParams(0, FF_EFFECT_SPRING | FF_EFFECT_AUTOSTART, 0),
+    );
+    this.record(
+      centring.ok
+        ? `centring spring set to zero (slot ${centring.params[0] ?? "?"})`
+        : "could not zero the centring spring; the wheel will stay stiff",
+    );
     await this.hidpp(this.featureIndex, FF_SET_APERTURE, [
       this.rotationDeg >> 8,
       this.rotationDeg & 0xff,
     ]);
-    await this.hidpp(this.featureIndex, FF_SET_GLOBAL_GAINS, [0xff, 0xff, 0xff, 0xff]);
-    this.slot = await this.download(FF_EFFECT_CONSTANT, 0);
-    this.damperSlot = await this.download(FF_EFFECT_DAMPER, 0);
-    this.frictionSlot = await this.download(FF_EFFECT_FRICTION, 0);
+    // Gain, then boost: full gain, no boost, as the Linux driver sends.
+    await this.hidpp(this.featureIndex, FF_SET_GLOBAL_GAINS, [0xff, 0xff, 0, 0]);
+    this.slot = await this.download(constantParams(0, 0));
+    this.damperSlot = await this.download(conditionParams(0, FF_EFFECT_DAMPER, 0));
+    this.frictionSlot = await this.download(conditionParams(0, FF_EFFECT_FRICTION, 0));
   }
 
-  /** Effect parameters: type, duration (0 = infinite), delay, then level. */
-  private effectParams(type: number, level: number, slot?: number): number[] {
-    const l = Math.round(Math.max(-1, Math.min(1, level)) * 0x7fff) & 0xffff;
-    const head = slot === undefined ? type | FF_EFFECT_AUTOSTART : slot;
-    return [head, 0, 0, 0, 0, l >> 8, l & 0xff, 0, 0, 0, 0, 0, 0, 0, 0];
-  }
-
-  private async download(type: number, level: number): Promise<number | undefined> {
-    const r = await this.hidpp(
-      this.featureIndex,
-      FF_DOWNLOAD_EFFECT,
-      this.effectParams(type, level),
-    );
-    const slot = r[3];
-    this.record(`effect type ${type.toString(16)} -> slot ${slot ?? "?"}`);
+  /** Download an effect into a new slot and start it; the slot, if any. */
+  private async download(params: number[]): Promise<number | undefined> {
+    const r = await this.hidpp(this.featureIndex, FF_DOWNLOAD_EFFECT, params);
+    const slot = r.ok && r.params[0] ? r.params[0] : undefined;
+    this.record(`effect type ${(params[1] ?? 0).toString(16)} -> slot ${slot ?? "?"}`);
+    if (slot !== undefined) {
+      await this.hidpp(this.featureIndex, FF_SET_EFFECT_STATE, [slot, FF_STATE_PLAY]);
+    }
     return slot;
   }
 
@@ -301,6 +422,19 @@ export class LogitechWebHidSink implements FfbSink {
     const now = performance.now() / 1000;
     if (now - this.lastSent < this.minInterval) return;
     this.lastSent = now;
+    // The host calls this without awaiting it, so a failed report would
+    // otherwise vanish; log it instead.
+    try {
+      await this.sendLevel(level);
+    } catch (e) {
+      this.record(`   send failed: ${String(e)}`);
+    }
+    // Damping and friction scale with the definition's column values.
+    void frame.damping;
+    void frame.friction;
+  }
+
+  private async sendLevel(level: number): Promise<void> {
     if (this.protocol === "classic") {
       // 0x80 is zero force; the sign convention is [VERIFY].
       const x = Math.round(0x80 - level * 0x7f) & 0xff;
@@ -312,20 +446,14 @@ export class LogitechWebHidSink implements FfbSink {
     }
     if (this.featureIndex === 0) return;
     if (this.updateMode === "modify" && this.slot !== undefined) {
-      await this.hidpp(
-        this.featureIndex,
-        FF_DOWNLOAD_EFFECT,
-        this.effectParams(FF_EFFECT_CONSTANT, level, this.slot),
-      );
+      // Re-downloading into the effect's own slot changes it in place.
+      await this.hidpp(this.featureIndex, FF_DOWNLOAD_EFFECT, constantParams(this.slot, level));
     } else {
       if (this.slot !== undefined) {
         await this.hidpp(this.featureIndex, FF_DESTROY_EFFECT, [this.slot]);
       }
-      this.slot = await this.download(FF_EFFECT_CONSTANT, level);
+      this.slot = await this.download(constantParams(0, level));
     }
-    // Damping and friction scale with the definition's column values.
-    void frame.damping;
-    void frame.friction;
   }
 
   /** Send a short pulse for the setup panel's "test" button. */
@@ -347,7 +475,6 @@ export class LogitechWebHidSink implements FfbSink {
           await this.hidpp(this.featureIndex, FF_SET_EFFECT_STATE, [slot, FF_STATE_STOP]);
         }
       }
-      void FF_STATE_PLAY;
     }
   }
 
