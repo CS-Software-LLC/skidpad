@@ -70,7 +70,7 @@ commit.
 | Kart                   | -0.21 deg/g (solid axle push)   | 0.31 deg/g   | 0.36 deg/g               | 10.9 s     | 58.0 m (rear brakes only) |
 | Pickup 4x4             | 0.98 deg/g                      | 0.72 deg/g   | 0.71 deg/g               | 7.4 s      | 52.1 m (47.1 m with ABS)  |
 | Electric crossover AWD | 0.30 deg/g                      | 0.22 deg/g   | 0.21 deg/g               | 5.0 s      | 44.5 m (40.1 m with ABS)  |
-| Open-wheeler           | 0.15 deg/g                      | 0.11 deg/g   | 0.10 deg/g               | 3.2 s      | 24.8 m (23.3 m with ABS)  |
+| Open-wheeler           | 0.64 deg/g                      | 0.60 deg/g   | 0.66 deg/g               | 2.9 s      | 24.0 m (22.5 m with ABS)  |
 
 The four-wheel gradient sits above the single-track one by the load
 sensitivity cost of lateral load transfer, which the single-track model does
@@ -92,7 +92,7 @@ reference surface table:
 | Kart                   | 0.15 s, 2 %         | 80 km/h                  | 79 m        | 79 m   | 113 m | spins |
 | Pickup 4x4             | 0.21 s, 3 %         | 90 km/h                  | 78 m        | 80 m   | 137 m | 361 m |
 | Electric crossover AWD | 0.25 s, 0 %         | 90 km/h                  | 67 m        | 70 m   | 122 m | 330 m |
-| Open-wheeler           | 0.16 s, 0 %         | 100 km/h                 | 37 m        | 39 m   | 70 m  | 172 m |
+| Open-wheeler           | 0.14 s, 0 %         | 100 km/h                 | 36 m        | 38 m   | 68 m  | 166 m |
 
 The kart brakes on its rear axle only, so on ice it swaps ends; the runner
 reports that rather than a distance.

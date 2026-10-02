@@ -4,8 +4,8 @@ The assists sit on top of the same physics and run inside the core, so a
 replay reproduces them and a hash sees them
 ([ADR-0013](https://github.com/CS-Software-LLC/skidpad/blob/main/docs/adr/0013-assists-layer.md)).
 They are all off in the core's default definition; a preset may switch some
-on (the RWD sports car ships with ABS, traction and stability control, the
-electric crossover with traction control). Each is a stateless stage between the input
+on (the RWD sports car and the open-wheeler ship with ABS, traction and
+stability control, the electric crossover with traction control). Each is a stateless stage between the input
 and the wheel solve: every substep it reads the current slips, speed and yaw
 rate and scales this substep's brake capacities, throttle and steer angle.
 
