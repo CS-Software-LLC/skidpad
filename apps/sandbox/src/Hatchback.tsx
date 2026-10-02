@@ -4,70 +4,11 @@
  * Geometry is authored parametrically so wheel arches follow live tuning.
  */
 import { useMemo } from "react";
-import { DoubleSide, Shape } from "three";
+import { Shape } from "three";
 
-type Point = [number, number, number];
+import { Panel, Part, TRIM } from "./models/parts.js";
+
 const PAINT = "#e05b32";
-const TRIM = "#171e25";
-
-function Panel({
-  points,
-  color = "#243c48",
-  glass = false,
-}: {
-  points: [Point, Point, Point, Point];
-  color?: string;
-  glass?: boolean;
-}) {
-  const positions = new Float32Array([
-    ...points[0],
-    ...points[1],
-    ...points[2],
-    ...points[0],
-    ...points[2],
-    ...points[3],
-  ]);
-  return (
-    <mesh castShadow receiveShadow>
-      <bufferGeometry onUpdate={(g) => g.computeVertexNormals()}>
-        <bufferAttribute attach="attributes-position" args={[positions, 3]} />
-      </bufferGeometry>
-      <meshStandardMaterial
-        color={color}
-        metalness={glass ? 0.45 : 0.25}
-        roughness={glass ? 0.16 : 0.35}
-        side={DoubleSide}
-      />
-    </mesh>
-  );
-}
-
-function Part({
-  position,
-  size,
-  color = PAINT,
-  rotation = [0, 0, 0],
-  glow = false,
-}: {
-  position: Point;
-  size: Point;
-  color?: string;
-  rotation?: Point;
-  glow?: boolean;
-}) {
-  return (
-    <mesh position={position} rotation={rotation} castShadow>
-      <boxGeometry args={size} />
-      <meshStandardMaterial
-        color={color}
-        metalness={0.25}
-        roughness={0.38}
-        emissive={glow ? color : "#000000"}
-        emissiveIntensity={glow ? 0.8 : 0}
-      />
-    </mesh>
-  );
-}
 
 export function Hatchback({
   frontAxle,
@@ -249,45 +190,6 @@ export function Hatchback({
         color={TRIM}
       />
       <Part position={[rear + 0.06, 0.25, w * 0.63]} size={[0.23, 0.075, 0.095]} color="#a8b0b3" />
-    </group>
-  );
-}
-
-/** The whole assembly spins around local Z. Steering belongs to its parent. */
-export function AlloyWheel({ radius, side }: { radius: number; side: number }) {
-  const width = 0.22;
-  const rim = radius * 0.67;
-  return (
-    <group name="alloy-wheel">
-      <mesh rotation={[Math.PI / 2, 0, 0]} castShadow>
-        <cylinderGeometry args={[radius, radius, width, 32]} />
-        <meshStandardMaterial color="#20242a" roughness={0.94} />
-      </mesh>
-      <group position={[0, 0, side * (width / 2 + 0.006)]}>
-        <mesh>
-          <circleGeometry args={[rim, 32]} />
-          <meshStandardMaterial color="#161c22" side={DoubleSide} />
-        </mesh>
-        <mesh>
-          <torusGeometry args={[rim, 0.018, 6, 32]} />
-          <meshStandardMaterial color="#c5ced5" metalness={0.7} roughness={0.26} />
-        </mesh>
-        {[0, 1, 2, 3, 4].map((i) => (
-          <group key={i} rotation={[0, 0, (i * Math.PI * 2) / 5]}>
-            <Part
-              position={[rim * 0.48, 0, side * 0.005]}
-              size={[rim * 0.97, 0.035, 0.025]}
-              color="#c5ced5"
-            />
-          </group>
-        ))}
-        <mesh>
-          <sphereGeometry args={[0.046, 12, 8]} />
-          <meshStandardMaterial color="#8b99a4" metalness={0.7} roughness={0.3} />
-        </mesh>
-        {/* Asymmetric sidewall mark makes low-speed wheel rotation readable. */}
-        <Part position={[0, radius * 0.86, 0]} size={[0.047, 0.018, 0.008]} color="#a8aaa2" />
-      </group>
     </group>
   );
 }

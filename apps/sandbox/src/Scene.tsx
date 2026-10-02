@@ -5,7 +5,9 @@ import type { TireDefinition } from "@skidpad/core";
 import type { SurfaceId } from "@skidpad/presets";
 import { emptySnapshot, type Sim, type SimSnapshot } from "./sim.js";
 import { OBSTACLES, obstacleQuaternion, trackRibbon } from "./track.js";
-import { Hatchback, AlloyWheel } from "./Hatchback.js";
+import { VehicleModel } from "./models/VehicleModel.js";
+import { VehicleWheel } from "./models/Wheel.js";
+import { WHEEL_STYLES } from "./models/types.js";
 import { ProvingGround } from "./ProvingGround.js";
 
 export type CameraView = "chase" | "offsetChase" | "frontQuarter";
@@ -40,7 +42,8 @@ function Car({
   const snap = useRef<SimSnapshot>(emptySnapshot());
   const wheelGroups = useRef<(Group | null)[]>([null, null, null, null]);
   const spinGroups = useRef<(Group | null)[]>([null, null, null, null]);
-  const detailed = !primitives && sim.presetId === "hatchbackFwd";
+  const detailed = !primitives;
+  const wheels = WHEEL_STYLES[sim.presetId];
   const light = useRef<DirectionalLight>(null);
   const previousView = useRef(cameraView);
   const def = sim.definition;
@@ -88,13 +91,18 @@ function Car({
     const cam = state.camera;
     const dt = delta || 1 / 60;
     const { back, side, ahead } = CAMERA_OFFSETS[cameraView];
-    const tx = s.x - Math.cos(s.yaw) * back + Math.sin(s.yaw) * side;
-    const tz = -s.y + Math.sin(s.yaw) * back + Math.cos(s.yaw) * side;
+    // Inspection framing fits the kart and pickup; driving views keep their offsets.
+    const framing =
+      cameraView === "frontQuarter"
+        ? Math.max(0.5, Math.min(1.3, def.chassis.wheelbase / 2.55))
+        : 1;
+    const tx = s.x + (-Math.cos(s.yaw) * back + Math.sin(s.yaw) * side) * framing;
+    const tz = -s.y + (Math.sin(s.yaw) * back + Math.cos(s.yaw) * side) * framing;
     const k = 1 - Math.exp(-10 * dt);
     // Switching sides snaps the camera so it does not fly through the cabin.
     const blend = previousView.current === cameraView ? k : 1;
     previousView.current = cameraView;
-    cam.position.lerp({ x: tx, y: s.z + 2.6, z: tz } as never, blend);
+    cam.position.lerp({ x: tx, y: s.z + 2.6 * framing, z: tz } as never, blend);
     cam.lookAt(s.x + Math.cos(s.yaw) * ahead, s.z, -s.y - Math.sin(s.yaw) * ahead);
     // The shadow-casting light follows the car so its shadow frustum never
     // runs out; a fixed light would pop shadows a few metres from the origin.
@@ -107,7 +115,7 @@ function Car({
     if (debug) {
       debug.push(performance.now(), s.x, s.y, cam.position.x, cam.position.z);
     }
-  });
+  }, -1); // Publish the snapshot before animated model details consume it.
 
   return (
     <>
@@ -125,15 +133,22 @@ function Car({
         shadow-camera-far={150}
         shadow-bias={-0.0005}
       />
-      <group ref={group}>
+      <group ref={group} name="vehicle">
         {detailed ? (
           <group position={[0, -h, 0]}>
-            <Hatchback
-              frontAxle={a}
-              rearAxle={-b}
-              halfWidth={Math.max(halfF, halfR) + 0.1}
-              frontRadius={rF}
-              rearRadius={rR}
+            <VehicleModel
+              preset={sim.presetId}
+              dimensions={{
+                frontAxle: a,
+                rearAxle: -b,
+                frontHalfTrack: halfF,
+                rearHalfTrack: halfR,
+                halfWidth:
+                  Math.max(halfF + wheels.widths[0] / 2, halfR + wheels.widths[1] / 2) - 0.01,
+                frontRadius: rF,
+                rearRadius: rR,
+              }}
+              snapshot={snap}
             />
           </group>
         ) : (
@@ -152,6 +167,7 @@ function Car({
         {hubs.map((hub, i) => (
           <group
             key={i}
+            name={`wheel-hub-${i}`}
             ref={(el) => {
               wheelGroups.current[i] = el;
             }}
@@ -163,7 +179,12 @@ function Car({
               }}
             >
               {detailed ? (
-                <AlloyWheel radius={hub[3]} side={i % 2 === 0 ? -1 : 1} />
+                <VehicleWheel
+                  radius={hub[3]}
+                  width={wheels.widths[i < 2 ? 0 : 1]}
+                  style={wheels.style}
+                  side={i % 2 === 0 ? -1 : 1}
+                />
               ) : (
                 <>
                   <mesh rotation={[Math.PI / 2, 0, 0]} castShadow>

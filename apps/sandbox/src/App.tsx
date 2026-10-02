@@ -150,6 +150,7 @@ export function App() {
         </div>
         <div className="controls">
           <select
+            aria-label="Vehicle preset"
             value={presetId}
             onChange={(e) => {
               const id = e.target.value as PresetId;
@@ -259,8 +260,8 @@ export function App() {
         Q below first for reverse) · C clutch · R reset · gamepad supported · the ramp is 70 m ahead
         under the Rapier host · sound follows the engine plus tire squeal past the grip peak ·
         Tuning edits the running car live (reset, copy, download or load its JSON) · the Surface
-        menu changes the grip under the wheels · detailed body available for hatchbackFwd; other
-        presets use primitive bodies · roadside props are visual markers
+        menu changes the grip under the wheels · every preset has its own detailed model; switch
+        Visuals to primitives for debugging · roadside props are visual markers
       </div>
       <Graph recorder={sim.recorder} />
     </>
