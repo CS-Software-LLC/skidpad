@@ -1,16 +1,20 @@
 import { useMemo, useRef } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
-import {
-  BufferAttribute,
-  BufferGeometry,
-  type DirectionalLight,
-  type Group,
-  type Mesh,
-} from "three";
+import { BufferAttribute, BufferGeometry, type DirectionalLight, type Group } from "three";
 import type { TireDefinition } from "@skidpad/core";
 import type { SurfaceId } from "@skidpad/presets";
 import { emptySnapshot, type Sim, type SimSnapshot } from "./sim.js";
 import { OBSTACLES, obstacleQuaternion, trackRibbon } from "./track.js";
+import { Hatchback, AlloyWheel } from "./Hatchback.js";
+import { ProvingGround } from "./ProvingGround.js";
+
+export type CameraView = "chase" | "offsetChase" | "frontQuarter";
+
+const CAMERA_OFFSETS: Record<CameraView, { back: number; side: number; ahead: number }> = {
+  chase: { back: 8, side: 0, ahead: 3 },
+  offsetChase: { back: 6.8, side: 1.5, ahead: 2 },
+  frontQuarter: { back: -5.5, side: 3.8, ahead: 0 },
+};
 
 function tireRadius(tire: TireDefinition): number {
   const r = tire.model === "feel" ? tire.radius : tire.unloadedRadius;
@@ -23,12 +27,22 @@ function tireRadius(tire: TireDefinition): number {
  * The car's meshes are laid out in core body coordinates mapped the same
  * way, and the group takes the body quaternion converted in `sim.ts`.
  */
-function Car({ sim }: { sim: Sim }) {
+function Car({
+  sim,
+  primitives,
+  cameraView,
+}: {
+  sim: Sim;
+  primitives: boolean;
+  cameraView: CameraView;
+}) {
   const group = useRef<Group>(null);
   const snap = useRef<SimSnapshot>(emptySnapshot());
   const wheelGroups = useRef<(Group | null)[]>([null, null, null, null]);
-  const spinMeshes = useRef<(Mesh | null)[]>([null, null, null, null]);
+  const spinGroups = useRef<(Group | null)[]>([null, null, null, null]);
+  const detailed = !primitives && sim.presetId === "hatchbackFwd";
   const light = useRef<DirectionalLight>(null);
+  const previousView = useRef(cameraView);
   const def = sim.definition;
   const a = def.chassis.cgToFrontAxle;
   const b = def.chassis.wheelbase - a;
@@ -65,22 +79,22 @@ function Car({ sim }: { sim: Sim }) {
         wg.position.set(hub[0], hub[2] + s.wheelTravel[i]!, -hub[1]);
         wg.rotation.y = s.wheelSteer[i]!;
       }
-      const m = spinMeshes.current[i];
-      // The cylinder's own axis is its local Y. With three.js' XYZ Euler
-      // order the Y rotation is applied before the fixed X tilt, so spinning
-      // about Y turns the wheel about its axle.
-      if (m) m.rotation.y = -s.wheelSpin[i]!;
+      const wheel = spinGroups.current[i];
+      // Rotate the tire, rim and spokes together about the world-mapped axle.
+      if (wheel) wheel.rotation.z = -s.wheelSpin[i]!;
     }
     // Chase camera: frame-rate independent follow with a gain high enough
     // that the car stays framed at speed, looking a little ahead of it.
     const cam = state.camera;
     const dt = delta || 1 / 60;
-    const back = 8;
-    const tx = s.x - Math.cos(s.yaw) * back;
-    const tz = -s.y + Math.sin(s.yaw) * back;
+    const { back, side, ahead } = CAMERA_OFFSETS[cameraView];
+    const tx = s.x - Math.cos(s.yaw) * back + Math.sin(s.yaw) * side;
+    const tz = -s.y + Math.sin(s.yaw) * back + Math.cos(s.yaw) * side;
     const k = 1 - Math.exp(-10 * dt);
-    cam.position.lerp({ x: tx, y: s.z + 2.6, z: tz } as never, k);
-    const ahead = 3;
+    // Switching sides snaps the camera so it does not fly through the cabin.
+    const blend = previousView.current === cameraView ? k : 1;
+    previousView.current = cameraView;
+    cam.position.lerp({ x: tx, y: s.z + 2.6, z: tz } as never, blend);
     cam.lookAt(s.x + Math.cos(s.yaw) * ahead, s.z, -s.y - Math.sin(s.yaw) * ahead);
     // The shadow-casting light follows the car so its shadow frustum never
     // runs out; a fixed light would pop shadows a few metres from the origin.
@@ -112,15 +126,29 @@ function Car({ sim }: { sim: Sim }) {
         shadow-bias={-0.0005}
       />
       <group ref={group}>
-        {/* Body and cabin, in core body coordinates mapped to three. */}
-        <mesh position={[(a - b) / 2 + 0.1, rF + 0.35 - h, 0]} castShadow>
-          <boxGeometry args={[length, 0.6, width]} />
-          <meshStandardMaterial color="#d84a3a" metalness={0.3} roughness={0.5} />
-        </mesh>
-        <mesh position={[(a - b) / 2 - 0.3, rF + 0.95 - h, 0]} castShadow>
-          <boxGeometry args={[length * 0.5, 0.5, width * 0.8]} />
-          <meshStandardMaterial color="#3a3f4a" roughness={0.3} />
-        </mesh>
+        {detailed ? (
+          <group position={[0, -h, 0]}>
+            <Hatchback
+              frontAxle={a}
+              rearAxle={-b}
+              halfWidth={Math.max(halfF, halfR) + 0.1}
+              frontRadius={rF}
+              rearRadius={rR}
+            />
+          </group>
+        ) : (
+          <>
+            {/* Body and cabin, in core body coordinates mapped to three. */}
+            <mesh position={[(a - b) / 2 + 0.1, rF + 0.35 - h, 0]} castShadow>
+              <boxGeometry args={[length, 0.6, width]} />
+              <meshStandardMaterial color="#d84a3a" metalness={0.3} roughness={0.5} />
+            </mesh>
+            <mesh position={[(a - b) / 2 - 0.3, rF + 0.95 - h, 0]} castShadow>
+              <boxGeometry args={[length * 0.5, 0.5, width * 0.8]} />
+              <meshStandardMaterial color="#3a3f4a" roughness={0.3} />
+            </mesh>
+          </>
+        )}
         {hubs.map((hub, i) => (
           <group
             key={i}
@@ -129,26 +157,26 @@ function Car({ sim }: { sim: Sim }) {
             }}
             position={[hub[0], hub[2], -hub[1]]}
           >
-            <mesh
+            <group
               ref={(el) => {
-                spinMeshes.current[i] = el;
+                spinGroups.current[i] = el;
               }}
-              rotation={[Math.PI / 2, 0, 0]}
-              castShadow
             >
-              <cylinderGeometry args={[hub[3], hub[3], 0.22, 24]} />
-              <meshStandardMaterial color="#1c1f26" roughness={0.9} />
-            </mesh>
-            {/* A spoke so the spin is visible. */}
-            <mesh
-              ref={(el) => {
-                if (el) el.rotation.set(Math.PI / 2, 0, 0);
-              }}
-              position={[0, 0, i % 2 === 0 ? -0.12 : 0.12]}
-            >
-              <boxGeometry args={[hub[3] * 1.4, 0.02, 0.06]} />
-              <meshStandardMaterial color="#9aa4b5" />
-            </mesh>
+              {detailed ? (
+                <AlloyWheel radius={hub[3]} side={i % 2 === 0 ? -1 : 1} />
+              ) : (
+                <>
+                  <mesh rotation={[Math.PI / 2, 0, 0]} castShadow>
+                    <cylinderGeometry args={[hub[3], hub[3], 0.22, 24]} />
+                    <meshStandardMaterial color="#1c1f26" roughness={0.9} />
+                  </mesh>
+                  <mesh position={[0, 0, i % 2 === 0 ? -0.12 : 0.12]}>
+                    <boxGeometry args={[hub[3] * 1.4, 0.06, 0.02]} />
+                    <meshStandardMaterial color="#9aa4b5" />
+                  </mesh>
+                </>
+              )}
+            </group>
           </group>
         ))}
       </group>
@@ -262,6 +290,8 @@ export function Scene({
   hostKind,
   surface,
   revision,
+  primitives,
+  cameraView,
   canvasRef,
 }: {
   sim: Sim;
@@ -270,6 +300,8 @@ export function Scene({
   surface: SurfaceId;
   /** Bumped when the definition changed, so the car's geometry is rebuilt. */
   revision: number;
+  primitives: boolean;
+  cameraView: CameraView;
   canvasRef: React.MutableRefObject<HTMLCanvasElement | null>;
 }) {
   return (
@@ -287,7 +319,13 @@ export function Scene({
       <Ground surface={surface} />
       <Track />
       <Obstacles active={hostKind === "rapier"} />
-      <Car key={`${sim.presetId}:${revision}`} sim={sim} />
+      {!primitives && <ProvingGround active={hostKind === "rapier"} />}
+      <Car
+        key={`${sim.presetId}:${revision}`}
+        sim={sim}
+        primitives={primitives}
+        cameraView={cameraView}
+      />
     </Canvas>
   );
 }

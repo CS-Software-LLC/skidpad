@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Scene } from "./Scene.js";
+import { Scene, type CameraView } from "./Scene.js";
 import { Graph } from "./Graph.js";
 import { surfaceId, surfaces, type SurfaceId } from "@skidpad/presets";
 import { Sim, presetIds, hostKinds, type HostKind, type PresetId } from "./sim.js";
@@ -53,6 +53,8 @@ export function App() {
   const [error, setError] = useState<string | null>(null);
   const [presetId, setPresetId] = useState<PresetId>("hatchbackFwd");
   const [hostKind, setHostKind] = useState<HostKind>("builtin");
+  const [primitives, setPrimitives] = useState(false);
+  const [cameraView, setCameraView] = useState<CameraView>("chase");
   const [recording, setRecording] = useState(false);
   const [sound, setSound] = useState(false);
   const [volume, setVolume] = useState(() => readStoredVolume());
@@ -136,6 +138,8 @@ export function App() {
         hostKind={hostKind}
         surface={surface}
         revision={revision}
+        primitives={primitives}
+        cameraView={cameraView}
         canvasRef={canvasRef}
       />
       <Hud sim={sim} />
@@ -192,6 +196,18 @@ export function App() {
               </option>
             ))}
           </select>
+          <button aria-pressed={primitives} onClick={() => setPrimitives((value) => !value)}>
+            {primitives ? "Visuals: primitives" : "Visuals: detailed"}
+          </button>
+          <select
+            aria-label="Camera view"
+            value={cameraView}
+            onChange={(e) => setCameraView(e.target.value as CameraView)}
+          >
+            <option value="chase">Camera: straight behind</option>
+            <option value="offsetChase">Camera: offset chase</option>
+            <option value="frontQuarter">Camera: front quarter</option>
+          </select>
           <button onClick={() => sim.reset()}>Reset (R)</button>
           <button
             onClick={() => {
@@ -243,7 +259,8 @@ export function App() {
         Q below first for reverse) · C clutch · R reset · gamepad supported · the ramp is 70 m ahead
         under the Rapier host · sound follows the engine plus tire squeal past the grip peak ·
         Tuning edits the running car live (reset, copy, download or load its JSON) · the Surface
-        menu changes the grip under the wheels
+        menu changes the grip under the wheels · detailed body available for hatchbackFwd; other
+        presets use primitive bodies · roadside props are visual markers
       </div>
       <Graph recorder={sim.recorder} />
     </>
