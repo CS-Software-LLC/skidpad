@@ -1,5 +1,12 @@
 # @skidpad/worker
 
+## 0.6.0
+
+### Patch Changes
+
+- Updated dependencies [9e42f48]
+  - @skidpad/core@0.6.0
+
 ## 0.5.0
 
 ### Minor Changes

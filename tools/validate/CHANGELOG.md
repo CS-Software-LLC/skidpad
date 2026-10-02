@@ -1,5 +1,16 @@
 # @skidpad/validate
 
+## 0.6.0
+
+### Patch Changes
+
+- 9e42f48: physics: an automatic no longer flares the engine after an upshift. The throttle came straight back to full once the shift time ended, while the re-engaging clutch could barely carry any torque, so the engine revved back up toward the shift point before the clutch dragged it down to the new gear's speed (heard in the sandbox as a flat-foot shift). Until the engine has come down to the gearbox input speed, the engine now makes at most 70 % of what the clutch can carry. Accelerating from 0 to 100 km/h takes slightly longer on the combustion presets (sports 6.58 → 6.62 s, hatchback 9.52 → 9.82 s, pickup 7.26 → 7.44 s, open-wheeler 3.16 → 3.19 s), because the flywheel no longer dumps a rev flare into the wheels.
+- 1fe432f: physics: the RWD sports car preset is retuned to be drivable. Peak engine torque stays at 405 N·m (about 250 kW at 7000 rpm); the rear limited-slip differential is milder (preload 20 N·m, 1.6:1 drive, 1.2:1 coast); the rear tires gain grip (1.2) and cornering stiffness (26), taking the understeer gradient from 0.27 to 0.72 deg/g. ABS, traction control and stability control are now on in the preset. The data sheet's weight split and power figures now match the numbers. The validate tool runs the locked-wheel stop with ABS off whatever the preset ships with.
+- Updated dependencies [9e42f48]
+- Updated dependencies [1fe432f]
+  - @skidpad/core@0.6.0
+  - @skidpad/presets@0.6.0
+
 ## 0.5.0
 
 ### Minor Changes
