@@ -31,7 +31,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@skidpad/core": "workspace:*"
+    "@skidpad/core": "workspace:^"
   },
   "devDependencies": {
     "@skidpad/presets": "workspace:*",
