@@ -74,6 +74,17 @@ export interface LogitechSinkOptions extends FfbScalerOptions {
   log?: (line: string) => void;
   /** Lowest interval between output reports, s (the device's rate). */
   minInterval?: number;
+  /**
+   * Largest fraction of the device's peak torque ever sent, 0 … 1 (default
+   * 0.4: about 4.4 N·m on a G PRO). Every level is multiplied by it before
+   * it leaves the sink, whatever the gain.
+   */
+  maxOutput?: number;
+  /**
+   * Zero the force when no update has arrived for this long, s (default
+   * 0.25), so a paused host or a hidden tab cannot leave a force playing.
+   */
+  watchdog?: number;
 }
 
 // --- HID++ 2.0 constants -----------------------------------------------------
@@ -147,6 +158,10 @@ const CLASSIC_AUTOCENTER_OFF = 0xf5;
 /** Stop slot 1. */
 const CLASSIC_SLOT1_STOP = 0x13;
 
+function clamp01(x: number): number {
+  return Number.isFinite(x) ? Math.max(0, Math.min(1, x)) : 0;
+}
+
 function hex(bytes: ArrayLike<number>): string {
   return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join(" ");
 }
@@ -195,7 +210,8 @@ function conditionParams(slot: number, type: number, coefficient: number): numbe
  */
 export class LogitechWebHidSink implements FfbSink {
   readonly name: string;
-  readonly maxTorque: number;
+  /** Torque at the device's full output, N·m, before `maxOutput`. */
+  readonly peakTorque: number;
   protocol: LogitechProtocol;
   readonly scaler: FfbScaler;
   private device: HidDeviceLike | undefined;
@@ -205,6 +221,11 @@ export class LogitechWebHidSink implements FfbSink {
   private frictionSlot: number | undefined;
   private pending: HidppWaiter[] = [];
   private lastSent = -Infinity;
+  private lastUpdate = -Infinity;
+  private lastLevel = 0;
+  private maxOutputValue: number;
+  private watchdogTimer: ReturnType<typeof setInterval> | undefined;
+  private readonly watchdogSeconds: number;
   private readonly minInterval: number;
   private readonly rotationDeg: number;
   private readonly updateMode: "modify" | "recreate";
@@ -247,8 +268,10 @@ export class LogitechWebHidSink implements FfbSink {
     this.protocol = options.protocol ?? "hidpp";
     this.name = `Logitech (${this.protocol})`;
     // A direct-drive G PRO peaks at about 11 N·m; belt wheels 2 to 3.
-    this.maxTorque = options.maxTorque ?? (this.protocol === "hidpp" ? 11 : 2.5);
+    this.peakTorque = options.maxTorque ?? (this.protocol === "hidpp" ? 11 : 2.5);
+    this.maxOutputValue = clamp01(options.maxOutput ?? 0.4);
     this.scaler = new FfbScaler({ ...options, maxTorque: this.maxTorque });
+    this.watchdogSeconds = options.watchdog ?? 0.25;
     this.rotationDeg = options.rotationDeg ?? 900;
     this.updateMode = options.updateMode ?? "modify";
     this.minInterval = options.minInterval ?? 1 / 120;
@@ -257,6 +280,21 @@ export class LogitechWebHidSink implements FfbSink {
 
   get connected(): boolean {
     return this.device?.opened ?? false;
+  }
+
+  /** Largest fraction of the peak torque the sink sends, 0 … 1. */
+  get maxOutput(): number {
+    return this.maxOutputValue;
+  }
+
+  set maxOutput(value: number) {
+    this.maxOutputValue = clamp01(value);
+    this.scaler.maxTorque = this.maxTorque;
+  }
+
+  /** Torque the device reaches at full scaler output, N·m: peak × `maxOutput`. */
+  get maxTorque(): number {
+    return this.peakTorque * this.maxOutputValue;
   }
 
   /** The diagnostics log, newest last (at most 400 lines kept). */
@@ -292,6 +330,49 @@ export class LogitechWebHidSink implements FfbSink {
     );
     if (this.protocol === "hidpp") await this.setupHidpp();
     else await this.setupClassic();
+    this.armSafety();
+  }
+
+  /**
+   * Zero the force when the page is hidden or closed (a hidden tab stops
+   * stepping, which would leave the last force playing) and when updates
+   * stop arriving.
+   */
+  private armSafety(): void {
+    const doc = (globalThis as { document?: EventTarget }).document;
+    doc?.addEventListener("visibilitychange", this.onHidden);
+    globalThis.addEventListener?.("pagehide", this.onHidden);
+    this.watchdogTimer = setInterval(() => {
+      const idle = performance.now() / 1000 - this.lastUpdate;
+      if (this.lastLevel !== 0 && idle > this.watchdogSeconds) {
+        this.record(`   watchdog: no update for ${idle.toFixed(2)} s, force zeroed`);
+        void this.zero();
+      }
+    }, 100);
+  }
+
+  private disarmSafety(): void {
+    const doc = (globalThis as { document?: EventTarget }).document;
+    doc?.removeEventListener("visibilitychange", this.onHidden);
+    globalThis.removeEventListener?.("pagehide", this.onHidden);
+    if (this.watchdogTimer !== undefined) clearInterval(this.watchdogTimer);
+    this.watchdogTimer = undefined;
+  }
+
+  private readonly onHidden = (): void => {
+    const doc = (globalThis as { document?: { visibilityState?: string } }).document;
+    if (doc?.visibilityState === "visible") return;
+    void this.zero();
+  };
+
+  /** Send zero force now. */
+  private async zero(): Promise<void> {
+    this.lastLevel = 0;
+    try {
+      await this.sendLevel(0);
+    } catch (e) {
+      this.record(`   send failed: ${String(e)}`);
+    }
   }
 
   // --- HID++ ------------------------------------------------------------------
@@ -418,10 +499,16 @@ export class LogitechWebHidSink implements FfbSink {
 
   async update(frame: FfbFrame, dt: number): Promise<void> {
     if (!this.device?.opened) return;
-    const level = this.scaler.scale(frame.torque, dt);
+    const wasTripped = this.scaler.tripped;
+    const level = this.scaler.scale(frame.torque, dt, frame.wheelAngle);
+    if (!wasTripped && this.scaler.tripped) {
+      this.record(`   runaway guard: ${this.scaler.tripped}; force off until re-armed`);
+    }
     const now = performance.now() / 1000;
+    this.lastUpdate = now;
     if (now - this.lastSent < this.minInterval) return;
     this.lastSent = now;
+    this.lastLevel = level;
     // The host calls this without awaiting it, so a failed report would
     // otherwise vanish; log it instead.
     try {
@@ -434,10 +521,12 @@ export class LogitechWebHidSink implements FfbSink {
     void frame.friction;
   }
 
+  /** Send a level in −1 … 1 of the allowed output (positive turns right). */
   private async sendLevel(level: number): Promise<void> {
+    const out = Math.max(-1, Math.min(1, level)) * this.maxOutputValue;
     if (this.protocol === "classic") {
       // 0x80 is zero force; the sign convention is [VERIFY].
-      const x = Math.round(0x80 - level * 0x7f) & 0xff;
+      const x = Math.round(0x80 - out * 0x7f) & 0xff;
       await this.send(
         CLASSIC_REPORT_ID,
         new Uint8Array([CLASSIC_SLOT1_PLAY, CLASSIC_FORCE_CONSTANT, x, 0x80, 0, 0, 0]),
@@ -445,28 +534,40 @@ export class LogitechWebHidSink implements FfbSink {
       return;
     }
     if (this.featureIndex === 0) return;
+    // A positive HID++ constant force turns a G PRO left, so the sign is
+    // flipped here (found on hardware; the G923 and G920 are [VERIFY]).
+    const device = -out;
     if (this.updateMode === "modify" && this.slot !== undefined) {
       // Re-downloading into the effect's own slot changes it in place.
-      await this.hidpp(this.featureIndex, FF_DOWNLOAD_EFFECT, constantParams(this.slot, level));
+      await this.hidpp(this.featureIndex, FF_DOWNLOAD_EFFECT, constantParams(this.slot, device));
     } else {
       if (this.slot !== undefined) {
         await this.hidpp(this.featureIndex, FF_DESTROY_EFFECT, [this.slot]);
       }
-      this.slot = await this.download(constantParams(0, level));
+      this.slot = await this.download(constantParams(0, device));
     }
   }
 
-  /** Send a short pulse for the setup panel's "test" button. */
-  async pulse(level = 0.3, ms = 300): Promise<void> {
-    await this.update({ torque: level * this.maxTorque, damping: 0, friction: 0 }, 1);
+  /**
+   * Send a short, gentle pulse for the setup panel's "test" button. A
+   * positive level should turn the wheel right; if it turns left, set the
+   * scaler's `invert`.
+   */
+  async pulse(level = 0.25, ms = 250): Promise<void> {
+    if (!this.device?.opened) return;
+    const sign = this.scaler.invert ? -1 : 1;
+    this.lastUpdate = performance.now() / 1000;
+    this.lastLevel = level;
+    await this.sendLevel(sign * level);
     await new Promise((r) => setTimeout(r, ms));
     this.lastSent = -Infinity;
-    await this.update({ torque: 0, damping: 0, friction: 0 }, 1);
+    await this.zero();
   }
 
   async stop(): Promise<void> {
     if (!this.device?.opened) return;
     this.lastSent = -Infinity;
+    this.lastLevel = 0;
     if (this.protocol === "classic") {
       await this.send(CLASSIC_REPORT_ID, new Uint8Array([CLASSIC_SLOT1_STOP, 0, 0, 0, 0, 0, 0]));
     } else if (this.featureIndex !== 0) {
@@ -479,6 +580,7 @@ export class LogitechWebHidSink implements FfbSink {
   }
 
   async disconnect(): Promise<void> {
+    this.disarmSafety();
     await this.stop();
     if (this.device) {
       this.device.removeEventListener("inputreport", this.onReport);
