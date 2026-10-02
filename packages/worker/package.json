@@ -1,6 +1,6 @@
 {
   "name": "@skidpad/worker",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Worker mode for Skidpad: run a world in a Web Worker (or a Node worker thread) and drive it from the main thread.",
   "license": "MIT OR Apache-2.0",
   "repository": {
