@@ -10,7 +10,7 @@ Firefox, WebKit, Node, on x86 and ARM.
   arithmetic is specified by IEEE-754 and is correctly rounded everywhere.
 - Every transcendental function (`sin`, `atan2`, `exp`, `pow`, …) comes from a
   vendored software implementation, never from the platform
-  ([ADR-0006](https://github.com/csummers88/skidpad/blob/main/docs/adr/0006-f64-and-deterministic-math.md)).
+  ([ADR-0006](https://github.com/CS-Software-LLC/skidpad/blob/main/docs/adr/0006-f64-and-deterministic-math.md)).
 - No relaxed SIMD, no fused multiply-add, no hash-map iteration, no time or
   randomness inside the core. A clippy configuration enforces the math rules
   mechanically.

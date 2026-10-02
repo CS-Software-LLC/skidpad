@@ -4,7 +4,7 @@
 Rapier owns collisions, joints and everything else in the scene; Skidpad
 computes what the tires and suspension do to the chassis and hands it back
 once per step. The split is the chassis proxy of
-[ADR-0002](https://github.com/csummers88/skidpad/blob/main/docs/adr/0002-chassis-proxy.md).
+[ADR-0002](https://github.com/CS-Software-LLC/skidpad/blob/main/docs/adr/0002-chassis-proxy.md).
 
 ## The loop
 

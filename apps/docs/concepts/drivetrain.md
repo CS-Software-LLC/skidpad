@@ -2,7 +2,7 @@
 
 The drivetrain is what turns the driven wheels: a power unit, a clutch, a
 gearbox with a final drive, and differentials
-([ADR-0011](https://github.com/csummers88/skidpad/blob/main/docs/adr/0011-drivetrain-graph.md)).
+([ADR-0011](https://github.com/CS-Software-LLC/skidpad/blob/main/docs/adr/0011-drivetrain-graph.md)).
 Skidpad does not simulate it as a chain of separate bodies passing torque
 down the line. It is solved as one small rotational system each substep,
 together with the wheels, so a locked clutch, a spool and a stiff

@@ -12,7 +12,7 @@ Two things follow:
 2. At very low speed the time constant goes to infinity, which is right: the
    core integrates the **contact-patch deflection** itself, driven by the
    slip velocity and decaying at the rolling speed
-   ([ADR-0010](https://github.com/csummers88/skidpad/blob/main/docs/adr/0010-contact-patch-deflection-at-standstill.md)).
+   ([ADR-0010](https://github.com/CS-Software-LLC/skidpad/blob/main/docs/adr/0010-contact-patch-deflection-at-standstill.md)).
    At speed that is the lag above; at standstill it is a spring between the
    contact patch and the road, so a parked car holds a static deflection on
    a slope instead of creeping. A damping term that fades out by

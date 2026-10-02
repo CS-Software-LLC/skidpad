@@ -11,7 +11,7 @@ a chassis that does not respond, which is the classic source of low-speed
 jitter. The core keeps a **proxy** of the chassis velocity state and
 integrates it every substep; at the end of the host step it hands the host one
 net impulse
-([ADR-0002](https://github.com/csummers88/skidpad/blob/main/docs/adr/0002-chassis-proxy.md)).
+([ADR-0002](https://github.com/CS-Software-LLC/skidpad/blob/main/docs/adr/0002-chassis-proxy.md)).
 
 Wheel spin is integrated **implicitly** with respect to the tire's
 longitudinal stiffness, so the stiff wheel–tire mode is unconditionally

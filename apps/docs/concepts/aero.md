@@ -3,7 +3,7 @@
 The aero model is three forces from the same dynamic pressure: a drag force
 against the velocity and a lift force at each axle, with the drag on a line
 that may sit above the centre of mass
-([ADR-0015](https://github.com/csummers88/skidpad/blob/main/docs/adr/0015-aero-lift-and-drag-height.md)).
+([ADR-0015](https://github.com/CS-Software-LLC/skidpad/blob/main/docs/adr/0015-aero-lift-and-drag-height.md)).
 Every coefficient in `aero` is referenced to the one `frontalArea`, as wind
 tunnels quote them, and `q = ½ · airDensity · frontalArea` is the common
 factor.

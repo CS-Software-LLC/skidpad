@@ -1,7 +1,7 @@
 # Replays and ghosts
 
 `@skidpad/replay` records a run two ways
-([ADR-0021](https://github.com/csummers88/skidpad/blob/main/docs/adr/0021-replays-and-ghosts.md)):
+([ADR-0021](https://github.com/CS-Software-LLC/skidpad/blob/main/docs/adr/0021-replays-and-ghosts.md)):
 
 - a **replay** re-simulates: it stores the inputs every car ran with and a
   full snapshot every few seconds, and plays back bit for bit on the same

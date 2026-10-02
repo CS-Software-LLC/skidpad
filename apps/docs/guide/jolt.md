@@ -3,7 +3,7 @@
 `@skidpad/jolt` is the [Jolt Physics](https://github.com/jrouwe/JoltPhysics.js)
 counterpart of the [Rapier adapter](/guide/rapier): a Jolt rigid body is the
 car, Jolt owns the scene, and Skidpad computes the tires, suspension and
-drivetrain ([ADR-0023](https://github.com/csummers88/skidpad/blob/main/docs/adr/0023-jolt-host-adapter.md)).
+drivetrain ([ADR-0023](https://github.com/CS-Software-LLC/skidpad/blob/main/docs/adr/0023-jolt-host-adapter.md)).
 
 ```ts
 import initJolt from "jolt-physics";

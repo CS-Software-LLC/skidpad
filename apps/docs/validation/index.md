@@ -27,7 +27,7 @@ kart is the exception: its solid rear axle ([drivetrain](/concepts/drivetrain))
 forces both rear wheels to one speed, so in a corner the inner wheel drives
 and the outer brakes, a yaw moment against the turn that doubles the steer
 angle needed at low speed. The push eases as load transfer and steering jacking
-([ADR-0012](https://github.com/csummers88/skidpad/blob/main/docs/adr/0012-steering-geometry-and-rack-force.md))
+([ADR-0012](https://github.com/CS-Software-LLC/skidpad/blob/main/docs/adr/0012-steering-geometry-and-rack-force.md))
 unload the inner rear wheel, so a linear fit over lateral acceleration reads
 it as a negative gradient: the number is a poor summary for a solid axle, and
 the per-point steer angles in the golden file tell the story (twice the
@@ -55,7 +55,7 @@ a 0.2 s moving average (below 0.01 % for every preset; the slow drift with
 speed from aero drag and the friction curve is not counted). After the stop
 the brake stays held for two seconds: the sliding tires release the
 contact-patch deflection they stored
-([ADR-0010](https://github.com/csummers88/skidpad/blob/main/docs/adr/0010-contact-patch-deflection-at-standstill.md)),
+([ADR-0010](https://github.com/CS-Software-LLC/skidpad/blob/main/docs/adr/0010-contact-patch-deflection-at-standstill.md)),
 a spring-back of a few centimetres at under 0.3 m/s, and the car must then be
 at rest below 0.1 mm/s.
 
@@ -143,7 +143,7 @@ too little because it had no anti-dive geometry. With `staticToeDeg`,
 engine-braking map, the step and sine responses agree too and the braking
 pitch gap halves. The remaining differences are geometry that changes with
 travel. The
-[report](https://github.com/csummers88/skidpad/blob/main/docs/validation/chrono-bmw-e90.md)
+[report](https://github.com/CS-Software-LLC/skidpad/blob/main/docs/validation/chrono-bmw-e90.md)
 has the full results, and `tools/chrono-compare` reruns them.
 
 ## Coming with later milestones

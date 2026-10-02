@@ -6,7 +6,7 @@ steps in one call, and the core can drive cars along a path by itself.
 
 ## Level of detail
 
-Every vehicle has a level ([ADR-0019](https://github.com/csummers88/skidpad/blob/main/docs/adr/0019-level-of-detail.md)):
+Every vehicle has a level ([ADR-0019](https://github.com/CS-Software-LLC/skidpad/blob/main/docs/adr/0019-level-of-detail.md)):
 
 | Level         | Model                                                | Cost per car-step (see Benchmarks)     |
 | ------------- | ---------------------------------------------------- | -------------------------------------- |
@@ -61,7 +61,7 @@ Path-following drivers update their own inputs on every one of those steps.
 ## The path-following driver
 
 The core can drive a car along a polyline by itself
-([ADR-0020](https://github.com/csummers88/skidpad/blob/main/docs/adr/0020-path-following-driver.md)).
+([ADR-0020](https://github.com/CS-Software-LLC/skidpad/blob/main/docs/adr/0020-path-following-driver.md)).
 It runs inside the step, so a field of driven cars is deterministic and
 costs no calls from JavaScript:
 

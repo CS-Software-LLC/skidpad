@@ -34,7 +34,7 @@ what the [tire model](/concepts/slip) sees.
 There is no unsprung mass: the wheel is massless and rigid. The only vertical
 modes are the body's own, at a few hertz, so the model stays stable at every
 substep rate the core supports. Wheel hop and kerb strikes arrive with an
-unsprung-mass option later ([ADR-0009](https://github.com/csummers88/skidpad/blob/main/docs/adr/0009-raycast-suspension-and-host-contract.md)).
+unsprung-mass option later ([ADR-0009](https://github.com/CS-Software-LLC/skidpad/blob/main/docs/adr/0009-raycast-suspension-and-host-contract.md)).
 
 ## What the body does
 
@@ -89,7 +89,7 @@ Milliken & Milliken (_Race Car Vehicle Dynamics_, ch. 17 and 18) describe
 that part by the axle's roll-centre height: of the axle's lateral transfer
 `F_y · h_cg / t`, the share `h_rc / h_cg` is **geometric**, `F_y · h_rc / t`,
 and only the rest rolls the body on its springs
-([ADR-0016](https://github.com/csummers88/skidpad/blob/main/docs/adr/0016-solid-axles-and-roll-centres.md)).
+([ADR-0016](https://github.com/CS-Software-LLC/skidpad/blob/main/docs/adr/0016-solid-axles-and-roll-centres.md)).
 
 `suspension.rollCenterHeight` is that height above the ground at ride
 height, per axle. Each substep the model takes the axle's lateral tire
@@ -120,7 +120,7 @@ and squats or lifts under power. Inclined links carry part of it straight
 to the tires instead (Milliken & Milliken ch. 17; Gillespie, _Fundamentals
 of Vehicle Dynamics_, ch. 9). Each axle has two fractions on its
 `suspension`
-([ADR-0018](https://github.com/csummers88/skidpad/blob/main/docs/adr/0018-anti-dive-and-anti-squat.md)):
+([ADR-0018](https://github.com/CS-Software-LLC/skidpad/blob/main/docs/adr/0018-anti-dive-and-anti-squat.md)):
 
 - `antiBrake` for that axle's braking force: anti-dive at the front,
   anti-lift at the rear.

@@ -64,6 +64,6 @@ writeFileSync(
 <style>body{font:16px/1.5 system-ui;max-width:720px;margin:4rem auto;padding:0 1rem}</style>
 <h1>Skidpad</h1><p>Deterministic, sim-grade vehicle physics for the web.</p>
 <ul><li><a href="sandbox/">Sandbox</a></li><li><a href="docs/">Documentation</a></li><li><a href="bench/">Benchmarks</a></li><li><a href="validation/results.json">Validation results (JSON)</a></li></ul>
-<p>Built from commit <code>${sha}</code>. ${existsSync(join(root, "CHANGELOG.md")) ? '<a href="https://github.com/csummers88/skidpad/blob/main/CHANGELOG.md">Changelog</a>' : ""}</p>`,
+<p>Built from commit <code>${sha}</code>. ${existsSync(join(root, "CHANGELOG.md")) ? '<a href="https://github.com/CS-Software-LLC/skidpad/blob/main/CHANGELOG.md">Changelog</a>' : ""}</p>`,
 );
 console.log(`[assemble-site] site assembled in ${site}`);

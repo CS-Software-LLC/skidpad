@@ -4,7 +4,7 @@
 to WebAssembly, TypeScript everywhere else, built in public from the published
 literature.
 
-[![CI](https://github.com/csummers88/skidpad/actions/workflows/ci.yml/badge.svg)](https://github.com/csummers88/skidpad/actions/workflows/ci.yml)
+[![CI](https://github.com/CS-Software-LLC/skidpad/actions/workflows/ci.yml/badge.svg)](https://github.com/CS-Software-LLC/skidpad/actions/workflows/ci.yml)
 [![License: MIT OR Apache-2.0](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)](#license)
 
 > The name comes from the skidpad, the constant-radius circle used to measure a

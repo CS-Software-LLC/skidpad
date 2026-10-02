@@ -3,7 +3,7 @@
 The steer input sets the road-wheel angle through the steering ratio and
 Ackermann fraction; what comes back is the torque the tires put on the hand
 wheel, which is the signal a force-feedback wheel reproduces
-([ADR-0012](https://github.com/csummers88/skidpad/blob/main/docs/adr/0012-steering-geometry-and-rack-force.md)).
+([ADR-0012](https://github.com/CS-Software-LLC/skidpad/blob/main/docs/adr/0012-steering-geometry-and-rack-force.md)).
 
 ## Where the torque comes from
 
