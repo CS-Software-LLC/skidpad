@@ -2,15 +2,36 @@
 //! the steering limit, each against the same car with the assist off.
 
 use skidpad_core::definition::VehicleModelKind;
+use skidpad_core::drivetrain::def::PowerUnitDef;
 use skidpad_core::telemetry as t;
+use skidpad_core::tire::TireModel;
 use skidpad_core::validation::{straight_line, StraightLineConfig};
 use skidpad_core::{VehicleDefinition, VehicleInput, World};
 
-fn sports() -> VehicleDefinition {
-    serde_json::from_str(include_str!(
+/// A car that needs its assists: the sports preset with every assist off,
+/// its engine doubled to 405 N·m, a 2.5:1 locking differential and rear
+/// tires no grippier than the fronts, so full throttle spins the rear wheels
+/// and a hard step of steer under power steps the tail out.
+fn wild_rwd() -> VehicleDefinition {
+    let mut d: VehicleDefinition = serde_json::from_str(include_str!(
         "../../../packages/presets/src/vehicles/sports-rwd.json"
     ))
-    .unwrap()
+    .unwrap();
+    d.assists = Default::default();
+    if let PowerUnitDef::Combustion(c) = &mut d.drivetrain.power_unit {
+        for p in c.torque_curve.iter_mut() {
+            p[1] *= 2.025;
+        }
+    }
+    let rear = &mut d.drivetrain.rear;
+    rear.preload = 50.0;
+    rear.bias_drive = 2.5;
+    rear.bias_coast = 1.8;
+    if let TireModel::Feel(t) = &mut d.axles[1].tire {
+        t.peak_friction = 1.12;
+        t.cornering_stiffness = 21.0;
+    }
+    d
 }
 
 fn hatchback() -> VehicleDefinition {
@@ -116,7 +137,7 @@ fn abs_activity_shows_in_telemetry_while_braking_hard() {
 #[test]
 fn traction_control_holds_launch_slip_near_the_target() {
     let launch = |tc: bool| {
-        let mut d = sports();
+        let mut d = wild_rwd();
         d.assists.traction_control.enabled = tc;
         let mut w = World::new(1);
         w.add_vehicle(d).unwrap();
@@ -145,10 +166,7 @@ fn traction_control_holds_launch_slip_near_the_target() {
     };
     let (slip_off, act_off, _) = launch(false);
     let (slip_on, act_on, speed_on) = launch(true);
-    assert!(
-        slip_off > 0.3,
-        "the sports car spins up without TC: {slip_off}"
-    );
+    assert!(slip_off > 0.3, "the car spins up without TC: {slip_off}");
     assert!(slip_on < 0.3, "TC holds the slip: {slip_on}");
     assert_eq!(act_off, 0.0);
     assert!(act_on > 0.2, "TC cut the throttle: {act_on}");
@@ -158,7 +176,7 @@ fn traction_control_holds_launch_slip_near_the_target() {
 #[test]
 fn stability_control_tames_a_step_steer_at_speed() {
     let run = |esc: bool| {
-        let mut d = sports();
+        let mut d = wild_rwd();
         d.assists.stability_control.enabled = esc;
         let mut w = World::new(1);
         w.add_vehicle(d).unwrap();

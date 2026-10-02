@@ -26,7 +26,9 @@ const PRESETS: [(&str, &str); 3] = [
 fn presets() -> Vec<(String, VehicleDefinition)> {
     let mut out = Vec::new();
     for (id, json) in PRESETS {
-        let d: VehicleDefinition = serde_json::from_str(json).unwrap();
+        let mut d: VehicleDefinition = serde_json::from_str(json).unwrap();
+        // The stop is measured without ABS, whatever the preset ships with.
+        d.assists.abs.enabled = false;
         out.push((id.to_string(), d));
     }
     out.push((String::from("default"), VehicleDefinition::default()));

@@ -279,21 +279,29 @@ export function scriptedDriveHash(sp: Skidpad, def: VehicleDefinition, steps = 1
   return h;
 }
 
+/** A copy of `def` with the anti-lock assist switched on or off. */
+function withAbsEnabled(def: VehicleDefinition, enabled: boolean): VehicleDefinition {
+  const out = structuredClone(def) as VehicleDefinition & {
+    assists?: Partial<VehicleDefinition["assists"]>;
+  };
+  out.assists = {
+    ...(out.assists ?? {}),
+    abs: { ...(out.assists?.abs ?? {}), enabled },
+  } as VehicleDefinition["assists"];
+  return out;
+}
+
 export function runAll(sp: Skidpad, ids: PresetId[] = presetIds): ValidationReport {
   const vehicles: Record<string, VehicleResults> = {};
   for (const id of ids) {
     const def = preset(id);
     const understeer = sp.runScenario({ scenario: "understeerGradient", definition: def });
-    const sl = sp.runScenario({ scenario: "straightLine", definition: def });
-    // The same stop with the anti-lock assist on (presets leave `assists`
-    // at the core defaults, so the block may be absent).
-    const withAbs = structuredClone(def) as VehicleDefinition & {
-      assists?: Partial<VehicleDefinition["assists"]>;
-    };
-    withAbs.assists = {
-      ...(withAbs.assists ?? {}),
-      abs: { ...(withAbs.assists?.abs ?? {}), enabled: true },
-    } as VehicleDefinition["assists"];
+    // The locked-wheel stop and the same stop with the anti-lock assist on,
+    // whatever the preset ships with (presets leave `assists` at the core
+    // defaults, so the block may be absent).
+    const noAbs = withAbsEnabled(def, false);
+    const withAbs = withAbsEnabled(def, true);
+    const sl = sp.runScenario({ scenario: "straightLine", definition: noAbs });
     const slAbs = sp.runScenario({
       scenario: "straightLine",
       definition: withAbs,
@@ -326,7 +334,7 @@ export function runAll(sp: Skidpad, ids: PresetId[] = presetIds): ValidationRepo
       timestepSweep: runTimestepSweep(sp, def),
       stepSteer: runStepSteer(sp, def),
       laneChange: runLaneChange(sp, def),
-      surfaces: runSurfaces(sp, def, withAbs),
+      surfaces: runSurfaces(sp, noAbs, withAbs),
       scriptedDriveHash: scriptedDriveHash(sp, def),
     };
   }
