@@ -515,7 +515,11 @@ impl FourWheelVehicle {
             // the steering angle only: static toe is set at ride height.
             let jack = g.side * steer * self.def.steering.jacking_rate;
             match hit_t {
-                Some(tt) if tt <= g.ray_length => {
+                // A ray is a finite forward segment, not an infinite line.
+                // Behind-origin hits during rollover otherwise acquire an
+                // unbounded lever arm as the strut becomes parallel to the
+                // plane (ADR-0024).
+                Some(tt) if tt >= 0.0 && tt <= g.ray_length => {
                     w.in_contact = true;
                     // At the static position the hit is one bump travel plus
                     // one radius down the ray; shorter hits are compression.
