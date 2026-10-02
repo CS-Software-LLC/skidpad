@@ -2,16 +2,16 @@
   "formatVersion": 1,
   "name": "Open-wheeler",
   "dataSheet": {
-    "description": "A generic junior single-seater in the 600 kg class with wings: roughly 180 kW, 2.8 m wheelbase, rear-biased weight, slick tires, stiff pushrod suspension, and a downforce-to-weight ratio near 0.8 at 180 km/h.",
+    "description": "A generic junior single-seater in the 600 kg class with wings: roughly 180 kW, 2.8 m wheelbase, rear-biased weight, slick tires with wider rears, stiff pushrod suspension, and a downforce-to-weight ratio near 0.8 at 180 km/h, with ABS, traction and stability control on by default.",
     "sources": [
       "Class-typical figures from technical regulations and spec sheets for regional formula cars (minimum mass with driver 570–640 kg, wheelbase 2.75–2.85 m, 43/57 front weight bias, centre of mass near 0.28 m).",
-      "Tire feel parameters tuned to a ~1.6 g skidpad on slicks with ~12 % load sensitivity, in the range of published tire data for the class.",
+      "Tire feel parameters tuned to a ~1.6 g skidpad on slicks with ~12 % load sensitivity, in the range of published tire data for the class; the rear slick is the class's much wider fitment, with more grip and cornering stiffness than the front, so the rear holds under power on corner exit.",
       "Suspension rates for ~3.5 Hz ride frequencies (Milliken & Milliken ch. 16) with roll centres a few centimetres above ground front and rear (ch. 17).",
       "Aero [ILLUSTRATIVE]: lift coefficients of −1.2 front and −1.8 rear on a 1.0 m² frontal area with a drag coefficient of 0.9, giving about 4.6 kN of downforce at 180 km/h, in the range published for winged junior formula cars (Katz, Race Car Aerodynamics, ch. 7); the drag acts at the wing heights, above the centre of mass.",
       "Drivetrain [ILLUSTRATIVE]: a 2.0 l turbocharged four (peak 300 N·m, 180 kW at 6500 rpm) through a six-speed sequential gearbox with a 4.0 final drive and a clutch-pack rear limited-slip differential.",
       "Steering geometry [ILLUSTRATIVE]: 8° of caster (about 30 mm of trail), zero scrub radius, no assist, a quick 10:1 ratio."
     ],
-    "notes": "Not a specific car. No handbrake, so the handbrake standstill cases are skipped. The downforce reaches the tires through the springs, so the car sits lower at speed and the stiff springs matter."
+    "notes": "Not a specific car. No handbrake, so the handbrake standstill cases are skipped. The downforce reaches the tires through the springs, so the car sits lower at speed and the stiff springs matter. ABS, traction control and stability control are on at the core's default settings, which the real class does not have: at low speed, before the wings work, full throttle in the lower gears overwhelms the rear slicks. Turn them off in `assists` for an unassisted car."
   },
   "chassis": {
     "mass": 600,
@@ -62,11 +62,11 @@
         "model": "feel",
         "radius": 0.3,
         "nominalLoad": 1800,
-        "peakFriction": 1.62,
+        "peakFriction": 1.75,
         "loadSensitivity": 0.12,
         "peakSlipAngleDeg": 6.0,
         "peakSlipRatio": 0.1,
-        "corneringStiffness": 23,
+        "corneringStiffness": 30,
         "longitudinalStiffness": 27,
         "stiffnessPeakLoad": 3200,
         "relaxationLengthLat": 0.2,
@@ -164,6 +164,31 @@
     "center": {
       "kind": "open",
       "frontTorqueFraction": 0.5
+    }
+  },
+  "assists": {
+    "abs": {
+      "enabled": true,
+      "slipTarget": 0.12,
+      "slipRelease": 0.3,
+      "floor": 0.15,
+      "minSpeed": 2.0
+    },
+    "tractionControl": {
+      "enabled": true,
+      "slipTarget": 0.1,
+      "slipRelease": 0.25
+    },
+    "stabilityControl": {
+      "enabled": true,
+      "gain": 1500,
+      "deadBand": 0.05,
+      "throttleCut": 1.0,
+      "minSpeed": 3.0
+    },
+    "steeringAssist": {
+      "enabled": false,
+      "latAccelLimit": 9.0
     }
   }
 }

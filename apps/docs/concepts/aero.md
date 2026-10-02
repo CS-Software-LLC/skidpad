@@ -52,6 +52,10 @@ coefficients of −1.2 front and −1.8 rear on a 1.0 m² frontal area and a
 drag coefficient of 0.9. At 180 km/h that is about 4.6 kN of downforce,
 near 0.8 of its weight, with the drag acting 0.15 m above the centre of mass
 at the wing heights. Its ride frequencies are around 3.5 Hz for that reason.
+Below about 100 km/h the wings add little, and full throttle in the lower
+gears is more than the rear slicks can take, so the preset ships with
+traction and stability control on (and ABS); turn them off under `assists`
+for the unassisted car.
 The road-car presets carry small positive lift coefficients from their data
 sheets; the kart has none.
 
