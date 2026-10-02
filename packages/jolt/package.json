@@ -1,6 +1,6 @@
 {
   "name": "@skidpad/jolt",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "Jolt Physics host adapter for Skidpad: drives a Jolt rigid body with the Skidpad four-wheel vehicle model.",
   "license": "MIT OR Apache-2.0",
   "repository": {
