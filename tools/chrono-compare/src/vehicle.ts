@@ -15,6 +15,7 @@ import { join } from "node:path";
 import type { PartialVehicleDefinition } from "@skidpad/core";
 import * as c from "./chrono-e90.js";
 import { doubleWishboneRollCentre, macphersonRollCentre } from "./geometry.js";
+import { travelCurves, type TravelCurves } from "./kinematics.js";
 import { loadReference, ROOT } from "./reference.js";
 import { fitMagicFormula } from "./tire-fit.js";
 
@@ -39,7 +40,9 @@ export function loadStatic(): ChronoStatic {
 }
 
 /** Anti-roll bar wheel rates, N/m: FITTED by `fit.ts` (`pnpm compare --fit`). */
-export const FITTED_ANTI_ROLL = { front: 12750, rear: 6000 };
+export const FITTED_ANTI_ROLL = { front: 14750, rear: 8250 };
+/** The same fit for the car without travel curves (`--fixed-geometry`), before ADR-0026. */
+export const FITTED_ANTI_ROLL_FIXED_GEOMETRY = { front: 12750, rear: 6000 };
 
 /** Tire relaxation length, m. TMsimple has none; this is under one substep at 20 m/s. */
 const RELAXATION_LENGTH = 0.02;
@@ -83,7 +86,18 @@ export interface Derived {
    * degrees: what the comparison car is given (see `drivingToe`).
    */
   staticToeDeg: { front: number; rear: number };
+  /**
+   * Travel curves of each axle (ADR-0026): toe and camber from Chrono's
+   * heave sweep, roll-centre height and anti fraction from the hardpoints,
+   * as offsets from Chrono's rest position.
+   */
+  curves: { front: TravelCurves; rear: TravelCurves };
 }
+
+/** Travels the curves are sampled at, m (+ bump): inside Chrono's heave sweep on both axles. */
+const CURVE_TRAVELS = [
+  -0.04, -0.03, -0.02, -0.01, 0, 0.01, 0.02, 0.03, 0.04, 0.05, 0.06, 0.07, 0.08,
+];
 
 const IDLE_RPM = 800;
 
@@ -187,16 +201,41 @@ export function derive(s: ChronoStatic = loadStatic()): Derived {
       rear: (((s.toe[3] - s.toe[2]) / 2) * 180) / Math.PI,
     },
     staticToeDeg: drivingToe(),
+    curves: {
+      front: travelCurves("front", sf[2], CURVE_TRAVELS, loadedFront, wheelbase, cgHeight),
+      rear: travelCurves("rear", sr[2], CURVE_TRAVELS, loadedRear, wheelbase, cgHeight),
+    },
   };
 }
 
 /** Largest road-wheel angle, degrees; the harness steers in fractions of it. */
 export const MAX_WHEEL_ANGLE_DEG = 45;
 
+export interface BuildOptions {
+  /**
+   * Carry the travel curves for camber, roll-centre height and the anti
+   * fractions (ADR-0026), default true. Without them the geometry is fixed
+   * at ride height and the camber at zero, as before ADR-0026.
+   */
+  travelCurves?: boolean;
+  /**
+   * Also carry the toe curves, default false. Chrono's driving wheel angles
+   * do not follow its own toe-against-travel kinematics (its toe moves with
+   * lateral force instead; docs/validation/chrono-bmw-e90.md), so the
+   * comparison car keeps its toe fixed at the straight-running value. With
+   * this set the toe is Chrono's at rest and the curve moves it.
+   */
+  toeCurve?: boolean;
+}
+
 export function bmwE90(
   antiRoll: { front: number; rear: number } = FITTED_ANTI_ROLL,
   d: Derived = derive(),
+  opts: BuildOptions = {},
 ): PartialVehicleDefinition {
+  const curves = opts.travelCurves ?? true;
+  const toeCurve = curves && (opts.toeCurve ?? false);
+  const { front: cf, rear: cr } = d.curves;
   const tire = (t: c.TmSimpleTire, fz0: number) => ({
     model: "magicFormula" as const,
     ...fitMagicFormula(t, fz0),
@@ -214,6 +253,7 @@ export function bmwE90(
     rollCenterHeight: number,
     antiBrake: number,
     antiDrive: number,
+    kinematics?: Record<string, [number, number][]>,
   ) => ({
     kind: "independent" as const,
     springRate: k,
@@ -228,6 +268,7 @@ export function bmwE90(
     rollCenterHeight,
     antiBrake,
     antiDrive,
+    ...(kinematics ? { kinematics } : {}),
   });
   return {
     name: "BMW E90 (Project Chrono 9.0.1 reference)",
@@ -248,8 +289,8 @@ export function bmwE90(
         driven: false,
         steered: true,
         maxBrakeTorque: 2 * c.BRAKE_TORQUE_PER_WHEEL,
-        staticCamberDeg: 0,
-        staticToeDeg: d.staticToeDeg.front,
+        staticCamberDeg: curves ? cf.atRest.camberDeg : 0,
+        staticToeDeg: toeCurve ? cf.atRest.toeDeg : d.staticToeDeg.front,
         trackWidth: d.axleTrack.front,
         suspension: suspension(
           d.springRate.front,
@@ -260,6 +301,14 @@ export function bmwE90(
           d.rollCentre.front,
           d.anti.frontBrake,
           0,
+          curves
+            ? {
+                ...(toeCurve ? { toeDeg: cf.toeDeg } : {}),
+                camberDeg: cf.camberDeg,
+                rollCenterHeight: cf.rollCenterHeight,
+                antiBrake: cf.anti,
+              }
+            : undefined,
         ),
       },
       {
@@ -268,8 +317,8 @@ export function bmwE90(
         driven: true,
         steered: false,
         maxBrakeTorque: 2 * c.BRAKE_TORQUE_PER_WHEEL,
-        staticCamberDeg: 0,
-        staticToeDeg: d.staticToeDeg.rear,
+        staticCamberDeg: curves ? cr.atRest.camberDeg : 0,
+        staticToeDeg: toeCurve ? cr.atRest.toeDeg : d.staticToeDeg.rear,
         trackWidth: d.axleTrack.rear,
         suspension: suspension(
           d.springRate.rear,
@@ -280,6 +329,15 @@ export function bmwE90(
           d.rollCentre.rear,
           d.anti.rearBrake,
           d.anti.rearDrive,
+          curves
+            ? {
+                ...(toeCurve ? { toeDeg: cr.toeDeg } : {}),
+                camberDeg: cr.camberDeg,
+                rollCenterHeight: cr.rollCenterHeight,
+                antiBrake: cr.anti,
+                antiDrive: cr.anti,
+              }
+            : undefined,
         ),
       },
     ],
@@ -345,9 +403,9 @@ function loadStaticCached(): ChronoStatic {
 
 /** Structural differences between the two models, reported with the results. */
 export const GAPS = [
-  "Toe that changes with travel: Chrono's toe-in is 1.27° front and 0.53° rear at rest, 1.43° and 0.67° driving straight, and falls to about 0.9° and 0.52° at 0.8 g as the body rolls. Skidpad's toe is fixed at the straight-running value, so it overstates the toe benefit in hard cornering. The harness steers with Chrono's mean front road-wheel angle, which carries the front's net roll steer across.",
+  "Toe that changes with lateral force: Chrono's toe-in is 1.27° front and 0.53° rear at rest, 1.43° and 0.67° driving straight, and falls to about 0.9° and 0.52° at 0.8 g. Its own kinematics sweep holds the front's mean toe-in constant in roll and steers the rear eight times more than it does while driving, so the change follows force, not travel (compliance steer, outside ADR-0026). Skidpad's toe is fixed at the straight-running value. The harness steers with Chrono's mean front road-wheel angle, which carries the front's net roll steer across.",
   "Unsprung mass: Chrono's wheels, uprights and arms are separate bodies; Skidpad carries the whole mass on the chassis proxy.",
-  "Roll centres and pitch geometry: fixed at their static values in Skidpad (roll-centre heights, anti-dive, anti-lift and anti-squat from the side-view instant centres at ride height); Chrono's migrate with travel, and its links jack the body.",
+  "Roll centres and pitch geometry: travel curves derived from the hardpoints (ADR-0026), so each wheel's roll centre migrates and its links jack the body. Chrono's linkages do the same in full; Skidpad's curves are per wheel, from a level-body heave construction.",
   "Rebound stops: Chrono has a stop spring 2.4 cm (front) and 6.6 cm (rear) below static; Skidpad's droop limit lets the wheel hang instead.",
   "Damper: Chrono's front damper is degressive; Skidpad's is linear at the low-speed rate.",
   "Tire: TMsimple carried into a Magic Formula fit (`tire-fit.ts`); combined slip follows Skidpad's MF weighting, not TMsimple's; no relaxation in either.",

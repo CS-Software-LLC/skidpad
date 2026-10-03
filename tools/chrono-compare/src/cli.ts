@@ -4,6 +4,8 @@
  *
  *   pnpm compare            # run every manoeuvre, print the tables, write out/
  *   pnpm compare --fit      # refit the anti-roll bars first and print the result
+ *   pnpm compare --fixed-geometry   # the car before ADR-0026: no travel curves
+ *   pnpm compare --toe-curve        # also the toe curves from Chrono's K&C sweep
  *
  * Writes out/report.json (metrics, traces, derived model values) and
  * out/<manoeuvre>.csv (Skidpad's rows, same columns as reference/).
@@ -14,7 +16,14 @@ import { init } from "@skidpad/core";
 import { evaluate } from "./compare.js";
 import { fitAntiRoll } from "./fit.js";
 import { loadReference, MANEUVERS, runManeuver, type Row, type RowKey } from "./run.js";
-import { bmwE90, derive, FITTED_ANTI_ROLL, GAPS, ROOT } from "./vehicle.js";
+import {
+  bmwE90,
+  derive,
+  FITTED_ANTI_ROLL,
+  FITTED_ANTI_ROLL_FIXED_GEOMETRY,
+  GAPS,
+  ROOT,
+} from "./vehicle.js";
 
 const args = new Set(process.argv.slice(2));
 const sp = await init();
@@ -22,13 +31,19 @@ const d = derive();
 
 let antiRoll = FITTED_ANTI_ROLL;
 if (args.has("--fit")) {
-  const { best } = fitAntiRoll(sp, console.log);
+  const { best } = fitAntiRoll(sp, console.log, {
+    travelCurves: !args.has("--fixed-geometry"),
+    toeCurve: args.has("--toe-curve"),
+  });
   antiRoll = { front: best.front, rear: best.rear };
   if (antiRoll.front !== FITTED_ANTI_ROLL.front || antiRoll.rear !== FITTED_ANTI_ROLL.rear) {
     console.log(`update FITTED_ANTI_ROLL in src/vehicle.ts to ${JSON.stringify(antiRoll)}`);
   }
 }
-const definition = bmwE90(antiRoll, d);
+const fixed = args.has("--fixed-geometry");
+if (fixed && !args.has("--fit")) antiRoll = FITTED_ANTI_ROLL_FIXED_GEOMETRY;
+const build = { travelCurves: !fixed, toeCurve: args.has("--toe-curve") };
+const definition = bmwE90(antiRoll, d, build);
 
 const chrono: Record<string, Row[]> = {};
 const skidpad: Record<string, Row[]> = {};

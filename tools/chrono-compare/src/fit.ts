@@ -8,14 +8,18 @@
 import type { Skidpad } from "@skidpad/core";
 import { METRICS } from "./compare.js";
 import { runManeuver, loadReference, type Row } from "./run.js";
-import { bmwE90, derive } from "./vehicle.js";
+import { bmwE90, derive, type BuildOptions } from "./vehicle.js";
 
 const pick = (label: string) =>
   METRICS.find((m) => m.maneuver === "rampSteer" && m.label === label)!;
 const ROLL = pick("roll gradient");
 const LLT = pick("front share of lateral load transfer");
 
-export function fitAntiRoll(sp: Skidpad, log: (s: string) => void = () => {}) {
+export function fitAntiRoll(
+  sp: Skidpad,
+  log: (s: string) => void = () => {},
+  opts: BuildOptions = {},
+) {
   const d = derive();
   const ref = loadReference("rampSteer");
   const target = { roll: ROLL.fn(ref, d.wheelbase), llt: LLT.fn(ref, d.wheelbase) };
@@ -23,7 +27,9 @@ export function fitAntiRoll(sp: Skidpad, log: (s: string) => void = () => {}) {
     `target: roll gradient ${target.roll.toFixed(3)} deg/g, front share ${target.llt.toFixed(2)} %`,
   );
   const measure = (front: number, rear: number) => {
-    const rows: Row[] = runManeuver(sp, "rampSteer", { definition: bmwE90({ front, rear }, d) });
+    const rows: Row[] = runManeuver(sp, "rampSteer", {
+      definition: bmwE90({ front, rear }, d, opts),
+    });
     const roll = ROLL.fn(rows, d.wheelbase);
     const llt = LLT.fn(rows, d.wheelbase);
     const cost = ((roll - target.roll) / target.roll) ** 2 + ((llt - target.llt) / target.llt) ** 2;
