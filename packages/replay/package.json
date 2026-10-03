@@ -1,6 +1,6 @@
 {
   "name": "@skidpad/replay",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "Deterministic replays and lightweight ghosts for Skidpad: record inputs and keyframes, re-simulate, seek, and play back pose tracks.",
   "license": "MIT OR Apache-2.0",
   "repository": {
