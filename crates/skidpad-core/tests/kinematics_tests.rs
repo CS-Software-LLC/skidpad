@@ -110,12 +110,26 @@ const PRESETS: [(&str, &str); 6] = [
     ),
 ];
 
+/// The default car and every preset, without any travel curves the preset
+/// ships with: these tests are about the path without curves.
 fn vehicles() -> Vec<(String, VehicleDefinition)> {
     let mut out = vec![(String::from("default"), VehicleDefinition::default())];
     for (id, json) in PRESETS {
-        out.push((id.to_string(), serde_json::from_str(json).unwrap()));
+        let mut d: VehicleDefinition = serde_json::from_str(json).unwrap();
+        for a in &mut d.axles {
+            a.suspension.kinematics = None;
+        }
+        out.push((id.to_string(), d));
     }
     out
+}
+
+#[test]
+fn the_presets_curves_are_valid() {
+    for (id, json) in PRESETS {
+        let d: VehicleDefinition = serde_json::from_str(json).unwrap();
+        assert!(d.validate().is_ok(), "{id}: {:?}", d.validate());
+    }
 }
 
 /// A drive that exercises every term: launch, a slalom, braking in a turn.

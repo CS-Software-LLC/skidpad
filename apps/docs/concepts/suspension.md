@@ -196,7 +196,9 @@ lift the body the same way.
 
 Each wheel's toe, static plus curve, is in `Toe_FL` … `Toe_RR` (rad,
 positive toe-in); camber is already in `Camber_*`. A definition without
-the block, or with an empty one, runs exactly as before. On a solid axle
+the block, or with an empty one, runs exactly as before. The road-car
+presets and the open-wheeler carry illustrative roll-centre curves, and
+the road cars camber gain, so the sandbox cars use them. On a solid axle
 the beam sets the wheel angles, so `toeDeg` and `camberDeg` are rejected;
 the other three curves are accepted. The single-track model ignores the
 block.

@@ -8,7 +8,8 @@
       "Tire feel parameters tuned to a ~0.9 g skidpad and ~37 m 100–0 km/h braking distance on all-season tires, in the range of published road tests for the class.",
       "Suspension rates for ~1.5 Hz front and ~1.6 Hz rear ride frequencies (Gillespie ch. 5), roll centres of a strut front near 80 mm and a multilink rear near 130 mm (Milliken & Milliken ch. 17).",
       "Drivetrain [ILLUSTRATIVE]: two motors modelled as one unit of 520 N·m and 300 kW to 16 000 rpm through a 9:1 reduction, torque split evenly through an open centre differential, 90 N·m of lift-off regeneration. An electric motor's torque is instant, so the preset ships with traction control on, as every production EV does (ADR-0013).",
-      "Steering geometry [ILLUSTRATIVE]: 6° of caster (about 28 mm of trail), a small scrub radius and strong electric assist; aero after Hucho ch. 4, a smooth body with a little front lift."
+      "Steering geometry [ILLUSTRATIVE]: 6° of caster (about 28 mm of trail), a small scrub radius and strong electric assist; aero after Hucho ch. 4, a smooth body with a little front lift.",
+      "Travel curves [ILLUSTRATIVE] (ADR-0026): roll-centre height falling with bump and camber gain at rates scaled from the curves derived for Project Chrono's BMW E90 from its hardpoints (MacPherson front: roll centre −2.9 mm per mm of bump, camber about −20°/m; double wishbone: −1.6 mm per mm; docs/validation/chrono-bmw-e90.md), eased for this car's lower roll centres. No toe curves: road cars are set up for near-zero bump steer, and the E90 comparison found toe follows force more than travel."
     ],
     "notes": "Not a specific production model. The two motors share one torque curve in this format; the centre differential's torque split stands in for the independent rear-biased control a real dual-motor car has."
   },
@@ -53,7 +54,19 @@
         "travelDroop": 0.1,
         "antiRollStiffness": 24000,
         "bumpStopStiffness": 400000,
-        "rollCenterHeight": 0.08
+        "rollCenterHeight": 0.08,
+        "kinematics": {
+          "rollCenterHeight": [
+            [-0.1, 0.25],
+            [0, 0],
+            [0.08, -0.2]
+          ],
+          "camberDeg": [
+            [-0.1, 2.0],
+            [0, 0],
+            [0.08, -1.6]
+          ]
+        }
       }
     },
     {
@@ -86,7 +99,19 @@
         "travelDroop": 0.11,
         "antiRollStiffness": 14000,
         "bumpStopStiffness": 400000,
-        "rollCenterHeight": 0.13
+        "rollCenterHeight": 0.13,
+        "kinematics": {
+          "rollCenterHeight": [
+            [-0.11, 0.165],
+            [0, 0],
+            [0.09, -0.135]
+          ],
+          "camberDeg": [
+            [-0.11, 1.1],
+            [0, 0],
+            [0.09, -0.9]
+          ]
+        }
       }
     }
   ],

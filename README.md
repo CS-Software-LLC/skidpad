@@ -65,11 +65,11 @@ commit.
 
 | Vehicle (preset)       | Understeer gradient, four-wheel | Single-track | Linear theory with trail | 0–100 km/h | 100–0 km/h, no ABS        |
 | ---------------------- | ------------------------------- | ------------ | ------------------------ | ---------- | ------------------------- |
-| Light FWD hatchback    | 1.13 deg/g                      | 0.93 deg/g   | 0.93 deg/g               | 9.8 s      | 46.5 m (42.6 m with ABS)  |
-| RWD sports car         | 0.72 deg/g                      | 0.59 deg/g   | 0.58 deg/g               | 4.9 s      | 38.7 m (35.5 m with ABS)  |
+| Light FWD hatchback    | 1.08 deg/g                      | 0.93 deg/g   | 0.93 deg/g               | 9.8 s      | 46.5 m (42.6 m with ABS)  |
+| RWD sports car         | 0.71 deg/g                      | 0.59 deg/g   | 0.58 deg/g               | 4.9 s      | 38.7 m (35.5 m with ABS)  |
 | Kart                   | -0.21 deg/g (solid axle push)   | 0.31 deg/g   | 0.36 deg/g               | 10.9 s     | 58.0 m (rear brakes only) |
-| Pickup 4x4             | 0.98 deg/g                      | 0.72 deg/g   | 0.71 deg/g               | 7.4 s      | 52.1 m (47.1 m with ABS)  |
-| Electric crossover AWD | 0.30 deg/g                      | 0.22 deg/g   | 0.21 deg/g               | 5.0 s      | 44.5 m (40.1 m with ABS)  |
+| Pickup 4x4             | 0.94 deg/g                      | 0.72 deg/g   | 0.71 deg/g               | 7.4 s      | 52.1 m (47.1 m with ABS)  |
+| Electric crossover AWD | 0.29 deg/g                      | 0.22 deg/g   | 0.21 deg/g               | 5.0 s      | 44.5 m (40.1 m with ABS)  |
 | Open-wheeler           | 0.64 deg/g                      | 0.60 deg/g   | 0.66 deg/g               | 2.9 s      | 24.0 m (22.5 m with ABS)  |
 
 The four-wheel gradient sits above the single-track one by the load
@@ -87,10 +87,10 @@ reference surface table:
 
 | Vehicle (preset)       | Step steer response | Lane change passes up to | Wet asphalt | Gravel | Snow  | Ice   |
 | ---------------------- | ------------------- | ------------------------ | ----------- | ------ | ----- | ----- |
-| Light FWD hatchback    | 0.21 s, 5 %         | 100 km/h                 | 70 m        | 73 m   | 126 m | 331 m |
-| RWD sports car         | 0.20 s, 1 %         | 110 km/h                 | 58 m        | 60 m   | 107 m | 282 m |
+| Light FWD hatchback    | 0.21 s, 4 %         | 100 km/h                 | 70 m        | 73 m   | 126 m | 331 m |
+| RWD sports car         | 0.20 s, 0 %         | 110 km/h                 | 58 m        | 60 m   | 107 m | 282 m |
 | Kart                   | 0.15 s, 2 %         | 80 km/h                  | 79 m        | 79 m   | 113 m | spins |
-| Pickup 4x4             | 0.21 s, 3 %         | 90 km/h                  | 78 m        | 80 m   | 137 m | 361 m |
+| Pickup 4x4             | 0.22 s, 2 %         | 90 km/h                  | 78 m        | 80 m   | 137 m | 361 m |
 | Electric crossover AWD | 0.25 s, 0 %         | 90 km/h                  | 67 m        | 70 m   | 122 m | 330 m |
 | Open-wheeler           | 0.14 s, 0 %         | 100 km/h                 | 36 m        | 38 m   | 68 m  | 166 m |
 

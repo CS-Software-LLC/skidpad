@@ -119,12 +119,19 @@ format is frozen at version 1.
 
 ## Consequences
 
-Definitions without the block behave exactly as before. The six presets
-carry no curves: they have no hardpoints, and no data sheet could cite
-values for them, so the golden results other than the state hashes, the
-determinism laps and the README tables are unchanged. Adding curves to the
-presets, with sources, is a follow-up, as is a curve editor in the sandbox.
-The sandbox already loads, shows and round-trips a definition with curves.
+Definitions without the block behave exactly as before. The presets have
+no hardpoints, so their curves are illustrative, marked so in each data
+sheet, at rates scaled from the curves derived for the Chrono E90: roll
+centres that fall in bump and camber gain on the hatchback, sports car,
+crossover and the pickup's independent front, and a small roll-centre
+curve on the open-wheeler. None carries a toe curve, and the kart and the
+pickup's leaf-sprung rear carry none at all: a beam takes both wheels'
+lateral forces through one locating point, so it does not jack per wheel.
+The road cars understeer up to 5 % less, as the front share of load
+transfer falls with roll, and every stability result holds. The golden
+results, the determinism laps of the five changed presets and the README
+tables were regenerated. A curve editor in the sandbox is a follow-up; it
+already loads, shows and round-trips a definition with curves.
 
 Costs, measured:
 

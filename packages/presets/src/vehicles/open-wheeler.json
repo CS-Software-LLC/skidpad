@@ -9,7 +9,8 @@
       "Suspension rates for ~3.5 Hz ride frequencies (Milliken & Milliken ch. 16) with roll centres a few centimetres above ground front and rear (ch. 17).",
       "Aero [ILLUSTRATIVE]: lift coefficients of −1.2 front and −1.8 rear on a 1.0 m² frontal area with a drag coefficient of 0.9, giving about 4.6 kN of downforce at 180 km/h, in the range published for winged junior formula cars (Katz, Race Car Aerodynamics, ch. 7); the drag acts at the wing heights, above the centre of mass.",
       "Drivetrain [ILLUSTRATIVE]: a 2.0 l turbocharged four (peak 300 N·m, 180 kW at 6500 rpm) through a six-speed sequential gearbox with a 4.0 final drive and a clutch-pack rear limited-slip differential.",
-      "Steering geometry [ILLUSTRATIVE]: 8° of caster (about 30 mm of trail), zero scrub radius, no assist, a quick 10:1 ratio."
+      "Steering geometry [ILLUSTRATIVE]: 8° of caster (about 30 mm of trail), zero scrub radius, no assist, a quick 10:1 ratio.",
+      "Travel curves [ILLUSTRATIVE] (ADR-0026): roll-centre height falling with bump and camber gain at rates scaled from the curves derived for Project Chrono's BMW E90 from its hardpoints (MacPherson front: roll centre −2.9 mm per mm of bump, camber about −20°/m; double wishbone: −1.6 mm per mm; docs/validation/chrono-bmw-e90.md), eased for this car's lower roll centres. No toe curves: road cars are set up for near-zero bump steer, and the E90 comparison found toe follows force more than travel."
     ],
     "notes": "Not a specific car. No handbrake, so the handbrake standstill cases are skipped. The downforce reaches the tires through the springs, so the car sits lower at speed and the stiff springs matter. ABS, traction control and stability control are on at the core's default settings, which the real class does not have: at low speed, before the wings work, full throttle in the lower gears overwhelms the rear slicks. Turn them off in `assists` for an unassisted car."
   },
@@ -54,7 +55,14 @@
         "travelDroop": 0.03,
         "antiRollStiffness": 30000,
         "bumpStopStiffness": 600000,
-        "rollCenterHeight": 0.02
+        "rollCenterHeight": 0.02,
+        "kinematics": {
+          "rollCenterHeight": [
+            [-0.03, 0.03],
+            [0, 0],
+            [0.035, -0.035]
+          ]
+        }
       }
     },
     {
@@ -87,7 +95,14 @@
         "travelDroop": 0.035,
         "antiRollStiffness": 20000,
         "bumpStopStiffness": 600000,
-        "rollCenterHeight": 0.05
+        "rollCenterHeight": 0.05,
+        "kinematics": {
+          "rollCenterHeight": [
+            [-0.035, 0.035],
+            [0, 0],
+            [0.04, -0.04]
+          ]
+        }
       }
     }
   ],
