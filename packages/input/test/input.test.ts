@@ -407,14 +407,74 @@ describe("force feedback", () => {
     expect(pickHidppDevice([gamepad, hidpp])).toBe(hidpp);
     const lines: string[] = [];
     const sink = new LogitechWebHidSink({ log: (l) => lines.push(l) });
-    await sink.connect({
-      requestDevice: async () => [gamepad],
-      getDevices: async () => [gamepad, hidpp],
-    });
+    // The fake never answers, so the force path cannot be set up and the
+    // sink says so rather than reporting a connected wheel that does nothing.
+    await expect(
+      sink.connect({
+        requestDevice: async () => [gamepad],
+        getDevices: async () => [gamepad, hidpp],
+      }),
+    ).rejects.toThrow(/feature 0x8123 not reported/);
+    expect(sink.connected).toBe(false);
+    expect(sink.ready).toBe(false);
     expect(gamepad.sent).toEqual([]);
     // Only very long declared: everything goes out as 0x12.
     expect(hidpp.sent).toEqual([0x12]);
     expect(lines.some((l) => l.includes("output reports: 12"))).toBe(true);
+    expect(lines.some((l) => l.includes("no force path"))).toBe(true);
+  });
+
+  it("picks the protocol and peak torque from the product id", async () => {
+    const { LogitechWebHidSink, logitechWheel } = await import("../src/index.js");
+    const fake = (productId: number) => {
+      const sent: { id: number; data: number[] }[] = [];
+      return {
+        sent,
+        opened: false,
+        vendorId: 0x046d,
+        productId,
+        productName: "wheel",
+        async open() {
+          this.opened = true;
+        },
+        async close() {
+          this.opened = false;
+        },
+        async sendReport(id: number, data: Uint8Array) {
+          sent.push({ id, data: Array.from(data) });
+        },
+        addEventListener() {},
+        removeEventListener() {},
+      };
+    };
+    expect(logitechWheel(0xc24f)?.protocol).toBe("classic");
+    expect(logitechWheel(0xc272)?.protocol).toBe("hidpp");
+
+    // A G29 speaks the classic protocol and peaks at 2.5 N·m, not 11.
+    const g29 = fake(0xc24f);
+    const sink = new LogitechWebHidSink({ minInterval: 0, gain: 1, maxOutput: 1 });
+    expect(sink.protocol).toBe("hidpp"); // the fallback, before a device is known
+    await sink.attach(g29);
+    expect(sink.protocol).toBe("classic");
+    expect(sink.wheel?.name).toBe("G29");
+    expect(sink.peakTorque).toBe(2.5);
+    expect(sink.maxTorque).toBe(2.5);
+    expect(sink.scaler.maxTorque).toBe(2.5);
+    expect(sink.ready).toBe(true);
+    expect(g29.sent.every((s) => s.id === 0)).toBe(true);
+    // Half the peak is half the classic range, whatever the HID++ peak is.
+    await sink.update({ torque: 1.25, damping: 0, friction: 0 }, 1);
+    const last = g29.sent[g29.sent.length - 1]!;
+    expect(last.data.slice(0, 2)).toEqual([0x11, 0x08]);
+    expect(Math.abs(last.data[2]! - 0x80)).toBeCloseTo(0x7f / 2, -0.5);
     await sink.disconnect();
+    expect(sink.ready).toBe(false);
+
+    // Forcing a protocol is still possible, and the torque follows it.
+    const forced = new LogitechWebHidSink({ protocol: "classic" });
+    expect(forced.peakTorque).toBe(2.5);
+    forced.protocol = "hidpp";
+    expect(forced.peakTorque).toBe(11);
+    expect(forced.scaler.maxTorque).toBeCloseTo(4.4);
   });
 });

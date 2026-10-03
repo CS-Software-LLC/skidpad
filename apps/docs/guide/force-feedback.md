@@ -74,6 +74,20 @@ reconstructed from the public Linux drivers:
 - `classic` for the G29, G27 and G25 (and the G923 in compatibility mode):
   the seven-byte command reports.
 
+By default (`protocol: "auto"`) the sink picks the protocol from the
+device's USB product id when it attaches, using the ids of the Linux drivers
+(`LOGITECH_WHEELS`, `logitechWheel(productId)`), and takes the wheel's peak
+torque from the same table, so a G29 gets the classic protocol and about
+2.5 N·m rather than the G PRO's 11. A wheel the table does not know gets
+HID++ and 11 N·m; pass `protocol` (or set `sink.protocol` before attaching)
+and `maxTorque` to override either.
+
+`connect()` and `attach()` reject when the force path cannot be set up (the
+HID++ feature does not answer, or the wheel refuses the constant-force
+effect), with the device closed again and the reason in the diagnostics log.
+`sink.ready` says whether forces are being sent; `connected` only says the
+device is open.
+
 **Every protocol constant is marked `[VERIFY]` until it has been tried on
 hardware.** The sink keeps a diagnostics log of every report sent and
 received; if your wheel does nothing or does the wrong thing, copy the log
@@ -89,7 +103,7 @@ not accept the 7-byte short report and the browser rejects the write with
 `NotAllowedError: Failed to write the report`.
 
 ```ts
-const sink = new LogitechWebHidSink({ protocol: "hidpp", rotationDeg: 900 });
+const sink = new LogitechWebHidSink({ rotationDeg: 900 }); // protocol from the product id
 button.onclick = () => sink.connect(); // must be a user gesture
 // each host step; the hand-wheel angle feeds the runaway guard
 sink.update(
