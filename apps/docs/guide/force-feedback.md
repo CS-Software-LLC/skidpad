@@ -29,6 +29,48 @@ const wheel = new WheelInput({
 const frame = wheel.poll(); // undefined until a known wheel is connected
 ```
 
+The setup flow assigns controls with `AxisFinder`, which reports the axis
+the player is moving. Pass the axes already assigned to `result(threshold,
+exclude)` so brushing the throttle while finding the brake does not pick the
+throttle again, and `binding(found, centred, rest)` turns the result into a
+calibrated binding. Profile patterns are JavaScript regular expressions
+matched against `Gamepad.id`; a leading `(?i)` makes one case-insensitive.
+Pads with the browser's standard gamepad mapping are left to
+`GamepadInput` (wheels report a non-standard mapping), unless you pass
+`matchStandardPads: true`.
+
+## Several devices and one gearbox
+
+Each device class can hold the requested gear itself, but a car has one
+gearbox. Create one `GearSelector` with the car's transmission mode and pass
+it to every device: with `mode: "automatic"` a shift down from drive selects
+reverse and a shift up from reverse selects drive, so no device can count
+forward gears the automatic ignores. `InputMixer` reads every device each
+frame and passes on the one the player touched last:
+
+```ts
+import { GearSelector, InputMixer, KeyboardInput, GamepadInput, WheelInput } from "@skidpad/input";
+
+const gears = new GearSelector({ mode: "automatic" }); // the car's gearbox
+const keyboard = new KeyboardInput({ gears });
+const gamepad = new GamepadInput({ gears }); // bumpers shift, Y toggles reverse
+const wheel = new WheelInput({ gears });
+const input = new InputMixer(
+  [
+    { name: "keyboard", read: (dt) => keyboard.update(dt) },
+    { name: "gamepad", read: () => gamepad.poll() },
+    { name: "wheel", read: () => wheel.poll() },
+  ],
+  { gears },
+);
+// each step
+world.setInput(car, input.update(dt));
+```
+
+`GamepadInput.poll()` reads the first pad with the standard mapping, so a
+connected wheel is never read as a gamepad, and leaves it in `lastPad` for a
+rumble sink.
+
 ## Safety first
 
 A force-feedback wheel is a motor. A direct-drive base like the G PRO can
