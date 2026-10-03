@@ -26,6 +26,11 @@
  * ISO 8855 (+z up, +y left). The adapter converts between the two frames
  * with a fixed rotation, so either `up: "y"` (default) or `up: "z"` works.
  *
+ * The adapter types Rapier structurally (the members it uses), so the
+ * standard build (`@dimforge/rapier3d-compat`) and the cross-platform
+ * deterministic one (`@dimforge/rapier3d-deterministic-compat`) both fit
+ * without a cast; install either.
+ *
  * ```ts
  * const sp = await init();
  * await RAPIER.init();
@@ -42,27 +47,118 @@
  * scene.step();
  * ```
  */
-import type RAPIER from "@dimforge/rapier3d-compat";
-import type { HostImpulse, VehicleDefinition, WheelRay, World } from "@skidpad/core";
+import type {
+  ChassisDefinition,
+  HostImpulse,
+  PartialVehicleDefinition,
+  WheelRay,
+  World,
+} from "@skidpad/core";
 
-type Rapier = typeof RAPIER;
+/** A vector as Rapier passes it. */
+export interface RapierVector {
+  x: number;
+  y: number;
+  z: number;
+}
+
+/** A rotation as Rapier passes it. */
+export interface RapierRotation extends RapierVector {
+  w: number;
+}
+
+/** The members of a Rapier rigid body the adapter uses. */
+export interface RapierBodyLike {
+  translation(): RapierVector;
+  rotation(): RapierRotation;
+  linvel(): RapierVector;
+  angvel(): RapierVector;
+  isFixed(): boolean;
+  resetForces(wakeUp: boolean): void;
+  resetTorques(wakeUp: boolean): void;
+  addForce(force: RapierVector, wakeUp: boolean): void;
+  addTorque(torque: RapierVector, wakeUp: boolean): void;
+}
+
+/** The members of a Rapier collider the adapter uses. */
+export interface RapierColliderLike {
+  parent(): RapierBodyLike | null;
+}
+
+/** The members of a Rapier ray the adapter uses. */
+export interface RapierRayLike {
+  origin: RapierVector;
+  dir: RapierVector;
+}
+
+/** The members of a Rapier ray hit the adapter uses. */
+export interface RapierHitLike<C> {
+  timeOfImpact: number;
+  normal: RapierVector;
+  collider: C;
+}
+
+/** The members of a Rapier world (scene) the adapter uses. */
+export interface RapierSceneLike<B extends RapierBodyLike, C extends RapierColliderLike> {
+  createRigidBody(desc: never): B;
+  createCollider(desc: never, parent?: B): C;
+  castRayAndGetNormal(
+    ray: never,
+    maxToi: number,
+    solid: boolean,
+    filterFlags?: never,
+    filterGroups?: number,
+    filterExcludeCollider?: C,
+    filterExcludeRigidBody?: B,
+    filterPredicate?: (collider: C) => boolean,
+  ): RapierHitLike<C> | null;
+}
+
+interface RigidBodyDescLike {
+  setTranslation(x: number, y: number, z: number): RigidBodyDescLike;
+  setRotation(rotation: RapierRotation): RigidBodyDescLike;
+  setCanSleep(canSleep: boolean): RigidBodyDescLike;
+  setAdditionalMassProperties(
+    mass: number,
+    centerOfMass: RapierVector,
+    principalAngularInertia: RapierVector,
+    angularInertiaLocalFrame: RapierRotation,
+  ): RigidBodyDescLike;
+}
+
+interface ColliderDescLike {
+  setMass(mass: number): ColliderDescLike;
+  setCollisionGroups(groups: number): ColliderDescLike;
+}
+
+/**
+ * The parts of the Rapier module the adapter uses: `@dimforge/rapier3d-compat`
+ * or `@dimforge/rapier3d-deterministic-compat`, after `init()`.
+ */
+export interface RapierModuleLike {
+  RigidBodyDesc: { dynamic(): RigidBodyDescLike };
+  ColliderDesc: { cuboid(hx: number, hy: number, hz: number): ColliderDescLike };
+  Ray: new (origin: RapierVector, dir: RapierVector) => RapierRayLike;
+}
 
 /** Which axis points up in the Rapier scene. */
 export type UpAxis = "y" | "z";
 
-export interface RapierVehicleOptions {
+export interface RapierVehicleOptions<C extends RapierColliderLike = RapierColliderLike> {
   /** Up axis of the Rapier scene. Default `"y"` (three.js convention). */
   up?: UpAxis;
   /** Rapier interaction groups the wheel rays may hit. Default: everything. */
   filterGroups?: number;
   /** Extra predicate on colliders the rays may hit. */
-  filterPredicate?: (collider: RAPIER.Collider) => boolean;
+  filterPredicate?: (collider: C) => boolean;
   /**
    * Map a hit collider to a surface id, an index into the world's surface
-   * table (`World.setSurfaces()`, ADR-0014). A common choice is to keep the
-   * id in the collider's user data. Default 0, the reference surface.
+   * table (`World.setSurfaces()`, ADR-0014). Rapier colliders carry no user
+   * data, so keep a `Map` from `collider.handle` to the id when you create
+   * the colliders, or pass {@link surfaceIdsByHandle}. Default 0, the
+   * reference surface.
    */
-  surfaceId?: (collider: RAPIER.Collider) => number;
+  surfaceId?: (collider: C) => number;
   /**
    * Read the velocity of the hit body at the contact so the car rides moving
    * platforms. Default true.
@@ -151,19 +247,55 @@ class Frame {
 }
 
 /**
+ * A `surfaceId` callback reading a `Map` from collider handle to surface id
+ * (ids missing from the map read as 0, the reference surface).
+ */
+export function surfaceIdsByHandle(
+  ids: ReadonlyMap<number, number>,
+): (collider: { readonly handle: number }) => number {
+  return (collider) => ids.get(collider.handle) ?? 0;
+}
+
+const CHASSIS_FIELDS = [
+  "mass",
+  "cgHeight",
+  "wheelbase",
+  "trackWidth",
+  "rollInertia",
+  "pitchInertia",
+  "yawInertia",
+] as const;
+
+type ChassisSizing = Pick<ChassisDefinition, (typeof CHASSIS_FIELDS)[number]>;
+
+/** The chassis fields a body needs, or a clear error naming what is missing. */
+export function chassisSizing(def: PartialVehicleDefinition): ChassisSizing {
+  const c = def.chassis ?? {};
+  const missing = CHASSIS_FIELDS.filter((k) => typeof c[k] !== "number");
+  if (missing.length > 0) {
+    throw new Error(
+      `the definition has no chassis.${missing.join(", chassis.")}; pass sp.completeDefinition(def) to fill in the core's defaults`,
+    );
+  }
+  return c as ChassisSizing;
+}
+
+/**
  * Create a dynamic Rapier body with the definition's mass and inertia and,
  * by default, a massless box collider for the chassis. Wheels have no
- * colliders: the rays are the wheels.
+ * colliders: the rays are the wheels. Takes a partial definition (a preset)
+ * as long as its chassis sizes are given; `sp.completeDefinition(def)`
+ * fills in the rest.
  */
-export function createChassisBody(
-  rapier: Rapier,
-  scene: RAPIER.World,
-  def: VehicleDefinition,
+export function createChassisBody<B extends RapierBodyLike, C extends RapierColliderLike>(
+  rapier: RapierModuleLike,
+  scene: RapierSceneLike<B, C>,
+  def: PartialVehicleDefinition,
   options: ChassisBodyOptions = {},
-): RAPIER.RigidBody {
+): B {
   const up = options.up ?? "y";
   const frame = new Frame(up);
-  const c = def.chassis;
+  const c = chassisSizing(def);
   const yaw = options.yaw ?? 0;
   const qCore: Quat = [0, 0, Math.sin(yaw / 2), Math.cos(yaw / 2)];
   const qScene = frame.quatToScene(qCore, [0, 0, 0, 1]);
@@ -184,7 +316,7 @@ export function createChassisBody(
       { x: inertia[0], y: inertia[1], z: inertia[2] },
       { x: 0, y: 0, z: 0, w: 1 },
     );
-  const body = scene.createRigidBody(desc);
+  const body = scene.createRigidBody(desc as never);
   if (options.colliderHalfExtents !== null) {
     const he = options.colliderHalfExtents ?? [
       0.7 * c.wheelbase,
@@ -194,20 +326,23 @@ export function createChassisBody(
     const heScene = up === "y" ? [he[0], he[2], he[1]] : he;
     const collider = rapier.ColliderDesc.cuboid(heScene[0]!, heScene[1]!, heScene[2]!).setMass(0);
     if (options.collisionGroups !== undefined) collider.setCollisionGroups(options.collisionGroups);
-    scene.createCollider(collider, body);
+    scene.createCollider(collider as never, body);
   }
   return body;
 }
 
 /** Drives one Rapier body with one Skidpad vehicle. */
-export class RapierVehicle {
+export class RapierVehicle<
+  B extends RapierBodyLike = RapierBodyLike,
+  C extends RapierColliderLike = RapierColliderLike,
+> {
   readonly frame: Frame;
   private readonly rays: WheelRay[];
-  private readonly ray: RAPIER.Ray;
+  private readonly ray: RapierRayLike;
   private readonly surfaceVelocity: boolean;
   private readonly filterGroups: number | undefined;
-  private readonly filterPredicate: ((collider: RAPIER.Collider) => boolean) | undefined;
-  private readonly surfaceId: ((collider: RAPIER.Collider) => number) | undefined;
+  private readonly filterPredicate: ((collider: C) => boolean) | undefined;
+  private readonly surfaceId: ((collider: C) => number) | undefined;
   private readonly impulse: HostImpulse = { impulse: [0, 0, 0], angularImpulse: [0, 0, 0] };
   // Scratch space so the per-step path allocates nothing of its own.
   private readonly v0: Vec3 = [0, 0, 0];
@@ -224,12 +359,12 @@ export class RapierVehicle {
   };
 
   constructor(
-    rapier: Rapier,
+    rapier: RapierModuleLike,
     readonly world: World,
     readonly vehicle: number,
-    readonly body: RAPIER.RigidBody,
-    readonly scene: RAPIER.World,
-    options: RapierVehicleOptions = {},
+    readonly body: B,
+    readonly scene: RapierSceneLike<B, C>,
+    options: RapierVehicleOptions<C> = {},
   ) {
     this.frame = new Frame(options.up ?? "y");
     this.surfaceVelocity = options.surfaceVelocity ?? true;
@@ -299,7 +434,7 @@ export class RapierVehicle {
       this.ray.dir.y = ds[1];
       this.ray.dir.z = ds[2];
       const hit = this.scene.castRayAndGetNormal(
-        this.ray,
+        this.ray as never,
         ray.length,
         true,
         undefined,

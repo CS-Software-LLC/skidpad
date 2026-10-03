@@ -56,6 +56,16 @@ pub use world::World;
 /// Crate version, exposed through the WASM ABI.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
+/// What the WASM reports as its version: [`VERSION`], then `+` and a hash
+/// of the sources it was built from (the crates, the Cargo manifest and
+/// lockfile, the toolchain pin) when `scripts/build-wasm.mjs` built it
+/// (`SKIDPAD_BUILD_VERSION`). Two builds with the same hash simulate
+/// identically.
+pub const BUILD_VERSION: &str = match option_env!("SKIDPAD_BUILD_VERSION") {
+    Some(v) => v,
+    None => VERSION,
+};
+
 /// Standard gravity, m/s².
 pub const GRAVITY: f64 = 9.80665;
 

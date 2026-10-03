@@ -20,6 +20,7 @@ export const CALLABLE = [
   "setGroundSlope",
   "setSurfaces",
   "setSurface",
+  "setWheelSurface",
   "setLod",
   "lod",
   "setAi",

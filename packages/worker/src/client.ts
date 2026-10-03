@@ -1,12 +1,15 @@
 import {
   SkidpadError,
   type AiConfig,
+  type ChannelName,
+  type LodTarget,
   type AiStatus,
   type Lod,
   type PartialVehicleDefinition,
   type SurfaceDefinition,
   type TelemetryChannel,
   type VehicleInput,
+  type Wheel,
 } from "@skidpad/core";
 import type { Callable, Endpoint, InitResult, Request, Response, StepResult } from "./protocol.js";
 
@@ -47,6 +50,8 @@ export class WorkerWorld {
   private inFlight = 0;
   private lastStepMs = 0;
   private count = 0;
+  /** Each vehicle's level of detail as last set or read (see {@link lodTarget}). */
+  private readonly levels: Lod[] = [];
 
   private constructor(
     private readonly endpoint: Endpoint,
@@ -165,17 +170,17 @@ export class WorkerWorld {
     return this.telemetry.subarray(o, o + this.telemetryStride);
   }
 
-  read(vehicle: number, channel: string): number {
+  read(vehicle: number, channel: ChannelName): number {
     const i = this.channel(channel);
     if (i < 0) throw new SkidpadError(`unknown telemetry channel "${channel}"`, -2);
     return this.telemetry[vehicle * this.telemetryStride + i] ?? Number.NaN;
   }
 
-  readAll(vehicle: number): Record<string, number> {
+  readAll(vehicle: number): Record<ChannelName, number> {
     const view = this.telemetryView(vehicle);
-    const out: Record<string, number> = {};
+    const out = {} as Record<ChannelName, number>;
     this.telemetryLayout.forEach((c, i) => {
-      out[c.name] = view[i] ?? Number.NaN;
+      out[c.name as ChannelName] = view[i] ?? Number.NaN;
     });
     return out;
   }
@@ -209,6 +214,7 @@ export class WorkerWorld {
   async addVehicle(def: PartialVehicleDefinition): Promise<number> {
     const i = await this.call<number>("addVehicle", def);
     this.count = Math.max(this.count, i + 1);
+    this.levels[i] = "full";
     return i;
   }
 
@@ -216,8 +222,14 @@ export class WorkerWorld {
     return this.call("setDefinition", vehicle, def);
   }
 
-  resetVehicle(vehicle: number, x = 0, y = 0, yaw = 0): Promise<void> {
-    return this.call("resetVehicle", vehicle, x, y, yaw);
+  /** As `World.resetVehicle`: `heading` is a yaw angle or a direction `[dx, dy]`. */
+  resetVehicle(
+    vehicle: number,
+    x = 0,
+    y = 0,
+    heading: number | readonly [number, number] = 0,
+  ): Promise<void> {
+    return this.call("resetVehicle", vehicle, x, y, heading);
   }
 
   setGroundSlope(vehicle: number, grade: number, cross = 0): Promise<void> {
@@ -232,13 +244,52 @@ export class WorkerWorld {
     return this.call("setSurface", vehicle, surfaceId);
   }
 
-  setLod(vehicle: number, lod: Lod, substepRateHz = 0): Promise<void> {
-    return this.call("setLod", vehicle, lod, substepRateHz);
+  setWheelSurface(vehicle: number, wheel: Wheel, surfaceId: number): Promise<void> {
+    return this.call("setWheelSurface", vehicle, wheel, surfaceId);
   }
 
-  lod(vehicle: number): Promise<Lod> {
-    return this.call("lod", vehicle);
+  async setLod(vehicle: number, lod: Lod, substepRateHz = 0): Promise<void> {
+    const before = this.levels[vehicle];
+    this.levels[vehicle] = lod;
+    try {
+      await this.call("setLod", vehicle, lod, substepRateHz);
+    } catch (e) {
+      if (this.levels[vehicle] === lod) this.levels[vehicle] = before ?? "full";
+      throw e;
+    }
   }
+
+  async lod(vehicle: number): Promise<Lod> {
+    const lod = await this.call<Lod>("lod", vehicle);
+    this.levels[vehicle] = lod;
+    return lod;
+  }
+
+  /**
+   * A synchronous {@link LodTarget} over this world, for a `LodController`.
+   * It reads each vehicle's level as this client last set it (or read it,
+   * or restored it) and sends changes to the worker without waiting; they
+   * apply before the next step, since requests run in order. A change the
+   * worker refuses is reported to `onError` (default: `console.error`) and
+   * the local level reverts.
+   */
+  get lodTarget(): LodTarget {
+    const count = () => this.count;
+    return (this.lodTargetValue ??= {
+      get vehicleCount() {
+        return count();
+      },
+      lod: (vehicle: number) => this.levels[vehicle] ?? "full",
+      setLod: (vehicle: number, lod: Lod, substepRateHz = 0) => {
+        this.setLod(vehicle, lod, substepRateHz).catch((e: unknown) => this.onLodError(e));
+      },
+    });
+  }
+
+  /** Called when a change sent through {@link lodTarget} fails. */
+  onLodError: (error: unknown) => void = (e) => console.error(e);
+
+  private lodTargetValue: LodTarget | undefined;
 
   setAi(
     vehicle: number,
@@ -261,8 +312,10 @@ export class WorkerWorld {
     return this.call("snapshot", vehicle);
   }
 
-  restore(vehicle: number, bytes: Uint8Array): Promise<void> {
-    return this.call("restore", vehicle, bytes);
+  async restore(vehicle: number, bytes: Uint8Array): Promise<void> {
+    await this.call("restore", vehicle, bytes);
+    // A snapshot taken at the other level of detail switches the vehicle's level.
+    await this.lod(vehicle);
   }
 
   stateHash(vehicle: number): Promise<string> {

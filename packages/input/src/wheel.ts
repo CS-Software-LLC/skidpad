@@ -5,6 +5,7 @@
  * ratio says and the force-feedback torque means what the core computed.
  */
 import {
+  AxisCalibrator,
   builtinProfiles,
   calibrateCentred,
   calibratePedal,
@@ -14,13 +15,16 @@ import {
   type WheelProfile,
 } from "./calibration.js";
 import { clamp } from "./filters.js";
-import { emptyFrame, MAX_GEAR, type InputFrame } from "./index.js";
+import { GearSelector } from "./gears.js";
+import { emptyFrame, type InputFrame } from "./index.js";
 
 /** The subset of `Gamepad` the mapping reads; plain objects work in tests. */
 export interface GamepadLike {
   id: string;
   index: number;
   connected: boolean;
+  /** The browser's mapping, `"standard"` for a gamepad it knows. */
+  mapping?: string;
   axes: ArrayLike<number>;
   buttons: ArrayLike<{ value: number; pressed: boolean }>;
 }
@@ -34,6 +38,16 @@ export interface WheelInputOptions {
    * rotation (so full lock on the wheel is full lock on the car).
    */
   steeringLockDeg?: number;
+  /** The gear state to shift; share one between devices. */
+  gears?: GearSelector;
+  /**
+   * Also match pads with the browser's `"standard"` gamepad mapping
+   * (default false). Wheels report a non-standard mapping in Chromium;
+   * leaving gamepads out keeps a pattern such as the generic profile's
+   * `046d` (Logitech's vendor id) from taking a Logitech gamepad for a
+   * wheel.
+   */
+  matchStandardPads?: boolean;
 }
 
 /** What the wheel input found on the last poll. */
@@ -48,10 +62,10 @@ export interface WheelStatus {
 export class WheelInput {
   private readonly profiles: WheelProfile[];
   steeringLockDeg: number | undefined;
-  /** Requested gear, held here like the keyboard does. */
-  gear = 0;
+  /** The gear state this wheel shifts. */
+  readonly gears: GearSelector;
+  private readonly matchStandardPads: boolean;
   private readonly wasPressed = new Map<string, boolean>();
-  private reverse = false;
   readonly status: WheelStatus = {
     profile: undefined,
     wheel: undefined,
@@ -62,6 +76,17 @@ export class WheelInput {
   constructor(options: WheelInputOptions = {}) {
     this.profiles = options.profiles ?? builtinProfiles();
     this.steeringLockDeg = options.steeringLockDeg;
+    this.gears = options.gears ?? new GearSelector();
+    this.matchStandardPads = options.matchStandardPads ?? false;
+  }
+
+  /** Requested gear; −1 reverse, 0 neutral or drive, 1 … n. */
+  get gear(): number {
+    return this.gears.gear;
+  }
+
+  set gear(g: number) {
+    this.gears.gear = g;
   }
 
   /** Replace the active profile set (after calibration). */
@@ -74,7 +99,7 @@ export class WheelInput {
     const list: GamepadLike[] = [];
     for (let i = 0; i < pads.length; i++) {
       const p = pads[i];
-      if (p && p.connected) list.push(p);
+      if (p && p.connected && (this.matchStandardPads || p.mapping !== "standard")) list.push(p);
     }
     for (const profile of this.profiles) {
       const wheel = list.find((p) => matches(profile.match.wheel, p.id));
@@ -140,13 +165,10 @@ export class WheelInput {
     frame.brake = pedal(profile.brake);
     frame.clutch = pedal(profile.clutch);
     frame.handbrake = this.pressed(profile.handbrake) ? 1 : 0;
-    if (this.risingEdge("up", profile.shiftUp)) this.gear = Math.min(MAX_GEAR, this.gear + 1);
-    if (this.risingEdge("down", profile.shiftDown)) this.gear = Math.max(-1, this.gear - 1);
-    if (this.risingEdge("reverse", profile.reverse)) {
-      this.reverse = !this.reverse;
-      this.gear = this.reverse ? -1 : 0;
-    }
-    frame.gear = this.gear;
+    if (this.risingEdge("up", profile.shiftUp)) this.gears.up();
+    if (this.risingEdge("down", profile.shiftDown)) this.gears.down();
+    if (this.risingEdge("reverse", profile.reverse)) this.gears.toggleReverse();
+    frame.gear = this.gears.gear;
     return frame;
   }
 
@@ -170,6 +192,17 @@ function matches(pattern: string, id: string): boolean {
   }
 }
 
+/** An axis {@link AxisFinder} found moving, with the raw range it saw. */
+export interface AxisFound {
+  device: DeviceRole;
+  axis: number;
+  /** Raw travel seen. */
+  travel: number;
+  /** Lowest and highest raw value seen. */
+  min: number;
+  max: number;
+}
+
 /**
  * Finds which axis the user is moving: feed it gamepad snapshots while they
  * press one pedal or turn the wheel, and it reports the axis with the most
@@ -189,17 +222,55 @@ export class AxisFinder {
     }
   }
 
-  /** The moving axis once its travel exceeds `threshold`, else undefined. */
-  result(threshold = 0.5): { device: DeviceRole; axis: number; travel: number } | undefined {
-    let best: { device: DeviceRole; axis: number; travel: number } | undefined;
+  /**
+   * The moving axis once its travel exceeds `threshold`, else undefined,
+   * leaving out the axes in `exclude` (ones already assigned, so brushing
+   * the throttle while finding the brake does not pick the throttle
+   * again). The result carries the range seen, and {@link binding} turns
+   * it into a calibrated binding.
+   */
+  result(
+    threshold = 0.5,
+    exclude: ReadonlyArray<{ device: DeviceRole; axis: number }> = [],
+  ): AxisFound | undefined {
+    let best: AxisFound | undefined;
     for (const [key, lo] of this.lo) {
-      const travel = (this.hi.get(key) ?? lo) - lo;
+      const hi = this.hi.get(key) ?? lo;
+      const travel = hi - lo;
       if (travel > threshold && (!best || travel > best.travel)) {
         const [device, axis] = key.split(":");
-        best = { device: device as DeviceRole, axis: Number(axis), travel };
+        const found: AxisFound = {
+          device: device as DeviceRole,
+          axis: Number(axis),
+          travel,
+          min: lo,
+          max: hi,
+        };
+        if (exclude.some((e) => e.device === found.device && e.axis === found.axis)) continue;
+        best = found;
       }
     }
     return best;
+  }
+
+  /**
+   * A binding for a found axis, calibrated over the range seen. `rest` is
+   * the axis's raw value at rest (released pedal, centred wheel): it sets a
+   * centred axis's centre, and a pedal that reads high at rest is inverted.
+   */
+  binding(found: AxisFound, centred: boolean, rest?: number): AxisBinding {
+    const cal = new AxisCalibrator(centred);
+    cal.sample(found.min);
+    cal.sample(found.max);
+    if (rest !== undefined) cal.rest(rest);
+    const calibration = cal.result() ?? {
+      min: found.min,
+      max: found.max,
+      deadzone: centred ? 0.02 : 0.03,
+      invert: false,
+      exponent: 1,
+    };
+    return { device: found.device, axis: found.axis, calibration };
   }
 
   reset(): void {

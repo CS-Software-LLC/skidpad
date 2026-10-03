@@ -17,6 +17,9 @@ importers:
       '@types/node':
         specifier: ^22.20.4
         version: 22.20.4
+      binaryen:
+        specifier: ^132.0.0
+        version: 132.0.0
       eslint:
         specifier: ^9.0.0
         version: 9.39.5
@@ -238,6 +241,9 @@ importers:
       '@dimforge/rapier3d-compat':
         specifier: ^0.21.0
         version: 0.21.0
+      '@dimforge/rapier3d-deterministic-compat':
+        specifier: ^0.21.0
+        version: 0.21.0
       '@skidpad/presets':
         specifier: workspace:*
         version: link:../presets
@@ -282,6 +288,9 @@ importers:
       '@skidpad/presets':
         specifier: workspace:*
         version: link:../presets
+      esbuild:
+        specifier: ^0.28.0
+        version: 0.28.2
       typescript:
         specifier: ^5.6.0
         version: 5.9.3
@@ -583,6 +592,9 @@ packages:
 
   '@dimforge/rapier3d-compat@0.21.0':
     resolution: {integrity: sha512-tCl1HPGwOhn5aCQbgqWbOH+Nx/5fnr3IPAnzQuR7zIhC/raqi2yxC6LhvZqjdI2El5hQgY5RDAwDrAjAi2FdPA==}
+
+  '@dimforge/rapier3d-deterministic-compat@0.21.0':
+    resolution: {integrity: sha512-n7JuU62Obljlgq+OeH2DHhTmRSjRzwuJPl54tS9pFIzVQyvXsO5CH+a5KkIRBtnFWDbg1Zicv9BulG0jfBAopA==}
 
   '@docsearch/css@3.8.2':
     resolution: {integrity: sha512-y05ayQFyUmCXze79+56v/4HpycYF3uFqB78pLPrSV5ZKAlDuIAAJNhaRi8tTdRNXh05yxX/TyNnzD6LwSM89vQ==}
@@ -1537,6 +1549,10 @@ packages:
   better-path-resolve@1.0.0:
     resolution: {integrity: sha512-pbnl5XzGBdrFU/wT4jqmJVPn2B6UHPBOhzMQkY/SPUPB6QtUXtmBHBIwCbXJol93mOpGMnQyP/+BB19q04xj7g==}
     engines: {node: '>=4'}
+
+  binaryen@132.0.0:
+    resolution: {integrity: sha512-4Usg7yEvwO3FMso3Oov6qkOOHSod1IEv+boKkh77kTljM+eNBouqCTbqWswGzbG+vDNO/b/v2C4gfEh1WgB9Lg==}
+    hasBin: true
 
   birpc@2.9.0:
     resolution: {integrity: sha512-KrayHS5pBi69Xi9JmvoqrIgYGDkD6mcSe/i6YKi3w5kekCLzrX4+nawcXqrj2tIp50Kw/mT/s3p+GVK0A0sKxw==}
@@ -2939,6 +2955,8 @@ snapshots:
 
   '@dimforge/rapier3d-compat@0.21.0': {}
 
+  '@dimforge/rapier3d-deterministic-compat@0.21.0': {}
+
   '@docsearch/css@3.8.2': {}
 
   '@docsearch/js@3.8.2(@algolia/client-search@5.59.0)(@types/react@18.3.31)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(search-insights@2.17.3)':
@@ -3787,6 +3805,8 @@ snapshots:
   better-path-resolve@1.0.0:
     dependencies:
       is-windows: 1.0.2
+
+  binaryen@132.0.0: {}
 
   birpc@2.9.0: {}
 

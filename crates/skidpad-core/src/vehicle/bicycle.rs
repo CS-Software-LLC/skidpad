@@ -16,7 +16,7 @@ use crate::definition::VehicleDefinition;
 use crate::drivetrain::{Drivetrain, WheelDyn};
 use crate::input::VehicleInput;
 use crate::snapshot::Snapshottable;
-use crate::surface::SurfaceTable;
+use crate::surface::{Surface, SurfaceTable};
 use crate::telemetry as t;
 use crate::tire::{
     clamp_to_friction, kinematic_slip, low_speed_fade, TireInput, TireOutput, TireTransient,
@@ -75,10 +75,12 @@ pub struct BicycleVehicle {
     pub assist_telemetry: AssistTelemetry,
     /// Aero lift at each axle, N, positive up (ADR-0015).
     pub aero_lift: [f64; 2],
-    /// Surface id of the flat ground under both axles (ADR-0014).
-    pub surface_id: u32,
-    /// Grip scale of that surface during the last substep.
-    pub surface_grip: f64,
+    /// Surface id of the flat ground under each wheel (ADR-0014), in the
+    /// four-wheel order. Each axle runs on the mean of its two wheels'
+    /// surfaces.
+    pub surface_ids: [u32; 4],
+    /// Grip scale of each wheel's surface during the last substep.
+    pub surface_grips: [f64; 4],
     /// Ground slope under the built-in host as the rise per metre along
     /// world +x (grade) and world +y (cross slope). Not part of the
     /// definition or the snapshot: it is the environment, set by the
@@ -113,17 +115,38 @@ impl BicycleVehicle {
             rack_force: 0.0,
             assist_telemetry: AssistTelemetry::default(),
             aero_lift: [0.0, 0.0],
-            surface_id: 0,
-            surface_grip: 1.0,
+            surface_ids: [0; 4],
+            surface_grips: [1.0; 4],
             ground_slope: [0.0, 0.0],
         };
         v.compute_static_loads();
         v
     }
 
-    /// Surface id of the flat ground (ADR-0014).
+    /// Surface id of the flat ground under every wheel (ADR-0014).
     pub fn set_surface(&mut self, id: u32) {
-        self.surface_id = id;
+        self.surface_ids = [id; 4];
+    }
+
+    /// Surface id of the flat ground under one wheel (four-wheel order);
+    /// out-of-range wheels are ignored.
+    pub fn set_wheel_surface(&mut self, wheel: usize, id: u32) {
+        if let Some(s) = self.surface_ids.get_mut(wheel) {
+            *s = id;
+        }
+    }
+
+    /// The surface an axle runs on: the mean of its two wheels' surfaces
+    /// (each wheel carries half the axle), exactly the surface itself when
+    /// both are the same.
+    fn axle_surface(&self, axle: usize, surfaces: &SurfaceTable) -> Surface {
+        let a = surfaces.get(self.surface_ids[2 * axle]);
+        let b = surfaces.get(self.surface_ids[2 * axle + 1]);
+        Surface {
+            grip: 0.5 * (a.grip + b.grip),
+            rolling_resistance: 0.5 * (a.rolling_resistance + b.rolling_resistance),
+            drag: 0.5 * (a.drag + b.drag),
+        }
     }
 
     /// Set the ground slope of the built-in flat world as the rise per
@@ -224,8 +247,13 @@ impl BicycleVehicle {
     /// (ADR-0014).
     pub fn substep_on(&mut self, dt: f64, input: &VehicleInput, surfaces: &SurfaceTable) {
         let input = input.clamped();
-        let surface = surfaces.get(self.surface_id);
-        self.surface_grip = surface.grip;
+        for (g, &id) in self.surface_grips.iter_mut().zip(&self.surface_ids) {
+            *g = surfaces.get(id).grip;
+        }
+        let axle_surfaces = [
+            self.axle_surface(FRONT, surfaces),
+            self.axle_surface(REAR, surfaces),
+        ];
         let c = &self.def.chassis;
         let a = c.cg_to_front_axle;
         let b = self.def.cg_to_rear_axle();
@@ -284,6 +312,7 @@ impl BicycleVehicle {
         let mut ploughs = [(0.0, 0.0); 2];
 
         for i in 0..2 {
+            let surface = axle_surfaces[i];
             let axle_def = &self.def.axles[i];
             let tire = &axle_def.tire;
             let radius = tire.unloaded_radius();
@@ -628,8 +657,10 @@ impl BicycleVehicle {
             rec[t::WHEEL_CONTACT_FL + i] = 1.0;
             rec[t::WHEEL_LOCKED_FL + i] = if ax.locked { 1.0 } else { 0.0 };
             rec[t::SPIN_ANGLE_FL + i] = ax.spin_angle;
-            rec[t::SURFACE_ID_FL + i] = self.surface_id as f64;
-            rec[t::SURFACE_GRIP_FL + i] = self.surface_grip;
+            rec[t::SURFACE_ID_FL + i] = self.surface_ids[i] as f64;
+            rec[t::SURFACE_GRIP_FL + i] = self.surface_grips[i];
+            let tire = &self.def.axles[i / 2].tire;
+            super::four_wheel::write_grip_telemetry(&ax.out, 0.5, &ax.transient, tire, i, rec);
         }
         rec[t::AERO_LIFT_F] = self.aero_lift[0];
         rec[t::AERO_LIFT_R] = self.aero_lift[1];

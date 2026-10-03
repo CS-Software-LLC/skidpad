@@ -29,6 +29,48 @@ const wheel = new WheelInput({
 const frame = wheel.poll(); // undefined until a known wheel is connected
 ```
 
+The setup flow assigns controls with `AxisFinder`, which reports the axis
+the player is moving. Pass the axes already assigned to `result(threshold,
+exclude)` so brushing the throttle while finding the brake does not pick the
+throttle again, and `binding(found, centred, rest)` turns the result into a
+calibrated binding. Profile patterns are JavaScript regular expressions
+matched against `Gamepad.id`; a leading `(?i)` makes one case-insensitive.
+Pads with the browser's standard gamepad mapping are left to
+`GamepadInput` (wheels report a non-standard mapping), unless you pass
+`matchStandardPads: true`.
+
+## Several devices and one gearbox
+
+Each device class can hold the requested gear itself, but a car has one
+gearbox. Create one `GearSelector` with the car's transmission mode and pass
+it to every device: with `mode: "automatic"` a shift down from drive selects
+reverse and a shift up from reverse selects drive, so no device can count
+forward gears the automatic ignores. `InputMixer` reads every device each
+frame and passes on the one the player touched last:
+
+```ts
+import { GearSelector, InputMixer, KeyboardInput, GamepadInput, WheelInput } from "@skidpad/input";
+
+const gears = new GearSelector({ mode: "automatic" }); // the car's gearbox
+const keyboard = new KeyboardInput({ gears });
+const gamepad = new GamepadInput({ gears }); // bumpers shift, Y toggles reverse
+const wheel = new WheelInput({ gears });
+const input = new InputMixer(
+  [
+    { name: "keyboard", read: (dt) => keyboard.update(dt) },
+    { name: "gamepad", read: () => gamepad.poll() },
+    { name: "wheel", read: () => wheel.poll() },
+  ],
+  { gears },
+);
+// each step
+world.setInput(car, input.update(dt));
+```
+
+`GamepadInput.poll()` reads the first pad with the standard mapping, so a
+connected wheel is never read as a gamepad, and leaves it in `lastPad` for a
+rumble sink.
+
 ## Safety first
 
 A force-feedback wheel is a motor. A direct-drive base like the G PRO can
@@ -74,6 +116,20 @@ reconstructed from the public Linux drivers:
 - `classic` for the G29, G27 and G25 (and the G923 in compatibility mode):
   the seven-byte command reports.
 
+By default (`protocol: "auto"`) the sink picks the protocol from the
+device's USB product id when it attaches, using the ids of the Linux drivers
+(`LOGITECH_WHEELS`, `logitechWheel(productId)`), and takes the wheel's peak
+torque from the same table, so a G29 gets the classic protocol and about
+2.5 N·m rather than the G PRO's 11. A wheel the table does not know gets
+HID++ and 11 N·m; pass `protocol` (or set `sink.protocol` before attaching)
+and `maxTorque` to override either.
+
+`connect()` and `attach()` reject when the force path cannot be set up (the
+HID++ feature does not answer, or the wheel refuses the constant-force
+effect), with the device closed again and the reason in the diagnostics log.
+`sink.ready` says whether forces are being sent; `connected` only says the
+device is open.
+
 **Every protocol constant is marked `[VERIFY]` until it has been tried on
 hardware.** The sink keeps a diagnostics log of every report sent and
 received; if your wheel does nothing or does the wrong thing, copy the log
@@ -89,7 +145,7 @@ not accept the 7-byte short report and the browser rejects the write with
 `NotAllowedError: Failed to write the report`.
 
 ```ts
-const sink = new LogitechWebHidSink({ protocol: "hidpp", rotationDeg: 900 });
+const sink = new LogitechWebHidSink({ rotationDeg: 900 }); // protocol from the product id
 button.onclick = () => sink.connect(); // must be a user gesture
 // each host step; the hand-wheel angle feeds the runaway guard
 sink.update(

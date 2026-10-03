@@ -111,7 +111,7 @@ function loop(): [number, number][] {
 
 export function runCase(sp: Skidpad, c: BenchCase, now: () => number, steps = 600): BenchResult {
   const w = sp.createWorld(c.vehicles);
-  const def = preset("hatchbackFwd");
+  const def = sp.completeDefinition(preset("hatchbackFwd"));
   def.simulation.substepRateHz = c.substepRateHz;
   def.simulation.model = c.model;
   for (let i = 0; i < c.vehicles; i++) w.addVehicle(def);

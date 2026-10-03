@@ -2,7 +2,9 @@ import type { Lod } from "./core.js";
 
 /**
  * What {@link LodController} drives: a `World`, or anything that forwards
- * to one (a replay recorder records the changes it passes on).
+ * to one (a replay recorder records the changes it passes on, a
+ * `WorkerWorld`'s `lodTarget` keeps the levels locally and sends changes to
+ * its worker).
  */
 export interface LodTarget {
   readonly vehicleCount: number;
@@ -51,8 +53,15 @@ export function chooseLod(distance: number, current: Lod, thresholds: LodThresho
  *
  * ```ts
  * const lod = new LodController(world, { singleTrackBeyond: 60, frozenBeyond: 400 });
+ * lod.pin(playerCar); // always full detail
  * // each frame, before world.step
- * lod.update((car) => distanceToCamera(car), playerCar);
+ * lod.update((car) => distanceToCamera(car));
+ * ```
+ *
+ * For a `WorkerWorld`, pass its `lodTarget`:
+ *
+ * ```ts
+ * const lod = new LodController(workerWorld.lodTarget);
  * ```
  */
 export class LodController {

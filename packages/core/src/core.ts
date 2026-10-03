@@ -9,6 +9,8 @@ import type {
 } from "./definition/types.js";
 import { validateDefinition, validateSurfaces } from "./definition/validate.js";
 import { migrateLegacyDrive } from "./definition/migrate.js";
+import { PACKAGE_VERSION } from "./version.js";
+import type { ChannelName } from "./channels.js";
 
 /** Thrown for any error reported by the core. */
 export class SkidpadError extends Error {
@@ -34,8 +36,11 @@ export interface VehicleInput {
   /** Clutch pedal, 0 (engaged) … 1 (open). Combustion power units only. */
   clutch: number;
   /**
-   * Requested gear: negative reverse, zero neutral (manual) or drive
-   * (automatic), positive gear number.
+   * Requested gear. With a manual transmission: negative is reverse, zero
+   * neutral, `n` gear `n` (clamped to the gears the definition has). With
+   * an automatic: negative is reverse (neutral if the definition has no
+   * reverse ratio), and zero or any positive value is drive, in which the
+   * gearbox picks the gear itself; the engaged gear is the `Gear` channel.
    */
   gear: number;
 }
@@ -82,6 +87,17 @@ export interface HostImpulse {
 
 /** Wheel order used by every per-wheel buffer and channel suffix. */
 export const WHEEL_ORDER = ["FL", "FR", "RL", "RR"] as const;
+
+/** A wheel by name or by its index in {@link WHEEL_ORDER}. */
+export type Wheel = (typeof WHEEL_ORDER)[number] | 0 | 1 | 2 | 3;
+
+function wheelIndex(wheel: Wheel): number {
+  const i = typeof wheel === "number" ? wheel : WHEEL_ORDER.indexOf(wheel);
+  if (!Number.isInteger(i) || i < 0 || i >= WHEEL_ORDER.length) {
+    throw new SkidpadError(`unknown wheel ${String(wheel)}`, ErrorCode.InvalidDefinition);
+  }
+  return i;
+}
 
 export interface TireInput {
   fz: number;
@@ -404,7 +420,18 @@ export class Skidpad {
   private f64: Float64Array;
   private readonly tireScratchPtr: number;
   private readonly tireOutStride: number;
+  /** The `@skidpad/core` npm version, as in its package.json. */
   readonly version: string;
+  /** Version of the Rust crate inside the WASM (not the npm version). */
+  readonly crateVersion: string;
+  /**
+   * Identifies the simulation itself: a hash of the Rust sources, manifest,
+   * lockfile and toolchain pin the WASM was built from. Two cores with the
+   * same value simulate identically, so compare it (not `version`) to tell
+   * whether a replay recorded elsewhere will reproduce. Empty for a WASM
+   * built without `scripts/build-wasm.mjs`.
+   */
+  readonly simulationVersion: string;
   readonly inputStride: number;
   readonly telemetryStride: number;
   readonly telemetryLayout: readonly TelemetryChannel[];
@@ -438,7 +465,14 @@ export class Skidpad {
     this.buffer = exports.memory.buffer;
     this.u8 = new Uint8Array(this.buffer);
     this.f64 = new Float64Array(this.buffer);
-    this.version = this.readString(exports.sp_version_ptr(), exports.sp_version_len());
+    this.version = PACKAGE_VERSION;
+    // "0.1.0+0123456789abcdef": crate version, then the source hash.
+    const [crate, source] = this.readString(
+      exports.sp_version_ptr(),
+      exports.sp_version_len(),
+    ).split("+");
+    this.crateVersion = crate ?? "";
+    this.simulationVersion = source ?? "";
     this.inputStride = exports.sp_input_stride();
     this.telemetryStride = exports.sp_telemetry_stride();
     this.telemetryLayout = JSON.parse(
@@ -527,15 +561,34 @@ export class Skidpad {
     return hex64(this.exports.skidpad_math_selftest());
   }
 
-  /** Index of a telemetry channel by name, or −1. */
+  /** Index of a telemetry channel by name, or −1 (any string, for probing). */
   channel(name: string): number {
     return this.channelIndex.get(name) ?? -1;
   }
 
   /** The core's default definition with every field filled in. */
   defaultDefinition(): VehicleDefinition {
-    this.check(this.exports.sp_default_definition());
+    this.check(this.exports.sp_default_definition(0, 0));
     return JSON.parse(this.result()) as VehicleDefinition;
+  }
+
+  /**
+   * A (partial) definition completed with the core's defaults, exactly as
+   * `World.addVehicle` reads it, for code that needs every field (a host
+   * adapter sizing its body, an editor). Migrates and validates it first,
+   * like `addVehicle`.
+   */
+  completeDefinition(def: PartialVehicleDefinition): VehicleDefinition {
+    def = migrateLegacyDrive(def as Record<string, unknown>) as PartialVehicleDefinition;
+    const v = validateDefinition(def);
+    if (!v.ok) throw new SkidpadError(v.errors.join("; "), ErrorCode.InvalidDefinition);
+    const { ptr, len } = this.writeString(JSON.stringify(def));
+    try {
+      this.check(this.exports.sp_default_definition(ptr, len));
+      return JSON.parse(this.result()) as VehicleDefinition;
+    } finally {
+      this.free(ptr, len);
+    }
   }
 
   /** Create a world with room for `capacity` vehicles. */
@@ -692,8 +745,14 @@ export class World {
     return this.sp.exports.sp_world_vehicle_count(this.handle);
   }
 
+  /** Host steps taken; part of {@link worldHash}. */
   get stepCount(): number {
     return Number(this.sp.exports.sp_world_step_count(this.handle));
+  }
+
+  /** Set the host step counter, as restoring a whole world does. */
+  setStepCount(count: number): void {
+    this.sp.check(this.sp.exports.sp_world_set_step_count(this.handle, count));
   }
 
   /**
@@ -705,11 +764,14 @@ export class World {
     const v = validateDefinition(def);
     if (!v.ok) throw new SkidpadError(v.errors.join("; "), ErrorCode.InvalidDefinition);
     const { ptr, len } = this.sp.writeString(JSON.stringify(def));
+    let vehicle: number;
     try {
-      return this.sp.check(this.sp.exports.sp_world_add_vehicle(this.handle, ptr, len));
+      vehicle = this.sp.check(this.sp.exports.sp_world_add_vehicle(this.handle, ptr, len));
     } finally {
       this.sp.free(ptr, len);
     }
+    this.fillWheelPositions(vehicle);
+    return vehicle;
   }
 
   /** Replace a vehicle's definition in place, keeping its state (live tuning). */
@@ -723,6 +785,7 @@ export class World {
     } finally {
       this.sp.free(ptr, len);
     }
+    this.fillWheelPositions(vehicle);
   }
 
   /** Write a vehicle's input. No allocation. */
@@ -768,8 +831,12 @@ export class World {
     return this.sp.floats().subarray(o, o + this.capacity * this.sp.telemetryStride);
   }
 
-  /** Read one telemetry channel by name. */
-  read(vehicle: number, channel: string): number {
+  /**
+   * Read one telemetry channel by name. Names are checked at compile time
+   * ({@link ChannelName}); per-wheel names compose from `WHEEL_ORDER`, as in
+   * `` `SlipRatio_${WHEEL_ORDER[i]}` ``. A name from elsewhere throws.
+   */
+  read(vehicle: number, channel: ChannelName): number {
     const i = this.sp.channel(channel);
     if (i < 0)
       throw new SkidpadError(`unknown telemetry channel "${channel}"`, ErrorCode.InvalidJson);
@@ -777,11 +844,11 @@ export class World {
   }
 
   /** Copy a vehicle's telemetry into a plain object keyed by channel name. */
-  readAll(vehicle: number): Record<string, number> {
+  readAll(vehicle: number): Record<ChannelName, number> {
     const view = this.telemetryView(vehicle);
-    const out: Record<string, number> = {};
+    const out = {} as Record<ChannelName, number>;
     this.sp.telemetryLayout.forEach((c, i) => {
-      out[c.name] = view[i] ?? NaN;
+      out[c.name as ChannelName] = view[i] ?? NaN;
     });
     return out;
   }
@@ -826,6 +893,7 @@ export class World {
         ErrorCode.InvalidDefinition,
       );
     this.sp.check(this.sp.exports.sp_world_set_lod(this.handle, vehicle, code, substepRateHz));
+    this.fillWheelPositions(vehicle);
   }
 
   /** A vehicle's level of detail. */
@@ -910,6 +978,7 @@ export class World {
     this.sp.check(
       this.sp.exports.sp_world_set_host_mode(this.handle, vehicle, mode === "external" ? 1 : 0),
     );
+    this.fillWheelPositions(vehicle);
   }
 
   /** Live view of a vehicle's host-sync input record. */
@@ -1013,8 +1082,11 @@ export class World {
   }
 
   /**
-   * World-frame hub centre and contact point of each wheel after the last
-   * step, as `[hx, hy, hz, cx, cy, cz]` per wheel. A live view.
+   * World-frame hub centre and contact point of each wheel, as
+   * `[hx, hy, hz, cx, cy, cz]` per wheel in {@link WHEEL_ORDER}: after the
+   * last step, or after `addVehicle`, `resetVehicle`, `restore`, `setLod`
+   * or `setDefinition` when those came later. A live view. Four-wheel model
+   * only; a single-track vehicle's view keeps its last four-wheel values.
    */
   wheelPositionsView(vehicle: number): Float64Array {
     const o = this.hostOutPtr / 8 + vehicle * this.sp.hostOutStride + this.sp.hostOutBodyLen;
@@ -1079,15 +1151,116 @@ export class World {
   }
 
   /**
-   * Surface id of the built-in flat ground under a vehicle. An external
-   * host tags each wheel contact itself through {@link writeWheelContact}.
+   * Surface id of the built-in flat ground under every wheel of a vehicle.
+   * An external host tags each wheel contact itself through
+   * {@link writeWheelContact}.
    */
   setSurface(vehicle: number, surfaceId: number): void {
-    this.sp.check(this.sp.exports.sp_world_set_surface(this.handle, vehicle, surfaceId >>> 0));
+    this.sp.check(this.sp.exports.sp_world_set_surface(this.handle, vehicle, 4, surfaceId >>> 0));
   }
 
-  resetVehicle(vehicle: number, x = 0, y = 0, yaw = 0): void {
-    this.sp.check(this.sp.exports.sp_world_reset_vehicle(this.handle, vehicle, x, y, yaw));
+  /**
+   * Surface id of the built-in flat ground under one wheel, so a car can
+   * put two wheels on the grass. The single-track model runs each axle on
+   * the mean of its two wheels' surfaces. {@link setSurface} sets all four.
+   */
+  setWheelSurface(vehicle: number, wheel: Wheel, surfaceId: number): void {
+    this.sp.check(
+      this.sp.exports.sp_world_set_surface(
+        this.handle,
+        vehicle,
+        wheelIndex(wheel),
+        surfaceId >>> 0,
+      ),
+    );
+  }
+
+  /**
+   * Put a vehicle at rest at `(x, y)`, level at ride height. `heading` is a
+   * yaw angle in radians, or a direction `[dx, dy]` of any length: the
+   * core turns a direction into the angle with its own deterministic
+   * `atan2`, so code that must stay deterministic never needs
+   * `Math.atan2`.
+   */
+  resetVehicle(
+    vehicle: number,
+    x = 0,
+    y = 0,
+    heading: number | readonly [number, number] = 0,
+  ): void {
+    if (typeof heading === "number") {
+      this.sp.check(
+        this.sp.exports.sp_world_reset_vehicle(this.handle, vehicle, x, y, heading, 0, 0),
+      );
+    } else {
+      const [dx, dy] = heading;
+      if (!(Number.isFinite(dx) && Number.isFinite(dy)) || (dx === 0 && dy === 0)) {
+        throw new SkidpadError(
+          "heading must be a finite, non-zero vector",
+          ErrorCode.InvalidDefinition,
+        );
+      }
+      this.sp.check(this.sp.exports.sp_world_reset_vehicle(this.handle, vehicle, x, y, 0, dx, dy));
+    }
+    this.fillWheelPositions(vehicle);
+  }
+
+  /**
+   * Fill a four-wheel vehicle's {@link wheelPositionsView} from its pose
+   * and the ground in its host-sync record, as the next step would before
+   * moving: hub and contact on each wheel's ray where it meets the contact
+   * plane, or at full droop. Kept out of the core to keep the WASM small;
+   * basic arithmetic only, so it is the same in every engine.
+   */
+  private fillWheelPositions(vehicle: number): void {
+    let rays: WheelRay[];
+    try {
+      rays = this.wheelRays(vehicle);
+    } catch {
+      return; // the single-track model has no wheel positions
+    }
+    const t = this.telemetryView(vehicle);
+    const ch = (name: ChannelName) => t[this.sp.channel(name)]!;
+    const [px, py, pz] = [ch("PosX"), ch("PosY"), ch("PosZ")];
+    const [qx, qy, qz, qw] = [ch("QuatX"), ch("QuatY"), ch("QuatZ"), ch("QuatW")];
+    // v' = v + 2w (q × v) + 2 q × (q × v), q = (qx, qy, qz).
+    const rotate = (v: readonly [number, number, number]): [number, number, number] => {
+      const cx = 2 * (qy * v[2] - qz * v[1]);
+      const cy = 2 * (qz * v[0] - qx * v[2]);
+      const cz = 2 * (qx * v[1] - qy * v[0]);
+      return [
+        v[0] + qw * cx + (qy * cz - qz * cy),
+        v[1] + qw * cy + (qz * cx - qx * cz),
+        v[2] + qw * cz + (qx * cy - qy * cx),
+      ];
+    };
+    const down = rotate([0, 0, -1]);
+    const hostIn = this.hostInView(vehicle);
+    const out = this.wheelPositionsView(vehicle);
+    rays.forEach((ray, w) => {
+      const r = rotate(ray.origin);
+      const ox = px + r[0];
+      const oy = py + r[1];
+      const oz = pz + r[2];
+      const c = this.sp.hostInBodyLen + w * this.sp.hostContactStride;
+      const hit = hostIn[c]! > 0.5;
+      const [nx, ny, nz] = [hostIn[c + 4]!, hostIn[c + 5]!, hostIn[c + 6]!];
+      const dn = down[0] * nx + down[1] * ny + down[2] * nz;
+      let d = ray.length;
+      if (hit && dn < -1e-6) {
+        const along =
+          ((hostIn[c + 1]! - ox) * nx + (hostIn[c + 2]! - oy) * ny + (hostIn[c + 3]! - oz) * nz) /
+          dn;
+        if (Number.isFinite(along) && along >= 0 && along <= ray.length) d = along;
+      }
+      const o = w * this.sp.hostOutWheelStride;
+      out[o] = ox + down[0] * (d - ray.radius);
+      out[o + 1] = oy + down[1] * (d - ray.radius);
+      out[o + 2] = oz + down[2] * (d - ray.radius);
+      out[o + 3] = ox + down[0] * d;
+      out[o + 4] = oy + down[1] * d;
+      out[o + 5] = oz + down[2] * d;
+    });
   }
 
   /** Versioned binary snapshot of one vehicle's full state. */
@@ -1105,6 +1278,9 @@ export class World {
   /**
    * Restore a snapshot taken with {@link snapshot}. A snapshot taken at the
    * other level of detail switches the vehicle to that model (and level).
+   * The world's step counter is not part of a vehicle snapshot; use
+   * {@link snapshotWorld} to keep {@link worldHash} meaningful across a
+   * seek.
    */
   restore(vehicle: number, bytes: Uint8Array): void {
     const ptr = this.sp.exports.sp_alloc(bytes.length);
@@ -1114,6 +1290,57 @@ export class World {
     } finally {
       this.sp.free(ptr, bytes.length);
     }
+    this.fillWheelPositions(vehicle);
+  }
+
+  /**
+   * Snapshot of every vehicle plus the step counter, for seeking: after
+   * {@link restoreWorld} the world hashes exactly as it did here. Surface
+   * tables, ground slopes and drivers are the application's and are not
+   * included.
+   */
+  snapshotWorld(): Uint8Array {
+    const parts: Uint8Array[] = [];
+    for (let i = 0; i < this.vehicleCount; i++) parts.push(this.snapshot(i));
+    const size = 20 + parts.reduce((n, p) => n + 4 + p.byteLength, 0);
+    const out = new Uint8Array(size);
+    const dv = new DataView(out.buffer);
+    out.set(WORLD_MAGIC, 0);
+    dv.setUint32(4, WORLD_SNAPSHOT_VERSION, true);
+    dv.setFloat64(8, this.stepCount, true);
+    dv.setUint32(16, parts.length, true);
+    let o = 20;
+    for (const p of parts) {
+      dv.setUint32(o, p.byteLength, true);
+      out.set(p, o + 4);
+      o += 4 + p.byteLength;
+    }
+    return out;
+  }
+
+  /** Restore a {@link snapshotWorld} into a world holding the same vehicles. */
+  restoreWorld(bytes: Uint8Array): void {
+    const bad = (why: string) => new SkidpadError(`world snapshot: ${why}`, ErrorCode.Snapshot);
+    if (bytes.byteLength < 20 || WORLD_MAGIC.some((b, i) => bytes[i] !== b)) {
+      throw bad("not a world snapshot");
+    }
+    const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+    if (dv.getUint32(4, true) !== WORLD_SNAPSHOT_VERSION) throw bad("unknown format version");
+    const n = dv.getUint32(16, true);
+    if (n !== this.vehicleCount) {
+      throw bad(`holds ${n} vehicles, the world ${this.vehicleCount}`);
+    }
+    const parts: Uint8Array[] = [];
+    let o = 20;
+    for (let i = 0; i < n; i++) {
+      if (o + 4 > bytes.byteLength) throw bad("truncated");
+      const len = dv.getUint32(o, true);
+      if (o + 4 + len > bytes.byteLength) throw bad("truncated");
+      parts.push(bytes.subarray(o + 4, o + 4 + len));
+      o += 4 + len;
+    }
+    parts.forEach((p, i) => this.restore(i, p));
+    this.setStepCount(dv.getFloat64(8, true));
   }
 
   free(): void {
@@ -1123,6 +1350,9 @@ export class World {
     }
   }
 }
+
+const WORLD_MAGIC = [0x53, 0x4b, 0x57, 0x53]; // "SKWS"
+const WORLD_SNAPSHOT_VERSION = 1;
 
 function flattenPath(
   path: ArrayLike<number> | ReadonlyArray<readonly [number, number]>,
