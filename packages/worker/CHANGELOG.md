@@ -1,5 +1,12 @@
 # @skidpad/worker
 
+## 0.7.0
+
+### Patch Changes
+
+- Updated dependencies [af4ad45]
+  - @skidpad/core@0.7.0
+
 ## 0.6.0
 
 ### Patch Changes
