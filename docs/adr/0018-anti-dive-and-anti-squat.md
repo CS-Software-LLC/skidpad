@@ -1,6 +1,6 @@
 # ADR-0018: Anti-dive and anti-squat on the raycast suspension
 
-- Status: Accepted
+- Status: Accepted, amended by [ADR-0026](0026-travel-dependent-geometry.md)
 - Date: 2026-10-01
 - Supersedes / superseded by: none
 

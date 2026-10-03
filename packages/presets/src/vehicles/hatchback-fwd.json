@@ -9,7 +9,8 @@
       "Suspension rates typical of a compact hatchback with ~1.4 Hz front and ~1.5 Hz rear ride frequencies, soft rear bar (Gillespie, Fundamentals of Vehicle Dynamics, ch. 5).",
       "Drivetrain [ILLUSTRATIVE]: a 1.6 l naturally aspirated four (peak 172 N·m, 100 kW at 6000 rpm), five-speed ratios and a 4.1 final drive typical of the class; open front differential.",
       "Steering geometry [ILLUSTRATIVE]: 5–6° caster giving about 25 mm of mechanical trail, a small positive scrub radius and an electric assist removing roughly 60 % of the rack torque at the hand wheel, typical of a modern front-drive hatchback.",
-      "Roll centres [ILLUSTRATIVE]: a MacPherson front near 80 mm and a torsion-beam rear near 120 mm above ground (Milliken & Milliken, Race Car Vehicle Dynamics, ch. 17); aero lift coefficients of a modern hatchback are small and positive (Hucho, Aerodynamics of Road Vehicles, ch. 4), with the drag centred a little above the centre of mass."
+      "Roll centres [ILLUSTRATIVE]: a MacPherson front near 80 mm and a torsion-beam rear near 120 mm above ground (Milliken & Milliken, Race Car Vehicle Dynamics, ch. 17); aero lift coefficients of a modern hatchback are small and positive (Hucho, Aerodynamics of Road Vehicles, ch. 4), with the drag centred a little above the centre of mass.",
+      "Travel curves [ILLUSTRATIVE] (ADR-0026): roll-centre height falling with bump and camber gain at rates scaled from the curves derived for Project Chrono's BMW E90 from its hardpoints (MacPherson front: roll centre −2.9 mm per mm of bump, camber about −20°/m; double wishbone: −1.6 mm per mm; docs/validation/chrono-bmw-e90.md), eased for this car's lower roll centres. No toe curves: road cars are set up for near-zero bump steer, and the E90 comparison found toe follows force more than travel."
     ],
     "notes": "Not a specific production model. Values are class-representative."
   },
@@ -51,7 +52,19 @@
         "antiRollStiffness": 16000,
         "bumpStopStiffness": 300000,
         "kind": "independent",
-        "rollCenterHeight": 0.08
+        "rollCenterHeight": 0.08,
+        "kinematics": {
+          "rollCenterHeight": [
+            [-0.11, 0.275],
+            [0, 0],
+            [0.09, -0.225]
+          ],
+          "camberDeg": [
+            [-0.11, 2.2],
+            [0, 0],
+            [0.09, -1.8]
+          ]
+        }
       }
     },
     {
@@ -81,7 +94,14 @@
         "antiRollStiffness": 6000,
         "bumpStopStiffness": 300000,
         "kind": "independent",
-        "rollCenterHeight": 0.12
+        "rollCenterHeight": 0.12,
+        "kinematics": {
+          "rollCenterHeight": [
+            [-0.12, 0.06],
+            [0, 0],
+            [0.1, -0.05]
+          ]
+        }
       }
     }
   ],

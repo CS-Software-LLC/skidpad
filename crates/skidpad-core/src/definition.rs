@@ -5,6 +5,7 @@
 
 use crate::assists::AssistsDef;
 use crate::drivetrain::DrivetrainDef;
+use crate::kinematics::KinematicsDef;
 use crate::tire::TireModel;
 use skidpad_math as m;
 
@@ -165,6 +166,12 @@ pub struct SuspensionDef {
     /// share for this axle's driving force. On a driven rear axle it is
     /// anti-squat, on a driven front axle anti-lift. Four-wheel model only.
     pub anti_drive: f64,
+    /// How toe, camber, roll-centre height and the anti-pitch fractions
+    /// change with each wheel's travel (ADR-0025), as offsets from the
+    /// static values. Absent or empty leaves the geometry fixed at ride
+    /// height. Four-wheel model only.
+    #[cfg_attr(feature = "serde", serde(skip_serializing_if = "Option::is_none"))]
+    pub kinematics: Option<KinematicsDef>,
 }
 
 /// How the two wheels of an axle are held (ADR-0016).
@@ -205,6 +212,7 @@ impl SuspensionDef {
             roll_center_height: 0.0,
             anti_brake: 0.0,
             anti_drive: 0.0,
+            kinematics: None,
         }
     }
 
@@ -221,6 +229,7 @@ impl SuspensionDef {
             roll_center_height: 0.0,
             anti_brake: 0.0,
             anti_drive: 0.0,
+            kinematics: None,
         }
     }
 
@@ -248,7 +257,9 @@ impl SuspensionDef {
                 ));
             }
         }
-        if !self.roll_center_height.is_finite() || m::abs(self.roll_center_height) > 1.0 {
+        if !self.roll_center_height.is_finite()
+            || m::abs(self.roll_center_height) > MAX_ROLL_CENTER_HEIGHT
+        {
             errors.push(format!(
                 "{prefix}.rollCenterHeight must be within ±1 m (got {})",
                 self.roll_center_height
@@ -272,6 +283,12 @@ impl SuspensionDef {
 /// setting, and beyond ten the tire is scrubbing rather than rolling.
 pub const MAX_STATIC_TOE_DEG: f64 = 10.0;
 
+/// Largest static camber magnitude a definition may set, degrees.
+pub const MAX_STATIC_CAMBER_DEG: f64 = 45.0;
+
+/// Largest roll-centre height magnitude a definition may set, m.
+pub const MAX_ROLL_CENTER_HEIGHT: f64 = 1.0;
+
 impl Default for AxleDef {
     fn default() -> Self {
         AxleDef::front_default()
@@ -279,6 +296,63 @@ impl Default for AxleDef {
 }
 
 impl AxleDef {
+    /// Check the travel curves (ADR-0025) against this axle's static values
+    /// and suspension kind.
+    pub fn validate_kinematics(&self, prefix: &str, errors: &mut Vec<String>) {
+        let Some(k) = &self.suspension.kinematics else {
+            return;
+        };
+        let s = &self.suspension;
+        let solid = s.kind == SuspensionKind::Solid;
+        for (name, curve, static_value, bound, angle) in [
+            (
+                "toeDeg",
+                &k.toe_deg,
+                self.static_toe_deg,
+                MAX_STATIC_TOE_DEG,
+                true,
+            ),
+            (
+                "camberDeg",
+                &k.camber_deg,
+                self.static_camber_deg,
+                MAX_STATIC_CAMBER_DEG,
+                true,
+            ),
+            (
+                "rollCenterHeight",
+                &k.roll_center_height,
+                s.roll_center_height,
+                MAX_ROLL_CENTER_HEIGHT,
+                false,
+            ),
+            (
+                "antiBrake",
+                &k.anti_brake,
+                s.anti_brake,
+                MAX_ANTI_PITCH,
+                false,
+            ),
+            (
+                "antiDrive",
+                &k.anti_drive,
+                s.anti_drive,
+                MAX_ANTI_PITCH,
+                false,
+            ),
+        ] {
+            let Some(c) = curve else { continue };
+            let path = format!("{prefix}.{name}");
+            if angle && solid {
+                errors.push(format!(
+                    "{path} is not allowed on a solid axle; the beam sets the wheel angles (ADR-0016)"
+                ));
+                continue;
+            }
+            c.validate(&path, static_value, bound, errors);
+        }
+    }
+
     pub fn front_default() -> Self {
         Self {
             tire: TireModel::default(),
@@ -537,7 +611,9 @@ impl VehicleDefinition {
                     a.max_brake_torque
                 ));
             }
-            if !a.static_camber_deg.is_finite() || m::abs(a.static_camber_deg) > 45.0 {
+            if !a.static_camber_deg.is_finite()
+                || m::abs(a.static_camber_deg) > MAX_STATIC_CAMBER_DEG
+            {
                 e.push(format!(
                     "axles[{i}] ({name}).staticCamberDeg must be within ±45 (got {})",
                     a.static_camber_deg
@@ -557,6 +633,10 @@ impl VehicleDefinition {
             }
             a.suspension
                 .validate(&format!("axles[{i}] ({name}).suspension"), &mut e);
+            a.validate_kinematics(
+                &format!("axles[{i}] ({name}).suspension.kinematics"),
+                &mut e,
+            );
         }
         if !self.axles.iter().any(|a| a.driven) {
             e.push(String::from("at least one axle must be driven"));

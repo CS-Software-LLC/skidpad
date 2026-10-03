@@ -50,6 +50,22 @@ helps. Parameters are per tire unless noted.
   the transfer, like a stiffer bar, so raise the rear for less understeer
   and the front for more.
 
+## Car lifts or squats in corners, or darts over bumps
+
+- A body that rises in long corners is jacking: the axle's roll centre is
+  high, or rises in bump, so the loaded outer link pushes the body up
+  (`JackingForce_F`, `JackingForce_R`). Lower `rollCenterHeight`, or make
+  its `kinematics.rollCenterHeight` curve fall in bump. Static toe-in also
+  lifts a car with a roll-centre curve; reduce it if the car rises on the
+  straight.
+- A car that steers itself over bumps or in roll has bump steer: flatten
+  the `kinematics.toeDeg` curve. Toe-out in bump at the rear is roll
+  oversteer, so the car turns in more as it rolls; toe-in in bump at the
+  rear steadies it
+  ([geometry that changes with travel](/concepts/suspension#geometry-that-changes-with-travel)).
+- To make an axle's share of load transfer fall as the car rolls further,
+  give its roll centre a curve that falls in bump.
+
 ## Car bounces after a bump or a landing
 
 - Raise `bumpDamping` and `reboundDamping`. A damping ratio near 0.3 of
@@ -233,6 +249,8 @@ definition with the units from the schema. Edits apply live through
 `World.setDefinition`, which replaces the definition while keeping the
 car's state, so you can change a spring rate mid-corner and feel it. Reset
 returns the preset; copy, download and load move the definition as JSON, so
-a tune made in the sandbox goes straight into your own application. The
+a tune made in the sandbox goes straight into your own application. Curves
+(the engine's torque map, a suspension's `kinematics`) show read-only;
+edit them in the JSON and load it back. The
 surface selector in the sandbox controls sets the ground under the car from
 the [reference table](/concepts/surfaces).

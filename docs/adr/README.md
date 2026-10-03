@@ -22,9 +22,9 @@ Rejected.
 | [0013](0013-assists-layer.md)                          | Driving assists as a stateless stage inside the core                    | Accepted                  |
 | [0014](0014-surface-table.md)                          | Surface table, with the surface scaling the tire inside the core        | Accepted                  |
 | [0015](0015-aero-lift-and-drag-height.md)              | Aero lift per axle and the drag line of action                          | Accepted                  |
-| [0016](0016-solid-axles-and-roll-centres.md)           | Solid axles and roll-centre heights on the raycast suspension           | Accepted                  |
-| [0017](0017-static-toe.md)                             | Static toe per axle                                                     | Accepted                  |
-| [0018](0018-anti-dive-and-anti-squat.md)               | Anti-dive and anti-squat on the raycast suspension                      | Accepted                  |
+| [0016](0016-solid-axles-and-roll-centres.md)           | Solid axles and roll-centre heights on the raycast suspension           | Accepted, amended by 0026 |
+| [0017](0017-static-toe.md)                             | Static toe per axle                                                     | Accepted, amended by 0026 |
+| [0018](0018-anti-dive-and-anti-squat.md)               | Anti-dive and anti-squat on the raycast suspension                      | Accepted, amended by 0026 |
 | [0019](0019-level-of-detail.md)                        | Level of detail by switching models at runtime                          | Accepted                  |
 | [0020](0020-path-following-driver.md)                  | A path-following driver inside the core                                 | Accepted                  |
 | [0021](0021-replays-and-ghosts.md)                     | Replays as inputs plus keyframes, ghosts as pose tracks                 | Accepted                  |
@@ -32,3 +32,4 @@ Rejected.
 | [0023](0023-jolt-host-adapter.md)                      | A Jolt Physics host adapter on the same host contract                   | Accepted                  |
 | [0024](0024-finite-suspension-rays.md)                 | Restrict suspension contacts to the finite forward ray                  | Proposed                  |
 | [0025](0025-part-throttle-shift-schedule.md)           | A part-throttle shift schedule for the automatic                        | Proposed                  |
+| [0026](0026-travel-dependent-geometry.md)              | Suspension geometry that changes with travel                            | Proposed                  |

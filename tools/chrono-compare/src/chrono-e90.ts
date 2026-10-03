@@ -119,6 +119,10 @@ export const MACPHERSON = {
   lcaUpright: [0.02794, 0.66294, -0.10414] as Point3,
   strutChassis: [-0.08382, 0.54102, 0.46863] as Point3,
   strutUpright: [-0.00508, 0.61976, -0.00127] as Point3,
+  /** Tie rod at the steering rack (`TIEROD_C`), fixed while the steering is centred. */
+  tierodChassis: [-0.05588, 0.3429, -0.09017] as Point3,
+  /** Tie rod at the upright (`TIEROD_U`). */
+  tierodUpright: [-0.13716, 0.68072, -0.09779] as Point3,
 };
 export const DOUBLE_WISHBONE = {
   spindle: [0, 0.7493, 0] as Point3,
@@ -128,6 +132,21 @@ export const DOUBLE_WISHBONE = {
   lcaFront: [0.22352, 0.41148, -0.07874] as Point3,
   lcaBack: [-0.1778, 0.25908, -0.12446] as Point3,
   lcaUpright: [-0.01778, 0.64389, -0.127] as Point3,
+  /** Toe link at the chassis (`TIEROD_C`). */
+  tierodChassis: [-0.2235, 0.25781, -0.04064] as Point3,
+  /** Toe link at the upright (`TIEROD_U`). */
+  tierodUpright: [-0.1524, 0.65786, -0.04572] as Point3,
+};
+
+/**
+ * Spindle angles at the design position, degrees, per wheel (negative
+ * camber is top-in, positive toe is toe-in): `getCamberAngle()` and
+ * `getToeAngle()` in `BMW_E90_MacPhersonStrut.h` (front, −2° camber) and
+ * `BMW_E90_DoubleWishbone.h` (rear, zero).
+ */
+export const DESIGN_ANGLES = {
+  front: { camberDeg: -2, toeDeg: 0 },
+  rear: { camberDeg: 0, toeDeg: 0 },
 };
 
 /** `BMW_E90_BrakeShafts.cpp`: maximum torque per wheel at full pedal, N·m. */

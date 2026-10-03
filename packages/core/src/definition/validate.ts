@@ -26,6 +26,123 @@ function nonNegative(errors: string[], path: string, v: unknown): void {
   if (!isNum(v) || v < 0) errors.push(`${path} must be zero or positive (got ${String(v)})`);
 }
 
+const MIN_CURVE_POINTS = 2;
+const MAX_CURVE_POINTS = 16;
+
+/** Value of a travel curve at `travel`, held at the end points (ADR-0025). */
+export function evalTravelCurve(
+  curve: ReadonlyArray<readonly [number, number]>,
+  travel: number,
+): number {
+  const first = curve[0];
+  if (first === undefined) return 0;
+  if (!(travel > first[0])) return first[1];
+  for (let k = 1; k < curve.length; k++) {
+    const [x1, y1] = curve[k]!;
+    if (travel < x1) {
+      const [x0, y0] = curve[k - 1]!;
+      return y0 + ((y1 - y0) * (travel - x0)) / (x1 - x0);
+    }
+  }
+  return curve[curve.length - 1]![1];
+}
+
+/** Mirrors `TravelCurve::validate` in `crates/skidpad-core/src/kinematics.rs`. */
+function validateTravelCurve(
+  errors: string[],
+  path: string,
+  curve: unknown,
+  staticValue: unknown,
+  bound: number,
+): void {
+  if (!Array.isArray(curve)) {
+    errors.push(`${path} must be an array of [travel, value] pairs`);
+    return;
+  }
+  if (curve.length < MIN_CURVE_POINTS || curve.length > MAX_CURVE_POINTS) {
+    errors.push(
+      `${path} must have between ${MIN_CURVE_POINTS} and ${MAX_CURVE_POINTS} points (got ${curve.length})`,
+    );
+    return;
+  }
+  if (!curve.every((q) => Array.isArray(q) && q.length === 2)) {
+    errors.push(`${path} must be an array of [travel, value] pairs`);
+    return;
+  }
+  const points = curve as Array<[unknown, unknown]>;
+  if (!points.every((q) => isNum(q[0]) && isNum(q[1]))) {
+    errors.push(`${path} must contain only finite numbers`);
+    return;
+  }
+  const p = points as Array<[number, number]>;
+  for (let k = 1; k < p.length; k++) {
+    if (!(p[k]![0] > p[k - 1]![0])) {
+      errors.push(
+        `${path} travel must be strictly increasing (point ${k} at ${p[k]![0]} m follows ${p[k - 1]![0]} m)`,
+      );
+      return;
+    }
+  }
+  const atZero = evalTravelCurve(p, 0);
+  if (!(Math.abs(atZero) <= 1e-9)) {
+    errors.push(
+      `${path} must pass through zero at zero travel (got ${atZero}); it is an offset from the static value`,
+    );
+  }
+  // Piecewise linear and held at the ends: the extremes are points.
+  if (isNum(staticValue)) {
+    for (const [travel, value] of p) {
+      const total = staticValue + value;
+      if (Math.abs(total) > bound) {
+        errors.push(
+          `${path} plus the static value reaches ${total} at ${travel} m of travel, beyond ±${bound}`,
+        );
+        break;
+      }
+    }
+  }
+}
+
+function validateKinematics(
+  errors: string[],
+  path: string,
+  k: unknown,
+  axle: { staticToeDeg?: unknown; staticCamberDeg?: unknown },
+  s: {
+    kind?: unknown;
+    rollCenterHeight?: unknown;
+    antiBrake?: unknown;
+    antiDrive?: unknown;
+  },
+): void {
+  if (k === undefined) return;
+  if (typeof k !== "object" || k === null || Array.isArray(k)) {
+    errors.push(`${path} must be an object`);
+    return;
+  }
+  const curves = k as Record<string, unknown>;
+  // Missing static fields take the core defaults, which are all zero.
+  const solid = s.kind === "solid";
+  const entries: Array<[string, unknown, number, boolean]> = [
+    ["toeDeg", axle.staticToeDeg ?? 0, 10, true],
+    ["camberDeg", axle.staticCamberDeg ?? 0, 45, true],
+    ["rollCenterHeight", s.rollCenterHeight ?? 0, 1, false],
+    ["antiBrake", s.antiBrake ?? 0, 2, false],
+    ["antiDrive", s.antiDrive ?? 0, 2, false],
+  ];
+  for (const [name, staticValue, bound, angle] of entries) {
+    const curve = curves[name];
+    if (curve === undefined) continue;
+    if (angle && solid) {
+      errors.push(
+        `${path}.${name} is not allowed on a solid axle; the beam sets the wheel angles (ADR-0016)`,
+      );
+      continue;
+    }
+    validateTravelCurve(errors, `${path}.${name}`, curve, staticValue, bound);
+  }
+}
+
 function validateTire(errors: string[], warnings: string[], path: string, tire: unknown): void {
   if (tire === undefined) return;
   if (typeof tire !== "object" || tire === null) {
@@ -426,6 +543,7 @@ export function validateDefinition(def: unknown): ValidationResult {
                 `${path}.suspension.rollCenterHeight must be within ±1 m (got ${String(rc)})`,
               );
             }
+            validateKinematics(errors, `${path}.suspension.kinematics`, s.kinematics, a, s);
             if (isNum(rc) && isNum(c.cgHeight) && rc > c.cgHeight) {
               warnings.push(
                 `${path}.suspension.rollCenterHeight of ${rc} m is above the centre of mass (${c.cgHeight} m); the axle will jack the body outward in a corner`,

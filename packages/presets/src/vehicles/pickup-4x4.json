@@ -8,7 +8,8 @@
       "Tire feel parameters tuned to a ~0.75 g skidpad and ~44 m 100–0 km/h braking distance on all-terrain tires, in the range of published road tests for the class.",
       "Suspension rates for ~1.3 Hz front and ~1.5 Hz rear ride frequencies unladen (Gillespie, Fundamentals of Vehicle Dynamics, ch. 5); a leaf-sprung solid rear axle has its roll centre near the spring-seat height, about 0.4 m, and the independent front near 0.1 m (Milliken & Milliken, Race Car Vehicle Dynamics, ch. 17).",
       "Drivetrain [ILLUSTRATIVE]: a 3.5 l V6 (peak 520 N·m at 3000 rpm, 220 kW at 5600 rpm) through a six-speed automatic with a 3.7 final drive, open axle differentials and a centre differential sending 40 % forward, as on a full-time 4WD system.",
-      "Steering geometry [ILLUSTRATIVE]: 4° of caster (about 25 mm of trail), a 20 mm scrub radius and strong hydraulic assist; aero after Hucho, Aerodynamics of Road Vehicles, ch. 4: a tall bluff body with mild lift and the drag centred well above the centre of mass."
+      "Steering geometry [ILLUSTRATIVE]: 4° of caster (about 25 mm of trail), a 20 mm scrub radius and strong hydraulic assist; aero after Hucho, Aerodynamics of Road Vehicles, ch. 4: a tall bluff body with mild lift and the drag centred well above the centre of mass.",
+      "Travel curves [ILLUSTRATIVE] (ADR-0026): roll-centre height falling with bump and camber gain at rates scaled from the curves derived for Project Chrono's BMW E90 from its hardpoints (MacPherson front: roll centre −2.9 mm per mm of bump, camber about −20°/m; double wishbone: −1.6 mm per mm; docs/validation/chrono-bmw-e90.md), eased for this car's lower roll centres. No toe curves: road cars are set up for near-zero bump steer, and the E90 comparison found toe follows force more than travel."
     ],
     "notes": "Not a specific production model. The rear axle is a solid beam (suspension.kind \"solid\", ADR-0016) with a high roll centre, so most of its lateral load transfer goes through the links and the body rolls less than the soft springs alone would allow."
   },
@@ -53,7 +54,19 @@
         "travelDroop": 0.12,
         "antiRollStiffness": 20000,
         "bumpStopStiffness": 400000,
-        "rollCenterHeight": 0.1
+        "rollCenterHeight": 0.1,
+        "kinematics": {
+          "rollCenterHeight": [
+            [-0.12, 0.18],
+            [0, 0],
+            [0.1, -0.15]
+          ],
+          "camberDeg": [
+            [-0.12, 1.2],
+            [0, 0],
+            [0.1, -1.0]
+          ]
+        }
       }
     },
     {

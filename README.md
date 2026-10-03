@@ -65,11 +65,11 @@ commit.
 
 | Vehicle (preset)       | Understeer gradient, four-wheel | Single-track | Linear theory with trail | 0–100 km/h | 100–0 km/h, no ABS        |
 | ---------------------- | ------------------------------- | ------------ | ------------------------ | ---------- | ------------------------- |
-| Light FWD hatchback    | 1.13 deg/g                      | 0.93 deg/g   | 0.93 deg/g               | 9.8 s      | 46.5 m (42.6 m with ABS)  |
-| RWD sports car         | 0.72 deg/g                      | 0.59 deg/g   | 0.58 deg/g               | 4.9 s      | 38.7 m (35.5 m with ABS)  |
+| Light FWD hatchback    | 1.08 deg/g                      | 0.93 deg/g   | 0.93 deg/g               | 9.8 s      | 46.5 m (42.6 m with ABS)  |
+| RWD sports car         | 0.71 deg/g                      | 0.59 deg/g   | 0.58 deg/g               | 4.9 s      | 38.7 m (35.5 m with ABS)  |
 | Kart                   | -0.21 deg/g (solid axle push)   | 0.31 deg/g   | 0.36 deg/g               | 10.9 s     | 58.0 m (rear brakes only) |
-| Pickup 4x4             | 0.98 deg/g                      | 0.72 deg/g   | 0.71 deg/g               | 7.4 s      | 52.1 m (47.1 m with ABS)  |
-| Electric crossover AWD | 0.30 deg/g                      | 0.22 deg/g   | 0.21 deg/g               | 5.0 s      | 44.5 m (40.1 m with ABS)  |
+| Pickup 4x4             | 0.94 deg/g                      | 0.72 deg/g   | 0.71 deg/g               | 7.4 s      | 52.1 m (47.1 m with ABS)  |
+| Electric crossover AWD | 0.29 deg/g                      | 0.22 deg/g   | 0.21 deg/g               | 5.0 s      | 44.5 m (40.1 m with ABS)  |
 | Open-wheeler           | 0.64 deg/g                      | 0.60 deg/g   | 0.66 deg/g               | 2.9 s      | 24.0 m (22.5 m with ABS)  |
 
 The four-wheel gradient sits above the single-track one by the load
@@ -87,10 +87,10 @@ reference surface table:
 
 | Vehicle (preset)       | Step steer response | Lane change passes up to | Wet asphalt | Gravel | Snow  | Ice   |
 | ---------------------- | ------------------- | ------------------------ | ----------- | ------ | ----- | ----- |
-| Light FWD hatchback    | 0.21 s, 5 %         | 100 km/h                 | 70 m        | 73 m   | 126 m | 331 m |
-| RWD sports car         | 0.20 s, 1 %         | 110 km/h                 | 58 m        | 60 m   | 107 m | 282 m |
+| Light FWD hatchback    | 0.21 s, 4 %         | 100 km/h                 | 70 m        | 73 m   | 126 m | 331 m |
+| RWD sports car         | 0.20 s, 0 %         | 110 km/h                 | 58 m        | 60 m   | 107 m | 282 m |
 | Kart                   | 0.15 s, 2 %         | 80 km/h                  | 79 m        | 79 m   | 113 m | spins |
-| Pickup 4x4             | 0.21 s, 3 %         | 90 km/h                  | 78 m        | 80 m   | 137 m | 361 m |
+| Pickup 4x4             | 0.22 s, 2 %         | 90 km/h                  | 78 m        | 80 m   | 137 m | 361 m |
 | Electric crossover AWD | 0.25 s, 0 %         | 90 km/h                  | 67 m        | 70 m   | 122 m | 330 m |
 | Open-wheeler           | 0.14 s, 0 %         | 100 km/h                 | 36 m        | 38 m   | 68 m  | 166 m |
 
@@ -116,8 +116,8 @@ Benchmarks on a Node 22 x64 container, 60 Hz host step, release build:
 | 200 cars, single-track, 240 Hz internal | 1.26        |
 
 Targets: under 0.2 ms for one car and under 3 ms for twenty on M1-class
-hardware; under 2 ms for two hundred traffic cars; core WASM under 200 KB
-gzipped (currently 199.4 KB). `apps/bench/baseline` holds the committed
+hardware; under 2 ms for two hundred traffic cars; core WASM under 224 KB
+gzipped (currently 205.2 KB). `apps/bench/baseline` holds the committed
 baseline the benchmark compares against.
 
 An independent check drives Skidpad and Project Chrono's multibody BMW E90
@@ -125,8 +125,12 @@ through the same eight manoeuvres, with the Skidpad car built from Chrono's
 published constants. Steady-state handling and the step-steer response
 agree within a few percent once static toe, anti-dive and anti-squat, a
 measured engine-braking curve and per-axle tracks are carried over
-(ADR-0017, ADR-0018); the remaining gaps, mostly geometry that changes with
-travel, are in [docs/validation/chrono-bmw-e90.md](docs/validation/chrono-bmw-e90.md).
+(ADR-0017, ADR-0018). Roll centres and pitch geometry that change with
+travel, derived from Chrono's hardpoints (ADR-0026), bring the braking
+pitch and the pitch in a turn into line. The remaining gaps, mostly
+Chrono's toe moving with force (compliance steer) and roll that grows
+faster with lateral acceleration, are in
+[docs/validation/chrono-bmw-e90.md](docs/validation/chrono-bmw-e90.md).
 
 The determinism check runs a 50 s scripted drive of three vehicles, then a
 recorded lap of the sandbox track for each of the six presets (real driving
@@ -342,6 +346,9 @@ Until then the packages stay 0.x and breaking changes go in changesets.
 
 Not before 1.0: multibody suspension, tire thermals and wear, damage,
 motorcycles and trailers, netcode, a full racing AI, native bindings.
+Geometry that changes with travel does not wait for multibody suspension:
+toe, camber, roll-centre and anti-pitch curves against wheel travel are in
+the definition format now (ADR-0026). Compliance steer is the next step.
 
 ### Force feedback platform
 

@@ -186,6 +186,16 @@ channels! {
     // put on the body from its longitudinal tire force, positive up.
     PITCH_LINK_LOAD_F => ("PitchLinkLoad_F", "N"),
     PITCH_LINK_LOAD_R => ("PitchLinkLoad_R", "N"),
+    // Travel-dependent geometry (ADR-0026): the net vertical force the
+    // axle's links put on the body from its tires' lateral forces, positive
+    // up (zero unless the axle has a roll-centre curve), and each wheel's
+    // toe, static plus its travel curve, positive toe-in.
+    JACKING_FORCE_F => ("JackingForce_F", "N"),
+    JACKING_FORCE_R => ("JackingForce_R", "N"),
+    TOE_FL => ("Toe_FL", "rad"),
+    TOE_FR => ("Toe_FR", "rad"),
+    TOE_RL => ("Toe_RL", "rad"),
+    TOE_RR => ("Toe_RR", "rad"),
     // Each tire's friction limit at its load and surface (the peak lateral
     // force; `TireFmax_F`/`_R` are the axle sums), and its combined slip
     // relative to the slip of its peak force, |(κ/κ_peak, tan α/tan α_peak)|:
@@ -224,6 +234,7 @@ pub const WHEEL_GROUPS: &[usize] = &[
     SURFACE_GRIP_FL,
     TIRE_FMAX_FL,
     PEAK_SLIP_FL,
+    TOE_FL,
 ];
 
 /// Number of `f64` slots in one vehicle's telemetry record.

@@ -9,7 +9,11 @@
  * the one deliberate difference: Skidpad's steering is kinematic, so the car
  * is steered with Chrono's logged mean front road-wheel angle, which takes
  * the steering linkage (its ratio curve, toe, Ackermann, roll steer) out of
- * the comparison.
+ * the comparison. Chrono's mean angle already carries its front roll steer,
+ * so with a front toe curve (ADR-0026) the harness takes out the mean angle
+ * Skidpad's own curve adds, from the previous step's wheel angles, and
+ * Skidpad's mean front angle still follows Chrono's. The symmetric part of
+ * the toe change, and the rear's roll steer, stay predictions.
  *
  * The other difference is the start. Chrono places its car at `initSpeed`
  * with the wheels spinning and settles it for `settle` seconds on the PI
@@ -93,7 +97,8 @@ export function runManeuver(sp: Skidpad, name: string, opts: RunOptions = {}): R
   const ref = loadReference(name);
   const world = sp.createWorld(1);
   try {
-    const car = world.addVehicle(opts.definition ?? bmwE90());
+    const definition = opts.definition ?? bmwE90();
+    const car = world.addVehicle(definition);
     const read = (ch: ChannelName) => world.read(car, ch);
     const init = spec.initSpeed ?? 0;
     const settle = spec.settle ?? 1;
@@ -125,6 +130,8 @@ export function runManeuver(sp: Skidpad, name: string, opts: RunOptions = {}): R
     }
 
     const hold = spec.holdSpeed !== undefined ? new SpeedController(spec.holdSpeed) : null;
+    const frontToeCurve = definition.axles?.[0]?.suspension?.kinematics?.toeDeg;
+    let command = 0;
     const x0 = read("PosX");
     const y0 = read("PosY");
     const yaw0 = read("Yaw");
@@ -137,7 +144,12 @@ export function runManeuver(sp: Skidpad, name: string, opts: RunOptions = {}): R
       if (hold) [throttle, brake] = hold.update(read("VelX"), STEP);
       // Chrono's mean front road-wheel angle, + = left; Skidpad's steer is + = right.
       const delta = 0.5 * (at(ref, tm, "delta0") + at(ref, tm, "delta1"));
-      world.setInput(car, { throttle, brake, steer: -delta / MAX_STEER });
+      // The mean front angle the toe curve added on the last step.
+      const rollSteer = frontToeCurve
+        ? 0.5 * (read("WheelSteer_FL") + read("WheelSteer_FR")) - command
+        : 0;
+      command = delta - rollSteer;
+      world.setInput(car, { throttle, brake, steer: -command / MAX_STEER });
       world.step(STEP);
       if ((k + 1) % LOG_EVERY !== 0) continue;
       const dx = read("PosX") - x0;

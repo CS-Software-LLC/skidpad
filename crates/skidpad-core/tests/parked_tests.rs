@@ -4,6 +4,8 @@
 //! 0.1 mm/s, the car drifts less than 1 mm over the next 10 s, and the
 //! velocity RMS over the last 5 s is below 0.1 mm/s.
 
+mod common;
+
 use skidpad_core::definition::VehicleModelKind;
 use skidpad_core::tire::TireModel;
 use skidpad_core::validation::{parked, ParkedConfig, ParkedResult};
@@ -33,6 +35,18 @@ fn presets() -> Vec<(String, VehicleDefinition)> {
         out.push((id.to_string(), d));
     }
     out.push((String::from("default"), VehicleDefinition::default()));
+    // Steep travel curves (ADR-0026) must meet the same criteria.
+    let curved: Vec<_> = out
+        .iter()
+        .filter(|(id, _)| id == "default" || id == "hatchbackFwd")
+        .map(|(id, d)| {
+            (
+                format!("{id} with steep curves"),
+                common::with_steep_curves(d.clone()),
+            )
+        })
+        .collect();
+    out.extend(curved);
     out
 }
 

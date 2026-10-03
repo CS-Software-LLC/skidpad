@@ -4,6 +4,8 @@
 //! sliding friction must be smooth, and the car must come to a clean rest on
 //! the held brake.
 
+mod common;
+
 use skidpad_core::definition::VehicleModelKind;
 use skidpad_core::validation::{straight_line, StraightLineConfig};
 use skidpad_core::VehicleDefinition;
@@ -32,6 +34,18 @@ fn presets() -> Vec<(String, VehicleDefinition)> {
         out.push((id.to_string(), d));
     }
     out.push((String::from("default"), VehicleDefinition::default()));
+    // Steep travel curves (ADR-0026) must meet the same criteria.
+    let curved: Vec<_> = out
+        .iter()
+        .filter(|(id, _)| id == "default" || id == "hatchbackFwd")
+        .map(|(id, d)| {
+            (
+                format!("{id} with steep curves"),
+                common::with_steep_curves(d.clone()),
+            )
+        })
+        .collect();
+    out.extend(curved);
     out
 }
 

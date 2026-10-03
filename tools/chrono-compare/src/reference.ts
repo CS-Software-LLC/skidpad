@@ -69,3 +69,36 @@ export function at(rows: Row[], t: number, key: RowKey): number {
   const b = rows[hi]!;
   return get(a) + ((get(b) - get(a)) * (t - a.t)) / (b.t - a.t);
 }
+
+/** One row of the kinematics sweep (`reference/kc.csv`, `chrono/bmw_e90_kc.py`). */
+export interface KcRow {
+  phase: "rest" | "heave" | "roll";
+  /** Chassis raised by, m. */
+  heave: number;
+  /** Chassis rolled by, rad, + = left side up. */
+  roll: number;
+  /** Per wheel FL, FR, RL, RR: spindle height in the chassis frame, m. */
+  z: [number, number, number, number];
+  /** Toe-in, degrees. */
+  toe: [number, number, number, number];
+  /** Camber relative to the chassis, degrees, negative top-in. */
+  camber: [number, number, number, number];
+}
+
+export function loadKc(): KcRow[] {
+  const text = readFileSync(join(ROOT, "reference", "kc.csv"), "utf8").trim();
+  const [, ...lines] = text.split("\n");
+  return lines.map((l) => {
+    const [phase, ...v] = l.split(",");
+    const n = v.map(Number);
+    const wheel = (k: number) => [0, 1, 2, 3].map((i) => n[2 + 3 * i + k]!) as KcRow["z"];
+    return {
+      phase: phase as KcRow["phase"],
+      heave: n[0]!,
+      roll: n[1]!,
+      z: wheel(0),
+      toe: wheel(1),
+      camber: wheel(2),
+    };
+  });
+}

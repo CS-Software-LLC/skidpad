@@ -1,5 +1,6 @@
 use proptest::prelude::*;
 use skidpad_core::geom::Vec3;
+use skidpad_core::kinematics::{KinematicsDef, TravelCurve};
 use skidpad_core::tire::{FeelTireParams, TireInput, TireModel};
 use skidpad_core::vehicle::{BicycleVehicle, FourWheelVehicle};
 use skidpad_core::{VehicleDefinition, VehicleInput};
@@ -60,6 +61,69 @@ fn arb_def() -> impl Strategy<Value = VehicleDefinition> {
                 },
             );
             d.simulation.substep_rate_hz = rate;
+            d
+        })
+}
+
+/// A valid travel curve through zero (ADR-0026): two to four points on each
+/// side of zero travel within ±`travel` m, each value within ±`span`.
+fn arb_curve(travel: f64, span: f64) -> impl Strategy<Value = TravelCurve> {
+    (
+        prop::collection::vec((0.01f64..1.0, -span..span), 1..4),
+        prop::collection::vec((0.01f64..1.0, -span..span), 1..4),
+    )
+        .prop_map(move |(droop, bump)| {
+            let mut points = vec![[0.0, 0.0]];
+            let mut x = 0.0;
+            for (dx, y) in droop {
+                x -= dx * travel / 3.0;
+                points.insert(0, [x, y]);
+            }
+            x = 0.0;
+            for (dx, y) in bump {
+                x += dx * travel / 3.0;
+                points.push([x, y]);
+            }
+            TravelCurve(points)
+        })
+}
+
+fn arb_kinematics() -> impl Strategy<Value = KinematicsDef> {
+    (
+        prop::option::of(arb_curve(0.15, 4.0)),
+        prop::option::of(arb_curve(0.15, 6.0)),
+        prop::option::of(arb_curve(0.15, 0.6)),
+        prop::option::of(arb_curve(0.15, 1.5)),
+        prop::option::of(arb_curve(0.15, 1.5)),
+    )
+        .prop_map(|(toe, camber, rc, brake, drive)| KinematicsDef {
+            toe_deg: toe,
+            camber_deg: camber,
+            roll_center_height: rc,
+            anti_brake: brake,
+            anti_drive: drive,
+        })
+}
+
+/// A random vehicle whose axles carry random valid travel curves on top of
+/// random static geometry.
+fn arb_def_with_curves() -> impl Strategy<Value = VehicleDefinition> {
+    (
+        arb_def(),
+        [arb_kinematics(), arb_kinematics()],
+        [
+            (-0.3f64..0.3, -0.3f64..0.3, -0.5f64..0.5),
+            (-0.3f64..0.3, -0.3f64..0.3, -0.5f64..0.5),
+        ],
+    )
+        .prop_map(|(mut d, kin, statics)| {
+            for ((a, k), (rc, toe, anti)) in d.axles.iter_mut().zip(kin).zip(statics) {
+                a.static_toe_deg = toe;
+                a.suspension.roll_center_height = rc;
+                a.suspension.anti_brake = anti;
+                a.suspension.anti_drive = -anti;
+                a.suspension.kinematics = Some(k);
+            }
             d
         })
 }
@@ -174,6 +238,36 @@ proptest! {
                 prop_assert!(w.omega.is_finite() && w.omega.abs() < 100.0, "wheel {}", w.omega);
                 prop_assert!(w.transient.slip_ratio.abs() <= 2.0 + 1e-9);
                 prop_assert!(w.out.fx.is_finite() && w.out.fy.is_finite());
+            }
+        }
+    }
+
+    #[test]
+    fn random_travel_curves_never_produce_nan_or_unbounded_forces(
+        d in arb_def_with_curves(),
+        speed in 5.0f64..40.0,
+        inputs in prop::collection::vec((-1.0f64..1.0, 0.0f64..1.0, 0.0f64..1.0), 8..30),
+    ) {
+        prop_assert!(d.validate().is_ok(), "{:?}", d.validate());
+        let weight = d.chassis.mass * skidpad_core::GRAVITY;
+        let mut car = FourWheelVehicle::new(d.clone());
+        car.set_speed(speed);
+        let dt = 1.0 / d.simulation.substep_rate_hz;
+        let steps = (0.2 / dt).max(1.0) as usize;
+        for (steer, throttle, brake) in inputs {
+            let input = VehicleInput { steer, throttle, brake, ..VehicleInput::default() };
+            for _ in 0..steps {
+                car.substep(dt, &input);
+            }
+            prop_assert!(car.vel.is_finite() && car.omega.is_finite() && car.pos.is_finite());
+            prop_assert!(car.speed() < 120.0, "speed {}", car.speed());
+            prop_assert!(car.omega.length() < 30.0, "angular velocity {:?}", car.omega);
+            for w in &car.wheels {
+                prop_assert!(w.toe.is_finite() && w.camber.is_finite() && w.steer.is_finite());
+                prop_assert!(w.load.is_finite() && w.load <= 20.0 * weight, "load {}", w.load);
+                prop_assert!(w.geometric_load.is_finite() && w.geometric_load.abs() <= 20.0 * weight);
+                prop_assert!(w.pitch_load.is_finite() && w.pitch_load.abs() <= 20.0 * weight);
+                prop_assert!(w.out.fx.is_finite() && w.out.fy.is_finite() && w.out.mz.is_finite());
             }
         }
     }
