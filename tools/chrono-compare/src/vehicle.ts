@@ -322,6 +322,8 @@ export function bmwE90(
         shiftHold: 0.2,
         shiftUpAt: c.UPSHIFT_RPM / c.ENGINE_MAX_RPM,
         shiftDownAt: 1500 / c.ENGINE_MAX_RPM,
+        // Chrono's simple-map gearbox shifts at the same speeds whatever the throttle.
+        shiftLightFactor: 1,
         clutchMaxTorque: 1500,
         clutchEngageTime: 0.1,
         clutchBiteRpm: 1000,

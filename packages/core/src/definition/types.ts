@@ -274,10 +274,16 @@ export interface TransmissionDefinition {
   shiftTime: number;
   /** Time after a shift before the automatic shifts again, s. */
   shiftHold: number;
-  /** Automatic upshift point as a fraction of redline (gearbox input speed). */
+  /** Automatic upshift point at full throttle as a fraction of redline (gearbox input speed). */
   shiftUpAt: number;
-  /** Automatic downshift point as a fraction of redline. */
+  /** Automatic downshift point at full throttle as a fraction of redline. */
   shiftDownAt: number;
+  /**
+   * Automatic shift points with the throttle closed as a fraction of
+   * `shiftUpAt` and `shiftDownAt`, moving linearly with the throttle to them
+   * (ADR-0025). 1 shifts at the full-throttle points whatever the throttle.
+   */
+  shiftLightFactor: number;
   /** Largest torque the clutch transmits when fully engaged, N·m. */
   clutchMaxTorque: number;
   /** Clutch re-engagement time after a shift, s. */

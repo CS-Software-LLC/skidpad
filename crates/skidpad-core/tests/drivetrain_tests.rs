@@ -1,7 +1,9 @@
 //! Drivetrain behaviour (ADR-0011): launch, shifting, clutch lock and slip,
 //! limited-slip and locked differentials, the centre split, electric drive,
-//! and the exact brake lock with a driven wheel, on both vehicle models.
+//! the part-throttle shift schedule (ADR-0025), and the exact brake lock
+//! with a driven wheel, on both vehicle models.
 
+use skidpad_core::ai::AiConfig;
 use skidpad_core::definition::VehicleModelKind;
 use skidpad_core::drivetrain::{
     CombustionEngineDef, DifferentialDef, DifferentialKind, Drivetrain, DrivetrainDef,
@@ -591,6 +593,11 @@ fn bad_drivetrains_are_rejected() {
     let mut d = combustion_def();
     d.drivetrain.center.front_torque_fraction = 1.0;
     assert!(d.validate().is_err());
+    for factor in [0.0, 1.1] {
+        let mut d = combustion_def();
+        d.drivetrain.transmission.shift_light_factor = factor;
+        assert!(d.validate().is_err());
+    }
 }
 
 /// Speed after coasting 10 s from 25 m/s in drive with the throttle closed.
@@ -662,4 +669,223 @@ fn bad_engine_braking_curves_are_rejected() {
         .validate()
         .is_err());
     assert!(with_braking_curve(vec![[3000.0, 10.0]]).validate().is_ok());
+}
+
+// ------------------------------------------- part-throttle schedule ----
+
+fn hatchback(model: VehicleModelKind) -> VehicleDefinition {
+    let mut d: VehicleDefinition = serde_json::from_str(include_str!(
+        "../../../packages/presets/src/vehicles/hatchback-fwd.json"
+    ))
+    .unwrap();
+    d.simulation.model = model;
+    d
+}
+
+/// The schedule before ADR-0025: the full-throttle points at any throttle.
+fn fixed_schedule(mut d: VehicleDefinition) -> VehicleDefinition {
+    d.drivetrain.transmission.shift_light_factor = 1.0;
+    d
+}
+
+/// `(step, new gear, speed)` at every gear change over `steps` 10 ms steps
+/// of `input`.
+fn gear_changes(d: VehicleDefinition, input: VehicleInput, steps: usize) -> Vec<(usize, i32, f64)> {
+    let mut w = World::new(1);
+    w.add_vehicle(d).unwrap();
+    w.set_input(0, input).unwrap();
+    let mut gear = w.telemetry_of(0)[t::GEAR] as i32;
+    let mut changes = Vec::new();
+    for k in 0..steps {
+        w.step(0.01);
+        let v = w.telemetry_of(0);
+        if v[t::GEAR] as i32 != gear {
+            gear = v[t::GEAR] as i32;
+            changes.push((k, gear, v[t::SPEED]));
+        }
+    }
+    changes
+}
+
+#[test]
+fn the_shift_points_meet_the_full_throttle_points_and_keep_their_hysteresis() {
+    for file in [
+        include_str!("../../../packages/presets/src/vehicles/hatchback-fwd.json"),
+        include_str!("../../../packages/presets/src/vehicles/sports-rwd.json"),
+        include_str!("../../../packages/presets/src/vehicles/pickup-4x4.json"),
+        include_str!("../../../packages/presets/src/vehicles/open-wheeler.json"),
+    ] {
+        let def: VehicleDefinition = serde_json::from_str(file).unwrap();
+        let d = Drivetrain::new(def.drivetrain, [true, false], 4);
+        let t = &d.definition().transmission;
+        let n = t.gears.len() as i32;
+        for g in 1..n {
+            assert_eq!(d.upshift_point(g, 1.0), t.shift_up_at);
+            let step = d.ratio(g) / d.ratio(g + 1);
+            for k in 0..=20 {
+                let pedal = k as f64 / 20.0;
+                let up = d.upshift_point(g, pedal);
+                assert!(up <= t.shift_up_at && up >= t.shift_light_factor * t.shift_up_at);
+                // After the upshift the input sits clear of the downshift
+                // point, at the throttle the taller gear needs for the same
+                // wheel torque, and so also at this throttle.
+                let landed = up / step;
+                let after = m::min(pedal * step, 1.0);
+                assert!(
+                    landed >= 1.15 * d.downshift_point(after) - 1e-12,
+                    "gear {g} pedal {pedal}: lands at {landed}"
+                );
+                assert!(landed > d.downshift_point(pedal));
+            }
+        }
+        assert_eq!(d.downshift_point(1.0), t.shift_down_at);
+        assert_eq!(
+            d.downshift_point(0.0),
+            t.shift_light_factor * t.shift_down_at
+        );
+        // Kickdown: the downshift point rises with the pedal.
+        assert!(d.downshift_point(0.5) > d.downshift_point(0.2));
+    }
+}
+
+#[test]
+fn a_part_throttle_cruise_upshifts_on_both_models() {
+    // F-25: the AI holding 12 m/s used to sit in first at about 5,560 rpm
+    // and a throttle of 0.23 on either model, because the automatic only
+    // upshifted at 90 % of redline whatever the throttle.
+    let mut rpm = Vec::new();
+    for model in [VehicleModelKind::FourWheel, VehicleModelKind::SingleTrack] {
+        let mut w = World::new(1);
+        w.add_vehicle(hatchback(model)).unwrap();
+        let cfg = AiConfig {
+            max_speed: 12.0,
+            closed: false,
+            ..AiConfig::default()
+        };
+        w.set_ai(0, &[0.0, 0.0, 5000.0, 0.0], cfg).unwrap();
+        let mut gear = 1;
+        let mut shifts = 0;
+        for k in 0..(60 * 40) {
+            w.step(1.0 / 60.0);
+            let v = w.telemetry_of(0);
+            if v[t::GEAR] as i32 != gear {
+                gear = v[t::GEAR] as i32;
+                shifts += 1;
+                assert!(k < 60 * 10, "{model:?}: shift to {gear} at {k} cruising");
+            }
+        }
+        let v = w.telemetry_of(0);
+        assert!(
+            (v[t::SPEED] - 12.0).abs() < 0.2,
+            "{model:?}: {} m/s",
+            v[t::SPEED]
+        );
+        assert_eq!(gear, 2, "{model:?}");
+        assert_eq!(shifts, 1, "{model:?}: hunting");
+        assert!(
+            v[t::ENGINE_RPM] < 3500.0,
+            "{model:?}: {} rpm",
+            v[t::ENGINE_RPM]
+        );
+        assert!(v[t::THROTTLE] < 0.5, "{model:?}");
+        rpm.push(v[t::ENGINE_RPM]);
+    }
+    assert!((rpm[0] - rpm[1]).abs() < 20.0, "models disagree: {rpm:?}");
+}
+
+#[test]
+fn full_throttle_shifts_at_the_same_speeds_as_before() {
+    // Upshift speeds of the hatchback from rest at full throttle before
+    // the part-throttle schedule, m/s.
+    let before = [
+        (
+            VehicleModelKind::FourWheel,
+            [11.8045, 22.3346, 34.3611, 45.5481],
+        ),
+        (
+            VehicleModelKind::SingleTrack,
+            [11.8618, 22.3254, 34.3760, 45.5576],
+        ),
+    ];
+    for (model, speeds) in before {
+        let changes = gear_changes(hatchback(model), throttle(1.0), 3000);
+        assert_eq!(
+            changes,
+            gear_changes(fixed_schedule(hatchback(model)), throttle(1.0), 3000),
+            "{model:?}"
+        );
+        let gears: Vec<i32> = changes.iter().map(|c| c.1).collect();
+        assert_eq!(gears, [2, 3, 4, 5], "{model:?}");
+        for (c, v) in changes.iter().zip(speeds) {
+            assert!(
+                (c.2 - v).abs() < 1e-3,
+                "{model:?}: gear {} at {} m/s, was {v}",
+                c.1,
+                c.2
+            );
+        }
+    }
+}
+
+#[test]
+fn flooring_the_pedal_kicks_down_from_a_part_throttle_gear() {
+    for model in [VehicleModelKind::FourWheel, VehicleModelKind::SingleTrack] {
+        let mut w = World::new(1);
+        w.add_vehicle(hatchback(model)).unwrap();
+        let cfg = AiConfig {
+            max_speed: 9.0,
+            closed: false,
+            ..AiConfig::default()
+        };
+        w.set_ai(0, &[0.0, 0.0, 5000.0, 0.0], cfg).unwrap();
+        for _ in 0..(60 * 30) {
+            w.step(1.0 / 60.0);
+        }
+        // Second gear at about 35 % of redline, below the full-throttle
+        // downshift point of 42 %.
+        assert_eq!(w.telemetry_of(0)[t::GEAR] as i32, 2, "{model:?}");
+        w.clear_ai(0).unwrap();
+        w.set_input(0, throttle(1.0)).unwrap();
+        let mut kicked = false;
+        for _ in 0..20 {
+            w.step(0.01);
+            kicked |= w.telemetry_of(0)[t::GEAR] as i32 == 1;
+        }
+        assert!(kicked, "{model:?}: no kickdown");
+    }
+}
+
+#[test]
+fn lifting_upshifts_but_lifting_to_brake_does_not() {
+    for model in [VehicleModelKind::FourWheel, VehicleModelKind::SingleTrack] {
+        for brake in [0.0, 0.5] {
+            let mut w = World::new(1);
+            w.add_vehicle(hatchback(model)).unwrap();
+            w.set_input(0, throttle(1.0)).unwrap();
+            // Full throttle to 19 m/s: second gear at about 80 % of redline,
+            // well past the shift hold.
+            while w.telemetry_of(0)[t::SPEED] < 19.0 {
+                w.step(0.01);
+            }
+            assert_eq!(w.telemetry_of(0)[t::GEAR] as i32, 2, "{model:?}");
+            w.set_input(
+                0,
+                VehicleInput {
+                    brake,
+                    ..VehicleInput::default()
+                },
+            )
+            .unwrap();
+            let mut top = 2;
+            for _ in 0..50 {
+                w.step(0.01);
+                top = top.max(w.telemetry_of(0)[t::GEAR] as i32);
+            }
+            if brake > 0.0 {
+                assert_eq!(top, 2, "{model:?}: upshifted under braking");
+            } else {
+                assert_eq!(top, 3, "{model:?}: no upshift on lift");
+            }
+        }
+    }
 }

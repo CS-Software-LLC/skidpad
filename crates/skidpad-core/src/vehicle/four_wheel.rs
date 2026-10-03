@@ -834,7 +834,8 @@ impl FourWheelVehicle {
             self.assist_telemetry.throttle_effective = input.throttle;
         }
 
-        self.drivetrain.step(dt, &drive_input, &mut dyn_wheels);
+        self.drivetrain
+            .step_with_pedal(dt, &drive_input, input.throttle, &mut dyn_wheels);
 
         for i in 0..WHEEL_COUNT {
             let d = dyn_wheels[i];

@@ -180,11 +180,16 @@ pub struct TransmissionDef {
     pub shift_time: f64,
     /// Time after a shift before the automatic may shift again, s.
     pub shift_hold: f64,
-    /// Automatic upshift point as a fraction of redline, on the gearbox
-    /// input speed.
+    /// Automatic upshift point at full throttle as a fraction of redline,
+    /// on the gearbox input speed.
     pub shift_up_at: f64,
-    /// Automatic downshift point as a fraction of redline.
+    /// Automatic downshift point at full throttle as a fraction of redline.
     pub shift_down_at: f64,
+    /// Automatic shift points with the throttle closed as a fraction of the
+    /// full-throttle ones (ADR-0025); they move linearly with the throttle
+    /// to `shift_up_at` and `shift_down_at`. 1 shifts at the full-throttle
+    /// points whatever the throttle.
+    pub shift_light_factor: f64,
     /// Largest torque the clutch transmits when fully engaged, N·m.
     pub clutch_max_torque: f64,
     /// Time the clutch takes to re-engage after a shift, s.
@@ -211,6 +216,7 @@ impl Default for TransmissionDef {
             shift_hold: 0.5,
             shift_up_at: 0.9,
             shift_down_at: 0.45,
+            shift_light_factor: 0.55,
             clutch_max_torque: 400.0,
             clutch_engage_time: 0.3,
             clutch_bite_rpm: 1200.0,
@@ -461,6 +467,12 @@ impl DrivetrainDef {
             e.push(format!(
                 "{prefix}.transmission.shiftUpAt must be in (0, 1.05] (got {})",
                 t.shift_up_at
+            ));
+        }
+        if !(t.shift_light_factor > 0.0 && t.shift_light_factor <= 1.0) {
+            e.push(format!(
+                "{prefix}.transmission.shiftLightFactor must be in (0, 1] (got {})",
+                t.shift_light_factor
             ));
         }
         if !(t.shift_down_at >= 0.0 && t.shift_down_at < t.shift_up_at) {

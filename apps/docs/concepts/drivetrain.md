@@ -58,7 +58,14 @@ Forward ratios, a reverse ratio, a final drive, a torque interruption while
 shifting, and a clutch re-engagement time. An **automatic** shifts on the
 gearbox input speed at fractions of redline, holds for a moment after each
 shift, and treats a `gear` input of zero as drive, so a definition driven
-with throttle alone goes forward. A **manual** follows the `gear` input
+with throttle alone goes forward. Its shift points depend on the driver's
+throttle (ADR-0025). At full throttle it shifts up at `shiftUpAt` and down
+at `shiftDownAt`. On a lighter pedal both points move down toward
+`shiftLightFactor` times those values, so a car holding a speed cruises in
+a higher gear. Pressing the pedal raises the downshift point, which kicks
+down. An upshift is never so early that the new gear lands near its own
+downshift point, so the gearbox does not hunt. With the brake applied it
+uses the full-throttle points, so lifting off to brake does not upshift. A **manual** follows the `gear` input
 exactly: negative is reverse, zero neutral, positive a gear number.
 
 The clutch capacity is the pedal's remainder times an automatic law: the

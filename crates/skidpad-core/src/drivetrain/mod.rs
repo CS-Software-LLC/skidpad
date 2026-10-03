@@ -30,6 +30,14 @@ pub const DIRECTION_CHANGE_SPEED: f64 = 5.0;
 /// the clutch re-engages after a shift and the engine is still above the
 /// new gear's speed. Below one, so the clutch always pulls the engine down.
 pub const SYNC_TORQUE_FRACTION: f64 = 0.7;
+/// Hysteresis of the automatic's part-throttle schedule (ADR-0025): an
+/// upshift must land the gearbox input at least this factor above the
+/// next gear's downshift point.
+pub const UPSHIFT_MARGIN: f64 = 1.15;
+/// Brake input above which the automatic shifts on its full-throttle
+/// points, so lifting to brake does not upshift and downshifts come at the
+/// usual speed.
+pub const SHIFT_BRAKE_THRESHOLD: f64 = 0.05;
 /// Number of `f64` values of drivetrain state in a snapshot.
 pub const STATE_LEN: usize = 4;
 
@@ -237,7 +245,38 @@ impl Drivetrain {
         }
     }
 
-    fn update_shift(&mut self, dt: f64, input: &VehicleInput, carrier_omega: f64) {
+    // The part-throttle schedule follows the shift maps of production
+    // automatics: upshift and downshift lines over pedal position, kept
+    // apart by a hysteresis, with the downshift line rising toward full
+    // pedal for the kickdown (Naunheimer, Bertsche, Ryborz and Novak,
+    // Automotive Transmissions, 2nd ed., Springer 2011, ch. 8).
+
+    /// Automatic downshift point as a fraction of redline at a throttle of
+    /// `pedal` (ADR-0025): from `shift_light_factor` of `shift_down_at` on
+    /// a closed throttle to `shift_down_at` at full throttle. Pressing the
+    /// pedal raises it, which is the kickdown.
+    pub fn downshift_point(&self, pedal: f64) -> f64 {
+        let t = &self.def.transmission;
+        schedule(t.shift_down_at, t.shift_light_factor, pedal)
+    }
+
+    /// Automatic upshift point out of `gear` as a fraction of redline at a
+    /// throttle of `pedal` (ADR-0025): from `shift_light_factor` of
+    /// `shift_up_at` on a closed throttle to `shift_up_at` at full throttle,
+    /// but never so low that the gearbox input after the shift lands within
+    /// `UPSHIFT_MARGIN` of the downshift point. That point is taken at the
+    /// throttle the next gear needs for the same wheel torque, so a driver
+    /// holding a speed does not hunt. Full throttle gives exactly
+    /// `shift_up_at`.
+    pub fn upshift_point(&self, gear: i32, pedal: f64) -> f64 {
+        let t = &self.def.transmission;
+        let step = self.ratio(gear) / self.ratio(gear + 1);
+        let floor = UPSHIFT_MARGIN * step * self.downshift_point(m::min(pedal * step, 1.0));
+        let up = schedule(t.shift_up_at, t.shift_light_factor, pedal);
+        m::min(m::max(up, floor), t.shift_up_at)
+    }
+
+    fn update_shift(&mut self, dt: f64, input: &VehicleInput, pedal: f64, carrier_omega: f64) {
         let t = &self.def.transmission;
         let n_gears = t.gears.len() as i32;
         let lowest = if t.reverse > 0.0 { -1 } else { 0 };
@@ -274,9 +313,15 @@ impl Drivetrain {
                 } else {
                     let w_in = self.ratio(self.gear) * carrier_omega;
                     let redline = self.def.redline();
-                    if self.gear < n_gears && w_in > t.shift_up_at * redline {
+                    let pedal = if input.brake > SHIFT_BRAKE_THRESHOLD {
+                        1.0
+                    } else {
+                        pedal
+                    };
+                    if self.gear < n_gears && w_in > self.upshift_point(self.gear, pedal) * redline
+                    {
                         self.begin_shift(self.gear + 1);
-                    } else if self.gear > 1 && w_in < t.shift_down_at * redline {
+                    } else if self.gear > 1 && w_in < self.downshift_point(pedal) * redline {
                         self.begin_shift(self.gear - 1);
                     }
                 }
@@ -454,6 +499,19 @@ impl Drivetrain {
 
     /// Advance the drivetrain and the wheels by one substep.
     pub fn step(&mut self, dt: f64, input: &VehicleInput, wheels: &mut [WheelDyn]) {
+        self.step_with_pedal(dt, input, input.throttle, wheels);
+    }
+
+    /// `step`, with the automatic's shift schedule read from `pedal`, the
+    /// driver's throttle before the assists scaled it into
+    /// `input.throttle`: a traction or stability cut must not upshift.
+    pub fn step_with_pedal(
+        &mut self,
+        dt: f64,
+        input: &VehicleInput,
+        pedal: f64,
+        wheels: &mut [WheelDyn],
+    ) {
         let n_w = self.wheel_count.min(wheels.len());
         let has_engine = self.def.has_engine();
         let n = n_w + has_engine as usize;
@@ -465,7 +523,7 @@ impl Drivetrain {
         }
 
         // --- shifting and the automatic clutch ---------------------------
-        self.update_shift(dt, input, carrier_omega);
+        self.update_shift(dt, input, pedal, carrier_omega);
         let t = &self.def.transmission;
         let interrupted = self.shift_timer > t.shift_hold;
         if !interrupted && self.clutch_engagement < 1.0 {
@@ -721,5 +779,16 @@ impl Drivetrain {
         tel.center_lock = center_idx.map_or(0.0, |k| cs[k].torque(dt));
         tel.diff_lock_front = lsd_idx[0].map_or(0.0, |k| cs[k].torque(dt));
         tel.diff_lock_rear = lsd_idx[1].map_or(0.0, |k| cs[k].torque(dt));
+    }
+}
+
+/// Linear from `light_factor × full` on a closed throttle to `full` at
+/// full throttle, exactly `full` at full throttle. The vehicles clamp the
+/// pedal to 0 … 1.
+fn schedule(full: f64, light_factor: f64, pedal: f64) -> f64 {
+    if pedal >= 1.0 {
+        full
+    } else {
+        full * m::lerp(light_factor, 1.0, pedal)
     }
 }
