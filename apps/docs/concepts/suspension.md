@@ -145,6 +145,77 @@ axle braking 65 % of the car with 30 % anti-dive therefore has
 `PitchLinkLoad_F` and `PitchLinkLoad_R` channels report the link force in
 newtons, positive up. The single-track model has no pitch and ignores both.
 
+## Geometry that changes with travel
+
+Everything above is fixed at ride height. On a real car the links move as
+the wheel does: toe changes with bump (bump steer), camber with bump
+(camber gain), the roll centre migrates, and the side-view instant centre
+moves. A kinematics-and-compliance (K&C) rig measures these by moving the
+wheels with the body held. A `suspension.kinematics` block carries them as
+curves against each wheel's travel
+([ADR-0026](https://github.com/CS-Software-LLC/skidpad/blob/main/docs/adr/0026-travel-dependent-geometry.md)):
+
+```json
+"kinematics": {
+  "toeDeg": [[-0.08, 0.3], [0, 0], [0.08, -0.4]],
+  "rollCenterHeight": [[-0.08, 0.06], [0, 0], [0.08, -0.06]]
+}
+```
+
+- Each curve is a list of `[travel, value]` points. Travel is in metres
+  from the static ride position, **positive in bump** (compression), as in
+  the `SuspTravel_*` channels. Two to sixteen points, travel strictly
+  increasing. The value is linear between points and held at the end
+  points outside them.
+- Each value is an **offset from the static field**: `toeDeg` adds to
+  `staticToeDeg`, `camberDeg` to `staticCamberDeg` (camber relative to the
+  body, so body lean still adds on top), `rollCenterHeight` to
+  `rollCenterHeight`, `antiBrake` and `antiDrive` to theirs. Units match
+  the field. Every curve must be zero at zero travel, so the static fields
+  stay the one place the ride-height value lives, and static plus curve
+  must stay inside the field's bounds.
+- A curve describes the **left wheel**; the right wheel mirrors it, as
+  static toe and camber do. Positive toe is toe-in, negative camber is
+  top-in.
+
+Each wheel looks its curves up at its own travel every substep, so in a
+turn the outer wheel runs at its bump values and the inner at its droop
+values. A roll-centre curve also changes how the axle's links push on the
+body. Without one, the axle's lateral force goes through the roll centre as
+equal and opposite loads on its two wheels. With one, each wheel's link
+carries its own lateral force times the slope from its contact patch to
+the roll centre at its own travel. When the wheels' forces or heights
+differ, which they do in a turn, the two no longer cancel: the remainder
+lifts or lowers the body. That is jacking, reported per axle in
+`JackingForce_F` and `JackingForce_R` (N, positive up). A roll centre that
+falls in bump, as on most road-car fronts, moves lateral transfer off that
+axle as the car rolls further. Note that even a flat roll-centre curve
+switches the axle to the per-wheel form, which jacks whenever the outer
+tire carries more force than the inner. Steady inward forces from toe-in
+lift the body the same way.
+
+Each wheel's toe, static plus curve, is in `Toe_FL` … `Toe_RR` (rad,
+positive toe-in); camber is already in `Camber_*`. A definition without
+the block, or with an empty one, runs exactly as before. On a solid axle
+the beam sets the wheel angles, so `toeDeg` and `camberDeg` are rejected;
+the other three curves are accepted. The single-track model ignores the
+block.
+
+**Reading a K&C sheet.** The parallel-wheel-travel (heave) test gives the
+curves directly: toe, camber and roll-centre height against wheel travel.
+Check three conventions before copying numbers: which way the sheet counts
+travel (some count rebound positive), whether its toe is per wheel or
+total (halve a total), and its camber sign. Subtract the value at the
+static ride height so the curve passes through zero. Bump steer quoted as
+a gradient, degrees per 100 mm say, is the two-point curve
+`[[-0.1, g], [0, 0], [0.1, -g]]` for a gradient of `g` degrees of toe-out
+per 100 mm of bump. Toe that the sheet attributes to lateral or
+longitudinal force (compliance steer) does not belong in these curves; it
+depends on force, not travel. The Chrono comparison found exactly that:
+its car's toe follows force, so a toe curve from its kinematics made the
+comparison worse
+([report](https://github.com/CS-Software-LLC/skidpad/blob/main/docs/validation/chrono-bmw-e90.md)).
+
 ## Track width per axle
 
 `chassis.trackWidth` sets both axles' track unless an axle sets its own

@@ -40,6 +40,15 @@ through the links to the tires instead of rolling the body
 ([roll centres](/concepts/suspension#roll-centres)). It is accepted within
 ±1 m.
 
+An optional `kinematics` block makes the geometry change with travel:
+curves of toe, camber, roll-centre height and the two anti fractions
+against each wheel's travel, as `[travel, value]` points with travel in
+metres, positive in bump. Each curve is an offset from its static field
+and must be zero at zero travel; it describes the left wheel and the right
+mirrors it. Toe and camber curves are rejected on a solid axle. Leave the
+block out to keep the geometry fixed at ride height
+([geometry that changes with travel](/concepts/suspension#geometry-that-changes-with-travel)).
+
 ## Aero
 
 `aero` has the drag coefficient, the frontal area every coefficient is

@@ -1,6 +1,6 @@
 # ADR-0016: Solid axles and roll-centre heights on the raycast suspension
 
-- Status: Accepted
+- Status: Accepted, amended by [ADR-0026](0026-travel-dependent-geometry.md)
 - Date: 2026-10-01
 - Supersedes / superseded by: none; amends ADR-0009 (raycast suspension)
 

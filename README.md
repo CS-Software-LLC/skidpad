@@ -125,8 +125,12 @@ through the same eight manoeuvres, with the Skidpad car built from Chrono's
 published constants. Steady-state handling and the step-steer response
 agree within a few percent once static toe, anti-dive and anti-squat, a
 measured engine-braking curve and per-axle tracks are carried over
-(ADR-0017, ADR-0018); the remaining gaps, mostly geometry that changes with
-travel, are in [docs/validation/chrono-bmw-e90.md](docs/validation/chrono-bmw-e90.md).
+(ADR-0017, ADR-0018). Roll centres and pitch geometry that change with
+travel, derived from Chrono's hardpoints (ADR-0026), bring the braking
+pitch and the pitch in a turn into line. The remaining gaps, mostly
+Chrono's toe moving with force (compliance steer) and roll that grows
+faster with lateral acceleration, are in
+[docs/validation/chrono-bmw-e90.md](docs/validation/chrono-bmw-e90.md).
 
 The determinism check runs a 50 s scripted drive of three vehicles, then a
 recorded lap of the sandbox track for each of the six presets (real driving
@@ -342,6 +346,9 @@ Until then the packages stay 0.x and breaking changes go in changesets.
 
 Not before 1.0: multibody suspension, tire thermals and wear, damage,
 motorcycles and trailers, netcode, a full racing AI, native bindings.
+Geometry that changes with travel does not wait for multibody suspension:
+toe, camber, roll-centre and anti-pitch curves against wheel travel are in
+the definition format now (ADR-0026). Compliance steer is the next step.
 
 ### Force feedback platform
 
