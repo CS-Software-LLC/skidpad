@@ -48,6 +48,7 @@ const LABELS: Record<string, string> = {
   idleRpm: "Idle rpm",
   redlineRpm: "Redline rpm",
   clutchBiteRpm: "Clutch bite rpm",
+  shiftLightFactor: "Light-throttle shift factor",
   substepRateHz: "Substep rate Hz",
 };
 

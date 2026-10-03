@@ -74,7 +74,17 @@ helps. Parameters are per tire unless noted.
   larger one lets the engine rev first (a kart's centrifugal clutch). Raise
   `clutchMaxTorque` if the clutch slips at full throttle in first.
 - `shiftUpAt` and `shiftDownAt` are fractions of redline on the gearbox
-  input speed; a long `shiftTime` is a visible torque hole.
+  input speed at full throttle; a long `shiftTime` is a visible torque hole.
+
+## Automatic holds a low gear at part throttle, or short-shifts too early
+
+- `shiftLightFactor` scales both shift points on a closed throttle, and they
+  move linearly with the throttle up to `shiftUpAt` and `shiftDownAt`. Lower
+  it to cruise in a higher gear at lower revs. Raise it toward 1 for a car
+  that holds gears like a race box (1 shifts at the full-throttle points
+  whatever the throttle). Upshifts are kept far enough above the next gear's
+  downshift point that the car does not hunt, and pressing the pedal raises
+  the downshift point, which is the kickdown.
 - A `direct` power unit has none of this and pulls from rest at its full
   `maxWheelTorque`; use it for traffic.
 

@@ -31,3 +31,4 @@ Rejected.
 | [0022](0022-worker-mode.md)                            | Worker mode by message passing, inputs out and telemetry back           | Accepted                  |
 | [0023](0023-jolt-host-adapter.md)                      | A Jolt Physics host adapter on the same host contract                   | Accepted                  |
 | [0024](0024-finite-suspension-rays.md)                 | Restrict suspension contacts to the finite forward ray                  | Proposed                  |
+| [0025](0025-part-throttle-shift-schedule.md)           | A part-throttle shift schedule for the automatic                        | Proposed                  |

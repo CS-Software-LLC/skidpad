@@ -140,6 +140,7 @@
       "shiftHold": 0.6,
       "shiftUpAt": 0.9,
       "shiftDownAt": 0.42,
+      "shiftLightFactor": 0.55,
       "clutchMaxTorque": 300,
       "clutchEngageTime": 0.3,
       "clutchBiteRpm": 1200,

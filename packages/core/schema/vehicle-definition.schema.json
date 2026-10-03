@@ -362,13 +362,20 @@
               "exclusiveMinimum": 0,
               "maximum": 1.05,
               "default": 0.9,
-              "description": "Automatic upshift point as a fraction of redline"
+              "description": "Automatic upshift point at full throttle as a fraction of redline (gearbox input speed)"
             },
             "shiftDownAt": {
               "type": "number",
               "minimum": 0,
               "default": 0.45,
-              "description": "Automatic downshift point as a fraction of redline"
+              "description": "Automatic downshift point at full throttle as a fraction of redline"
+            },
+            "shiftLightFactor": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "default": 0.55,
+              "description": "Automatic shift points with the throttle closed as a fraction of shiftUpAt and shiftDownAt, moving linearly with the throttle to them; 1 shifts at the full-throttle points whatever the throttle. Upshifts are kept clear of the next gear's downshift point"
             },
             "clutchMaxTorque": {
               "type": "number",

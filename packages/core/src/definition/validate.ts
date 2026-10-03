@@ -257,6 +257,14 @@ function validateDrivetrain(
       errors.push("drivetrain.transmission.shiftDownAt must be below shiftUpAt");
     }
     nonNegative(errors, "drivetrain.transmission.shiftDownAt", t.shiftDownAt);
+    if (
+      t.shiftLightFactor !== undefined &&
+      (!isNum(t.shiftLightFactor) || t.shiftLightFactor <= 0 || t.shiftLightFactor > 1)
+    ) {
+      errors.push(
+        `drivetrain.transmission.shiftLightFactor must be in (0, 1] (got ${String(t.shiftLightFactor)})`,
+      );
+    }
     if (isNum(t.shiftTime) && t.shiftTime > 2) {
       warnings.push(
         `drivetrain.transmission.shiftTime of ${t.shiftTime} s is long; 0.1 to 0.5 s is typical`,
