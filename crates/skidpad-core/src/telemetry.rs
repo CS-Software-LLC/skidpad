@@ -186,6 +186,20 @@ channels! {
     // put on the body from its longitudinal tire force, positive up.
     PITCH_LINK_LOAD_F => ("PitchLinkLoad_F", "N"),
     PITCH_LINK_LOAD_R => ("PitchLinkLoad_R", "N"),
+    // Each tire's friction limit at its load and surface (the peak lateral
+    // force; `TireFmax_F`/`_R` are the axle sums), and its combined slip
+    // relative to the slip of its peak force, |(κ/κ_peak, tan α/tan α_peak)|:
+    // below 1 the tire is gripping, above 1 it is past its limit and
+    // sliding. For tire sound and grip meters. The Magic Formula has no
+    // closed-form peak, so for it the peak is a typical value (κ 0.15, α 8°).
+    TIRE_FMAX_FL => ("TireFmax_FL", "N"),
+    TIRE_FMAX_FR => ("TireFmax_FR", "N"),
+    TIRE_FMAX_RL => ("TireFmax_RL", "N"),
+    TIRE_FMAX_RR => ("TireFmax_RR", "N"),
+    PEAK_SLIP_FL => ("PeakSlip_FL", "-"),
+    PEAK_SLIP_FR => ("PeakSlip_FR", "-"),
+    PEAK_SLIP_RL => ("PeakSlip_RL", "-"),
+    PEAK_SLIP_RR => ("PeakSlip_RR", "-"),
 }
 
 /// Index of the first channel in each per-wheel group; the four wheels follow
@@ -208,6 +222,8 @@ pub const WHEEL_GROUPS: &[usize] = &[
     SPIN_ANGLE_FL,
     SURFACE_ID_FL,
     SURFACE_GRIP_FL,
+    TIRE_FMAX_FL,
+    PEAK_SLIP_FL,
 ];
 
 /// Number of `f64` slots in one vehicle's telemetry record.
@@ -240,7 +256,7 @@ mod tests {
         assert_eq!(CHANNELS[WHEEL_LOCKED_R].name, "WheelLocked_R");
         assert_eq!(CHANNELS[SPIN_ANGLE_RR].name, "SpinAngle_RR");
         assert_eq!(CHANNELS[ENGINE_RPM].name, "EngineRpm");
-        assert_eq!(STRIDE, PITCH_LINK_LOAD_R + 1);
+        assert_eq!(STRIDE, PEAK_SLIP_RR + 1);
         for &g in WHEEL_GROUPS {
             let base = CHANNELS[g].name.trim_end_matches("_FL");
             for (k, side) in ["_FL", "_FR", "_RL", "_RR"].iter().enumerate() {

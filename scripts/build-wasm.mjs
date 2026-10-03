@@ -6,7 +6,7 @@ import { execFileSync, spawnSync } from "node:child_process";
 import { readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { gzipSync } from "node:zlib";
-import { installWasm, root, wasmOut } from "./lib/wasm-artifact.mjs";
+import { installWasm, root, sourceHash, wasmOut } from "./lib/wasm-artifact.mjs";
 
 const release = process.argv.includes("--release") || process.env.CI === "true";
 const profile = release ? "wasm-release" : "dev";
@@ -21,21 +21,46 @@ const args = [
   "--profile",
   profile,
 ];
-console.log(`[build-wasm] cargo ${args.join(" ")}`);
-execFileSync("cargo", args, { cwd: root, stdio: "inherit" });
+// The core reports the source hash as `Skidpad.simulationVersion`: builds
+// from the same sources simulate identically, so a replay checks it rather
+// than a version number that may not move when the physics does.
+const crateVersion = /\[workspace\.package\][^[]*?\nversion = "([^"]+)"/.exec(
+  readFileSync(join(root, "Cargo.toml"), "utf8"),
+)?.[1];
+if (!crateVersion) throw new Error("[build-wasm] no workspace.package version in Cargo.toml");
+const SKIDPAD_BUILD_VERSION = `${crateVersion}+${sourceHash().slice(0, 16)}`;
+console.log(`[build-wasm] cargo ${args.join(" ")} (version ${SKIDPAD_BUILD_VERSION})`);
+execFileSync("cargo", args, {
+  cwd: root,
+  stdio: "inherit",
+  env: { ...process.env, SKIDPAD_BUILD_VERSION },
+});
 
 const built = join(root, "target", "wasm32-unknown-unknown", profileDir, "skidpad_wasm.wasm");
 let bytes = readFileSync(built);
 
-// Optional size optimisation. Never changes semantics: no fast-math, no
-// relaxed SIMD. Looks for a wasm-opt on the PATH, then the binaryen package.
+// Size pass. Never changes semantics: it runs no optimisation passes, only
+// re-encodes the module, which drops the padded LEB128 integers the linker
+// leaves (about 7 % of the file, 1 % gzipped). `-Os` and `-Oz` shrink the
+// raw file further but compress worse, and the budget is on the gzipped
+// size. The features are the ones rustc enables for wasm32. Uses the
+// binaryen package (a dev dependency), then a wasm-opt on the PATH.
+const WASM_FEATURES = [
+  "--enable-bulk-memory",
+  "--enable-bulk-memory-opt",
+  "--enable-nontrapping-float-to-int",
+  "--enable-sign-ext",
+  "--enable-mutable-globals",
+  "--enable-multivalue",
+  "--enable-reference-types",
+];
 let optimised = false;
-for (const bin of ["wasm-opt", join(root, "node_modules", ".bin", "wasm-opt")]) {
+for (const bin of [join(root, "node_modules", ".bin", "wasm-opt"), "wasm-opt"]) {
   const probe = spawnSync(bin, ["--version"], { stdio: "ignore" });
   if (probe.status === 0) {
     const r = spawnSync(
       bin,
-      ["-Os", "--strip-debug", "--strip-producers", built, "-o", built + ".opt"],
+      [...WASM_FEATURES, "--strip-debug", "--strip-producers", built, "-o", built + ".opt"],
       {
         stdio: "inherit",
       },

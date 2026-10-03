@@ -45,7 +45,7 @@ export function WheelPanel({ sim }: { sim: Sim }) {
   const [status, setStatus] = useState<Status | null>(null);
   const [assigning, setAssigning] = useState<Control | null>(null);
   const [message, setMessage] = useState("");
-  const [protocol, setProtocol] = useState<LogitechProtocol>("hidpp");
+  const [protocol, setProtocol] = useState<LogitechProtocol | "auto">("auto");
   const [updateMode, setUpdateMode] = useState<"modify" | "recreate">("modify");
   // Conservative defaults: this page is public and a direct-drive wheel is
   // strong enough to hurt. Raise them deliberately.
@@ -146,8 +146,10 @@ export function WheelPanel({ sim }: { sim: Sim }) {
         invert,
         maxOutput,
       });
-      await s.connect(webHid());
+      // Keep the sink even when the force path fails, so its diagnostics
+      // log stays on screen.
       sink.current = s;
+      await s.connect(webHid());
       sim.ffbSink = s;
       setMessage(`Connected: ${s.name}. Drive, or press Test pulse.`);
     } catch (e) {
@@ -221,8 +223,9 @@ export function WheelPanel({ sim }: { sim: Sim }) {
           <div className="row">
             <select
               value={protocol}
-              onChange={(e) => setProtocol(e.target.value as LogitechProtocol)}
+              onChange={(e) => setProtocol(e.target.value as LogitechProtocol | "auto")}
             >
+              <option value="auto">Logitech, protocol from the model</option>
               <option value="hidpp">Logitech HID++ (G PRO, G923, G920)</option>
               <option value="classic">Logitech classic (G29, G27, G25)</option>
             </select>

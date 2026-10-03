@@ -126,3 +126,29 @@ describe("worker world in a real worker thread", () => {
     }
   });
 });
+
+describe("level of detail through a worker", () => {
+  it("drives a WorkerWorld from a LodController", async () => {
+    const { LodController } = await import("@skidpad/core");
+    const ww = await channelWorld(2);
+    await ww.addVehicle(preset("hatchbackFwd"));
+    await ww.addVehicle(preset("hatchbackFwd"));
+    const lod = new LodController(ww.lodTarget, { singleTrackBeyond: 50, frozenBeyond: 200 });
+    lod.pin(0);
+    expect(ww.lodTarget.vehicleCount).toBe(2);
+    expect(lod.update((car) => (car === 0 ? 500 : 120))).toBe(1);
+    expect(ww.lodTarget.lod(1)).toBe("singleTrack");
+    // The change reaches the worker before the next step.
+    await ww.step(1 / 60);
+    expect(await ww.lod(1)).toBe("singleTrack");
+    expect(await ww.lod(0)).toBe("full");
+    expect(lod.update(() => 500)).toBe(1);
+    expect(await ww.lod(1)).toBe("frozen");
+    // A snapshot at another level brings its level back with it.
+    await ww.setLod(1, "full");
+    const full = await ww.snapshot(1);
+    await ww.setLod(1, "singleTrack");
+    await ww.restore(1, full);
+    expect(ww.lodTarget.lod(1)).toBe("full");
+  });
+});

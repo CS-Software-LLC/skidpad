@@ -19,10 +19,13 @@ instantiates the module with `WebAssembly.instantiate` directly and owns the
 typed-array views, refreshing them whenever `memory.buffer` changes identity
 (memory growth). Strings cross the boundary as UTF-8 byte ranges.
 
-`wasm-opt` is applied by the build script when a binary is available on the
-PATH or through the `binaryen` npm package; it is optional and never changes
-semantics (the build passes `--no-fma` semantics by never enabling relaxed
-SIMD or fast-math).
+`wasm-opt` is applied by the build script through the `binaryen` npm package
+(a dev dependency, so CI and every contributor have it) or a binary on the
+PATH; it never changes semantics (the build never enables relaxed SIMD or
+fast-math). It runs no optimisation passes: re-encoding the module alone
+drops the padded LEB128 integers the linker leaves, while `-Os` and `-Oz`
+make the raw file smaller but the gzipped file, which the size budget
+measures, larger.
 
 ## Alternatives considered
 

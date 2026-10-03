@@ -43,7 +43,10 @@ switches sign.
 
 On the built-in host, `world.setSurface(vehicle, id)` sets the surface of
 the flat ground under every wheel of that vehicle; the sandbox's surface
-selector calls it.
+selector calls it. `world.setWheelSurface(vehicle, wheel, id)` sets one
+wheel's (`"FL"`, `"FR"`, `"RL"`, `"RR"` or 0 to 3), so a car can drop two
+wheels onto the grass without the whole car leaving the road. The
+single-track model runs each axle on the mean of its two wheels' surfaces.
 
 An external host tags each contact itself: `WheelContact.surfaceId` is the
 last field of the record `writeWheelContact` fills in, and defaults to 0.

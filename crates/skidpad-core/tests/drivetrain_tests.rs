@@ -414,6 +414,35 @@ fn reverse_backs_the_car_up() {
 }
 
 #[test]
+fn an_automatic_without_reverse_treats_a_reverse_request_as_neutral() {
+    let mut d = combustion_def();
+    d.drivetrain.transmission.reverse = 0.0;
+    for model in [VehicleModelKind::FourWheel, VehicleModelKind::SingleTrack] {
+        d.simulation.model = model;
+        let mut w = World::new(1);
+        w.add_vehicle(d.clone()).unwrap();
+        let reverse = VehicleInput {
+            throttle: 1.0,
+            gear: -1.0,
+            ..VehicleInput::default()
+        };
+        drive(&mut w, reverse, 3.0);
+        let v = w.telemetry_of(0);
+        assert_eq!(v[t::GEAR], 0.0, "{model:?}");
+        assert!(
+            v[t::VEL_X].abs() < 0.05,
+            "{model:?} moved at {} m/s",
+            v[t::VEL_X]
+        );
+        // Asking for drive again engages first.
+        drive(&mut w, throttle(1.0), 2.0);
+        let v = w.telemetry_of(0);
+        assert!(v[t::GEAR] >= 1.0, "{model:?}");
+        assert!(v[t::VEL_X] > 1.0, "{model:?}");
+    }
+}
+
+#[test]
 fn a_manual_car_follows_the_gear_input_and_the_clutch_pedal() {
     let mut d = combustion_def();
     d.drivetrain.transmission.mode = TransmissionMode::Manual;

@@ -195,7 +195,7 @@ export class Sim {
    * the steering limit is set.
    */
   presetDefinition(id: PresetId): VehicleDefinition {
-    const def = preset(id);
+    const def = this.sp.completeDefinition(preset(id));
     const defaults = this.sp.defaultDefinition().assists;
     const given = (def as { assists?: Partial<typeof defaults> }).assists ?? {};
     def.assists = {

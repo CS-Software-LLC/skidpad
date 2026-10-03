@@ -82,7 +82,7 @@ describe("validation scenarios", () => {
     for (const [id, v] of Object.entries(report.vehicles)) {
       // A vehicle with rear brakes only (the kart) swaps ends once the
       // surface is slippery enough; that is reported, not failed.
-      const rearBrakesOnly = preset(id as PresetId).axles[0]!.maxBrakeTorque === 0;
+      const rearBrakesOnly = preset(id as PresetId).axles?.[0]?.maxBrakeTorque === 0;
       let last = v.straightLine.brakingDistance;
       for (const [name, s] of Object.entries(v.surfaces)) {
         if (s.spun) {
@@ -103,7 +103,7 @@ describe("validation scenarios", () => {
       // A spool (the kart's locked rear differential) pushes at low speed
       // and the push eases as the inner wheel unloads, so its fitted
       // gradient is slightly negative; every other preset understeers.
-      const spool = preset(id as PresetId).drivetrain.rear.kind === "locked";
+      const spool = preset(id as PresetId).drivetrain?.rear?.kind === "locked";
       expect(v.understeer.gradientDegPerG, id).toBeGreaterThan(spool ? -1 : 0);
       expect(v.understeer.gradientDegPerG, id).toBeLessThan(8);
       // The single-track model has no lateral load transfer and sits on the

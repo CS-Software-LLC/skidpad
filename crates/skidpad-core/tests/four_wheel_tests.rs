@@ -530,3 +530,61 @@ fn live_definition_swap_can_change_the_model() {
     let q = Quat::from_yaw(v[t::YAW]);
     assert!((q.w - v[t::QUAT_W]).abs() < 1e-12);
 }
+
+#[test]
+fn a_restore_rewrites_the_telemetry() {
+    let mut w = World::new(1);
+    w.add_vehicle(VehicleDefinition::default()).unwrap();
+    w.set_input(
+        0,
+        VehicleInput {
+            throttle: 1.0,
+            ..VehicleInput::default()
+        },
+    )
+    .unwrap();
+    for _ in 0..60 {
+        w.step(1.0 / 60.0);
+    }
+    let mut snap = vec![0u8; w.snapshot_len(0).unwrap()];
+    w.snapshot(0, &mut snap).unwrap();
+    let pos = w.telemetry_of(0)[t::POS_X];
+    for _ in 0..60 {
+        w.step(1.0 / 60.0);
+    }
+    assert!(w.telemetry_of(0)[t::POS_X] > pos + 1.0);
+    w.restore(0, &snap).unwrap();
+    assert_eq!(w.telemetry_of(0)[t::POS_X], pos);
+}
+
+#[test]
+fn a_heading_vector_resets_like_its_yaw() {
+    let def = VehicleDefinition::default();
+    let mut a = World::new(1);
+    let mut b = World::new(1);
+    a.add_vehicle(def.clone()).unwrap();
+    b.add_vehicle(def).unwrap();
+    a.reset_vehicle(0, 3.0, 4.0, skidpad_math::atan2(2.0, -1.0))
+        .unwrap();
+    b.reset_vehicle_heading(0, 3.0, 4.0, -3.0, 6.0).unwrap();
+    assert_eq!(a.world_hash(), b.world_hash());
+    assert!(b.reset_vehicle_heading(0, 0.0, 0.0, 0.0, 0.0).is_err());
+    assert!(b.reset_vehicle_heading(0, 0.0, 0.0, f64::NAN, 1.0).is_err());
+}
+
+#[test]
+fn the_step_counter_can_be_restored() {
+    let mut w = World::new(1);
+    w.add_vehicle(VehicleDefinition::default()).unwrap();
+    for _ in 0..10 {
+        w.step(0.01);
+    }
+    let hash = w.world_hash();
+    let mut snap = vec![0u8; w.snapshot_len(0).unwrap()];
+    w.snapshot(0, &mut snap).unwrap();
+    w.step(0.01);
+    w.restore(0, &snap).unwrap();
+    assert_ne!(w.world_hash(), hash);
+    w.set_step_count(10);
+    assert_eq!(w.world_hash(), hash);
+}

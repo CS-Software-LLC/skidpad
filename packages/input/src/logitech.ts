@@ -72,8 +72,58 @@ export function webHid(): HidLike | undefined {
 
 export type LogitechProtocol = "hidpp" | "classic";
 
+/** A Logitech wheel the sink knows by product id. */
+export interface LogitechWheelModel {
+  productId: number;
+  name: string;
+  /** The force-feedback protocol the wheel speaks in this mode. */
+  protocol: LogitechProtocol;
+  /** Torque at full output, N·m (approximate; belt and gear wheels 2 to 3). */
+  peakTorque: number;
+}
+
+/**
+ * Wheels known by USB product id, with the protocol the Linux drivers use
+ * for each (`hid-ids.h`; `lg4ff` for the classic ones,
+ * `hid-logitech-hidpp` for HID++). Ids marked [VERIFY] are not in those
+ * drivers. A wheel switched to another mode (a G923 in compatibility mode)
+ * enumerates with another id.
+ */
+export const LOGITECH_WHEELS: readonly LogitechWheelModel[] = [
+  { productId: 0xc293, name: "WingMan Formula Force GP", protocol: "classic", peakTorque: 2 },
+  { productId: 0xc294, name: "Driving Force / Formula EX", protocol: "classic", peakTorque: 2 },
+  { productId: 0xc295, name: "MOMO Force", protocol: "classic", peakTorque: 2 },
+  { productId: 0xc298, name: "Driving Force Pro", protocol: "classic", peakTorque: 2 },
+  { productId: 0xc299, name: "G25", protocol: "classic", peakTorque: 2.5 },
+  { productId: 0xc29a, name: "Driving Force GT", protocol: "classic", peakTorque: 2 },
+  { productId: 0xc29b, name: "G27", protocol: "classic", peakTorque: 2.5 },
+  { productId: 0xc24f, name: "G29", protocol: "classic", peakTorque: 2.5 },
+  { productId: 0xca03, name: "MOMO Racing", protocol: "classic", peakTorque: 2 },
+  { productId: 0xc262, name: "G920", protocol: "hidpp", peakTorque: 2.5 },
+  { productId: 0xc26e, name: "G923 (Xbox / PC)", protocol: "hidpp", peakTorque: 2.5 },
+  { productId: 0xc272, name: "G PRO (Xbox / PC)", protocol: "hidpp", peakTorque: 11 },
+  // [VERIFY] not in the Linux drivers.
+  { productId: 0xc268, name: "G PRO (PlayStation / PC)", protocol: "hidpp", peakTorque: 11 },
+];
+
+/** The known wheel with this product id, if any. */
+export function logitechWheel(productId: number): LogitechWheelModel | undefined {
+  return LOGITECH_WHEELS.find((w) => w.productId === productId);
+}
+
+/** Peak torque assumed for a wheel the table does not know, by protocol. */
+function defaultPeakTorque(protocol: LogitechProtocol): number {
+  // A direct-drive G PRO peaks at about 11 N·m; belt wheels 2 to 3.
+  return protocol === "hidpp" ? 11 : 2.5;
+}
+
 export interface LogitechSinkOptions extends FfbScalerOptions {
-  protocol?: LogitechProtocol;
+  /**
+   * Which protocol to speak. `auto` (the default) picks it from the
+   * device's product id ({@link LOGITECH_WHEELS}) when the device is
+   * attached, and falls back to `hidpp` for a wheel it does not know.
+   */
+  protocol?: LogitechProtocol | "auto";
   /** Rotation to ask the wheel for, degrees lock to lock. */
   rotationDeg?: number;
   /**
@@ -257,11 +307,12 @@ function conditionParams(slot: number, type: number, coefficient: number): numbe
  * `connect()` from a click handler.
  */
 export class LogitechWebHidSink implements FfbSink {
-  readonly name: string;
-  /** Torque at the device's full output, N·m, before `maxOutput`. */
-  readonly peakTorque: number;
-  protocol: LogitechProtocol;
   readonly scaler: FfbScaler;
+  private requested: LogitechProtocol | "auto";
+  private resolved: LogitechProtocol | undefined;
+  private model: LogitechWheelModel | undefined;
+  private readonly torqueOverride: number | undefined;
+  private readyValue = false;
   private device: HidDeviceLike | undefined;
   private featureIndex = 0;
   private slot: number | undefined;
@@ -315,10 +366,8 @@ export class LogitechWebHidSink implements FfbSink {
   }
 
   constructor(options: LogitechSinkOptions = {}) {
-    this.protocol = options.protocol ?? "hidpp";
-    this.name = `Logitech (${this.protocol})`;
-    // A direct-drive G PRO peaks at about 11 N·m; belt wheels 2 to 3.
-    this.peakTorque = options.maxTorque ?? (this.protocol === "hidpp" ? 11 : 2.5);
+    this.requested = options.protocol ?? "auto";
+    this.torqueOverride = options.maxTorque;
     this.maxOutputValue = clamp01(options.maxOutput ?? 0.4);
     this.scaler = new FfbScaler({ ...options, maxTorque: this.maxTorque });
     this.watchdogSeconds = options.watchdog ?? 0.25;
@@ -328,8 +377,52 @@ export class LogitechWebHidSink implements FfbSink {
     this.log = options.log ?? (() => {});
   }
 
+  /**
+   * The protocol in use: the one asked for, or once a device is attached
+   * with `auto`, the one its product id calls for. Before attaching with
+   * `auto` this reads `hidpp`, the fallback. Set it before `attach()` to
+   * force a protocol; `peakTorque` follows.
+   */
+  get protocol(): LogitechProtocol {
+    return this.resolved ?? (this.requested === "auto" ? "hidpp" : this.requested);
+  }
+
+  set protocol(value: LogitechProtocol | "auto") {
+    this.requested = value;
+    this.resolved = undefined;
+    this.scaler.maxTorque = this.maxTorque;
+  }
+
+  get name(): string {
+    return `Logitech ${this.model?.name ?? ""}${this.model ? " " : ""}(${this.protocol})`;
+  }
+
+  /** The attached wheel, when its product id is in {@link LOGITECH_WHEELS}. */
+  get wheel(): LogitechWheelModel | undefined {
+    return this.model;
+  }
+
+  /**
+   * Torque at the device's full output, N·m, before `maxOutput`: the
+   * `maxTorque` option if given, else the attached wheel's from
+   * {@link LOGITECH_WHEELS}, else the default of the protocol in use.
+   */
+  get peakTorque(): number {
+    return this.torqueOverride ?? this.model?.peakTorque ?? defaultPeakTorque(this.protocol);
+  }
+
+  /** The device is open (it may still be unable to play forces; see {@link ready}). */
   get connected(): boolean {
     return this.device?.opened ?? false;
+  }
+
+  /**
+   * The device is open and the force path was set up: the HID++ feature
+   * answered and the constant-force effect has a slot, or the classic
+   * set-up reports went out. `update()` sends nothing while this is false.
+   */
+  get ready(): boolean {
+    return this.connected && this.readyValue;
   }
 
   /** Largest fraction of the peak torque the sink sends, 0 … 1. */
@@ -373,25 +466,60 @@ export class LogitechWebHidSink implements FfbSink {
       (d) => d.vendorId === first.vendorId && d.productId === first.productId,
     );
     const candidates = [...chosen, ...siblings.filter((d) => !chosen.includes(d))];
-    const device = this.protocol === "hidpp" ? pickHidppDevice(candidates) : first;
+    const protocol = this.resolveFor(first.productId);
+    const device = protocol === "hidpp" ? pickHidppDevice(candidates) : first;
     await this.attach(device ?? first);
   }
 
-  /** Use an already-permitted device (from `hid.getDevices()`). */
+  /** The protocol for a product id under the requested one; also picks the model. */
+  private resolveFor(productId: number): LogitechProtocol {
+    this.model = logitechWheel(productId);
+    this.resolved = this.requested === "auto" ? (this.model?.protocol ?? "hidpp") : this.requested;
+    this.scaler.maxTorque = this.maxTorque;
+    return this.resolved;
+  }
+
+  /**
+   * Use an already-permitted device (from `hid.getDevices()`). Rejects,
+   * with the device closed again, when the force path cannot be set up
+   * (the HID++ feature does not answer, or the classic reports cannot be
+   * written); the diagnostics log says why.
+   */
   async attach(device: HidDeviceLike): Promise<void> {
+    if (this.device) await this.disconnect();
+    const protocol = this.resolveFor(device.productId);
     this.device = device;
+    this.readyValue = false;
+    this.featureIndex = 0;
+    this.slot = this.damperSlot = this.frictionSlot = undefined;
     this.reportIds = outputReportIds(device);
     if (!device.opened) await device.open();
     device.addEventListener("inputreport", this.onReport);
     this.record(
-      `opened ${device.productName} (${device.vendorId.toString(16)}:${device.productId.toString(16)}), protocol ${this.protocol}`,
+      `opened ${device.productName} (${device.vendorId.toString(16)}:${device.productId.toString(16)}), ` +
+        `protocol ${protocol}${this.requested === "auto" ? (this.model ? ` (${this.model.name})` : " (unknown wheel, default)") : ""}, ` +
+        `peak ${this.peakTorque} N·m`,
     );
     if (this.reportIds) {
       const ids = [...this.reportIds].map((id) => id.toString(16)).join(" ");
       this.record(`   output reports: ${ids || "none"}`);
     }
-    if (this.protocol === "hidpp") await this.setupHidpp();
-    else await this.setupClassic();
+    let failure: string | undefined;
+    try {
+      failure = protocol === "hidpp" ? await this.setupHidpp() : await this.setupClassic();
+    } catch (e) {
+      failure = `set-up failed: ${String(e)}`;
+    }
+    if (failure !== undefined) {
+      this.record(`   no force path: ${failure}`);
+      try {
+        await this.disconnect();
+      } catch (e) {
+        this.record(`   close failed: ${String(e)}`);
+      }
+      throw new Error(`Logitech force feedback unavailable (${protocol}): ${failure}`);
+    }
+    this.readyValue = true;
     this.armSafety();
   }
 
@@ -498,7 +626,7 @@ export class LogitechWebHidSink implements FfbSink {
    * strength. The reset alone leaves that spring on, which holds the wheel
    * stiffly to the centre whatever the host sends.
    */
-  private async setupHidpp(): Promise<void> {
+  private async setupHidpp(): Promise<string | undefined> {
     const r = await this.hidpp(HIDPP_ROOT_INDEX, 0, [
       HIDPP_FEATURE_FORCE_FEEDBACK >> 8,
       HIDPP_FEATURE_FORCE_FEEDBACK & 0xff,
@@ -507,12 +635,12 @@ export class LogitechWebHidSink implements FfbSink {
     this.featureIndex = r.ok ? (r.params[0] ?? 0) : 0;
     if (this.featureIndex === 0) {
       const ids = this.reportIds;
-      this.record(
+      const why =
         ids && !ids.has(HIDPP_LONG) && !ids.has(HIDPP_VERY_LONG)
           ? "this interface has no HID++ output reports; reconnect and pick the wheel's other entry in the chooser"
-          : "force-feedback feature 0x8123 not reported; the wheel may be in a different mode or need the classic protocol",
-      );
-      return;
+          : "force-feedback feature 0x8123 not reported; the wheel may be in a different mode or need the classic protocol";
+      this.record(why);
+      return why;
     }
     this.record(`feature 0x8123 at index ${this.featureIndex}`);
     await this.hidpp(this.featureIndex, FF_GET_INFO, []);
@@ -536,6 +664,7 @@ export class LogitechWebHidSink implements FfbSink {
     this.slot = await this.download(constantParams(0, 0));
     this.damperSlot = await this.download(conditionParams(0, FF_EFFECT_DAMPER, 0));
     this.frictionSlot = await this.download(conditionParams(0, FF_EFFECT_FRICTION, 0));
+    return this.slot === undefined ? "the wheel did not accept a constant-force effect" : undefined;
   }
 
   /** Download an effect into a new slot and start it; the slot, if any. */
@@ -551,19 +680,20 @@ export class LogitechWebHidSink implements FfbSink {
 
   // --- classic -----------------------------------------------------------------
 
-  private async setupClassic(): Promise<void> {
+  private async setupClassic(): Promise<undefined> {
     await this.send(CLASSIC_REPORT_ID, new Uint8Array([CLASSIC_AUTOCENTER_OFF, 0, 0, 0, 0, 0, 0]));
     const range = Math.max(40, Math.min(900, Math.round(this.rotationDeg)));
     await this.send(
       CLASSIC_REPORT_ID,
       new Uint8Array([CLASSIC_EXTENDED, CLASSIC_SET_RANGE, range & 0xff, range >> 8, 0, 0, 0]),
     );
+    return undefined;
   }
 
   // --- frames -------------------------------------------------------------------
 
   async update(frame: FfbFrame, dt: number): Promise<void> {
-    if (!this.device?.opened) return;
+    if (!this.ready) return;
     const wasTripped = this.scaler.tripped;
     const level = this.scaler.scale(frame.torque, dt, frame.wheelAngle);
     if (!wasTripped && this.scaler.tripped) {
@@ -619,7 +749,7 @@ export class LogitechWebHidSink implements FfbSink {
    * scaler's `invert`.
    */
   async pulse(level = 0.25, ms = 250): Promise<void> {
-    if (!this.device?.opened) return;
+    if (!this.ready) return;
     const sign = this.scaler.invert ? -1 : 1;
     this.lastUpdate = performance.now() / 1000;
     this.lastLevel = level;
@@ -652,5 +782,6 @@ export class LogitechWebHidSink implements FfbSink {
       if (this.device.opened) await this.device.close();
     }
     this.device = undefined;
+    this.readyValue = false;
   }
 }

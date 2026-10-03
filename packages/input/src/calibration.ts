@@ -129,7 +129,13 @@ export interface ButtonBinding {
 export interface WheelProfile {
   id: string;
   name: string;
-  /** Regular expressions matched against `Gamepad.id` to pick the devices. */
+  /**
+   * Regular expressions (JavaScript syntax, as strings) matched against
+   * `Gamepad.id` to pick the devices. A leading `(?i)` makes the match
+   * case-insensitive, as JavaScript has no inline flag. Pads with the
+   * standard gamepad mapping are not considered unless `WheelInput` is
+   * told to (`matchStandardPads`).
+   */
   match: { wheel: string; pedals?: string };
   /** Physical rotation of the wheel, lock to lock, degrees. */
   rotationDeg: number;
@@ -195,7 +201,9 @@ export function builtinProfiles(): WheelProfile[] {
       name: "Logitech G PRO Racing Wheel + PRO Racing Pedals",
       // The wheel base and the pedals enumerate as two gamepads when the
       // pedals are on their own USB lead.
-      match: { wheel: "046d.*(PRO|Pro)|Logitech.*PRO", pedals: "Pedals|Pedal" },
+      // Not "046d.*Pro": Chromium ids read "Vendor: 046d Product: …", so
+      // that matched every Logitech device.
+      match: { wheel: "PRO Racing Wheel|046d Product: (c272|c268)\\b", pedals: "Pedals|Pedal" },
       rotationDeg: 900,
       steer: { device: "wheel", axis: 0, calibration: defaultCentredCalibration() },
       throttle: pedal("pedals", 0),
