@@ -261,6 +261,12 @@ impl Drivetrain {
                     if self.gear != -1 && slow {
                         self.begin_shift(-1);
                     }
+                } else if request < 0 {
+                    // No reverse ratio: a reverse request is neutral, not
+                    // drive.
+                    if self.gear != 0 {
+                        self.begin_shift(0);
+                    }
                 } else if self.gear <= 0 {
                     if self.gear == 0 || slow {
                         self.begin_shift(1);

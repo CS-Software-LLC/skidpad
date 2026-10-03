@@ -28,7 +28,7 @@ use std::cell::RefCell;
 
 /// Bump this whenever an exported signature changes. The TypeScript loader
 /// refuses to run against a different ABI version.
-pub const ABI_VERSION: u32 = 5;
+pub const ABI_VERSION: u32 = 6;
 
 pub const OK: i32 = 0;
 pub const ERR_INVALID_HANDLE: i32 = -1;
@@ -134,14 +134,16 @@ pub extern "C" fn sp_abi_version() -> u32 {
     ABI_VERSION
 }
 
+/// The crate version, then `+` and the source hash when the build set one
+/// (`0.1.0+0123456789abcdef`).
 #[no_mangle]
 pub extern "C" fn sp_version_ptr() -> *const u8 {
-    skidpad_core::VERSION.as_ptr()
+    skidpad_core::BUILD_VERSION.as_ptr()
 }
 
 #[no_mangle]
 pub extern "C" fn sp_version_len() -> usize {
-    skidpad_core::VERSION.len()
+    skidpad_core::BUILD_VERSION.len()
 }
 
 #[no_mangle]
@@ -634,12 +636,33 @@ pub unsafe extern "C" fn sp_world_set_surfaces(
     })
 }
 
-/// Surface id of the built-in flat ground under a vehicle. An external host
-/// tags each wheel contact itself through the host-sync record.
+/// Set a world's host step counter (restoring a whole world).
 #[no_mangle]
-pub extern "C" fn sp_world_set_surface(handle: u32, vehicle: u32, surface: u32) -> i32 {
+pub extern "C" fn sp_world_set_step_count(handle: u32, count: f64) -> i32 {
+    if !(0.0..=9.007_199_254_740_991e15).contains(&count) || count != count.trunc() {
+        set_error("step count must be a whole number from 0 to 2^53 - 1");
+        return ERR_INVALID_DEFINITION;
+    }
     unwrap_code(
-        with_world(handle, |w| w.set_surface(vehicle as usize, surface)),
+        with_world(handle, |w| w.set_step_count(count as u64)),
+        |()| OK,
+    )
+}
+
+/// Surface id of the built-in flat ground under one wheel of a vehicle
+/// (0 … 3: FL, FR, RL, RR), or under all of them for any larger `wheel`.
+/// An external host tags each wheel contact itself through the host-sync
+/// record.
+#[no_mangle]
+pub extern "C" fn sp_world_set_surface(handle: u32, vehicle: u32, wheel: u32, surface: u32) -> i32 {
+    unwrap_code(
+        with_world(handle, |w| {
+            if (wheel as usize) < WHEEL_COUNT {
+                w.set_wheel_surface(vehicle as usize, wheel as usize, surface)
+            } else {
+                w.set_surface(vehicle as usize, surface)
+            }
+        }),
         |r| match r {
             Ok(()) => OK,
             Err(e) => world_error_code(e),
@@ -647,6 +670,8 @@ pub extern "C" fn sp_world_set_surface(handle: u32, vehicle: u32, surface: u32) 
     )
 }
 
+/// Reset a vehicle at `(x, y)` facing `yaw`, or along `(dx, dy)` when that
+/// is not the zero vector.
 #[no_mangle]
 pub extern "C" fn sp_world_reset_vehicle(
     handle: u32,
@@ -654,9 +679,17 @@ pub extern "C" fn sp_world_reset_vehicle(
     x: f64,
     y: f64,
     yaw: f64,
+    dx: f64,
+    dy: f64,
 ) -> i32 {
     unwrap_code(
-        with_world(handle, |w| w.reset_vehicle(vehicle as usize, x, y, yaw)),
+        with_world(handle, |w| {
+            if dx == 0.0 && dy == 0.0 {
+                w.reset_vehicle(vehicle as usize, x, y, yaw)
+            } else {
+                w.reset_vehicle_heading(vehicle as usize, x, y, dx, dy)
+            }
+        }),
         |r| match r {
             Ok(()) => OK,
             Err(e) => world_error_code(e),

@@ -6,7 +6,7 @@ use skidpad_core::definition::VehicleModelKind;
 use skidpad_core::telemetry as t;
 use skidpad_core::tire::{FeelTireParams, MagicFormulaParams, TireInput, TireModel};
 use skidpad_core::validation::{straight_line, StraightLineConfig};
-use skidpad_core::vehicle::{WheelContact, FL, RR};
+use skidpad_core::vehicle::{WheelContact, FL, FR, RL, RR};
 use skidpad_core::world::{HOST_CONTACT_STRIDE, HOST_IN_BODY_LEN, HOST_IN_STRIDE};
 use skidpad_core::{Surface, SurfaceTable, VehicleDefinition, VehicleInput, World};
 
@@ -268,4 +268,92 @@ fn bad_surfaces_are_rejected_and_the_table_is_bounded() {
         .set_surfaces(&vec![ice(); skidpad_core::surface::MAX_SURFACES])
         .is_ok());
     assert_eq!(w.surfaces().len(), skidpad_core::surface::MAX_SURFACES);
+}
+
+#[test]
+fn builtin_ground_takes_a_surface_per_wheel() {
+    for model in [VehicleModelKind::FourWheel, VehicleModelKind::SingleTrack] {
+        let mut d = VehicleDefinition::default();
+        d.simulation.model = model;
+        let mut w = World::new(1);
+        w.add_vehicle(d).unwrap();
+        w.set_surfaces(&[Surface::REFERENCE, gravel(), ice()])
+            .unwrap();
+        // Two wheels on the gravel at the left, one on the ice.
+        w.set_wheel_surface(0, FL, 1).unwrap();
+        w.set_wheel_surface(0, RL, 1).unwrap();
+        w.set_wheel_surface(0, RR, 2).unwrap();
+        assert!(w.set_wheel_surface(0, 4, 1).is_err());
+        w.step(0.01);
+        let v = w.telemetry_of(0);
+        assert_eq!(
+            [
+                v[t::SURFACE_ID_FL],
+                v[t::SURFACE_ID_FR],
+                v[t::SURFACE_ID_RL],
+                v[t::SURFACE_ID_RR]
+            ],
+            [1.0, 0.0, 1.0, 2.0],
+            "{model:?}"
+        );
+        assert_eq!(v[t::SURFACE_GRIP_FL], 0.6);
+        assert_eq!(v[t::SURFACE_GRIP_FR], 1.0);
+        assert_eq!(v[t::SURFACE_GRIP_RR], 0.2);
+        // A reset keeps each wheel's surface, and a whole-car id overrides them.
+        w.reset_vehicle(0, 0.0, 0.0, 0.0).unwrap();
+        w.step(0.01);
+        assert_eq!(w.telemetry_of(0)[t::SURFACE_ID_RR], 2.0);
+        w.set_surface(0, 1).unwrap();
+        w.step(0.01);
+        assert_eq!(w.telemetry_of(0)[t::SURFACE_ID_FR], 1.0);
+        assert_eq!(w.telemetry_of(0)[t::SURFACE_ID_RR], 1.0);
+    }
+}
+
+#[test]
+fn per_wheel_surfaces_survive_a_change_of_model() {
+    let mut w = World::new(1);
+    w.add_vehicle(VehicleDefinition::default()).unwrap();
+    w.set_surfaces(&[Surface::REFERENCE, gravel()]).unwrap();
+    w.set_wheel_surface(0, FR, 1).unwrap();
+    w.set_lod(0, skidpad_core::world::Lod::SingleTrack, 0.0)
+        .unwrap();
+    w.set_lod(0, skidpad_core::world::Lod::Full, 0.0).unwrap();
+    w.step(0.01);
+    assert_eq!(w.telemetry_of(0)[t::SURFACE_ID_FR], 1.0);
+    assert_eq!(w.telemetry_of(0)[t::SURFACE_ID_FL], 0.0);
+}
+
+#[test]
+fn equal_wheel_surfaces_drive_exactly_like_one_vehicle_surface() {
+    for model in [VehicleModelKind::FourWheel, VehicleModelKind::SingleTrack] {
+        let run = |per_wheel: bool| {
+            let mut d = VehicleDefinition::default();
+            d.simulation.model = model;
+            let mut w = World::new(1);
+            w.add_vehicle(d).unwrap();
+            w.set_surfaces(&[Surface::REFERENCE, gravel()]).unwrap();
+            if per_wheel {
+                for wheel in [FL, FR, RL, RR] {
+                    w.set_wheel_surface(0, wheel, 1).unwrap();
+                }
+            } else {
+                w.set_surface(0, 1).unwrap();
+            }
+            w.set_input(
+                0,
+                VehicleInput {
+                    throttle: 0.8,
+                    steer: 0.3,
+                    ..VehicleInput::default()
+                },
+            )
+            .unwrap();
+            for _ in 0..300 {
+                w.step(1.0 / 60.0);
+            }
+            w.world_hash()
+        };
+        assert_eq!(run(true), run(false), "{model:?}");
+    }
 }

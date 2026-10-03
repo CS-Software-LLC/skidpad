@@ -50,7 +50,9 @@ export interface CpExports {
   sp_world_set_host_mode(handle: number, vehicle: number, mode: number): number;
   sp_world_set_ground_slope(handle: number, vehicle: number, grade: number, cross: number): number;
   sp_world_set_surfaces(handle: number, jsonPtr: number, jsonLen: number): number;
-  sp_world_set_surface(handle: number, vehicle: number, surface: number): number;
+  /** `wheel` 0 … 3, or 4 for every wheel. */
+  sp_world_set_surface(handle: number, vehicle: number, wheel: number, surface: number): number;
+  sp_world_set_step_count(handle: number, count: number): number;
   sp_world_wheel_rays(handle: number, vehicle: number, out: number, cap: number): number;
   sp_world_step(handle: number, dt: number): number;
   sp_world_step_many(handle: number, dt: number, count: number): number;
@@ -75,6 +77,9 @@ export interface CpExports {
     x: number,
     y: number,
     yaw: number,
+    /** Heading direction; `(0, 0)` uses `yaw`. */
+    dx: number,
+    dy: number,
   ): number;
   sp_world_snapshot_len(handle: number, vehicle: number): number;
   sp_world_snapshot(handle: number, vehicle: number, out: number, cap: number): number;
@@ -109,7 +114,7 @@ export interface CpExports {
 }
 
 /** ABI version this loader was written against. */
-export const EXPECTED_ABI_VERSION = 5;
+export const EXPECTED_ABI_VERSION = 6;
 
 export enum ErrorCode {
   Ok = 0,

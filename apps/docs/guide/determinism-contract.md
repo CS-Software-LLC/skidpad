@@ -33,7 +33,17 @@ Firefox, WebKit, Node, on x86 and ARM.
   and stay as they were on the vehicle being restored into. Snapshot format
   version 2 (milestone 4) carries the drivetrain state: engine speed, gear,
   shift timer and clutch engagement.
-- Recorded inputs replay identically on any machine.
+- `world.snapshotWorld()` / `world.restoreWorld(bytes)`: every vehicle plus
+  the world's step counter, so `worldHash()` after a seek matches straight
+  playback (a vehicle snapshot alone leaves the counter where it was).
+- Recorded inputs replay identically on any machine running the same core.
+  `sp.simulationVersion` identifies the core: a hash of the Rust sources,
+  lockfile and toolchain the WASM was built from. Two cores with the same
+  value simulate identically; compare it, not the npm `sp.version`, before
+  trusting a replay recorded elsewhere.
+- `world.resetVehicle(car, x, y, [dx, dy])` takes a heading direction as well
+  as a yaw angle, so resetting onto a track direction needs no
+  `Math.atan2`: the core converts it with its own deterministic `atan2`.
 
 ## What is not covered
 

@@ -22,7 +22,8 @@
     "./entry": {
       "types": "./dist/entry.d.ts",
       "import": "./dist/entry.js"
-    }
+    },
+    "./package.json": "./package.json"
   },
   "files": [
     "dist"

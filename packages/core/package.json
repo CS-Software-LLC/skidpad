@@ -22,7 +22,8 @@
       "import": "./dist/compat.js"
     },
     "./schema": "./schema/vehicle-definition.schema.json",
-    "./wasm": "./wasm/skidpad.wasm"
+    "./wasm": "./wasm/skidpad.wasm",
+    "./package.json": "./package.json"
   },
   "files": [
     "dist",

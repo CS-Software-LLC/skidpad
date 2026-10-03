@@ -190,6 +190,29 @@ impl World {
         Ok(())
     }
 
+    /// Surface id of the built-in flat ground under one wheel of vehicle
+    /// `i` ([`WHEEL_COUNT`] order: FL, FR, RL, RR). An external host tags
+    /// each wheel contact itself.
+    pub fn set_wheel_surface(&mut self, i: usize, wheel: usize, id: u32) -> Result<(), WorldError> {
+        if wheel >= WHEEL_COUNT {
+            return Err(WorldError::Invalid(vec![String::from(
+                "wheel index must be 0 to 3 (FL, FR, RL, RR)",
+            )]));
+        }
+        let v = self
+            .vehicles
+            .get_mut(i)
+            .ok_or(WorldError::NoSuchVehicle(i))?;
+        v.model.set_wheel_surface(wheel, id);
+        Ok(())
+    }
+
+    /// Set the host step counter, for restoring a whole world from
+    /// per-vehicle snapshots (the counter is part of [`World::world_hash`]).
+    pub fn set_step_count(&mut self, count: u64) {
+        self.step_count = count;
+    }
+
     pub fn capacity(&self) -> usize {
         self.capacity
     }
@@ -557,6 +580,7 @@ impl World {
                 if let Some(ai) = self.ai[i].as_mut() {
                     ai.reset();
                 }
+                self.refresh_telemetry(i);
                 return Ok(());
             }
         }
@@ -566,7 +590,18 @@ impl World {
         if let Some(ai) = self.ai[i].as_mut() {
             ai.reset();
         }
+        self.refresh_telemetry(i);
         Ok(())
+    }
+
+    /// Rewrite vehicle `i`'s telemetry from its state, with its current
+    /// inputs, so the pose channels follow a restore before the next step.
+    fn refresh_telemetry(&mut self, i: usize) {
+        let input = VehicleInput::from_slice(
+            &self.inputs[i * VehicleInput::STRIDE..(i + 1) * VehicleInput::STRIDE],
+        );
+        let rec = &mut self.telemetry[i * telemetry::STRIDE..(i + 1) * telemetry::STRIDE];
+        self.vehicles[i].model.write_telemetry(&input, rec);
     }
 
     pub fn reset_vehicle(&mut self, i: usize, x: f64, y: f64, yaw: f64) -> Result<(), WorldError> {
@@ -581,6 +616,26 @@ impl World {
             ai.reset();
         }
         Ok(())
+    }
+
+    /// [`World::reset_vehicle`] facing along the direction `(dx, dy)`
+    /// (any length) instead of a yaw angle, so a host can reset onto a
+    /// track direction without computing the angle itself: the core's own
+    /// `atan2` is deterministic, a host's may not be.
+    pub fn reset_vehicle_heading(
+        &mut self,
+        i: usize,
+        x: f64,
+        y: f64,
+        dx: f64,
+        dy: f64,
+    ) -> Result<(), WorldError> {
+        if !dx.is_finite() || !dy.is_finite() || (dx == 0.0 && dy == 0.0) {
+            return Err(WorldError::Invalid(vec![String::from(
+                "heading must be a finite, non-zero vector",
+            )]));
+        }
+        self.reset_vehicle(i, x, y, m::atan2(dy, dx))
     }
 
     /// Swap in a new definition for live tuning. State is preserved.

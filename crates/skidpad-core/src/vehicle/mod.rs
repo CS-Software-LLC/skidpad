@@ -63,7 +63,7 @@ impl VehicleModel {
             VehicleModel::FourWheel(f) => {
                 f.drivetrain.write_state(&mut dt_state);
                 let mut b = BicycleVehicle::new(def);
-                b.set_surface(f.builtin_surface_id);
+                b.surface_ids = f.builtin_surface_ids;
                 b.set_ground_slope(f.ground_slope[0], f.ground_slope[1]);
                 let (yaw, _, _) = f.orient.to_yaw_pitch_roll();
                 b.reset(f.pos.x, f.pos.y, yaw);
@@ -88,7 +88,9 @@ impl VehicleModel {
             VehicleModel::SingleTrack(b) => {
                 b.drivetrain.write_state(&mut dt_state);
                 let mut f = FourWheelVehicle::new(def);
-                f.set_surface(b.surface_id);
+                for (w, &id) in b.surface_ids.iter().enumerate() {
+                    f.set_wheel_surface(w, id);
+                }
                 f.set_ground_slope(b.ground_slope[0], b.ground_slope[1]);
                 f.reset(b.x, b.y, b.yaw);
                 f.time = b.time;
@@ -169,6 +171,16 @@ impl VehicleModel {
         match self {
             VehicleModel::SingleTrack(v) => v.set_surface(id),
             VehicleModel::FourWheel(v) => v.set_surface(id),
+        }
+    }
+
+    /// Surface id of the built-in flat ground under one wheel (four-wheel
+    /// order). The single-track model runs each axle on the mean of its
+    /// two wheels' surfaces.
+    pub fn set_wheel_surface(&mut self, wheel: usize, id: u32) {
+        match self {
+            VehicleModel::SingleTrack(v) => v.set_wheel_surface(wheel, id),
+            VehicleModel::FourWheel(v) => v.set_wheel_surface(wheel, id),
         }
     }
 

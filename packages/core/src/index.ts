@@ -12,33 +12,21 @@
  * ```
  *
  * This entry loads `skidpad.wasm` as a separate file next to the
- * package. Use `@skidpad/core/compat` for a build with the WASM inlined.
+ * package. Use `@skidpad/core/compat` for a build with the WASM inlined;
+ * it exports the same API apart from `defaultWasmUrl`.
+ *
+ * Bundling for Node (a server bundled with esbuild, say): keep
+ * `@skidpad/core` external so it loads the WASM from `node_modules`, or use
+ * `@skidpad/core/compat`, or pass `init({ wasm })` the path of a copy of
+ * `@skidpad/core/wasm`. A bundler that does not carry
+ * `new URL(…, import.meta.url)` assets leaves the default path pointing next
+ * to the bundle, where there is no WASM.
  */
-import type { WasmSource } from "./wasm/instantiate.js";
 import { instantiateCore } from "./wasm/instantiate.js";
 import { Skidpad } from "./core.js";
+import type { InitOptions } from "./api.js";
 
-export * from "./core.js";
-export * from "./definition/types.js";
-export { validateDefinition, validateSurfaces } from "./definition/validate.js";
-export type { ValidationResult } from "./definition/validate.js";
-export {
-  migrateDefinition,
-  migrateLegacyDrive,
-  isCurrentFormat,
-  MigrationError,
-} from "./definition/migrate.js";
-export { ErrorCode, EXPECTED_ABI_VERSION } from "./wasm/abi.js";
-export { triangleWave, smoothWave } from "./wave.js";
-export { chooseLod, LodController } from "./lod.js";
-export type { LodThresholds, LodTarget } from "./lod.js";
-export type { CpExports } from "./wasm/abi.js";
-export type { WasmSource } from "./wasm/instantiate.js";
-
-export interface InitOptions {
-  /** Where to load the WASM from. Defaults to the file shipped in the package. */
-  wasm?: WasmSource;
-}
+export * from "./api.js";
 
 /** Default location of the WASM file shipped with the package. */
 export function defaultWasmUrl(): URL {

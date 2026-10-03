@@ -210,9 +210,9 @@ pub struct FourWheelVehicle {
     /// substep, N: the input to the next substep's anti-dive and anti-squat
     /// (ADR-0018), lagged one substep like `axle_fy_prev`. In the snapshot.
     pub axle_fx_prev: [f64; 2],
-    /// Surface id the built-in flat ground carries under every wheel
+    /// Surface id the built-in flat ground carries under each wheel
     /// (ADR-0014). An external host tags each contact itself.
-    pub builtin_surface_id: u32,
+    pub builtin_surface_ids: [u32; WHEEL_COUNT],
     /// Ground slope under the built-in host as the rise per metre along
     /// world +x (grade) and world +y (cross slope). The built-in ground
     /// stays the plane z = 0 and gravity is tilted instead, which is the
@@ -248,7 +248,7 @@ impl FourWheelVehicle {
             aero_lift: [0.0, 0.0],
             axle_fy_prev: [0.0, 0.0],
             axle_fx_prev: [0.0, 0.0],
-            builtin_surface_id: 0,
+            builtin_surface_ids: [0; WHEEL_COUNT],
             ground_slope: [0.0, 0.0],
         };
         v.compute_geometry();
@@ -266,11 +266,20 @@ impl FourWheelVehicle {
     /// Surface id of the built-in flat ground under every wheel (ADR-0014).
     /// Ignored in external host mode, where the host tags each contact.
     pub fn set_surface(&mut self, id: u32) {
-        self.builtin_surface_id = id;
+        for w in 0..WHEEL_COUNT {
+            self.set_wheel_surface(w, id);
+        }
+    }
+
+    /// Surface id of the built-in flat ground under one wheel. Ignored in
+    /// external host mode; out-of-range wheels are ignored.
+    pub fn set_wheel_surface(&mut self, wheel: usize, id: u32) {
+        if wheel >= WHEEL_COUNT {
+            return;
+        }
+        self.builtin_surface_ids[wheel] = id;
         if self.host_mode == HostMode::Builtin {
-            for c in &mut self.contacts {
-                c.surface_id = id;
-            }
+            self.contacts[wheel].surface_id = id;
         }
     }
 
@@ -361,9 +370,10 @@ impl FourWheelVehicle {
             };
         }
         if self.host_mode == HostMode::Builtin {
-            let mut ground = WheelContact::flat_ground();
-            ground.surface_id = self.builtin_surface_id;
-            self.contacts = [ground; WHEEL_COUNT];
+            for (c, &id) in self.contacts.iter_mut().zip(&self.builtin_surface_ids) {
+                *c = WheelContact::flat_ground();
+                c.surface_id = id;
+            }
         }
         self.drivetrain.reset();
     }

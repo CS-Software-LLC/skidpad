@@ -8,6 +8,7 @@ import {
   type SurfaceDefinition,
   type TelemetryChannel,
   type VehicleInput,
+  type Wheel,
 } from "@skidpad/core";
 import type { Callable, Endpoint, InitResult, Request, Response, StepResult } from "./protocol.js";
 
@@ -220,8 +221,14 @@ export class WorkerWorld {
     return this.call("setDefinition", vehicle, def);
   }
 
-  resetVehicle(vehicle: number, x = 0, y = 0, yaw = 0): Promise<void> {
-    return this.call("resetVehicle", vehicle, x, y, yaw);
+  /** As `World.resetVehicle`: `heading` is a yaw angle or a direction `[dx, dy]`. */
+  resetVehicle(
+    vehicle: number,
+    x = 0,
+    y = 0,
+    heading: number | readonly [number, number] = 0,
+  ): Promise<void> {
+    return this.call("resetVehicle", vehicle, x, y, heading);
   }
 
   setGroundSlope(vehicle: number, grade: number, cross = 0): Promise<void> {
@@ -234,6 +241,10 @@ export class WorkerWorld {
 
   setSurface(vehicle: number, surfaceId: number): Promise<void> {
     return this.call("setSurface", vehicle, surfaceId);
+  }
+
+  setWheelSurface(vehicle: number, wheel: Wheel, surfaceId: number): Promise<void> {
+    return this.call("setWheelSurface", vehicle, wheel, surfaceId);
   }
 
   async setLod(vehicle: number, lod: Lod, substepRateHz = 0): Promise<void> {
