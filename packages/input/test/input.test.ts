@@ -373,5 +373,48 @@ describe("force feedback", () => {
     ]);
     await sink.disconnect();
     expect(device.opened).toBe(false);
+    // HID++ 2.0 commands never use the short report, which a G PRO refuses.
+    expect(sent.some((s) => s.id === 0x10)).toBe(false);
+  });
+
+  it("picks the wheel interface that declares HID++ reports", async () => {
+    const { LogitechWebHidSink, pickHidppDevice } = await import("../src/index.js");
+    const iface = (reports: number[], usagePage: number) => {
+      const sent: number[] = [];
+      return {
+        sent,
+        opened: false,
+        vendorId: 0x046d,
+        productId: 0xc272,
+        productName: "PRO Racing Wheel for Xbox/PC",
+        collections: [{ usagePage, outputReports: reports.map((reportId) => ({ reportId })) }],
+        async open() {
+          this.opened = true;
+        },
+        async close() {
+          this.opened = false;
+        },
+        async sendReport(id: number) {
+          sent.push(id);
+          if (!reports.includes(id)) throw new Error("NotAllowedError");
+        },
+        addEventListener() {},
+        removeEventListener() {},
+      };
+    };
+    const gamepad = iface([], 0x01);
+    const hidpp = iface([0x12], 0xff43);
+    expect(pickHidppDevice([gamepad, hidpp])).toBe(hidpp);
+    const lines: string[] = [];
+    const sink = new LogitechWebHidSink({ log: (l) => lines.push(l) });
+    await sink.connect({
+      requestDevice: async () => [gamepad],
+      getDevices: async () => [gamepad, hidpp],
+    });
+    expect(gamepad.sent).toEqual([]);
+    // Only very long declared: everything goes out as 0x12.
+    expect(hidpp.sent).toEqual([0x12]);
+    expect(lines.some((l) => l.includes("output reports: 12"))).toBe(true);
+    await sink.disconnect();
   });
 });

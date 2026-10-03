@@ -28,6 +28,11 @@ export interface HidDeviceLike {
   readonly vendorId: number;
   readonly productId: number;
   readonly productName: string;
+  /**
+   * The report layout the browser read from the device (WebHID's
+   * `collections`); used to find the interface that carries HID++.
+   */
+  readonly collections?: ReadonlyArray<HidCollectionLike>;
   open(): Promise<void>;
   close(): Promise<void>;
   sendReport(reportId: number, data: Uint8Array): Promise<void>;
@@ -36,6 +41,13 @@ export interface HidDeviceLike {
     type: "inputreport",
     listener: (event: HidInputReportEventLike) => void,
   ): void;
+}
+
+export interface HidCollectionLike {
+  usagePage?: number;
+  usage?: number;
+  outputReports?: ReadonlyArray<{ reportId?: number }>;
+  children?: ReadonlyArray<HidCollectionLike>;
 }
 
 export interface HidInputReportEventLike {
@@ -90,13 +102,17 @@ export interface LogitechSinkOptions extends FfbScalerOptions {
 // --- HID++ 2.0 constants -----------------------------------------------------
 // Checked against the Linux driver's G920 / G923 path (`hid-logitech-hidpp.c`,
 // feature 0x8123); still [VERIFY] on a G PRO, which that driver does not list.
-/** Short report: 7 bytes including the id, 3 parameter bytes. */
+/**
+ * Short report: 7 bytes including the id, 3 parameter bytes. Only HID++ 1.0
+ * register access uses it; many wheels (the G PRO among them) do not declare
+ * it at all and refuse to write it, so HID++ 2.0 commands go out as long or
+ * very long reports, as the Linux driver sends them.
+ */
 const HIDPP_SHORT = 0x10;
 /** Long report: 20 bytes including the id, 16 parameter bytes. */
 const HIDPP_LONG = 0x11;
 /** Very long report: 64 bytes including the id; condition effects need it. */
 const HIDPP_VERY_LONG = 0x12;
-const HIDPP_SHORT_PARAMS = 3;
 const HIDPP_LONG_PARAMS = 16;
 const HIDPP_VERY_LONG_PARAMS = 60;
 /** Feature-index byte of a HID++ 2.0 error reply, and sub id of a 1.0 one. */
@@ -162,6 +178,38 @@ function clamp01(x: number): number {
   return Number.isFinite(x) ? Math.max(0, Math.min(1, x)) : 0;
 }
 
+/**
+ * Output report ids a device declares, or undefined when the browser did
+ * not say (a fake device, or a WebHID without `collections`).
+ */
+export function outputReportIds(device: HidDeviceLike): Set<number> | undefined {
+  if (!device.collections) return undefined;
+  const ids = new Set<number>();
+  const walk = (cs: ReadonlyArray<HidCollectionLike>): void => {
+    for (const c of cs) {
+      for (const r of c.outputReports ?? []) if (r.reportId !== undefined) ids.add(r.reportId);
+      if (c.children) walk(c.children);
+    }
+  };
+  walk(device.collections);
+  return ids;
+}
+
+/**
+ * Of the interfaces the browser returned for one wheel, the one that
+ * declares HID++ long or very long output reports; a wheel exposes its
+ * gamepad and its HID++ channel as separate interfaces, and writing HID++
+ * to the gamepad one fails.
+ */
+export function pickHidppDevice(devices: readonly HidDeviceLike[]): HidDeviceLike | undefined {
+  return (
+    devices.find((d) => {
+      const ids = outputReportIds(d);
+      return ids?.has(HIDPP_LONG) || ids?.has(HIDPP_VERY_LONG);
+    }) ?? devices[0]
+  );
+}
+
 function hex(bytes: ArrayLike<number>): string {
   return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join(" ");
 }
@@ -220,6 +268,8 @@ export class LogitechWebHidSink implements FfbSink {
   private damperSlot: number | undefined;
   private frictionSlot: number | undefined;
   private pending: HidppWaiter[] = [];
+  /** Output report ids the attached interface declares, when known. */
+  private reportIds: Set<number> | undefined;
   private lastSent = -Infinity;
   private lastUpdate = -Infinity;
   private lastLevel = 0;
@@ -314,20 +364,32 @@ export class LogitechWebHidSink implements FfbSink {
    */
   async connect(hid: HidLike | undefined = webHid()): Promise<void> {
     if (!hid) throw new Error("WebHID is not available in this browser (Chromium only)");
-    const devices = await hid.requestDevice({ filters: [{ vendorId: LOGITECH_VENDOR_ID }] });
-    const device = devices[0];
-    if (!device) throw new Error("no device chosen");
-    await this.attach(device);
+    const chosen = await hid.requestDevice({ filters: [{ vendorId: LOGITECH_VENDOR_ID }] });
+    const first = chosen[0];
+    if (!first) throw new Error("no device chosen");
+    // The chooser grants the whole wheel, but may hand back only some of
+    // its interfaces; the others come from getDevices().
+    const siblings = (await hid.getDevices()).filter(
+      (d) => d.vendorId === first.vendorId && d.productId === first.productId,
+    );
+    const candidates = [...chosen, ...siblings.filter((d) => !chosen.includes(d))];
+    const device = this.protocol === "hidpp" ? pickHidppDevice(candidates) : first;
+    await this.attach(device ?? first);
   }
 
   /** Use an already-permitted device (from `hid.getDevices()`). */
   async attach(device: HidDeviceLike): Promise<void> {
     this.device = device;
+    this.reportIds = outputReportIds(device);
     if (!device.opened) await device.open();
     device.addEventListener("inputreport", this.onReport);
     this.record(
       `opened ${device.productName} (${device.vendorId.toString(16)}:${device.productId.toString(16)}), protocol ${this.protocol}`,
     );
+    if (this.reportIds) {
+      const ids = [...this.reportIds].map((id) => id.toString(16)).join(" ");
+      this.record(`   output reports: ${ids || "none"}`);
+    }
     if (this.protocol === "hidpp") await this.setupHidpp();
     else await this.setupClassic();
     this.armSafety();
@@ -385,15 +447,15 @@ export class LogitechWebHidSink implements FfbSink {
 
   /** Send a HID++ command and wait for the matching reply (or time out). */
   private async hidpp(featureIndex: number, func: number, params: number[]): Promise<HidppReply> {
-    let reportId = HIDPP_SHORT;
-    let length = HIDPP_SHORT_PARAMS;
-    if (params.length > HIDPP_LONG_PARAMS) {
-      reportId = HIDPP_VERY_LONG;
-      length = HIDPP_VERY_LONG_PARAMS;
-    } else if (params.length > HIDPP_SHORT_PARAMS) {
-      reportId = HIDPP_LONG;
-      length = HIDPP_LONG_PARAMS;
-    }
+    // Long unless the parameters need very long, or the interface only
+    // declares very long reports.
+    const longMissing =
+      this.reportIds !== undefined &&
+      !this.reportIds.has(HIDPP_LONG) &&
+      this.reportIds.has(HIDPP_VERY_LONG);
+    const veryLong = params.length > HIDPP_LONG_PARAMS || longMissing;
+    const reportId = veryLong ? HIDPP_VERY_LONG : HIDPP_LONG;
+    const length = veryLong ? HIDPP_VERY_LONG_PARAMS : HIDPP_LONG_PARAMS;
     const data = new Uint8Array(3 + length);
     data[0] = HIDPP_DEVICE_INDEX;
     data[1] = featureIndex;
@@ -444,8 +506,11 @@ export class LogitechWebHidSink implements FfbSink {
     // Reply params: [featureIndex, featureType, featureVersion].
     this.featureIndex = r.ok ? (r.params[0] ?? 0) : 0;
     if (this.featureIndex === 0) {
+      const ids = this.reportIds;
       this.record(
-        "force-feedback feature 0x8123 not reported; the wheel may be in a different mode or need the classic protocol",
+        ids && !ids.has(HIDPP_LONG) && !ids.has(HIDPP_VERY_LONG)
+          ? "this interface has no HID++ output reports; reconnect and pick the wheel's other entry in the chooser"
+          : "force-feedback feature 0x8123 not reported; the wheel may be in a different mode or need the classic protocol",
       );
       return;
     }

@@ -81,6 +81,13 @@ from the sandbox panel into an issue with the wheel model and the browser
 version, and try the other protocol and the other update mode (`modify`
 re-sends the effect with its slot id, `recreate` destroys and downloads it).
 
+A wheel exposes several HID interfaces (its gamepad and its HID++ channel);
+`connect()` opens the one that declares HID++ long or very long output
+reports and logs the report ids it found. HID++ 2.0 commands always go out
+as long or very long reports, as the Linux driver sends them: the G PRO does
+not accept the 7-byte short report and the browser rejects the write with
+`NotAllowedError: Failed to write the report`.
+
 ```ts
 const sink = new LogitechWebHidSink({ protocol: "hidpp", rotationDeg: 900 });
 button.onclick = () => sink.connect(); // must be a user gesture
