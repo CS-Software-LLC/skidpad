@@ -14,8 +14,7 @@ use skidpad_core::input::VehicleInput;
 use skidpad_core::telemetry;
 use skidpad_core::tire::{tir, TireInput, TireModel};
 use skidpad_core::validation::{
-    lane_change, parked, step_steer, straight_line, timestep_sweep, understeer, LaneChangeConfig,
-    ParkedConfig, StepSteerConfig, StraightLineConfig, TimestepSweepConfig, UndersteerConfig,
+    lane_change, parked, step_steer, straight_line, timestep_sweep, understeer,
 };
 use skidpad_core::vehicle::{HostMode, WHEEL_COUNT};
 use skidpad_core::world::{Lod, WorldError};
@@ -949,39 +948,47 @@ pub unsafe extern "C" fn sp_tir_import(ptr: *const u8, len: usize) -> i32 {
 
 // -------------------------------------------------------------- scenarios ----
 
+// The request is `{"scenario": ..., "definition": ..., "config": ...}`. It is
+// read in two passes, the scenario name first and then the definition and
+// the config for that scenario, rather than as an enum tagged by
+// `scenario`: serde buffers a tagged enum's content before reading it, which
+// compiles the whole definition's deserializer a second time and cost
+// about a fifth of the binary.
 #[derive(serde::Deserialize)]
-#[serde(tag = "scenario", rename_all = "camelCase")]
-enum ScenarioRequest {
-    UndersteerGradient {
-        definition: VehicleDefinition,
-        #[serde(default)]
-        config: UndersteerConfig,
-    },
-    StraightLine {
-        definition: VehicleDefinition,
-        #[serde(default)]
-        config: StraightLineConfig,
-    },
-    ParkedOnSlope {
-        definition: VehicleDefinition,
-        #[serde(default)]
-        config: ParkedConfig,
-    },
-    TimestepSweep {
-        definition: VehicleDefinition,
-        #[serde(default)]
-        config: TimestepSweepConfig,
-    },
-    StepSteer {
-        definition: VehicleDefinition,
-        #[serde(default)]
-        config: StepSteerConfig,
-    },
-    DoubleLaneChange {
-        definition: VehicleDefinition,
-        #[serde(default)]
-        config: LaneChangeConfig,
-    },
+#[serde(rename_all = "camelCase")]
+enum ScenarioKind {
+    UndersteerGradient,
+    StraightLine,
+    ParkedOnSlope,
+    TimestepSweep,
+    StepSteer,
+    DoubleLaneChange,
+}
+
+#[derive(serde::Deserialize)]
+struct ScenarioHeader {
+    scenario: ScenarioKind,
+}
+
+#[derive(serde::Deserialize)]
+struct ScenarioBody<C> {
+    definition: VehicleDefinition,
+    #[serde(default)]
+    config: C,
+}
+
+/// Read the definition and the config of one scenario and run it. The outer
+/// error is a request that does not parse; the inner one the scenario's.
+fn run_scenario<C, R>(
+    text: &str,
+    run: fn(&VehicleDefinition, &C) -> Result<R, String>,
+) -> Result<Result<serde_json::Result<String>, String>, serde_json::Error>
+where
+    C: serde::de::DeserializeOwned + Default,
+    R: serde::Serialize,
+{
+    let body: ScenarioBody<C> = serde_json::from_str(text)?;
+    Ok(run(&body.definition, &body.config).map(|r| serde_json::to_string(&r)))
 }
 
 /// Run a validation scenario described by JSON. The result JSON is available
@@ -995,31 +1002,19 @@ pub unsafe extern "C" fn sp_run_scenario(ptr: *const u8, len: usize) -> i32 {
         Ok(s) => s,
         Err(c) => return c,
     };
-    let req: ScenarioRequest = match serde_json::from_str(text) {
+    let parsed = serde_json::from_str(text).and_then(|h: ScenarioHeader| match h.scenario {
+        ScenarioKind::UndersteerGradient => run_scenario(text, understeer::run),
+        ScenarioKind::StraightLine => run_scenario(text, straight_line::run),
+        ScenarioKind::ParkedOnSlope => run_scenario(text, parked::run),
+        ScenarioKind::TimestepSweep => run_scenario(text, timestep_sweep::run),
+        ScenarioKind::StepSteer => run_scenario(text, step_steer::run),
+        ScenarioKind::DoubleLaneChange => run_scenario(text, lane_change::run),
+    });
+    let result = match parsed {
         Ok(r) => r,
         Err(e) => {
             set_error(format!("scenario request is not valid: {e}"));
             return ERR_INVALID_JSON;
-        }
-    };
-    let result = match req {
-        ScenarioRequest::UndersteerGradient { definition, config } => {
-            understeer::run(&definition, &config).map(|r| serde_json::to_string(&r))
-        }
-        ScenarioRequest::StraightLine { definition, config } => {
-            straight_line::run(&definition, &config).map(|r| serde_json::to_string(&r))
-        }
-        ScenarioRequest::ParkedOnSlope { definition, config } => {
-            parked::run(&definition, &config).map(|r| serde_json::to_string(&r))
-        }
-        ScenarioRequest::TimestepSweep { definition, config } => {
-            timestep_sweep::run(&definition, &config).map(|r| serde_json::to_string(&r))
-        }
-        ScenarioRequest::StepSteer { definition, config } => {
-            step_steer::run(&definition, &config).map(|r| serde_json::to_string(&r))
-        }
-        ScenarioRequest::DoubleLaneChange { definition, config } => {
-            lane_change::run(&definition, &config).map(|r| serde_json::to_string(&r))
         }
     };
     match result {
