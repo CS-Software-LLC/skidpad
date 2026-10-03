@@ -2,15 +2,16 @@
  * @skidpad/replay — deterministic replays and lightweight ghosts.
  *
  * A **replay** records the inputs every vehicle ran with plus periodic
- * full-state keyframes, and plays back by re-simulating: bit-exact on the
- * same core, seekable, and small (48 bytes per car per step before
- * compression). A **ghost** records a pose track and plays back with no
- * simulation: cheap to draw, and it survives core updates.
+ * full-state keyframes, and plays back by re-simulating: bit-exact on a core
+ * with the same `simulationVersion`, seekable, and small (48 bytes per car
+ * per step plus keyframes; `gzip` shrinks that four to five times). A
+ * **ghost** records a pose track and plays back with no simulation: cheap to
+ * draw, and it survives core updates.
  *
  * ```ts
  * import { ReplayRecorder, ReplayPlayer, GhostRecorder, GhostPlayer } from "@skidpad/replay";
  *
- * const rec = new ReplayRecorder(world, sp.version);
+ * const rec = new ReplayRecorder(world, sp);
  * const ghost = new GhostRecorder(world, car, sp);
  * // each frame
  * rec.step(1 / 60);       // instead of world.step

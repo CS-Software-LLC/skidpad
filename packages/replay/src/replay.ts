@@ -1,7 +1,19 @@
 import type { Lod, LodTarget, PartialVehicleDefinition, Skidpad, World } from "@skidpad/core";
 
-/** Replay format version written by this package. */
-export const REPLAY_VERSION = 1;
+/**
+ * Replay format version written by this package. Version 2 added the
+ * per-wheel surfaces, the simulation version, the start step and keyframe
+ * application state; version 1 replays still play.
+ */
+export const REPLAY_VERSION = 2;
+
+/** Replay format versions {@link ReplayPlayer} plays. */
+export const SUPPORTED_REPLAY_VERSIONS: readonly number[] = [1, 2];
+
+/** Wheels per vehicle in the `surfaces` record. */
+export const SURFACE_STRIDE = 4;
+
+const SURFACE_CHANNELS = ["SurfaceId_FL", "SurfaceId_FR", "SurfaceId_RL", "SurfaceId_RR"] as const;
 
 /** Values of one vehicle's input record per step. */
 export const INPUT_STRIDE = 6;
@@ -16,6 +28,12 @@ export interface ReplayKeyframe {
   snapshots: Uint8Array[];
   /** One state hash per recorded vehicle, in replay order. */
   hashes: string[];
+  /**
+   * The application's own state at this step, from the recorder's
+   * `keyframeState` (plain JSON data); handed back by the player's
+   * `onRestore` whenever it restores this keyframe.
+   */
+  state?: unknown;
 }
 
 /**
@@ -25,8 +43,16 @@ export interface ReplayKeyframe {
  */
 export interface Replay {
   version: number;
-  /** Core version that recorded it; a different core may not reproduce it. */
+  /** `@skidpad/core` npm version that recorded it (`Skidpad.version`). */
   coreVersion: string;
+  /**
+   * `Skidpad.simulationVersion` of the core that recorded it: a core with
+   * the same value reproduces the replay bit for bit, a different one may
+   * not. Absent when the recorder was given a version string only.
+   */
+  simulationVersion?: string;
+  /** The recording world's step counter when recording started. */
+  startStep?: number;
   /** Recorded vehicles' indices in the recording world. */
   vehicles: number[];
   /** Definitions of the recorded vehicles, if the recorder was given them. */
@@ -43,6 +69,13 @@ export interface Replay {
   lod: Uint8Array;
   /** Substep-rate override of that level, Hz (0 for the definition's): `steps × vehicles`. */
   lodRate: Float64Array;
+  /**
+   * Surface id under each wheel during each step, as the core reported it:
+   * `steps × vehicles × SURFACE_STRIDE` (FL, FR, RL, RR). The player
+   * re-applies it with `setWheelSurface`, so a game that moves cars between
+   * surfaces on the built-in host replays without help. Absent in version 1.
+   */
+  surfaces?: Uint8Array;
   /** Checkpoints, in step order; the first is at step 0. */
   keyframes: ReplayKeyframe[];
 }
@@ -56,6 +89,14 @@ export interface ReplayRecorderOptions {
   definitions?: PartialVehicleDefinition[];
   /** Free-form application data stored with the replay. */
   meta?: Record<string, unknown>;
+  /**
+   * The application's own state, captured at every keyframe (plain JSON
+   * data: lap timing, the race clock). A player hands it back through
+   * `onRestore` so a seek restores the game along with the cars.
+   */
+  keyframeState?: () => unknown;
+  /** Record the surface under each wheel every step (default true). */
+  recordSurfaces?: boolean;
 }
 
 class Grow<T extends Float64Array | Uint8Array> {
@@ -83,10 +124,15 @@ class Grow<T extends Float64Array | Uint8Array> {
  * world, then records the inputs each vehicle ran with (including what a
  * path-following driver wrote) and its level of detail.
  *
- * Changes the replay cannot see (a reset, a restore, a definition or
- * surface change) are caught by the keyframes: the player re-syncs at the
- * next one. Level changes are seen; pass the recorder to a
- * `LodController` (it forwards `setLod`) to record their substep rate too.
+ * The surface under each wheel is recorded every step (as the core
+ * reports it), so surface changes on the built-in host replay exactly.
+ * Other changes the replay cannot see (a reset, a restore, a definition
+ * change, a ground slope) are caught by the keyframes: the player re-syncs
+ * at the next one. To reproduce them instead, re-apply them in the
+ * player's `beforeStep`, and capture the game's own state with
+ * `keyframeState` so a seek can restore it through `onRestore`. Level
+ * changes are seen; pass the recorder to a `LodController` (it forwards
+ * `setLod`) to record their substep rate too.
  */
 export class ReplayRecorder implements LodTarget {
   private readonly vehicles: number[];
@@ -95,6 +141,10 @@ export class ReplayRecorder implements LodTarget {
   private readonly inputs = new Grow((n) => new Float64Array(n));
   private readonly lodCodes = new Grow((n) => new Uint8Array(n));
   private readonly lodRates = new Grow((n) => new Float64Array(n));
+  private readonly surfaces = new Grow((n) => new Uint8Array(n));
+  private readonly coreVersion: string;
+  private readonly simulationVersion: string | undefined;
+  private readonly startStep: number;
   private readonly keyframes: ReplayKeyframe[] = [];
   /** Substep-rate override of each recorded vehicle's current level. */
   private readonly rates: number[];
@@ -102,11 +152,23 @@ export class ReplayRecorder implements LodTarget {
   private readonly setHere: boolean[];
   private steps = 0;
 
+  /**
+   * `core` is the loaded core (`sp`), which also stamps the replay with its
+   * `simulationVersion`, or just a version string.
+   */
   constructor(
     private readonly world: World,
-    private readonly coreVersion: string,
+    core: Pick<Skidpad, "version" | "simulationVersion"> | string,
     private readonly options: ReplayRecorderOptions = {},
   ) {
+    if (typeof core === "string") {
+      this.coreVersion = core;
+      this.simulationVersion = undefined;
+    } else {
+      this.coreVersion = core.version;
+      this.simulationVersion = core.simulationVersion || undefined;
+    }
+    this.startStep = world.stepCount;
     this.vehicles = options.vehicles ?? Array.from({ length: world.vehicleCount }, (_, i) => i);
     if (this.vehicles.length === 0) throw new Error("nothing to record: the world has no vehicles");
     this.keyframeEvery = Math.max(1, Math.floor(options.keyframeEvery ?? 600));
@@ -168,17 +230,25 @@ export class ReplayRecorder implements LodTarget {
       this.setHere[k] = false;
       this.lodCodes.data[this.lodCodes.length++] = LOD_CODES.indexOf(lod);
       this.lodRates.data[this.lodRates.length++] = this.rates[k]!;
+      if (this.options.recordSurfaces ?? true) {
+        this.surfaces.reserve(SURFACE_STRIDE);
+        for (const c of SURFACE_CHANNELS) {
+          this.surfaces.data[this.surfaces.length++] = this.world.read(v, c);
+        }
+      }
     }
     this.steps++;
     if (this.steps % this.keyframeEvery === 0) this.keyframe();
   }
 
   private keyframe(): void {
-    this.keyframes.push({
+    const kf: ReplayKeyframe = {
       step: this.steps,
       snapshots: this.vehicles.map((v) => this.world.snapshot(v)),
       hashes: this.vehicles.map((v) => this.world.stateHash(v)),
-    });
+    };
+    if (this.options.keyframeState) kf.state = this.options.keyframeState();
+    this.keyframes.push(kf);
   }
 
   /** The recording so far. The recorder can keep recording afterwards. */
@@ -193,7 +263,10 @@ export class ReplayRecorder implements LodTarget {
       lod: this.lodCodes.take(),
       lodRate: this.lodRates.take(),
       keyframes: [...this.keyframes],
+      startStep: this.startStep,
     };
+    if (this.simulationVersion) r.simulationVersion = this.simulationVersion;
+    if (this.options.recordSurfaces ?? true) r.surfaces = this.surfaces.take();
     if (this.options.definitions) r.definitions = this.options.definitions;
     if (this.options.meta) r.meta = this.options.meta;
     return r;
@@ -210,6 +283,26 @@ export interface ReplayPlayerOptions {
    * mismatch (default true).
    */
   verify?: boolean;
+  /**
+   * Called before each recorded step is simulated, after the player has
+   * written its inputs, level of detail and surfaces: re-apply whatever
+   * else the game changed on the world during recording (ground slope,
+   * surfaces it chooses itself) here. `step` is the index of the step about
+   * to run.
+   */
+  beforeStep?: (step: number, world: World) => void;
+  /**
+   * Called after the player restores a keyframe (at the start, on a seek,
+   * and on a re-sync) with the step it restored to and the application
+   * state recorded there, so the game can restore its own state too.
+   */
+  onRestore?: (step: number, state: unknown) => void;
+  /**
+   * Set the world's step counter to the recording's at every keyframe
+   * restore, so `worldHash()` matches the recording world (default true).
+   * Turn off when the playback world steps other vehicles too.
+   */
+  followStepCount?: boolean;
 }
 
 /**
@@ -222,6 +315,11 @@ export interface ReplayPlayerOptions {
 export class ReplayPlayer {
   private readonly targets: number[];
   private readonly verify: boolean;
+  private readonly beforeStep: ((step: number, world: World) => void) | undefined;
+  private readonly onRestore: ((step: number, state: unknown) => void) | undefined;
+  private readonly followStepCount: boolean;
+  /** Surface ids last applied to each target's wheels; cleared by a restore. */
+  private readonly appliedSurfaces: Int16Array;
   private cursor = 0;
   private resyncs = 0;
   /** Level and rate last applied to each target; cleared by a restore. */
@@ -232,9 +330,9 @@ export class ReplayPlayer {
     readonly replay: Replay,
     options: ReplayPlayerOptions = {},
   ) {
-    if (replay.version !== REPLAY_VERSION) {
+    if (!SUPPORTED_REPLAY_VERSIONS.includes(replay.version)) {
       throw new Error(
-        `replay version ${replay.version} is not supported (expected ${REPLAY_VERSION})`,
+        `replay version ${replay.version} is not supported (expected ${SUPPORTED_REPLAY_VERSIONS.join(" or ")})`,
       );
     }
     const n = replay.vehicles.length;
@@ -246,7 +344,11 @@ export class ReplayPlayer {
       throw new Error("the world does not hold every target vehicle");
     }
     this.verify = options.verify ?? true;
+    this.beforeStep = options.beforeStep;
+    this.onRestore = options.onRestore;
+    this.followStepCount = options.followStepCount ?? true;
     this.applied = this.targets.map(() => null);
+    this.appliedSurfaces = new Int16Array(n * SURFACE_STRIDE).fill(-1);
     this.restoreKeyframe(0);
   }
 
@@ -297,7 +399,19 @@ export class ReplayPlayer {
         }
         const o = (k * n + j) * INPUT_STRIDE;
         this.world.inputView(v).set(this.replay.inputs.subarray(o, o + INPUT_STRIDE));
+        const surfaces = this.replay.surfaces;
+        if (surfaces) {
+          for (let w = 0; w < SURFACE_STRIDE; w++) {
+            const id = surfaces[(k * n + j) * SURFACE_STRIDE + w]!;
+            const a = j * SURFACE_STRIDE + w;
+            if (this.appliedSurfaces[a] !== id) {
+              this.world.setWheelSurface(v, w as 0 | 1 | 2 | 3, id);
+              this.appliedSurfaces[a] = id;
+            }
+          }
+        }
       }
+      this.beforeStep?.(k, this.world);
       this.world.step(this.replay.dt[k]!);
       this.cursor++;
       played++;
@@ -328,16 +442,24 @@ export class ReplayPlayer {
     const same = this.targets.every((v, j) => this.world.stateHash(v) === kf.hashes[j]);
     if (!same) {
       this.resyncs++;
-      this.targets.forEach((v, j) => this.world.restore(v, kf.snapshots[j]!));
-      this.applied.fill(null);
+      this.restore(kf);
     }
   }
 
   private restoreKeyframe(index: number): void {
     const kf = this.replay.keyframes[index]!;
+    this.restore(kf);
+    this.cursor = kf.step;
+  }
+
+  private restore(kf: ReplayKeyframe): void {
     this.targets.forEach((v, j) => this.world.restore(v, kf.snapshots[j]!));
     this.applied.fill(null);
-    this.cursor = kf.step;
+    this.appliedSurfaces.fill(-1);
+    if (this.followStepCount && this.replay.startStep !== undefined) {
+      this.world.setStepCount(this.replay.startStep + kf.step);
+    }
+    this.onRestore?.(kf.step, kf.state);
   }
 }
 

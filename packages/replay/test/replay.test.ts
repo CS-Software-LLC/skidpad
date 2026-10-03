@@ -12,7 +12,12 @@ import {
   encodeGhost,
   decodeGhost,
   sliceGhost,
+  sliceGhostFrames,
   ghostDuration,
+  ghostQuaternion,
+  gzip,
+  gunzip,
+  type Replay,
 } from "../src/index.js";
 
 let sp: Skidpad;
@@ -180,6 +185,156 @@ describe("replays", () => {
   });
 });
 
+describe("replays of game logic", () => {
+  /** The car weaves across a road whose verge is gravel, wheel by wheel. */
+  function onTrack(w: World, car = 0): void {
+    const y = w.read(car, "PosY");
+    // Left wheels on gravel when the car is far enough left.
+    const left = y > 1.5 ? 1 : 0;
+    w.setWheelSurface(car, "FL", left);
+    w.setWheelSurface(car, "RL", left);
+  }
+
+  function record(recordSurfaces: boolean): { replay: Replay; hash: string; world: World } {
+    const w = sp.createWorld(1);
+    w.addVehicle(defs[0]!);
+    w.setSurfaces([{}, { grip: 0.5, rollingResistance: 3, drag: 0.05 }]);
+    const rec = new ReplayRecorder(w, sp, {
+      keyframeEvery: 200,
+      definitions: [defs[0]!],
+      recordSurfaces,
+    });
+    for (let k = 0; k < 900; k++) {
+      w.setInput(0, { throttle: 0.6, steer: Math.sin(k / 40) * 0.4 });
+      onTrack(w);
+      rec.step(DT);
+    }
+    return { replay: rec.finish(), hash: w.worldHash(), world: w };
+  }
+
+  it("replay per-wheel surface changes without help", () => {
+    const { replay, hash, world } = record(true);
+    expect(replay.version).toBe(2);
+    expect(replay.simulationVersion).toBe(sp.simulationVersion);
+    expect(replay.coreVersion).toBe(sp.version);
+    // The car did put two wheels on the gravel.
+    expect(replay.surfaces!.some((id) => id === 1)).toBe(true);
+    for (const r of [replay, decodeReplay(encodeReplay(replay))]) {
+      const pw = createReplayWorld(sp, r);
+      pw.setSurfaces([{}, { grip: 0.5, rollingResistance: 3, drag: 0.05 }]);
+      const player = new ReplayPlayer(pw, r);
+      player.advance(900);
+      expect(player.desyncs).toBe(0);
+      expect(pw.worldHash()).toBe(hash);
+      // A backward seek keeps the world hash meaningful.
+      player.seek(450);
+      player.seek(900);
+      expect(pw.worldHash()).toBe(hash);
+      pw.free();
+    }
+    // Without the surfaces the stock player can only re-sync.
+    const blind = record(false);
+    const pw = createReplayWorld(sp, blind.replay);
+    pw.setSurfaces([{}, { grip: 0.5, rollingResistance: 3, drag: 0.05 }]);
+    const player = new ReplayPlayer(pw, blind.replay);
+    player.advance(900);
+    expect(player.desyncs).toBeGreaterThan(0);
+    pw.free();
+    world.free();
+    blind.world.free();
+  });
+
+  it("follow host logic and application state through beforeStep and onRestore", () => {
+    // The game tilts the ground as the car passes marks and counts them.
+    const w = sp.createWorld(1);
+    w.addVehicle(defs[1]!);
+    const game = { marks: 0 };
+    const logic = (world: World, state: { marks: number }) => {
+      const x = world.read(0, "PosX");
+      if (x > 10 * (state.marks + 1)) state.marks++;
+      world.setGroundSlope(0, state.marks % 2 === 0 ? 0 : 0.08);
+    };
+    const rec = new ReplayRecorder(w, sp, {
+      keyframeEvery: 150,
+      definitions: [defs[1]!],
+      keyframeState: () => ({ ...game }),
+    });
+    const marks: number[] = [];
+    for (let k = 0; k < 900; k++) {
+      w.setInput(0, { throttle: 0.7 });
+      logic(w, game);
+      rec.step(DT);
+      marks.push(game.marks);
+    }
+    expect(game.marks).toBeGreaterThan(3);
+    const replay = decodeReplay(encodeReplay(rec.finish()));
+    expect(replay.keyframes[2]!.state).toEqual({ marks: marks[299] });
+
+    const pw = createReplayWorld(sp, replay);
+    const played = { marks: 0 };
+    const restored: number[] = [];
+    const player = new ReplayPlayer(pw, replay, {
+      beforeStep: (_step, world) => logic(world, played),
+      onRestore: (step, state) => {
+        restored.push(step);
+        Object.assign(played, state as { marks: number });
+      },
+    });
+    player.advance(900);
+    expect(player.desyncs).toBe(0);
+    expect(pw.worldHash()).toBe(w.worldHash());
+    expect(played.marks).toBe(game.marks);
+    // Seeking back restores the game's state with the cars.
+    player.seek(320);
+    expect(restored.at(-1)).toBe(300);
+    expect(played.marks).toBe(marks[319]);
+    player.seek(900);
+    expect(pw.worldHash()).toBe(w.worldHash());
+    pw.free();
+    w.free();
+  });
+
+  it("store rarely changing data as runs, and gzip", async () => {
+    const { replay, world } = record(true);
+    const bytes = encodeReplay(replay);
+    const keyframes = replay.keyframes.reduce(
+      (n, k) => n + k.snapshots.reduce((m, s) => m + s.byteLength, 0),
+      0,
+    );
+    const defsJson = JSON.stringify(replay.definitions).length;
+    // 48 bytes of inputs per step; the rest is runs, keyframes and the header.
+    expect(bytes.byteLength).toBeLessThan(900 * 48 + keyframes + defsJson + 3_000);
+    const packed = await gzip(bytes);
+    expect(packed.byteLength).toBeLessThan(bytes.byteLength / 3);
+    expect(Array.from(await gunzip(packed))).toEqual(Array.from(bytes));
+    world.free();
+  });
+
+  it("still play a version 1 replay", () => {
+    const w = scene();
+    const rec = new ReplayRecorder(w, sp.version, { definitions: defs, keyframeEvery: 100 });
+    for (let k = 0; k < 300; k++) {
+      drive(w, k);
+      rec.step(DT);
+    }
+    const current = rec.finish();
+    expect(current.simulationVersion).toBeUndefined();
+    const v1: Replay = { ...current, version: 1 };
+    delete v1.surfaces;
+    delete v1.startStep;
+    const back = decodeReplay(encodeReplay(v1));
+    expect(back.version).toBe(1);
+    expect(back.surfaces).toBeUndefined();
+    const pw = createReplayWorld(sp, back);
+    const player = new ReplayPlayer(pw, back);
+    player.advance(300);
+    expect(player.desyncs).toBe(0);
+    expect(pw.stateHash(0)).toBe(w.stateHash(0));
+    pw.free();
+    w.free();
+  });
+});
+
 describe("ghosts", () => {
   it("record a pose track and interpolate it", () => {
     const w = scene();
@@ -228,6 +383,72 @@ describe("ghosts", () => {
       g.sample(DT);
     }
     expect(g.length).toBe(10);
+    w.free();
+  });
+
+  it("restart on a lap line with the crossing pose at time zero", () => {
+    const w = scene();
+    const g = new GhostRecorder(w, 1, sp);
+    for (let k = 0; k < 100; k++) {
+      w.step(DT);
+      g.sample(DT);
+    }
+    const x0 = w.read(1, "PosX");
+    g.restart({ lap: 2 });
+    expect(g.length).toBe(1);
+    const truth: number[] = [];
+    for (let k = 0; k < 60; k++) {
+      w.step(DT);
+      g.sample(DT);
+      truth.push(w.read(1, "PosX"));
+    }
+    const lap = g.finish();
+    expect(lap.meta).toEqual({ lap: 2 });
+    const p = new GhostPlayer(lap);
+    expect(p.poseAt(0).x).toBeCloseTo(x0, 3);
+    // Ghost time t is t / dt steps after the restart.
+    expect(p.poseAt(30 * DT).x).toBeCloseTo(truth[29]!, 3);
+    expect(ghostDuration(lap)).toBeCloseTo(60 * DT, 5);
+    w.free();
+  });
+
+  it("slice by time without losing boundary frames, or by frame", () => {
+    const n = 200;
+    const frames = new Float32Array(n * 9);
+    let t = 0;
+    for (let k = 0; k < n; k++) {
+      frames[k * 9] = t;
+      frames[k * 9 + 1] = k;
+      t += DT;
+    }
+    const g = { version: 1, frames };
+    // Bounds computed in float64 the way the frame times were.
+    let from = 0;
+    for (let k = 0; k < 37; k++) from += DT;
+    let to = from;
+    for (let k = 0; k < 50; k++) to += DT;
+    const lap = sliceGhost(g, from, to);
+    expect(lap.frames.length / 9).toBe(51);
+    expect(lap.frames[1]).toBe(37);
+    expect(lap.frames[0]).toBe(0);
+    const byFrame = sliceGhostFrames(g, 37, 88);
+    expect(Array.from(byFrame.frames)).toEqual(Array.from(lap.frames));
+    expect(sliceGhostFrames(g, 190, 500).frames.length / 9).toBe(10);
+  });
+
+  it("turn a pose into the core's quaternion", () => {
+    const w = scene();
+    for (let k = 0; k < 400; k++) {
+      drive(w, k);
+      w.step(DT);
+    }
+    const r = w.readAll(0);
+    const q = ghostQuaternion({ yaw: r.Yaw!, pitch: r.Pitch!, roll: r.Roll! });
+    const sign = Math.sign(q[3]) === Math.sign(r.QuatW!) ? 1 : -1;
+    expect(sign * q[0]).toBeCloseTo(r.QuatX!, 9);
+    expect(sign * q[1]).toBeCloseTo(r.QuatY!, 9);
+    expect(sign * q[2]).toBeCloseTo(r.QuatZ!, 9);
+    expect(sign * q[3]).toBeCloseTo(r.QuatW!, 9);
     w.free();
   });
 });
