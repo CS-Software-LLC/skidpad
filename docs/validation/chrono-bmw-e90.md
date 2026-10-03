@@ -164,6 +164,30 @@ added what the previous one found:
 - **Settling at Chrono's start speed** took 0.3 m/s of harness offset out
   of every moving manoeuvre.
 
+### Travel-dependent geometry: expected results
+
+Written before the run, as the original tolerances were. ADR-0026 lets a
+definition carry toe, camber, roll-centre height and the anti-pitch
+fractions as curves against each wheel's travel. The E90's curves are
+derived from Chrono's hardpoints, not fitted: the linkages are swept from
+droop to bump, with the tie-rod (front) and toe-link (rear) hardpoints
+added for toe. The anti-roll bars are then refitted, because the roll
+gradient and front share they are fitted to depend on the roll centres.
+Expected:
+
+- **Understeer gradient** moves from 0.01 toward Chrono's 0.20°/g, as the
+  outer wheels lose toe-in in roll (finding 2).
+- **Braking pitch** moves from 3.3 toward 4.4°/g, as the front's pro-dive
+  grows with dive (finding 3).
+- **Pitch in the turn** moves off zero toward Chrono's nose-down 0.34° at
+  0.7 g, from the links' jacking (finding 4).
+- **Front share of lateral load transfer** falls as lateral acceleration
+  rises, as Chrono's does from 60 % to 51 % (finding 4). Its value on the
+  ramp stays fitted.
+- **Nothing currently inside its tolerance moves outside it.**
+
+If a metric moves the wrong way it is reported, not tuned away.
+
 ## Findings
 
 **1. Static toe closes the transient gap.** Toe-in puts each tire partway
