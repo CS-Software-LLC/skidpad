@@ -125,9 +125,18 @@ Facts that are easy to get wrong:
   arithmetic only (`+ − × ÷`, comparisons, `Math.sqrt`, `Math.abs`,
   `Math.min/max`). `@skidpad/core` exports `triangleWave` and `smoothWave`
   for scripted inputs.
-- **Rapier-hosted cars cannot be replayed** by `@skidpad/replay`, because
-  the replay cannot re-create the host scene. Use ghosts for them. Rapier's
-  normal build is not cross-platform deterministic.
+- **`@skidpad/replay` cannot replay a Rapier-hosted car on its own.** A
+  replay stores the car's inputs and Skidpad snapshots, but a Rapier car also
+  depends on Rapier's state (body, colliders, ray hits), which the replay
+  player neither records nor rebuilds. Replaying one means re-running the
+  whole scene: the same Rapier scene built the same way, the recorded inputs
+  fed in the same step order, on Rapier's deterministic build
+  (`@dimforge/rapier3d-deterministic-compat`). The normal
+  `@dimforge/rapier3d-compat` build is not cross-platform deterministic.
+  `@skidpad/rapier` takes the Rapier module as an argument and imports Rapier
+  only for its types, so the deterministic build should plug in, but this is
+  untested. Until the stretch experiment below proves it, use ghosts for
+  Rapier cars.
 
 ## The game, version 1
 
@@ -250,6 +259,23 @@ Each phase should end with something playable and an updated `FRICTION.md`.
    via `packages/sim`, leaderboard UI, download the leader's ghost.
 6. **Free-roam on Rapier.** The Rapier scene, surfaces from colliders,
    ghosts there, optional AI traffic with LOD and the worker.
+   - **Stretch experiment: deterministic Rapier replay.** Run the free-roam
+     scene on `@dimforge/rapier3d-deterministic-compat`, record the inputs of a
+     drive, and re-run the same scene in Node and in each browser engine to see
+     whether the state hashes match. If they do, a ranked track with real
+     geometry (kerbs, elevation, banking) can be verified on the server the
+     same way as the flat track, by rebuilding the scene there.
+   - Requirements: build colliders in a fixed order, use a fixed Rapier
+     timestep, keep the same per-step order (`beforeStep`, world step,
+     `afterStep`, scene step) on every run, and keep transcendental `Math`
+     functions out of anything that feeds the simulation.
+   - Known risk: `createChassisBody` computes the starting orientation with
+     `Math.sin`/`Math.cos` of the spawn yaw. A yaw of 0 is exact everywhere;
+     any other yaw may differ in the last bit between engines and desync the
+     scene from the first step. Spawn at yaw 0 and rotate the track, or log
+     the problem.
+   - Log the outcome, whichever way it goes. It decides whether
+     `@skidpad/replay` should support external hosts directly.
 7. **Polish and deploy.** Sound, settings, loading states, a deploy of the
    client and server, a README for players and developers.
 
