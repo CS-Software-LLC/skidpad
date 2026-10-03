@@ -4,6 +4,7 @@
 // (base64) module used by the `-compat` build. See ADR-0003.
 import { execFileSync, spawnSync } from "node:child_process";
 import { readFileSync, statSync } from "node:fs";
+import { homedir } from "node:os";
 import { join } from "node:path";
 import { gzipSync } from "node:zlib";
 import { installWasm, root, sourceHash, wasmOut } from "./lib/wasm-artifact.mjs";
@@ -30,10 +31,23 @@ const crateVersion = /\[workspace\.package\][^[]*?\nversion = "([^"]+)"/.exec(
 if (!crateVersion) throw new Error("[build-wasm] no workspace.package version in Cargo.toml");
 const SKIDPAD_BUILD_VERSION = `${crateVersion}+${sourceHash().slice(0, 16)}`;
 console.log(`[build-wasm] cargo ${args.join(" ")} (version ${SKIDPAD_BUILD_VERSION})`);
+// serde's panic locations embed absolute paths under CARGO_HOME, so the
+// binary (and its gzipped size) differed between machines. Mapping it to a
+// fixed prefix makes a local build match CI's byte for byte. The encoded
+// form keeps any RUSTFLAGS and survives spaces in the path.
+const cargoHome = process.env.CARGO_HOME || join(homedir(), ".cargo");
+const rustflags = process.env.CARGO_ENCODED_RUSTFLAGS
+  ? process.env.CARGO_ENCODED_RUSTFLAGS.split("\x1f")
+  : (process.env.RUSTFLAGS ?? "").split(/\s+/).filter(Boolean);
+rustflags.push(`--remap-path-prefix=${cargoHome}=/cargo`);
 execFileSync("cargo", args, {
   cwd: root,
   stdio: "inherit",
-  env: { ...process.env, SKIDPAD_BUILD_VERSION },
+  env: {
+    ...process.env,
+    SKIDPAD_BUILD_VERSION,
+    CARGO_ENCODED_RUSTFLAGS: rustflags.join("\x1f"),
+  },
 });
 
 const built = join(root, "target", "wasm32-unknown-unknown", profileDir, "skidpad_wasm.wasm");
