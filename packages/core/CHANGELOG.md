@@ -1,5 +1,45 @@
 # @skidpad/core
 
+## 0.8.0
+
+### Minor Changes
+
+- a69723f: Close a batch of API gaps found building a game on the packages:
+
+  - `world.setWheelSurface(vehicle, wheel, id)` sets the built-in ground's surface under one wheel, so two wheels on the grass no longer means the whole car is on the grass. The single-track model runs each axle on the mean of its wheels' surfaces. Also on `WorkerWorld`.
+  - `world.resetVehicle(vehicle, x, y, [dx, dy])` accepts a heading direction as well as a yaw angle; the core converts it with its own deterministic `atan2`. Also on `WorkerWorld`.
+  - `wheelPositionsView` is filled in by `addVehicle`, `resetVehicle`, `restore`, `setLod`, `setDefinition` and `setHostMode`, instead of reading zero until the first step and staying stale after a restore. `restore` now also rewrites the vehicle's telemetry, so its pose channels follow the restore immediately.
+  - `world.snapshotWorld()` / `restoreWorld(bytes)` snapshot every vehicle plus the step counter, and `world.setStepCount(n)` sets the counter, so `worldHash()` after a seek matches straight playback.
+  - Breaking: `Skidpad.version` is now the npm version of `@skidpad/core` (it reported the Rust crate's `0.1.0`). The crate version moved to `crateVersion`, and the new `simulationVersion` is a hash of the sources the WASM was built from: equal values simulate identically. Every package now exports `./package.json`.
+  - `@skidpad/core/compat` exports the same API as the main entry (it lacked `LodController`, `chooseLod`, `validateSurfaces`, `migrateLegacyDrive` and `InitOptions`); only `defaultWasmUrl` stays main-entry only. Its `init()` accepts `{ wasm }`.
+  - The main entry documents how to bundle a Node server (keep `@skidpad/core` external, use `/compat`, or pass `init({ wasm })`), and `VehicleInput.gear` documents how gear requests map onto an automatic.
+
+  physics: an automatic transmission without a reverse ratio (the kart preset) now treats a reverse request (`gear < 0`) as neutral; it used to drive forwards. No validation result moves.
+
+- 4365732: New per-wheel telemetry channels: `TireFmax_FL` … `TireFmax_RR`, each tire's friction limit at its load and surface (the axle channels `TireFmax_F`/`_R` are their sums), and `PeakSlip_FL` … `PeakSlip_RR`, the combined slip relative to the slip of the tire's peak force: below 1 the tire grips, above 1 it slides. For tire sound and grip meters without reading tire parameters. The channels are appended, so existing channel indices do not move; the telemetry stride grows by eight.
+- 5f88288: physics: the automatic has a part-throttle shift schedule (ADR-0025). Before, it upshifted only at `shiftUpAt × redline` whatever the throttle, so a car holding a moderate speed stayed in a low gear at high revs. The hatchback held by the AI at 12 m/s sat in first at about 5,560 rpm on both models (F-25). A new transmission parameter, `shiftLightFactor` (default 0.55, range (0, 1]), sets both shift points on a closed throttle as a fraction of `shiftUpAt` and `shiftDownAt`. The points move linearly with the driver's pedal (the throttle before traction or stability control), back to the full-throttle points at full throttle. Upshifts are held back so the new gear lands at least 15 % above its downshift point, at the throttle that gear needs, so the gearbox does not hunt. Pressing the pedal raises the downshift point, and that is the kickdown. With the brake on, the automatic uses the full-throttle points. Full-throttle runs are bit-identical, so 0–100 km/h and the straight-line results do not change. The 12 m/s hatchback now cruises in second at about 3,060 rpm on both models. Validation results that hold part throttle move (lane change, step steer, timestep sweep, scripted drive hash). The presets set `shiftLightFactor` explicitly: hatchback 0.55, pickup 0.55, sports 0.6, open-wheeler 0.65, and 1 on the single-speed kart and EV. Set it to 1 to restore the old fixed points.
+- 446d725: Definitions are typed for what they are:
+
+  - Breaking (types only): `presets.*` and `preset()` are typed as `PresetDefinition`, a partial definition with a complete `name` and `chassis`, instead of a full `VehicleDefinition` they never were (no preset carries static toe or per-axle track widths, and `hatchbackFwd`, `kart` and `pickup4x4` carry no `assists`, so every assist is off on them). Reading `preset("kart").assists.abs` no longer type-checks and then throws. The package docs list which presets ship which assists.
+  - `sp.completeDefinition(def)` returns a partial definition completed with the core's defaults exactly as `addVehicle` reads it.
+  - `createChassisBody` in `@skidpad/rapier` and `@skidpad/jolt` takes a partial definition and reads the chassis sizes it needs, with an error pointing at `completeDefinition` when one is missing.
+  - `@skidpad/rapier` types Rapier structurally, so `@dimforge/rapier3d-deterministic-compat` works without a cast and without installing the standard build; both are optional peer dependencies. `surfaceIdsByHandle(map)` builds the `surfaceId` callback from a collider-handle map, and the option's docs no longer suggest collider user data, which Rapier colliders do not have.
+
+- 875ff5b: Every package now ships a README (install, a minimal example, links to the guide), so the npm pages are no longer empty; the core's covers bundling a Node server.
+
+  Breaking (types only): `World.read` and `WorkerWorld.read` take a `ChannelName`, the union of every telemetry channel name, so a typo such as `"Speeed"` fails to compile instead of throwing at runtime; `readAll` returns `Record<ChannelName, number>`. `CHANNEL_NAMES` lists them at runtime. Per-wheel names compose from `WHEEL_ORDER` (`` `SlipRatio_${WHEEL_ORDER[i]}` ``); a name held in a plain `string` needs a `ChannelName` type, or use `sp.channel(name)` and `telemetryView` to probe.
+
+- f48a141: Suspension geometry that changes with travel (ADR-0026). An optional `suspension.kinematics` block carries piecewise-linear curves of toe, camber, roll-centre height, anti-brake and anti-drive against each wheel's travel (metres, positive in bump), as offsets from the static fields. Each curve has 2 to 16 points, is zero at zero travel, and is mirrored to the right wheel. Toe and camber curves are rejected on solid axles. The Rust and TypeScript validators give the same messages, and `evalTravelCurve` is exported. New telemetry: `Toe_FL` … `Toe_RR` and `JackingForce_F` / `JackingForce_R`. The core WASM budget rises from 200 KB to 224 KB gzipped.
+
+  - physics: an axle with a roll-centre curve takes each wheel's lateral force through its own link at its own roll-centre height, so unequal forces jack the body. Definitions without curves simulate bit for bit as before.
+  - physics: the hatchback, sports car, crossover, pickup (front) and open-wheeler presets carry illustrative roll-centre curves, and the road cars camber gain. The road cars understeer up to 5 % less; lane-change limits, braking distances and every stability result are unchanged. Golden results and the determinism laps of those presets are regenerated.
+  - physics: snapshot format version 5. Each wheel's previous lateral force is now part of the state, so every state hash changes. The golden scripted-drive hashes are regenerated, and no other validation result moves.
+
+### Patch Changes
+
+- a69723f: The WASM build now re-encodes the module with `wasm-opt` (binaryen is a dev dependency), which drops the padded integers the linker leaves: about 7 % smaller, with the gzipped size about 1 % smaller. No optimisation passes run, so the code is unchanged. The WASM ABI version is 6.
+- d61b245: `WorkerWorld.lodTarget` is a synchronous `LodTarget`, so a `LodController` can drive a worker world: it keeps each vehicle's level locally, sends changes without waiting, and follows `restore`. `WorkerWorld.lod()` and `restore()` keep the local levels up to date. The `LodController` doc example now matches its signature (`pin()` the player's car, `update(distance)`), and the worker guide explains why Rapier- and Jolt-hosted cars cannot run in a `WorkerWorld`.
+
 ## 0.7.0
 
 ### Patch Changes
