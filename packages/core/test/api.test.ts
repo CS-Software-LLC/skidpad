@@ -29,6 +29,12 @@ describe("version identity", () => {
   });
 });
 
+describe("channel names", () => {
+  it("match the core's telemetry layout (else run scripts/gen-channels.mjs)", () => {
+    expect([...main.CHANNEL_NAMES]).toEqual(sp.telemetryLayout.map((c) => c.name));
+  });
+});
+
 describe("entries", () => {
   it("compat exports what the main entry does, apart from defaultWasmUrl", () => {
     const names = (m: object) => Object.keys(m).sort();

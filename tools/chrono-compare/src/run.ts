@@ -22,7 +22,12 @@
  */
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { WHEEL_ORDER, type PartialVehicleDefinition, type Skidpad } from "@skidpad/core";
+import {
+  WHEEL_ORDER,
+  type ChannelName,
+  type PartialVehicleDefinition,
+  type Skidpad,
+} from "@skidpad/core";
 import { at, loadReference, ROOT, type Row } from "./reference.js";
 import { bmwE90, MAX_WHEEL_ANGLE_DEG } from "./vehicle.js";
 
@@ -89,7 +94,7 @@ export function runManeuver(sp: Skidpad, name: string, opts: RunOptions = {}): R
   const world = sp.createWorld(1);
   try {
     const car = world.addVehicle(opts.definition ?? bmwE90());
-    const read = (ch: string) => world.read(car, ch);
+    const read = (ch: ChannelName) => world.read(car, ch);
     const init = spec.initSpeed ?? 0;
     const settle = spec.settle ?? 1;
 

@@ -10,6 +10,7 @@ import type {
 import { validateDefinition, validateSurfaces } from "./definition/validate.js";
 import { migrateLegacyDrive } from "./definition/migrate.js";
 import { PACKAGE_VERSION } from "./version.js";
+import type { ChannelName } from "./channels.js";
 
 /** Thrown for any error reported by the core. */
 export class SkidpadError extends Error {
@@ -560,7 +561,7 @@ export class Skidpad {
     return hex64(this.exports.skidpad_math_selftest());
   }
 
-  /** Index of a telemetry channel by name, or −1. */
+  /** Index of a telemetry channel by name, or −1 (any string, for probing). */
   channel(name: string): number {
     return this.channelIndex.get(name) ?? -1;
   }
@@ -830,8 +831,12 @@ export class World {
     return this.sp.floats().subarray(o, o + this.capacity * this.sp.telemetryStride);
   }
 
-  /** Read one telemetry channel by name. */
-  read(vehicle: number, channel: string): number {
+  /**
+   * Read one telemetry channel by name. Names are checked at compile time
+   * ({@link ChannelName}); per-wheel names compose from `WHEEL_ORDER`, as in
+   * `` `SlipRatio_${WHEEL_ORDER[i]}` ``. A name from elsewhere throws.
+   */
+  read(vehicle: number, channel: ChannelName): number {
     const i = this.sp.channel(channel);
     if (i < 0)
       throw new SkidpadError(`unknown telemetry channel "${channel}"`, ErrorCode.InvalidJson);
@@ -839,11 +844,11 @@ export class World {
   }
 
   /** Copy a vehicle's telemetry into a plain object keyed by channel name. */
-  readAll(vehicle: number): Record<string, number> {
+  readAll(vehicle: number): Record<ChannelName, number> {
     const view = this.telemetryView(vehicle);
-    const out: Record<string, number> = {};
+    const out = {} as Record<ChannelName, number>;
     this.sp.telemetryLayout.forEach((c, i) => {
-      out[c.name] = view[i] ?? NaN;
+      out[c.name as ChannelName] = view[i] ?? NaN;
     });
     return out;
   }
@@ -1215,7 +1220,7 @@ export class World {
       return; // the single-track model has no wheel positions
     }
     const t = this.telemetryView(vehicle);
-    const ch = (name: string) => t[this.sp.channel(name)]!;
+    const ch = (name: ChannelName) => t[this.sp.channel(name)]!;
     const [px, py, pz] = [ch("PosX"), ch("PosY"), ch("PosZ")];
     const [qx, qy, qz, qw] = [ch("QuatX"), ch("QuatY"), ch("QuatZ"), ch("QuatW")];
     // v' = v + 2w (q × v) + 2 q × (q × v), q = (qx, qy, qz).

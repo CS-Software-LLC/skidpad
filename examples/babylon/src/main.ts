@@ -30,7 +30,7 @@ import {
   type Mesh,
 } from "@babylonjs/core";
 import initJolt from "jolt-physics";
-import { init, LodController, type Lod } from "@skidpad/core";
+import { init, LodController, type ChannelName, type Lod } from "@skidpad/core";
 import { preset } from "@skidpad/presets";
 import { KeyboardInput } from "@skidpad/input";
 import { createChassisBody, JoltVehicle, Frame } from "@skidpad/jolt";
@@ -334,7 +334,7 @@ async function main(): Promise<void> {
     }
     const counts: Record<Lod, number> = { full: 0, singleTrack: 0, frozen: 0 };
     for (const t of traffic) {
-      const tel = (c: string) => world.read(t.index, c);
+      const tel = (c: ChannelName) => world.read(t.index, c);
       placeCore(
         t.mesh,
         tel("PosX"),

@@ -17,6 +17,8 @@ export type { LodThresholds, LodTarget } from "./lod.js";
 export type { CpExports } from "./wasm/abi.js";
 export type { WasmSource } from "./wasm/instantiate.js";
 export { PACKAGE_VERSION } from "./version.js";
+export { CHANNEL_NAMES } from "./channels.js";
+export type { ChannelName } from "./channels.js";
 
 import type { WasmSource } from "./wasm/instantiate.js";
 

@@ -1,6 +1,7 @@
 import {
   SkidpadError,
   type AiConfig,
+  type ChannelName,
   type LodTarget,
   type AiStatus,
   type Lod,
@@ -169,17 +170,17 @@ export class WorkerWorld {
     return this.telemetry.subarray(o, o + this.telemetryStride);
   }
 
-  read(vehicle: number, channel: string): number {
+  read(vehicle: number, channel: ChannelName): number {
     const i = this.channel(channel);
     if (i < 0) throw new SkidpadError(`unknown telemetry channel "${channel}"`, -2);
     return this.telemetry[vehicle * this.telemetryStride + i] ?? Number.NaN;
   }
 
-  readAll(vehicle: number): Record<string, number> {
+  readAll(vehicle: number): Record<ChannelName, number> {
     const view = this.telemetryView(vehicle);
-    const out: Record<string, number> = {};
+    const out = {} as Record<ChannelName, number>;
     this.telemetryLayout.forEach((c, i) => {
-      out[c.name] = view[i] ?? Number.NaN;
+      out[c.name as ChannelName] = view[i] ?? Number.NaN;
     });
     return out;
   }
