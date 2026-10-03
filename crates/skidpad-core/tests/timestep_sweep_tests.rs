@@ -3,6 +3,8 @@
 //! validate tool through the optimised WASM build; these debug-mode tests
 //! take the corners of the grid.
 
+mod common;
+
 use skidpad_core::definition::VehicleModelKind;
 use skidpad_core::validation::{timestep_sweep, TimestepSweepConfig};
 use skidpad_core::VehicleDefinition;
@@ -46,6 +48,29 @@ fn the_default_car_is_stable_across_the_grid_on_both_models() {
         assert_eq!(r.reference.substep_rate_hz, d.simulation.substep_rate_hz);
         assert_eq!(r.reference.host_rate_hz, 100.0);
     }
+}
+
+/// Steep travel curves (ADR-0026) meet the same thresholds as the default
+/// car: the per-wheel link forces and the toe and camber changes add no
+/// rate dependence.
+#[test]
+fn steep_travel_curves_are_stable_across_the_grid() {
+    let d = common::with_steep_curves(VehicleDefinition::default());
+    let r = timestep_sweep::run(&d, &corners()).unwrap();
+    assert!(r.all_finite, "non-finite cell");
+    assert!(r.all_hold, "{:?}", r.cells);
+    assert!(r.clean_stops, "{:?}", r.cells);
+    assert!(
+        r.gradient_spread_deg_per_g < 0.01,
+        "gradient spread {} deg/g",
+        r.gradient_spread_deg_per_g
+    );
+    assert!(
+        r.braking_distance_spread < 0.005,
+        "braking spread {}",
+        r.braking_distance_spread
+    );
+    assert!(r.stable);
 }
 
 /// The kart's yaw response is faster than a 30 Hz host step; the single-track
