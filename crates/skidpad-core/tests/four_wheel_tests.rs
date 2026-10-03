@@ -28,6 +28,62 @@ fn loads(car: &FourWheelVehicle) -> [f64; 4] {
 }
 
 #[test]
+fn suspension_contacts_stay_on_the_finite_forward_ray() {
+    for mode in [HostMode::Builtin, HostMode::External] {
+        let ray_length = FourWheelVehicle::new(def()).geometry()[FL].ray_length;
+        for distance in [
+            -1000.0,
+            -1e-6,
+            0.0,
+            0.05,
+            0.2,
+            ray_length,
+            ray_length + 1e-6,
+        ] {
+            let mut car = FourWheelVehicle::new(def());
+            car.host_mode = mode;
+            car.contacts = [WheelContact::none(); 4];
+            let g = car.geometry()[FL];
+            let origin = car.pos + g.ray_origin;
+            car.contacts[FL] = WheelContact {
+                point: origin + Vec3::new(0.0, 0.0, -distance),
+                ..WheelContact::flat_ground()
+            };
+            car.substep(1.0 / 240.0, &VehicleInput::default());
+            let w = &car.wheels[FL];
+            let expected = distance >= 0.0 && distance <= g.ray_length;
+            assert_eq!(w.in_contact, expected, "{mode:?}: {distance}");
+            if expected {
+                assert!((w.contact_point - origin).length() <= g.ray_length);
+                // Bump-stop compression inside the ray remains supported.
+                assert!(w.load > 0.0);
+            } else {
+                assert_eq!(w.load, 0.0);
+                assert_eq!(w.susp_force, 0.0);
+                assert_eq!(w.travel_rate, 0.0);
+                assert_eq!(car.impulse, Vec3::ZERO);
+                assert_eq!(car.angular_impulse, Vec3::ZERO);
+            }
+        }
+    }
+}
+
+#[test]
+fn tipped_below_ground_cannot_contact_a_plane_behind_the_strut() {
+    for mode in [HostMode::Builtin, HostMode::External] {
+        let mut car = FourWheelVehicle::new(def());
+        car.host_mode = mode;
+        car.pos.z = -10.0;
+        car.orient = Quat::from_yaw_pitch_roll(0.0, skidpad_math::FRAC_PI_2 - 0.001, 0.0);
+        car.substep(1.0 / 240.0, &VehicleInput::default());
+        assert!(car.wheels.iter().all(|w| !w.in_contact && w.load == 0.0));
+        assert_eq!(car.impulse, Vec3::ZERO);
+        assert_eq!(car.angular_impulse, Vec3::ZERO);
+        assert_eq!(car.omega, Vec3::ZERO);
+    }
+}
+
+#[test]
 fn rests_at_ride_height_with_static_loads() {
     let d = def();
     let mut car = FourWheelVehicle::new(d.clone());
