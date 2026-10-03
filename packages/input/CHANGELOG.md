@@ -1,5 +1,28 @@
 # @skidpad/input
 
+## 0.8.0
+
+### Minor Changes
+
+- 66ca12a: Devices compose, and gears follow the car:
+
+  - `GearSelector` holds one requested gear for every device. In `"automatic"` mode it only moves between reverse (−1) and drive (0), so a keyboard can no longer count up to gear 10 that the automatic ignores and then need ten presses to reach reverse; in `"manual"` mode (the default) it counts −1 to `maxGear`. `KeyboardInput`, `GamepadInput` and `WheelInput` take it as `gears` (and keep a `gear` property); `KeyboardMapping` gains an optional `reverse` key list.
+  - `InputMixer` reads several devices each frame and passes on the one the player touched last, with the shared gear.
+  - `GamepadInput` shifts: bumpers shift up and down and the top face button toggles reverse (all configurable, `-1` for none). `poll()` reads the first pad with the standard mapping (`pick` to choose otherwise) instead of whatever pad comes first, which was the wheel when one was plugged in, and leaves it in `lastPad` for a rumble sink.
+  - `WheelInput.match` leaves standard-mapping gamepads out (`matchStandardPads` to include them), so the generic wheel profile's `046d` no longer matches a Logitech gamepad. The G PRO profile no longer matches every Logitech device: its pattern `046d.*(PRO|Pro)` matched the "Product:" in Chromium's ids, so a G29 got the G PRO profile.
+  - `AxisFinder.result(threshold, exclude)` leaves out assigned axes and reports the raw range seen; `AxisFinder.binding(found, centred, rest)` makes a calibrated binding from it. The `(?i)` prefix of profile patterns is documented, and a stale doc comment on `GamepadInput` is gone.
+
+- c7e6be9: `LogitechWebHidSink` picks its protocol from the wheel's product id. The new default `protocol: "auto"` looks the device up in `LOGITECH_WHEELS` (ids from the Linux drivers; `logitechWheel(productId)` exposes the lookup) when it attaches, so a G29 now gets the classic protocol instead of HID++, and an unknown wheel still falls back to HID++. `peakTorque` is now derived from the attached wheel, or from the protocol actually in use, instead of being fixed by the constructor, so forcing `sink.protocol` before `attach()` no longer leaves the torque scale four times off.
+
+  Breaking: `attach()` and `connect()` now reject, closing the device again, when the force path cannot be set up (the HID++ force-feedback feature does not answer, or the wheel refuses the constant-force effect). Before, the sink reported `connected` and silently sent nothing. The new `ready` getter says whether forces are being sent, and `wheel` names the recognised model.
+
+### Patch Changes
+
+- deb3519: Send HID++ 2.0 force-feedback commands as long (0x11) or very long (0x12) reports instead of short (0x10) ones, which the G PRO refuses with "NotAllowedError: Failed to write the report". `connect()` now picks the wheel interface that declares HID++ output reports (new `pickHidppDevice` and `outputReportIds` helpers), and the diagnostics log lists the output reports of the opened interface.
+- 875ff5b: Every package now ships a README (install, a minimal example, links to the guide), so the npm pages are no longer empty; the core's covers bundling a Node server.
+
+  Breaking (types only): `World.read` and `WorkerWorld.read` take a `ChannelName`, the union of every telemetry channel name, so a typo such as `"Speeed"` fails to compile instead of throwing at runtime; `readAll` returns `Record<ChannelName, number>`. `CHANNEL_NAMES` lists them at runtime. Per-wheel names compose from `WHEEL_ORDER` (`` `SlipRatio_${WHEEL_ORDER[i]}` ``); a name held in a plain `string` needs a `ChannelName` type, or use `sp.channel(name)` and `telemetryView` to probe.
+
 ## 0.7.0
 
 ### Minor Changes
