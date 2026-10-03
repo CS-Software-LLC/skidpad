@@ -42,6 +42,41 @@ Two ways to drive it:
 It needs no `SharedArrayBuffer`, so no cross-origin isolation headers. In
 Node and Electron, `nodeEndpoint(worker)` adapts `worker_threads`.
 
-External hosts (Rapier, Jolt) are not carried over: their bodies live on
-the thread that steps them. Run them in the worker with the world, or keep
-the world on the main thread.
+When frames are slow, count the host steps owed and send them as one
+`world.step(dt, count)` rather than dropping steps, so the worker keeps
+real time.
+
+## Level of detail
+
+`WorkerWorld.lod()` answers asynchronously, so a `LodController` cannot
+read it directly. Pass the world's `lodTarget` instead: it keeps each
+vehicle's level locally, sends changes to the worker without waiting
+(they apply before the next step) and follows `restore`.
+
+```ts
+const lod = new LodController(world.lodTarget, { singleTrackBeyond: 80 });
+lod.update((car) => distanceToCamera(car));
+```
+
+## External hosts stay on their own thread
+
+A `WorkerWorld` only hosts vehicles on the built-in flat host. The worker
+protocol does not carry the external-host calls (`setHostMode`,
+`writeHostBody`, `writeWheelContact`, `readHostImpulse`), and
+`RapierVehicle` and `JoltVehicle` need a synchronous `World` next to the
+physics scene, so a Rapier- or Jolt-hosted car must run on the thread that
+owns that scene. Two layouts work:
+
+- Keep the scene, the hosted cars and their `World` on the main thread, and
+  put built-in-host traffic in a `WorkerWorld` (mirrored into the scene as
+  kinematic bodies if the player should be able to hit it).
+- Move everything off the main thread by writing your own worker that
+  creates the physics scene, a plain `World` and the `RapierVehicle`s, and
+  posts poses back; `serveWorld` does not do this for you.
+
+## Bundling
+
+`import "@skidpad/worker/entry"` is a side-effect-only import; the package
+marks `dist/entry.js` as having side effects so production bundlers keep it.
+If your bundler still drops it, call `serveWorld(self)` in the worker
+yourself.
