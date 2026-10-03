@@ -9,7 +9,9 @@
     "directory": "packages/worker"
   },
   "type": "module",
-  "sideEffects": false,
+  "sideEffects": [
+    "./dist/entry.js"
+  ],
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
@@ -35,6 +37,7 @@
   },
   "devDependencies": {
     "@skidpad/presets": "workspace:*",
+    "esbuild": "^0.28.0",
     "typescript": "^5.6.0",
     "vitest": "^2.1.0"
   },
