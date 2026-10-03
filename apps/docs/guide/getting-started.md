@@ -34,6 +34,12 @@ The sandbox in `apps/sandbox` is the reference integration. The pattern is:
   `(x, y, z)` to three.js `(x, z, −y)`.
 - Feed inputs through `@skidpad/input` so keyboard, gamepad, and wheel
   all produce the same normalised frame.
+- For sound, `EngineRpm`, `ThrottleEffective` and `Gear` drive the engine
+  note, and per wheel `PeakSlip_*` (combined slip relative to the tire's
+  peak: above 1 the tire is sliding), `WheelContact_*` and `SurfaceId_*`
+  drive squeal and surface noise. `TireFmax_*` is each tire's friction
+  limit. `sp.telemetryLayout` lists every channel with its unit, and
+  `WHEEL_ORDER` the wheel suffixes.
 
 The built-in host integrates the chassis on flat ground. To drive on real
 geometry, let a Rapier body be the car: see

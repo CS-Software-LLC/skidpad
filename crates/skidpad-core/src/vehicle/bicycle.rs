@@ -659,6 +659,8 @@ impl BicycleVehicle {
             rec[t::SPIN_ANGLE_FL + i] = ax.spin_angle;
             rec[t::SURFACE_ID_FL + i] = self.surface_ids[i] as f64;
             rec[t::SURFACE_GRIP_FL + i] = self.surface_grips[i];
+            let tire = &self.def.axles[i / 2].tire;
+            super::four_wheel::write_grip_telemetry(&ax.out, 0.5, &ax.transient, tire, i, rec);
         }
         rec[t::AERO_LIFT_F] = self.aero_lift[0];
         rec[t::AERO_LIFT_R] = self.aero_lift[1];

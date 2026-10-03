@@ -31,7 +31,8 @@ use crate::snapshot::Snapshottable;
 use crate::surface::SurfaceTable;
 use crate::telemetry as t;
 use crate::tire::{
-    clamp_to_friction, kinematic_slip, low_speed_fade, TireInput, TireOutput, TireTransient,
+    clamp_to_friction, kinematic_slip, low_speed_fade, TireInput, TireModel, TireOutput,
+    TireTransient,
 };
 use crate::GRAVITY;
 use skidpad_math as m;
@@ -989,6 +990,8 @@ impl FourWheelVehicle {
             rec[t::SPIN_ANGLE_FL + i] = w.spin_angle;
             rec[t::SURFACE_ID_FL + i] = w.surface_id as f64;
             rec[t::SURFACE_GRIP_FL + i] = w.surface_grip;
+            let tire = &self.def.axles[i / 2].tire;
+            write_grip_telemetry(&w.out, 1.0, &w.transient, tire, i, rec);
         }
         rec[t::AERO_LIFT_F] = self.aero_lift[0];
         rec[t::AERO_LIFT_R] = self.aero_lift[1];
@@ -1003,6 +1006,25 @@ impl FourWheelVehicle {
         write_drivetrain_telemetry(&self.drivetrain, input, rec);
         write_assist_telemetry(&self.assist_telemetry, rec);
     }
+}
+
+/// A tire's friction limit and slip past its peak into wheel `i`'s
+/// channels, from an output covering `share` of the force (one wheel of a
+/// single-track axle is half of it). Shared by both models.
+pub(crate) fn write_grip_telemetry(
+    out: &TireOutput,
+    share: f64,
+    slip: &TireTransient,
+    tire: &TireModel,
+    i: usize,
+    rec: &mut [f64],
+) {
+    let (kappa_peak, tan_alpha_peak) = tire.static_slip_bounds();
+    rec[t::TIRE_FMAX_FL + i] = share * out.fy_max;
+    rec[t::PEAK_SLIP_FL + i] = m::hypot(
+        slip.slip_ratio / kappa_peak,
+        m::tan(slip.slip_angle) / tan_alpha_peak,
+    );
 }
 
 /// The assist channels, shared by both models.

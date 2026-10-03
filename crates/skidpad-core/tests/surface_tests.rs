@@ -357,3 +357,55 @@ fn equal_wheel_surfaces_drive_exactly_like_one_vehicle_surface() {
         assert_eq!(run(true), run(false), "{model:?}");
     }
 }
+
+#[test]
+fn grip_channels_report_each_tire_limit_and_its_use() {
+    for model in [VehicleModelKind::FourWheel, VehicleModelKind::SingleTrack] {
+        let mut d = VehicleDefinition::default();
+        d.simulation.model = model;
+        let mut w = World::new(1);
+        w.add_vehicle(d).unwrap();
+        w.set_surfaces(&[Surface::REFERENCE, ice()]).unwrap();
+        w.set_input(
+            0,
+            VehicleInput {
+                throttle: 0.3,
+                ..VehicleInput::default()
+            },
+        )
+        .unwrap();
+        for _ in 0..120 {
+            w.step(1.0 / 60.0);
+        }
+        let v = w.telemetry_of(0).to_vec();
+        // Per-wheel limits add up to the axle channels.
+        let front = v[t::TIRE_FMAX_FL] + v[t::TIRE_FMAX_FR];
+        assert!((front - v[t::FMAX_F]).abs() < 1e-9 * front, "{model:?}");
+        for i in 0..4 {
+            let u = v[t::PEAK_SLIP_FL + i];
+            assert!(u > 0.0 && u < 1.0, "{model:?} wheel {i}: {u}");
+        }
+        // Full throttle on ice spins the driven wheels at the limit.
+        w.set_surface(0, 1).unwrap();
+        w.set_input(
+            0,
+            VehicleInput {
+                throttle: 1.0,
+                ..VehicleInput::default()
+            },
+        )
+        .unwrap();
+        for _ in 0..30 {
+            w.step(1.0 / 60.0);
+        }
+        let v = w.telemetry_of(0);
+        let driven = most_slip(v);
+        assert!(driven > 1.5, "{model:?}: {driven}");
+        assert!(v[t::TIRE_FMAX_FL] < 0.3 * front / 2.0 * 1.5, "{model:?}");
+    }
+}
+
+/// Largest slip past the peak of any wheel.
+fn most_slip(v: &[f64]) -> f64 {
+    (0..4).map(|i| v[t::PEAK_SLIP_FL + i]).fold(0.0, f64::max)
+}
