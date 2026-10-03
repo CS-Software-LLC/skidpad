@@ -17,7 +17,8 @@ export interface CpExports {
   sp_result_ptr(): number;
   sp_result_len(): number;
   skidpad_math_selftest(): bigint;
-  sp_default_definition(): number;
+  /** With `jsonLen` 0 the default definition; else that definition completed. */
+  sp_default_definition(jsonPtr: number, jsonLen: number): number;
 
   sp_input_stride(): number;
   sp_telemetry_stride(): number;

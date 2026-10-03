@@ -37,7 +37,13 @@
  * allocates its scratch objects once and frees them in {@link JoltVehicle.dispose}.
  */
 import type JoltNs from "jolt-physics";
-import type { HostImpulse, VehicleDefinition, WheelRay, World } from "@skidpad/core";
+import type {
+  ChassisDefinition,
+  HostImpulse,
+  PartialVehicleDefinition,
+  WheelRay,
+  World,
+} from "@skidpad/core";
 
 /** The loaded `jolt-physics` module (what `await initJolt()` returns). */
 export type JoltModule = typeof JoltNs;
@@ -144,17 +150,43 @@ export class Frame {
  * Create and add a dynamic Jolt body with the definition's mass and
  * principal inertia and a box shape for the chassis. Wheels have no shapes:
  * the rays are the wheels. Sleeping and Jolt's default damping are off, so
- * the core's forces are the only ones besides gravity and contacts.
+ * the core's forces are the only ones besides gravity and contacts. Takes a
+ * partial definition (a preset) as long as its chassis sizes are given;
+ * `sp.completeDefinition(def)` fills in the rest.
  */
+const CHASSIS_FIELDS = [
+  "mass",
+  "cgHeight",
+  "wheelbase",
+  "trackWidth",
+  "rollInertia",
+  "pitchInertia",
+  "yawInertia",
+] as const;
+
+type ChassisSizing = Pick<ChassisDefinition, (typeof CHASSIS_FIELDS)[number]>;
+
+/** The chassis fields a body needs, or a clear error naming what is missing. */
+export function chassisSizing(def: PartialVehicleDefinition): ChassisSizing {
+  const c = def.chassis ?? {};
+  const missing = CHASSIS_FIELDS.filter((k) => typeof c[k] !== "number");
+  if (missing.length > 0) {
+    throw new Error(
+      `the definition has no chassis.${missing.join(", chassis.")}; pass sp.completeDefinition(def) to fill in the core's defaults`,
+    );
+  }
+  return c as ChassisSizing;
+}
+
 export function createChassisBody(
   Jolt: JoltModule,
   jolt: JoltNs.JoltInterface,
-  def: VehicleDefinition,
+  def: PartialVehicleDefinition,
   options: ChassisBodyOptions = {},
 ): JoltNs.Body {
   const up = options.up ?? "y";
   const frame = new Frame(up);
-  const c = def.chassis;
+  const c = chassisSizing(def);
   const yaw = options.yaw ?? 0;
   const qCore: Quat = [0, 0, Math.sin(yaw / 2), Math.cos(yaw / 2)];
   const qs = frame.quatToScene(qCore, [0, 0, 0, 1]);

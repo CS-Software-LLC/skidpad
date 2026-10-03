@@ -241,6 +241,9 @@ importers:
       '@dimforge/rapier3d-compat':
         specifier: ^0.21.0
         version: 0.21.0
+      '@dimforge/rapier3d-deterministic-compat':
+        specifier: ^0.21.0
+        version: 0.21.0
       '@skidpad/presets':
         specifier: workspace:*
         version: link:../presets
@@ -589,6 +592,9 @@ packages:
 
   '@dimforge/rapier3d-compat@0.21.0':
     resolution: {integrity: sha512-tCl1HPGwOhn5aCQbgqWbOH+Nx/5fnr3IPAnzQuR7zIhC/raqi2yxC6LhvZqjdI2El5hQgY5RDAwDrAjAi2FdPA==}
+
+  '@dimforge/rapier3d-deterministic-compat@0.21.0':
+    resolution: {integrity: sha512-n7JuU62Obljlgq+OeH2DHhTmRSjRzwuJPl54tS9pFIzVQyvXsO5CH+a5KkIRBtnFWDbg1Zicv9BulG0jfBAopA==}
 
   '@docsearch/css@3.8.2':
     resolution: {integrity: sha512-y05ayQFyUmCXze79+56v/4HpycYF3uFqB78pLPrSV5ZKAlDuIAAJNhaRi8tTdRNXh05yxX/TyNnzD6LwSM89vQ==}
@@ -2948,6 +2954,8 @@ snapshots:
       prettier: 2.8.8
 
   '@dimforge/rapier3d-compat@0.21.0': {}
+
+  '@dimforge/rapier3d-deterministic-compat@0.21.0': {}
 
   '@docsearch/css@3.8.2': {}
 

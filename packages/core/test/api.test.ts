@@ -42,6 +42,33 @@ describe("entries", () => {
   });
 });
 
+describe("definitions", () => {
+  it("completes a partial definition as addVehicle reads it", () => {
+    expect(sp.completeDefinition({})).toEqual(sp.defaultDefinition());
+    const def = sp.completeDefinition({
+      chassis: { mass: 900 },
+      assists: { abs: { enabled: true } },
+    });
+    expect(def.chassis.mass).toBe(900);
+    expect(def.chassis.wheelbase).toBe(sp.defaultDefinition().chassis.wheelbase);
+    expect(def.assists.abs.enabled).toBe(true);
+    expect(typeof def.assists.abs.slipTarget).toBe("number");
+    expect(() => sp.completeDefinition({ chassis: { mass: -1 } })).toThrow(/mass/);
+    // The completed definition drives exactly like the partial one.
+    const a = sp.createWorld(1);
+    const b = sp.createWorld(1);
+    a.addVehicle({ chassis: { mass: 900 }, assists: { abs: { enabled: true } } });
+    b.addVehicle(def);
+    for (const w of [a, b]) {
+      w.setInput(0, { throttle: 1, steer: 0.3 });
+      w.stepMany(1 / 60, 120);
+    }
+    expect(b.worldHash()).toBe(a.worldHash());
+    a.free();
+    b.free();
+  });
+});
+
 describe("world API", () => {
   it("has wheel positions before the first step and after a reset", () => {
     const w = sp.createWorld(1);

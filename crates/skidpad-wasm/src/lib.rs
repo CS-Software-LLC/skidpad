@@ -1039,10 +1039,30 @@ pub unsafe extern "C" fn sp_run_scenario(ptr: *const u8, len: usize) -> i32 {
 }
 
 /// Write the default vehicle definition as JSON to the result buffer, so the
-/// TypeScript layer never duplicates the defaults.
+/// TypeScript layer never duplicates the defaults; with a (partial)
+/// definition, that definition completed with the defaults, as
+/// `sp_world_add_vehicle` would read it.
+///
+/// # Safety
+/// See `str_from`.
 #[no_mangle]
-pub extern "C" fn sp_default_definition() -> i32 {
-    match serde_json::to_string(&VehicleDefinition::default()) {
+pub unsafe extern "C" fn sp_default_definition(json_ptr: *const u8, json_len: usize) -> i32 {
+    let def = if json_len == 0 {
+        VehicleDefinition::default()
+    } else {
+        let json = match str_from(json_ptr, json_len) {
+            Ok(s) => s,
+            Err(c) => return c,
+        };
+        match serde_json::from_str(json) {
+            Ok(d) => d,
+            Err(e) => {
+                set_error(format!("definition is not valid JSON for this format: {e}"));
+                return ERR_INVALID_JSON;
+            }
+        }
+    };
+    match serde_json::to_string(&def) {
         Ok(s) => {
             set_result(s);
             OK

@@ -2,8 +2,19 @@
  * @skidpad/presets — reference vehicle definitions and the surface table.
  * Each vehicle carries a `dataSheet` with its sources; see
  * `data/PROVENANCE.md` in the repository.
+ *
+ * Presets are partial definitions: what they leave out (many tire and
+ * differential details, static toe, per-axle track widths) takes the core's
+ * defaults when a world adds the car. `sp.completeDefinition(preset(id))`
+ * gives the full definition the core runs. Their `chassis` is always
+ * complete.
+ *
+ * Assists: `sportsRwd` and `openWheeler` ship ABS, traction and stability
+ * control on, `crossoverEv` traction control on; `hatchbackFwd`, `kart`
+ * and `pickup4x4` ship no `assists` block, so every assist is off (the
+ * core's default). Turn assists on or off in a copy's `assists`.
  */
-import type { SurfaceDefinition, VehicleDefinition } from "@skidpad/core";
+import type { ChassisDefinition, PartialVehicleDefinition, SurfaceDefinition } from "@skidpad/core";
 import hatchbackFwd from "./vehicles/hatchback-fwd.json" with { type: "json" };
 import sportsRwd from "./vehicles/sports-rwd.json" with { type: "json" };
 import kart from "./vehicles/kart.json" with { type: "json" };
@@ -11,13 +22,22 @@ import pickup4x4 from "./vehicles/pickup-4x4.json" with { type: "json" };
 import crossoverEv from "./vehicles/crossover-ev.json" with { type: "json" };
 import openWheeler from "./vehicles/open-wheeler.json" with { type: "json" };
 
+/**
+ * A preset: a partial definition (see the module notes) whose name and
+ * chassis are always complete.
+ */
+export type PresetDefinition = PartialVehicleDefinition & {
+  name: string;
+  chassis: ChassisDefinition;
+};
+
 export const presets = {
-  hatchbackFwd: hatchbackFwd as VehicleDefinition,
-  sportsRwd: sportsRwd as VehicleDefinition,
-  kart: kart as VehicleDefinition,
-  pickup4x4: pickup4x4 as VehicleDefinition,
-  crossoverEv: crossoverEv as VehicleDefinition,
-  openWheeler: openWheeler as VehicleDefinition,
+  hatchbackFwd: hatchbackFwd as PresetDefinition,
+  sportsRwd: sportsRwd as PresetDefinition,
+  kart: kart as PresetDefinition,
+  pickup4x4: pickup4x4 as PresetDefinition,
+  crossoverEv: crossoverEv as PresetDefinition,
+  openWheeler: openWheeler as PresetDefinition,
 } as const;
 
 export type PresetId = keyof typeof presets;
@@ -25,7 +45,7 @@ export type PresetId = keyof typeof presets;
 export const presetIds = Object.keys(presets) as PresetId[];
 
 /** Deep-clone a preset so callers can edit it freely. */
-export function preset(id: PresetId): VehicleDefinition {
+export function preset(id: PresetId): PresetDefinition {
   return structuredClone(presets[id]);
 }
 

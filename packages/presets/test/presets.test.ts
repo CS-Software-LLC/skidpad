@@ -18,4 +18,16 @@ describe("presets", () => {
       w.free();
     }
   });
+
+  it("every preset has the complete chassis and name its type promises", async () => {
+    const sp = await init();
+    for (const id of presetIds) {
+      const def = preset(id);
+      const full = sp.completeDefinition(def);
+      expect(def.name, id).toBe(full.name);
+      // Every chassis field is given, not filled in by the core.
+      expect(Object.keys(def.chassis).sort(), id).toEqual(Object.keys(full.chassis).sort());
+      expect(def.chassis, id).toEqual(full.chassis);
+    }
+  });
 });

@@ -567,8 +567,27 @@ export class Skidpad {
 
   /** The core's default definition with every field filled in. */
   defaultDefinition(): VehicleDefinition {
-    this.check(this.exports.sp_default_definition());
+    this.check(this.exports.sp_default_definition(0, 0));
     return JSON.parse(this.result()) as VehicleDefinition;
+  }
+
+  /**
+   * A (partial) definition completed with the core's defaults, exactly as
+   * `World.addVehicle` reads it, for code that needs every field (a host
+   * adapter sizing its body, an editor). Migrates and validates it first,
+   * like `addVehicle`.
+   */
+  completeDefinition(def: PartialVehicleDefinition): VehicleDefinition {
+    def = migrateLegacyDrive(def as Record<string, unknown>) as PartialVehicleDefinition;
+    const v = validateDefinition(def);
+    if (!v.ok) throw new SkidpadError(v.errors.join("; "), ErrorCode.InvalidDefinition);
+    const { ptr, len } = this.writeString(JSON.stringify(def));
+    try {
+      this.check(this.exports.sp_default_definition(ptr, len));
+      return JSON.parse(this.result()) as VehicleDefinition;
+    } finally {
+      this.free(ptr, len);
+    }
   }
 
   /** Create a world with room for `capacity` vehicles. */

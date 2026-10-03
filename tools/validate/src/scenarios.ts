@@ -294,7 +294,7 @@ function withAbsEnabled(def: VehicleDefinition, enabled: boolean): VehicleDefini
 export function runAll(sp: Skidpad, ids: PresetId[] = presetIds): ValidationReport {
   const vehicles: Record<string, VehicleResults> = {};
   for (const id of ids) {
-    const def = preset(id);
+    const def = sp.completeDefinition(preset(id));
     const understeer = sp.runScenario({ scenario: "understeerGradient", definition: def });
     // The locked-wheel stop and the same stop with the anti-lock assist on,
     // whatever the preset ships with (presets leave `assists` at the core

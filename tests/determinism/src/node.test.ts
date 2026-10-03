@@ -50,8 +50,8 @@ describe("determinism in Node", () => {
     const sp = await init();
     const trace = LAP_TRACES[0]!;
     const other = preset(trace.preset === "kart" ? "hatchbackFwd" : ("kart" as PresetId));
-    const a = replayLap(sp, trace, other);
-    const b = replayLap(sp, trace, other);
+    const a = replayLap(sp, trace, sp.completeDefinition(other));
+    const b = replayLap(sp, trace, sp.completeDefinition(other));
     expect(a).toEqual(b);
   });
 });

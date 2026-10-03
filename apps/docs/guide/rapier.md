@@ -32,6 +32,11 @@ collider would stop at. Rapier is axis-agnostic; pass `up: "y"` (default,
 the three.js convention) or `up: "z"` and the adapter converts between the
 scene's frame and the core's ISO frame.
 
+It takes a partial definition such as a preset, as long as the chassis
+sizes are given (every preset's are); for a definition that leaves them to
+the core, pass `sp.completeDefinition(def)`, which fills in the core's
+defaults exactly as `addVehicle` does.
+
 Step the scene once after creating its colliders. Rapier's query pipeline
 is empty until the first step, and the wheel rays would miss.
 
@@ -56,6 +61,7 @@ way, filled when the scene is built:
 
 ```ts
 import { surfaceTable, surfaceId } from "@skidpad/presets";
+import { surfaceIdsByHandle } from "@skidpad/rapier";
 
 world.setSurfaces(surfaceTable());
 
@@ -64,7 +70,7 @@ surfaceOf.set(gravelCollider.handle, surfaceId("gravel"));
 surfaceOf.set(iceCollider.handle, surfaceId("ice"));
 
 const car = new RapierVehicle(RAPIER, world, vehicle, body, scene, {
-  surfaceId: (collider) => surfaceOf.get(collider.handle) ?? 0,
+  surfaceId: surfaceIdsByHandle(surfaceOf), // or (collider) => surfaceOf.get(collider.handle) ?? 0
 });
 ```
 
@@ -75,6 +81,11 @@ set `surfaceId` on the `WheelContact` you pass to `writeWheelContact`.
 ## Determinism
 
 The core is bit-exact for a given sequence of body states and contacts. Rapier
-is deterministic across platforms only in its enhanced-determinism build; the
-Skidpad determinism harness therefore runs the built-in host. If you need
-replays under Rapier, record the inputs and the host records together.
+is deterministic across platforms only in its enhanced-determinism build,
+`@dimforge/rapier3d-deterministic-compat`; the Skidpad determinism harness
+therefore runs the built-in host. The adapter types Rapier by the members
+it uses rather than by one package's declarations, so both builds plug in
+without a cast, and either satisfies its (optional) peer dependency. If you
+need replays under Rapier, use the deterministic build, build the scene in
+a fixed order from plain data, and record the inputs; re-running the scene
+then reproduces the run.

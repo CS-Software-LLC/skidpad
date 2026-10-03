@@ -145,7 +145,7 @@ function speedProfile(p: DriverParams): number[] {
 
 async function record(id: PresetId): Promise<LapTrace> {
   const sp = await init();
-  const def = preset(id);
+  const def = sp.completeDefinition(preset(id));
   const maxAngle = (def.steering.maxWheelAngleDeg * Math.PI) / 180;
   const wheelbase = def.chassis.wheelbase;
   const params: DriverParams = { latAccel: 5.5, brakeDecel: 5.0, topSpeed: 32 };
