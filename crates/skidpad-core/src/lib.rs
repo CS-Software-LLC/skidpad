@@ -38,6 +38,7 @@ pub mod definition;
 pub mod drivetrain;
 pub mod geom;
 pub mod input;
+pub mod kinematics;
 pub mod snapshot;
 pub mod surface;
 pub mod telemetry;

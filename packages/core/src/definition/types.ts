@@ -154,6 +154,37 @@ export interface SuspensionDefinition {
    * driven rear axle, anti-lift on a driven front axle.
    */
   antiDrive: number;
+  /**
+   * How the geometry changes with each wheel's travel (ADR-0025), as
+   * offsets from the static values. Omit it, or leave it empty, to keep the
+   * geometry fixed at ride height. Four-wheel model only.
+   */
+  kinematics?: KinematicsDefinition;
+}
+
+/**
+ * A piecewise-linear table of `[travel, value]` pairs (ADR-0025). Travel is
+ * in metres from the static ride position, positive in bump, strictly
+ * increasing, 2 to 16 points. The value is held at the end points outside
+ * the table and must be zero at zero travel: it adds to the static value.
+ */
+export type TravelCurve = Array<[number, number]>;
+
+/**
+ * Travel curves of one axle (ADR-0025), describing the left wheel; the
+ * right wheel mirrors them. Units match the scalar fields they offset.
+ */
+export interface KinematicsDefinition {
+  /** Toe change, degrees, positive toe-in (bump steer). Not on a solid axle. */
+  toeDeg?: TravelCurve;
+  /** Camber change relative to the body, degrees, negative top-in. Not on a solid axle. */
+  camberDeg?: TravelCurve;
+  /** Roll-centre height change, m. Makes the links jack the body. */
+  rollCenterHeight?: TravelCurve;
+  /** Anti-brake fraction change. */
+  antiBrake?: TravelCurve;
+  /** Anti-drive fraction change. */
+  antiDrive?: TravelCurve;
 }
 
 export interface AxleDefinition {

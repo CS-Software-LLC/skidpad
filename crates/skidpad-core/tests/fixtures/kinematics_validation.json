@@ -1,0 +1,177 @@
+{
+  "comment": "Shared by crates/skidpad-core/tests/kinematics_tests.rs and packages/core/test/kinematics.test.ts so the Rust and TypeScript validators give the same messages (ADR-0025). Each case patches the default definition's axle `axle`: `axleFields` onto the axle, `suspensionFields` onto its suspension. `errors` are every kinematics message expected, in order.",
+  "cases": [
+    {
+      "name": "every curve, valid",
+      "axle": 0,
+      "axleFields": { "staticToeDeg": 0.2, "staticCamberDeg": -1 },
+      "suspensionFields": {
+        "rollCenterHeight": 0.08,
+        "antiBrake": 0.3,
+        "antiDrive": 0.1,
+        "kinematics": {
+          "toeDeg": [
+            [-0.08, 0.3],
+            [0, 0],
+            [0.08, -0.4]
+          ],
+          "camberDeg": [
+            [-0.1, 1.2],
+            [0, 0],
+            [0.1, -1.5]
+          ],
+          "rollCenterHeight": [
+            [-0.1, 0.09],
+            [0, 0],
+            [0.1, -0.09]
+          ],
+          "antiBrake": [
+            [-0.1, -0.1],
+            [0, 0],
+            [0.1, 0.15]
+          ],
+          "antiDrive": [
+            [-0.1, 0.05],
+            [0, 0],
+            [0.1, -0.05]
+          ]
+        }
+      },
+      "errors": []
+    },
+    {
+      "name": "an empty block",
+      "axle": 1,
+      "suspensionFields": { "kinematics": {} },
+      "errors": []
+    },
+    {
+      "name": "too few points",
+      "axle": 0,
+      "suspensionFields": { "kinematics": { "toeDeg": [[0, 0]] } },
+      "errors": [
+        "axles[0] (front).suspension.kinematics.toeDeg must have between 2 and 16 points (got 1)"
+      ]
+    },
+    {
+      "name": "too many points",
+      "axle": 1,
+      "suspensionFields": {
+        "kinematics": {
+          "antiDrive": [
+            [0, 0],
+            [0.01, 0],
+            [0.02, 0],
+            [0.03, 0],
+            [0.04, 0],
+            [0.05, 0],
+            [0.06, 0],
+            [0.07, 0],
+            [0.08, 0],
+            [0.09, 0],
+            [0.1, 0],
+            [0.11, 0],
+            [0.12, 0],
+            [0.13, 0],
+            [0.14, 0],
+            [0.15, 0],
+            [0.16, 0]
+          ]
+        }
+      },
+      "errors": [
+        "axles[1] (rear).suspension.kinematics.antiDrive must have between 2 and 16 points (got 17)"
+      ]
+    },
+    {
+      "name": "travel not increasing",
+      "axle": 0,
+      "suspensionFields": {
+        "kinematics": {
+          "camberDeg": [
+            [-0.05, 0.5],
+            [0, 0],
+            [0, -0.5]
+          ]
+        }
+      },
+      "errors": [
+        "axles[0] (front).suspension.kinematics.camberDeg travel must be strictly increasing (point 2 at 0 m follows 0 m)"
+      ]
+    },
+    {
+      "name": "not zero at zero travel",
+      "axle": 0,
+      "suspensionFields": {
+        "kinematics": {
+          "rollCenterHeight": [
+            [-0.1, 0.2],
+            [0.1, 0.2]
+          ]
+        }
+      },
+      "errors": [
+        "axles[0] (front).suspension.kinematics.rollCenterHeight must pass through zero at zero travel (got 0.2); it is an offset from the static value"
+      ]
+    },
+    {
+      "name": "total beyond the bound",
+      "axle": 1,
+      "suspensionFields": {
+        "antiBrake": 1.5,
+        "kinematics": {
+          "antiBrake": [
+            [-0.1, -0.25],
+            [0, 0],
+            [0.1, 0.75]
+          ]
+        }
+      },
+      "errors": [
+        "axles[1] (rear).suspension.kinematics.antiBrake plus the static value reaches 2.25 at 0.1 m of travel, beyond ±2"
+      ]
+    },
+    {
+      "name": "toe beyond ten degrees",
+      "axle": 0,
+      "axleFields": { "staticToeDeg": -9.5 },
+      "suspensionFields": {
+        "kinematics": {
+          "toeDeg": [
+            [-0.1, -1],
+            [0, 0]
+          ]
+        }
+      },
+      "errors": [
+        "axles[0] (front).suspension.kinematics.toeDeg plus the static value reaches -10.5 at -0.1 m of travel, beyond ±10"
+      ]
+    },
+    {
+      "name": "wheel angles on a solid axle",
+      "axle": 1,
+      "suspensionFields": {
+        "kind": "solid",
+        "kinematics": {
+          "toeDeg": [
+            [-0.1, 0.1],
+            [0, 0]
+          ],
+          "camberDeg": [
+            [-0.1, 0.1],
+            [0, 0]
+          ],
+          "rollCenterHeight": [
+            [-0.1, 0.02],
+            [0, 0],
+            [0.1, -0.02]
+          ]
+        }
+      },
+      "errors": [
+        "axles[1] (rear).suspension.kinematics.toeDeg is not allowed on a solid axle; the beam sets the wheel angles (ADR-0016)",
+        "axles[1] (rear).suspension.kinematics.camberDeg is not allowed on a solid axle; the beam sets the wheel angles (ADR-0016)"
+      ]
+    }
+  ]
+}

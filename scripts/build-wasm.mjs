@@ -79,7 +79,7 @@ const gz = gzipSync(bytes).length;
 console.log(
   `[build-wasm] ${profile}: ${statSync(wasmOut).size} bytes (${gz} gzipped)${optimised ? ", wasm-opt applied" : ""} -> packages/core/wasm/skidpad.wasm`,
 );
-if (release && gz > 200 * 1024) {
-  console.error(`[build-wasm] gzipped size ${gz} exceeds the 200 KB budget`);
+if (release && gz > 224 * 1024) {
+  console.error(`[build-wasm] gzipped size ${gz} exceeds the 224 KB budget (ADR-0026)`);
   process.exit(1);
 }

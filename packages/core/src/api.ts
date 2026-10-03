@@ -2,7 +2,7 @@
 // WASM (`index.ts` loads the separate file, `compat.ts` the inlined copy).
 export * from "./core.js";
 export * from "./definition/types.js";
-export { validateDefinition, validateSurfaces } from "./definition/validate.js";
+export { validateDefinition, validateSurfaces, evalTravelCurve } from "./definition/validate.js";
 export type { ValidationResult } from "./definition/validate.js";
 export {
   migrateDefinition,

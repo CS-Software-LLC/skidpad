@@ -1,15 +1,7 @@
 {
-<<<<<<< HEAD
-  "sourceHash": "0548e0c98e21f117caf373cf0909ec18de85c3d249e95514427bdfa23b8746a6",
+  "sourceHash": "b691ce2f33a068d33e491b81472f66026fb017d4f6c6a390ce5e68afdf7d36fc",
   "coreVersion": "0.7.0",
-  "bytes": 655554,
-  "gzipBytes": 204788,
-  "builtAt": "2026-10-03T17:04:37.462Z"
-=======
-  "sourceHash": "311883d4a2ea2b79d391a010e27a5a6370fb1b4976a803ad338434ed474d2835",
-  "coreVersion": "0.7.0",
-  "bytes": 612438,
-  "gzipBytes": 203251,
-  "builtAt": "2026-10-03T16:23:45.046Z"
->>>>>>> main
+  "bytes": 632560,
+  "gzipBytes": 210077,
+  "builtAt": "2026-10-03T17:30:33.047Z"
 }

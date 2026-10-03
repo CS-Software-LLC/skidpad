@@ -116,8 +116,8 @@ Benchmarks on a Node 22 x64 container, 60 Hz host step, release build:
 | 200 cars, single-track, 240 Hz internal | 1.26        |
 
 Targets: under 0.2 ms for one car and under 3 ms for twenty on M1-class
-hardware; under 2 ms for two hundred traffic cars; core WASM under 200 KB
-gzipped (currently 199.4 KB). `apps/bench/baseline` holds the committed
+hardware; under 2 ms for two hundred traffic cars; core WASM under 224 KB
+gzipped (currently 205.2 KB). `apps/bench/baseline` holds the committed
 baseline the benchmark compares against.
 
 An independent check drives Skidpad and Project Chrono's multibody BMW E90

@@ -978,9 +978,30 @@
           "maximum": 2,
           "default": 0,
           "description": "Anti-pitch geometry under drive, a fraction (ADR-0018): anti-squat on a driven rear axle, anti-lift on a driven front axle"
+        },
+        "kinematics": {
+          "$ref": "#/$defs/kinematics"
         }
       },
-      "additionalProperties": false
+      "additionalProperties": false,
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "solid"
+          }
+        },
+        "required": ["kind"]
+      },
+      "then": {
+        "properties": {
+          "kinematics": {
+            "properties": {
+              "toeDeg": false,
+              "camberDeg": false
+            }
+          }
+        }
+      }
     },
     "differential": {
       "type": "object",
@@ -1009,6 +1030,54 @@
           "minimum": 1,
           "default": 1.5,
           "description": "Torque bias ratio on the overrun"
+        }
+      },
+      "additionalProperties": false
+    },
+    "travelCurve": {
+      "type": "array",
+      "description": "Piecewise-linear [travel, value] pairs (ADR-0025). Travel in m from the static ride position, positive in bump, strictly increasing; the value is held at the end points and must be zero at zero travel, because it adds to the static value.",
+      "minItems": 2,
+      "maxItems": 16,
+      "items": {
+        "type": "array",
+        "prefixItems": [
+          {
+            "type": "number",
+            "description": "travel, m (+ bump)"
+          },
+          {
+            "type": "number",
+            "description": "offset from the static value"
+          }
+        ],
+        "minItems": 2,
+        "maxItems": 2
+      }
+    },
+    "kinematics": {
+      "type": "object",
+      "description": "How the geometry changes with each wheel's travel (ADR-0025), as offsets from the static values, for the left wheel; the right wheel mirrors them. Omit or leave empty to keep the geometry fixed at ride height. Four-wheel model only.",
+      "properties": {
+        "toeDeg": {
+          "$ref": "#/$defs/travelCurve",
+          "description": "Toe change, degrees, positive toe-in (bump steer). Offsets staticToeDeg; static plus curve within ±10. Not on a solid axle."
+        },
+        "camberDeg": {
+          "$ref": "#/$defs/travelCurve",
+          "description": "Camber change relative to the body, degrees, negative top-in (camber gain). Offsets staticCamberDeg; static plus curve within ±45. Not on a solid axle."
+        },
+        "rollCenterHeight": {
+          "$ref": "#/$defs/travelCurve",
+          "description": "Roll-centre height change, m. Offsets rollCenterHeight; static plus curve within ±1 m. Switches the axle to per-wheel link forces, which jack the body."
+        },
+        "antiBrake": {
+          "$ref": "#/$defs/travelCurve",
+          "description": "Anti-brake fraction change. Offsets antiBrake; static plus curve within ±2."
+        },
+        "antiDrive": {
+          "$ref": "#/$defs/travelCurve",
+          "description": "Anti-drive fraction change. Offsets antiDrive; static plus curve within ±2."
         }
       },
       "additionalProperties": false
