@@ -1,11 +1,12 @@
-# Kickoff: a time-trial game on the published Skidpad packages
+# Kickoff: Skidpad Time Trial
 
 This file is the brief for a new repository. Read all of it before writing
 code. It explains why the project exists, what to build first, how the
 Skidpad packages fit together, and the rules that make this project useful to
 Skidpad as well as being a game.
 
-The working name below is `skidpad-time-trial`. Rename it freely.
+The game is **Skidpad Time Trial**, in the repository
+`CS-Software-LLC/skidpad-time-trial`.
 
 ## Why this project exists
 
@@ -285,7 +286,7 @@ any change made inside the Skidpad repository from this one.
 
 Ask these rather than guessing when you reach them:
 
-- The game's name and the final track layout.
+- The final track layout.
 - Hosting for the client and server.
 - Whether a desktop build with Electron (and `node-hid` for force feedback)
   is wanted later; it affects how the input layer is abstracted.
