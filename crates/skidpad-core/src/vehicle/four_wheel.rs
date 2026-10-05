@@ -1107,6 +1107,8 @@ pub(crate) fn write_drivetrain_telemetry(d: &Drivetrain, input: &VehicleInput, r
     rec[t::DIFF_LOCK_TORQUE_R] = tel.diff_lock_rear;
     rec[t::CENTER_LOCK_TORQUE] = tel.center_lock;
     rec[t::CLUTCH] = input.clutch;
+    rec[t::SHIFT_TIMER] = d.shift_timer;
+    rec[t::REV_LIMITER] = d.rev_limiter_cut();
 }
 
 /// Snapshot values of the body, before the wheels.

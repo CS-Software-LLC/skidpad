@@ -1,7 +1,7 @@
 import { describe, expect, it, beforeAll } from "vitest";
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
-import { init, type Skidpad, WHEEL_ORDER } from "../src/index.js";
+import { init, type Skidpad, validateDefinition, WHEEL_ORDER } from "../src/index.js";
 import * as main from "../src/index.js";
 import * as compat from "../src/compat.js";
 
@@ -67,6 +67,31 @@ describe("definitions", () => {
     b.addVehicle(def);
     for (const w of [a, b]) {
       w.setInput(0, { throttle: 1, steer: 0.3 });
+      w.stepMany(1 / 60, 120);
+    }
+    expect(b.worldHash()).toBe(a.worldHash());
+    a.free();
+    b.free();
+  });
+});
+
+describe("sound metadata", () => {
+  it("travels with the definition and is validated like the core does", () => {
+    expect(sp.defaultDefinition().sound).toEqual({ firingsPerRev: 0 });
+    expect(sp.completeDefinition({ sound: { firingsPerRev: 3 } }).sound.firingsPerRev).toBe(3);
+    for (const bad of [-1, 17, Number.NaN]) {
+      const v = validateDefinition({ sound: { firingsPerRev: bad } });
+      expect(v.errors).toEqual([`sound.firingsPerRev must be between 0 and 16 (got ${bad})`]);
+    }
+  });
+
+  it("does not change the simulation", () => {
+    const a = sp.createWorld(1);
+    const b = sp.createWorld(1);
+    a.addVehicle({});
+    b.addVehicle({ sound: { firingsPerRev: 4 } });
+    for (const w of [a, b]) {
+      w.setInput(0, { throttle: 1 });
       w.stepMany(1 / 60, 120);
     }
     expect(b.worldHash()).toBe(a.worldHash());

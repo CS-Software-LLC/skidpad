@@ -23,6 +23,11 @@ control on, `crossoverEv` traction control on; `hatchbackFwd`, `kart` and
 `pickup4x4` ship none, so every assist is off. Set `assists` on a copy to
 change that.
 
+Sound: every preset carries `sound.firingsPerRev` for its engine note
+(hatchback and open-wheeler an inline four, 2; sports car a six, 3; pickup
+a V8, 4; kart a single-cylinder two-stroke, 1; the electric crossover 0).
+The core never simulates it.
+
 Guide: [vehicle definitions](https://cs-software-llc.github.io/skidpad/docs/guide/definitions),
 [surfaces](https://cs-software-llc.github.io/skidpad/docs/concepts/surfaces).
 

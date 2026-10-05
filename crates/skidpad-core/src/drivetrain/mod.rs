@@ -329,6 +329,25 @@ impl Drivetrain {
         }
     }
 
+    /// Throttle the rev limiter lets through at `omega` for a redline of
+    /// `red` (both rad/s): 1 up to redline, cut linearly to 0 over the next
+    /// 2 %.
+    #[inline]
+    fn limiter(red: f64, omega: f64) -> f64 {
+        m::clamp((1.02 * red - omega) / (0.02 * red), 0.0, 1.0)
+    }
+
+    /// How far the engine is into its rev limiter, 0 … 1 (the share of the
+    /// throttle it cuts); 0 without a combustion engine.
+    pub fn rev_limiter_cut(&self) -> f64 {
+        match &self.def.power_unit {
+            PowerUnitDef::Combustion(c) => {
+                1.0 - Self::limiter(c.redline_rpm * RPM_TO_RAD, self.engine_omega)
+            }
+            _ => 0.0,
+        }
+    }
+
     /// Full-throttle torque of the combustion curve at `rpm`.
     fn curve_torque(curve: &[[f64; 2]], rpm: f64) -> f64 {
         let Some(first) = curve.first() else {
@@ -367,7 +386,7 @@ impl Drivetrain {
             PowerUnitDef::Combustion(c) => {
                 let idle = c.idle_rpm * RPM_TO_RAD;
                 let red = c.redline_rpm * RPM_TO_RAD;
-                let limiter = m::clamp((1.02 * red - omega) / (0.02 * red), 0.0, 1.0);
+                let limiter = Self::limiter(red, omega);
                 let thr = throttle * limiter;
                 let wot = Self::curve_torque(&c.torque_curve, omega * RAD_TO_RPM);
                 let (braking, k_brake) = if c.engine_braking_curve.is_empty() {

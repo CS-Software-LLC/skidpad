@@ -210,6 +210,15 @@ channels! {
     PEAK_SLIP_FR => ("PeakSlip_FR", "-"),
     PEAK_SLIP_RL => ("PeakSlip_RL", "-"),
     PEAK_SLIP_RR => ("PeakSlip_RR", "-"),
+    // Drivetrain events for sound (F-30). The time left in the current
+    // shift: set to `shiftTime + shiftHold` when a gear engages and counting
+    // down to zero, with the torque interrupted while it is above
+    // `shiftHold`; a rise marks a shift, and it lasts long enough to be seen
+    // when reading once per frame. And how far the engine is into its rev
+    // limiter: 0 at or below redline, 1 where the throttle is fully cut, 2 %
+    // above it (always 0 without a combustion engine).
+    SHIFT_TIMER => ("ShiftTimer", "s"),
+    REV_LIMITER => ("RevLimiter", "-"),
 }
 
 /// Index of the first channel in each per-wheel group; the four wheels follow
@@ -267,7 +276,7 @@ mod tests {
         assert_eq!(CHANNELS[WHEEL_LOCKED_R].name, "WheelLocked_R");
         assert_eq!(CHANNELS[SPIN_ANGLE_RR].name, "SpinAngle_RR");
         assert_eq!(CHANNELS[ENGINE_RPM].name, "EngineRpm");
-        assert_eq!(STRIDE, PEAK_SLIP_RR + 1);
+        assert_eq!(STRIDE, REV_LIMITER + 1);
         for &g in WHEEL_GROUPS {
             let base = CHANNELS[g].name.trim_end_matches("_FL");
             for (k, side) in ["_FL", "_FR", "_RL", "_RR"].iter().enumerate() {

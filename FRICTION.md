@@ -13,6 +13,19 @@ Thirty problems (F-01 to F-30), one experiment (E-01) and twelve good
 surprises (G-01 to G-12) are logged below. They group into these issues,
 most severe first, each ready to file against the Skidpad repo.
 
+### Status
+
+All sixteen issues are fixed in this repo, unreleased, with one changeset
+each in `.changeset/`: 1 `worker-entry-side-effects`; 2
+`logitech-auto-protocol` (and `logitech-hidpp-long-reports`); 3
+`readmes-and-channel-names` and `core-api-gaps` (bundling); 4, 10
+`replay-game-logic`; 5, 6, 11 and F-08 `core-api-gaps`; 7, 14 and F-11's
+input comment `input-composition`; 8, 13 `presets-and-hosts`; 9
+`worker-lod-target` (F-23 is documented, not lifted); F-25
+`part-throttle-shift-schedule`; 15 `grip-channels` and `sound-metadata`.
+Two suggestions were not taken up: type-checking doc examples (F-11), and a
+worker entry that runs a Rapier scene (F-23).
+
 ### Issues to file
 
 **Blockers**
@@ -244,10 +257,11 @@ still to run (`E2E_ALL_BROWSERS=1 pnpm e2e`).
 - **Category:** feel
 - **What I tried / what happened / what I expected:** AI traffic cruising
   at 12 m/s (throttle about 0.23) in `hatchbackFwd`: on the four-wheel model
-  the automatic picks second at about 3100 rpm; after `setLod(car,
-  "singleTrack")` it stays in first at about 5700 rpm. At full throttle both
-  models shift alike (148 km/h, fourth, after 20 s). Harmless for
-  far-away traffic, but audible once engine sound follows the rpm channel.
+  the automatic picks second at about 3100 rpm; after
+  `setLod(car, "singleTrack")` it stays in first at about 5700 rpm. At full
+  throttle both models shift alike (148 km/h, fourth, after 20 s). Harmless
+  for far-away traffic, but audible once engine sound follows the rpm
+  channel.
 - **Workaround:** none.
 - **Suggested fix:** use the four-wheel model's shift logic on the
   single-track model, or document the difference.
@@ -389,7 +403,7 @@ still to run (`E2E_ALL_BROWSERS=1 pnpm e2e`).
   and `sliceGhost(from, to)` by time, or build a new recorder at each lap
   start. Slicing compares float32 frame times against float64 bounds with
   `>=`/`<=`, so whether the boundary frames make it in depends on rounding;
-  and each frame's time is the time *after* its step, which the docs do not
+  and each frame's time is the time _after_ its step, which the docs do not
   say, so lining a ghost up with a lap clock takes a probe.
 - **Workaround:** `Run` starts a new `GhostRecorder` on the step that
   crosses the line and samples the crossing step into both laps' ghosts,

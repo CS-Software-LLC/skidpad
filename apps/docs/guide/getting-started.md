@@ -35,7 +35,11 @@ The sandbox in `apps/sandbox` is the reference integration. The pattern is:
 - Feed inputs through `@skidpad/input` so keyboard, gamepad, and wheel
   all produce the same normalised frame.
 - For sound, `EngineRpm`, `ThrottleEffective` and `Gear` drive the engine
-  note, and per wheel `PeakSlip_*` (combined slip relative to the tire's
+  note, whose fundamental is `EngineRpm / 60 × sound.firingsPerRev` Hz with
+  the definition's `sound` block. `ShiftTimer` rises when a gear engages
+  and counts down through the shift (torque is cut while it is above
+  `shiftHold`), and `RevLimiter` says how far into the limiter's cut the
+  engine is (0 to 1). Per wheel `PeakSlip_*` (combined slip relative to the tire's
   peak: above 1 the tire is sliding), `WheelContact_*` and `SurfaceId_*`
   drive squeal and surface noise. `TireFmax_*` is each tire's friction
   limit. `sp.telemetryLayout` lists every channel with its unit, and

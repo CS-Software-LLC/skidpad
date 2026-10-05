@@ -16,6 +16,7 @@ and SI units; the only non-SI fields end in `Deg`.
 | `drivetrain` | Power unit (`direct`, `combustion` or `electric`), transmission, axle and centre differentials (ADR-0011)                                                                                                                     |
 | `aero`       | Drag coefficient, frontal area, air density, lift coefficient per axle, height of the drag line above the centre of mass (ADR-0015)                                                                                           |
 | `simulation` | Internal substep rate and `model`: `"fourWheel"` (default) or `"singleTrack"`                                                                                                                                                 |
+| `sound`      | `firingsPerRev`, combustion firings per crankshaft revolution, for the application's engine note (0, the default, means not given). Never simulated                                                                           |
 | `dataSheet`  | Sources for reference vehicles                                                                                                                                                                                                |
 
 Tire and suspension parameters are quoted **per wheel**. The single-track

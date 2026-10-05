@@ -159,6 +159,8 @@ export const CHANNEL_NAMES = [
   "PeakSlip_FR",
   "PeakSlip_RL",
   "PeakSlip_RR",
+  "ShiftTimer",
+  "RevLimiter",
 ] as const;
 
 /** A telemetry channel name; `World.read` checks it at compile time. */

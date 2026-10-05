@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://skidpad.dev/schema/vehicle-definition.schema.json",
   "title": "Skidpad vehicle definition",
-  "description": "A vehicle as plain data: chassis, axles with tires and suspension, steering, brakes, drivetrain, assists, aero, and simulation settings. All units SI unless the field name ends in Deg. Every field has a default; a definition may omit any of them.",
+  "description": "A vehicle as plain data: chassis, axles with tires and suspension, steering, brakes, drivetrain, assists, aero, simulation settings, and sound metadata. All units SI unless the field name ends in Deg. Every field has a default; a definition may omit any of them.",
   "type": "object",
   "properties": {
     "formatVersion": {
@@ -622,6 +622,20 @@
           "enum": ["fourWheel", "singleTrack"],
           "default": "fourWheel",
           "description": "Vehicle model: four wheels on independent suspension over a 6-DOF chassis proxy, or the planar single-track model"
+        }
+      },
+      "additionalProperties": false
+    },
+    "sound": {
+      "type": "object",
+      "description": "Metadata for the application's audio; the core carries it but never simulates it.",
+      "properties": {
+        "firingsPerRev": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 16,
+          "default": 0,
+          "description": "Combustion firings per crankshaft revolution: the engine note's fundamental is EngineRpm / 60 × firingsPerRev Hz. Half the cylinder count for a four-stroke, the cylinder count for a two-stroke; 0 means not given"
         }
       },
       "additionalProperties": false

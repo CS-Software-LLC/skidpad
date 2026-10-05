@@ -13,6 +13,11 @@
  * control on, `crossoverEv` traction control on; `hatchbackFwd`, `kart`
  * and `pickup4x4` ship no `assists` block, so every assist is off (the
  * core's default). Turn assists on or off in a copy's `assists`.
+ *
+ * Sound: every preset carries `sound.firingsPerRev` for its engine note
+ * (hatchback and open-wheeler 2, an inline four; sports car 3, a six;
+ * pickup 4, a V8; kart 1, a single-cylinder two-stroke; electric crossover
+ * 0). It is illustrative, and the core never simulates it.
  */
 import type { ChassisDefinition, PartialVehicleDefinition, SurfaceDefinition } from "@skidpad/core";
 import hatchbackFwd from "./vehicles/hatchback-fwd.json" with { type: "json" };

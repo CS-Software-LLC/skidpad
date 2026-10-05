@@ -184,5 +184,8 @@
       "slipTarget": 0.1,
       "slipRelease": 0.25
     }
+  },
+  "sound": {
+    "firingsPerRev": 0
   }
 }

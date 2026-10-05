@@ -30,6 +30,9 @@ pub struct VehicleDefinition {
     pub assists: AssistsDef,
     pub aero: AeroDef,
     pub simulation: SimulationDef,
+    /// What the vehicle sounds like (F-30): metadata for the application's
+    /// audio, carried and validated but never simulated.
+    pub sound: SoundDef,
 }
 
 impl Default for VehicleDefinition {
@@ -45,6 +48,7 @@ impl Default for VehicleDefinition {
             assists: AssistsDef::default(),
             aero: AeroDef::default(),
             simulation: SimulationDef::default(),
+            sound: SoundDef::default(),
         }
     }
 }
@@ -517,6 +521,26 @@ impl Default for SimulationDef {
     }
 }
 
+/// Sound metadata. The core never reads it; it travels with the
+/// definition so an application's engine sound does not have to guess per
+/// car.
+#[derive(Clone, Debug, PartialEq, Default)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "camelCase", default))]
+pub struct SoundDef {
+    /// Combustion firings per crankshaft revolution: the engine note's
+    /// fundamental is `EngineRpm / 60 × firingsPerRev` Hz. Half the
+    /// cylinder count for a four-stroke, the cylinder count for a
+    /// two-stroke. Zero (the default) means not given, as for an electric
+    /// motor or the direct drive.
+    pub firings_per_rev: f64,
+}
+
+impl SoundDef {
+    /// Largest `firingsPerRev` accepted (a sixteen-cylinder two-stroke).
+    pub const MAX_FIRINGS_PER_REV: f64 = 16.0;
+}
+
 /// The vehicle models, selectable per definition. Both read the same
 /// definition; the single-track model ignores suspension, inertia and
 /// Ackermann fields.
@@ -722,6 +746,13 @@ impl VehicleDefinition {
             e.push(format!(
                 "simulation.substepRateHz must be between 60 and 10000 (got {})",
                 self.simulation.substep_rate_hz
+            ));
+        }
+        let f = self.sound.firings_per_rev;
+        if !(0.0..=SoundDef::MAX_FIRINGS_PER_REV).contains(&f) {
+            e.push(format!(
+                "sound.firingsPerRev must be between 0 and {} (got {f})",
+                SoundDef::MAX_FIRINGS_PER_REV
             ));
         }
         // Finite check over everything that reaches the integrator.

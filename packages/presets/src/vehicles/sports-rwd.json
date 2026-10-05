@@ -211,5 +211,8 @@
       "enabled": false,
       "latAccelLimit": 9.0
     }
+  },
+  "sound": {
+    "firingsPerRev": 3
   }
 }

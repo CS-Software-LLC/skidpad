@@ -440,6 +440,21 @@ export interface SimulationDefinition {
   model: VehicleModelKind;
 }
 
+/**
+ * What the vehicle sounds like: metadata for the application's audio,
+ * carried and validated by the core but never simulated.
+ */
+export interface SoundDefinition {
+  /**
+   * Combustion firings per crankshaft revolution, so the engine note's
+   * fundamental is `EngineRpm / 60 × firingsPerRev` Hz: half the cylinder
+   * count for a four-stroke (2 for an inline four, 3 for a six, 4 for a
+   * V8), the cylinder count for a two-stroke. 0 to 16; 0 (the default)
+   * means not given, as for an electric motor or the direct drive.
+   */
+  firingsPerRev: number;
+}
+
 /** Sources and notes for a reference vehicle. */
 export interface DataSheet {
   description?: string;
@@ -459,6 +474,7 @@ export interface VehicleDefinition {
   assists: AssistsDefinition;
   aero: AeroDefinition;
   simulation: SimulationDefinition;
+  sound: SoundDefinition;
   dataSheet?: DataSheet;
 }
 
@@ -484,5 +500,6 @@ export type PartialVehicleDefinition = {
   assists?: PartialAssistsDefinition;
   aero?: Partial<AeroDefinition>;
   simulation?: Partial<SimulationDefinition>;
+  sound?: Partial<SoundDefinition>;
   dataSheet?: DataSheet;
 };

@@ -177,5 +177,8 @@
       "kind": "open",
       "frontTorqueFraction": 0.5
     }
+  },
+  "sound": {
+    "firingsPerRev": 2
   }
 }

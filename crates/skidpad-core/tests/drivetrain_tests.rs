@@ -600,6 +600,111 @@ fn bad_drivetrains_are_rejected() {
     }
 }
 
+#[test]
+fn the_shift_timer_marks_every_shift_on_both_models() {
+    for model in [VehicleModelKind::FourWheel, VehicleModelKind::SingleTrack] {
+        let mut d = combustion_def();
+        d.simulation.model = model;
+        let t_shift = d.drivetrain.transmission.shift_time + d.drivetrain.transmission.shift_hold;
+        let mut w = World::new(1);
+        w.add_vehicle(d).unwrap();
+        w.set_input(0, throttle(1.0)).unwrap();
+        let (mut gear, mut timer) = (
+            w.telemetry_of(0)[t::GEAR],
+            w.telemetry_of(0)[t::SHIFT_TIMER],
+        );
+        assert_eq!(timer, 0.0, "{model:?}: no shift at rest");
+        let mut shifts = 0;
+        for k in 0..1500 {
+            w.step(0.01);
+            let v = w.telemetry_of(0);
+            let rose = v[t::SHIFT_TIMER] > timer;
+            assert_eq!(rose, v[t::GEAR] != gear, "{model:?}: step {k}");
+            if rose {
+                shifts += 1;
+                // Set at the substep the gear engaged, at most one frame ago.
+                assert!(
+                    v[t::SHIFT_TIMER] > t_shift - 0.01 && v[t::SHIFT_TIMER] <= t_shift,
+                    "{model:?}: {}",
+                    v[t::SHIFT_TIMER]
+                );
+            }
+            assert!(v[t::SHIFT_TIMER] >= 0.0);
+            (gear, timer) = (v[t::GEAR], v[t::SHIFT_TIMER]);
+        }
+        assert!(shifts >= 3, "{model:?}: {shifts} shifts");
+    }
+}
+
+#[test]
+fn the_rev_limiter_channel_reads_the_cut_at_the_limiter_only() {
+    let mut d = combustion_def();
+    d.drivetrain.transmission.mode = TransmissionMode::Manual;
+    let mut w = World::new(1);
+    w.add_vehicle(d).unwrap();
+    assert_eq!(w.telemetry_of(0)[t::REV_LIMITER], 0.0);
+    // Neutral: full throttle holds the engine on the limiter.
+    drive(&mut w, throttle(1.0), 3.0);
+    let cut = w.telemetry_of(0)[t::REV_LIMITER];
+    let rpm = w.telemetry_of(0)[t::ENGINE_RPM];
+    assert!(cut > 0.0 && cut <= 1.0, "{cut} at {rpm} rpm");
+    let expected = m::clamp((rpm - 6500.0) / (0.02 * 6500.0), 0.0, 1.0);
+    assert!((cut - expected).abs() < 1e-9, "{cut} vs {expected}");
+    drive(&mut w, throttle(0.0), 5.0);
+    assert_eq!(w.telemetry_of(0)[t::REV_LIMITER], 0.0);
+    // No combustion engine, no limiter.
+    let mut w = World::new(1);
+    w.add_vehicle(electric_def()).unwrap();
+    drive(&mut w, throttle(1.0), 5.0);
+    assert_eq!(w.telemetry_of(0)[t::REV_LIMITER], 0.0);
+}
+
+#[test]
+fn the_shift_timer_follows_a_restore() {
+    let d = combustion_def();
+    let mut a = World::new(1);
+    a.add_vehicle(d.clone()).unwrap();
+    let mut b = World::new(1);
+    b.add_vehicle(d).unwrap();
+    a.set_input(0, throttle(1.0)).unwrap();
+    // Stop just after the first shift, with the timer running.
+    while a.telemetry_of(0)[t::SHIFT_TIMER] == 0.0 {
+        a.step(0.01);
+    }
+    let mut buf = vec![0u8; a.snapshot_len(0).unwrap()];
+    a.snapshot(0, &mut buf).unwrap();
+    b.restore(0, &buf).unwrap();
+    assert!(b.telemetry_of(0)[t::SHIFT_TIMER] > 0.0);
+    assert_eq!(
+        a.telemetry_of(0)[t::SHIFT_TIMER],
+        b.telemetry_of(0)[t::SHIFT_TIMER]
+    );
+}
+
+#[test]
+fn sound_metadata_is_validated_and_never_simulated() {
+    for f in [-1.0, 17.0, f64::NAN] {
+        let mut d = combustion_def();
+        d.sound.firings_per_rev = f;
+        let err = d.validate().unwrap_err();
+        assert!(
+            err.iter()
+                .any(|e| e.starts_with("sound.firingsPerRev must be between 0 and 16")),
+            "{err:?}"
+        );
+    }
+    let quiet = combustion_def();
+    let mut loud = combustion_def();
+    loud.sound.firings_per_rev = 3.0;
+    loud.validate().unwrap();
+    let (mut a, mut b) = (World::new(1), World::new(1));
+    a.add_vehicle(quiet).unwrap();
+    b.add_vehicle(loud).unwrap();
+    drive(&mut a, throttle(1.0), 5.0);
+    drive(&mut b, throttle(1.0), 5.0);
+    assert_eq!(a.state_hash(0).unwrap(), b.state_hash(0).unwrap());
+}
+
 /// Speed after coasting 10 s from 25 m/s in drive with the throttle closed.
 fn coast_speed(d: VehicleDefinition) -> (f64, Vec<f64>) {
     let mut w = World::new(1);

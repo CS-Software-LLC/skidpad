@@ -660,6 +660,10 @@ export function validateDefinition(def: unknown): ValidationResult {
   if (model !== undefined && model !== "singleTrack" && model !== "fourWheel") {
     errors.push(`simulation.model must be "fourWheel" or "singleTrack" (got "${String(model)}")`);
   }
+  const firings = d.sound?.firingsPerRev;
+  if (firings !== undefined && (!isNum(firings) || firings < 0 || firings > 16)) {
+    errors.push(`sound.firingsPerRev must be between 0 and 16 (got ${String(firings)})`);
+  }
 
   return { ok: errors.length === 0, errors, warnings };
 }
