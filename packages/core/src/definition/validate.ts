@@ -611,7 +611,9 @@ export function validateDefinition(def: unknown): ValidationResult {
   }
   const atc = s.alignTorqueComplianceDeg;
   if (atc !== undefined && (!isNum(atc) || atc < 0 || atc > 30)) {
-    errors.push(`steering.alignTorqueComplianceDeg must be in [0, 30] deg/kN·m (got ${String(atc)})`);
+    errors.push(
+      `steering.alignTorqueComplianceDeg must be in [0, 30] deg/kN·m (got ${String(atc)})`,
+    );
   }
   nonNegative(errors, "steering.columnFriction", s.columnFriction);
   nonNegative(errors, "steering.columnDamping", s.columnDamping);
