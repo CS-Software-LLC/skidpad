@@ -1,5 +1,16 @@
 # @skidpad/core
 
+## 0.9.0
+
+### Minor Changes
+
+- ad29b23: - physics: compliance steer (ADR-0027). `steering.alignTorqueComplianceDeg` turns the steered wheels by degrees per kN·m of the axle's kingpin torque, as the steering system winds up with the hand wheel held; `axles[].lateralComplianceSteerDeg` turns each wheel by degrees per kN of its own lateral force, positive understeer on either axle. Both default to 0, act through the previous substep's forces, and are carried by the four-wheel and single-track models. `WheelSteer_*` includes the compliance angle; new channels `ComplianceSteer_FL` … `ComplianceSteer_RR` report it alone. Definitions without the fields run bit for bit as before (the presets' scripted drives match the previous core exactly); the golden state hashes change only because the state now holds the lagged kingpin torque.
+  - Breaking: the snapshot format is version 6 (the previous kingpin torque joins the state, and the single-track model's previous axle lateral forces), so snapshots and replay keyframes saved by earlier versions do not restore.
+
+### Patch Changes
+
+- e678655: physics: an automatic no longer lifts the throttle through a downshift. It lifted whenever the clutch was open for a shift, which brings the engine down for an upshift. On a downshift the engine fell away from the lower gear's speed, and the re-engaging clutch dragged it up with the driven wheels: a drive-torque reversal that spun the NHTSA Jeep Cherokee comparison car when it kicked down near the cornering limit. While the clutch is open the automatic now keeps the driver's throttle until the engine reaches the new gear's speed (ADR-0025, amendment). Full-throttle and constant-throttle runs are bit-identical. The hatchback and pickup understeer gradients move by less than 0.001 deg/g, and their timestep sweeps and scripted drive hashes change; the goldens are regenerated.
+
 ## 0.8.0
 
 ### Minor Changes

@@ -1,5 +1,13 @@
 # @skidpad/replay
 
+## 0.9.0
+
+### Patch Changes
+
+- Updated dependencies [e678655]
+- Updated dependencies [ad29b23]
+  - @skidpad/core@0.9.0
+
 ## 0.8.0
 
 ### Minor Changes
