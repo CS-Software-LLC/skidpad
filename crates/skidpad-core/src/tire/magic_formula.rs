@@ -66,7 +66,7 @@ mf_params! {
         // Dimensions and references
         /// Unloaded radius `R0`, m.
         unloaded_radius: "UNLOADED_RADIUS" = 0.31,
-        /// Nominal load `Fz0`, N.
+        /// Nominal load `Fz0`, N (`FNOMIN` in PAC2002 and MF-Tyre files).
         fz0: "FZ0" = 4000.0,
         /// Reference speed `V0` for the rolling resistance speed terms, m/s.
         longvl: "LONGVL" = 16.7,
@@ -232,6 +232,8 @@ impl MagicFormulaParams {
         m::abs(self.kya(fz, 0.0))
     }
 
+    /// `Kyα` with camber (eq. 4.E25). `F'z0 = λFz0·Fz0` carries the
+    /// nominal-load scale once; it is not applied again.
     #[inline]
     fn kya(&self, fz: f64, gamma: f64) -> f64 {
         let f0 = self.fz0_prime();
@@ -239,7 +241,6 @@ impl MagicFormulaParams {
             * f0
             * m::sin(2.0 * m::atan(fz / (self.pky2 * f0)))
             * (1.0 - self.pky3 * m::abs(gamma))
-            * self.lfzo
             * self.lky
     }
 

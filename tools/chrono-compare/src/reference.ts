@@ -1,5 +1,5 @@
 /**
- * Chrono's reference rows (`reference/`, written by `chrono/bmw_e90.py`)
+ * Chrono's reference rows (`reference/<car>/`, written by `chrono/<car>.py`)
  * and the row format both harnesses share.
  */
 import { readFileSync } from "node:fs";
@@ -8,7 +8,16 @@ import { fileURLToPath } from "node:url";
 
 export const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 
+/** The Chrono reference cars, each with its own `reference/<car>/`. */
+export type CarName = "bmw_e90" | "sedan";
+export const CARS: CarName[] = ["bmw_e90", "sedan"];
+
+export function referenceDir(car: CarName): string {
+  return join(ROOT, "reference", car);
+}
+
 type WheelChannel = `${"fz" | "fx" | "fy" | "slip" | "alpha" | "omega"}${0 | 1 | 2 | 3}`;
+type TravelChannel = `${"sz" | "travel"}${0 | 1 | 2 | 3}`;
 type Channel =
   | "t"
   | "x"
@@ -31,7 +40,7 @@ type Channel =
  * (`delta0`…`delta3`); Skidpad's carry the mean front angle it was steered
  * with (`delta`).
  */
-export type Row = { [K in Channel]: number } & {
+export type Row = { [K in Channel]: number } & { [K in TravelChannel]?: number } & {
   delta?: number;
   delta0?: number;
   delta1?: number;
@@ -40,16 +49,48 @@ export type Row = { [K in Channel]: number } & {
 };
 export type RowKey = keyof Row;
 
-export function loadReference(name: string): Row[] {
-  const text = readFileSync(join(ROOT, "reference", `${name}.csv`), "utf8").trim();
-  const [head = "", ...lines] = text.split("\n");
+/**
+ * Chrono's rows of a manoeuvre. Where they log spindle heights (`sz0`…`sz3`)
+ * and the car's equilibrium is measured, each wheel's travel from that
+ * equilibrium is added as `travel0`…`travel3` (m, + bump), as Skidpad's
+ * rows carry it.
+ */
+export function loadReference(name: string, car: CarName = "bmw_e90"): Row[] {
+  const text = readFileSync(join(referenceDir(car), `${name}.csv`), "utf8").trim();
+  const [head = "", ...lines] = text.split(/\r?\n/);
   const keys = head.split(",");
+  const eq = keys.includes("sz0") ? loadEquilibrium(car) : null;
   return lines.map((l) => {
     const v = l.split(",");
     const r: Record<string, number> = {};
     keys.forEach((k, i) => (r[k] = Number(v[i])));
+    if (eq) for (let i = 0; i < 4; i++) r[`travel${i}`] = r[`sz${i}`]! - eq.equilibriumZ[i]!;
     return r as Row;
   });
+}
+
+type Wheels = [number, number, number, number];
+
+/**
+ * The car's ride height at its true static equilibrium (`chrono/equilibrium.py`,
+ * `reference/<car>/equilibrium.json`): each spindle pushed up by its static
+ * load with the tires off the ground, so no tire force props or jacks it.
+ * Heights are in the chassis frame, m; `travel` is each wheel's
+ * equilibrium less its parked height (+ bump); `toe` is each wheel's toe-in
+ * there, rad.
+ */
+export interface Equilibrium {
+  loads: Wheels;
+  restZ: Wheels;
+  equilibriumZ: Wheels;
+  travel: Wheels;
+  toe: Wheels;
+}
+
+export function loadEquilibrium(car: CarName): Equilibrium {
+  return JSON.parse(
+    readFileSync(join(referenceDir(car), "equilibrium.json"), "utf8"),
+  ) as Equilibrium;
 }
 
 /** Linear interpolation of a channel at time t (rows sorted by time). */
@@ -70,7 +111,7 @@ export function at(rows: Row[], t: number, key: RowKey): number {
   return get(a) + ((get(b) - get(a)) * (t - a.t)) / (b.t - a.t);
 }
 
-/** One row of the kinematics sweep (`reference/kc.csv`, `chrono/bmw_e90_kc.py`). */
+/** One row of the kinematics sweep (`reference/<car>/kc.csv`, `chrono/kc.py`). */
 export interface KcRow {
   phase: "rest" | "heave" | "roll";
   /** Chassis raised by, m. */
@@ -83,22 +124,37 @@ export interface KcRow {
   toe: [number, number, number, number];
   /** Camber relative to the chassis, degrees, negative top-in. */
   camber: [number, number, number, number];
+  /** Spindle position in the chassis frame, m (sweeps newer than the E90's). */
+  x?: [number, number, number, number] | undefined;
+  y?: [number, number, number, number] | undefined;
+  /** Spring and damper lengths, m, where the suspension reports them (sweeps newer than the E90's). */
+  spring?: [number, number, number, number] | undefined;
+  shock?: [number, number, number, number] | undefined;
 }
 
-export function loadKc(): KcRow[] {
-  const text = readFileSync(join(ROOT, "reference", "kc.csv"), "utf8").trim();
-  const [, ...lines] = text.split("\n");
+export function loadKc(car: CarName = "bmw_e90"): KcRow[] {
+  const text = readFileSync(join(referenceDir(car), "kc.csv"), "utf8").trim();
+  // Python's csv module ends its lines with \r\n.
+  const [head = "", ...lines] = text.split(/\r?\n/);
+  const keys = head.split(",");
   return lines.map((l) => {
-    const [phase, ...v] = l.split(",");
-    const n = v.map(Number);
-    const wheel = (k: number) => [0, 1, 2, 3].map((i) => n[2 + 3 * i + k]!) as KcRow["z"];
+    const v = l.split(",");
+    const col = (k: string) => keys.indexOf(k);
+    const wheel = (k: string) => {
+      if (col(`${k}0`) < 0) return undefined;
+      return [0, 1, 2, 3].map((i) => Number(v[col(`${k}${i}`)])) as KcRow["z"];
+    };
     return {
-      phase: phase as KcRow["phase"],
-      heave: n[0]!,
-      roll: n[1]!,
-      z: wheel(0),
-      toe: wheel(1),
-      camber: wheel(2),
+      phase: v[0] as KcRow["phase"],
+      heave: Number(v[col("heave")]),
+      roll: Number(v[col("roll")]),
+      z: wheel("z")!,
+      toe: wheel("toe")!,
+      camber: wheel("camber")!,
+      x: wheel("x"),
+      y: wheel("y"),
+      spring: wheel("spring"),
+      shock: wheel("shock"),
     };
   });
 }

@@ -1,7 +1,7 @@
 /**
- * Runs the manoeuvres in `chrono/maneuvers.json` on Skidpad's model of the
- * Chrono BMW_E90 and returns rows in the same format as the Chrono CSVs
- * (`chrono/bmw_e90.py`): 100 Hz, vehicle frame x forward, y left, z up,
+ * Runs the manoeuvres in `chrono/maneuvers.json` on Skidpad's model of a
+ * Chrono reference car and returns rows in the same format as the Chrono
+ * CSVs (`chrono/common.py`): 100 Hz, vehicle frame x forward, y left, z up,
  * steer input + = right.
  *
  * Inputs follow the Chrono script: the same pedal schedules, and the same PI
@@ -32,10 +32,10 @@ import {
   type PartialVehicleDefinition,
   type Skidpad,
 } from "@skidpad/core";
-import { at, loadReference, ROOT, type Row } from "./reference.js";
+import { at, loadReference, ROOT, type CarName, type Row } from "./reference.js";
 import { bmwE90, MAX_WHEEL_ANGLE_DEG } from "./vehicle.js";
 
-export { at, loadReference, type Row, type RowKey } from "./reference.js";
+export { at, loadReference, type CarName, type Row, type RowKey } from "./reference.js";
 
 type Pts = [number, number][];
 export interface Spec {
@@ -88,13 +88,16 @@ const LOG_EVERY = 10;
 const MAX_STEER = (MAX_WHEEL_ANGLE_DEG * Math.PI) / 180;
 
 export interface RunOptions {
+  /** The car's definition; default the E90's. */
   definition?: PartialVehicleDefinition;
+  /** Whose reference rows to follow (steering, start speed); default the E90's. */
+  car?: CarName;
 }
 
 export function runManeuver(sp: Skidpad, name: string, opts: RunOptions = {}): Row[] {
   const spec = MANEUVERS[name];
   if (!spec) throw new Error(`unknown manoeuvre ${name}`);
-  const ref = loadReference(name);
+  const ref = loadReference(name, opts.car);
   const world = sp.createWorld(1);
   try {
     const definition = opts.definition ?? bmwE90();
@@ -180,6 +183,7 @@ export function runManeuver(sp: Skidpad, name: string, opts: RunOptions = {}): R
         row[`slip${i}`] = read(`SlipRatio_${w}`);
         row[`alpha${i}`] = read(`SlipAngle_${w}`);
         row[`omega${i}`] = read(`WheelSpeed_${w}`);
+        row[`travel${i}`] = read(`SuspTravel_${w}`);
       });
       rows.push(row as Row);
     }

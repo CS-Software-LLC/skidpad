@@ -50,7 +50,7 @@ one pair:
   fraction against travel. The front roll centre falls 2.9 mm per mm of
   bump and the rear 1.6 mm. The anti fractions barely move: the front's
   changes by 0.02 over the whole range. Camber against travel comes from
-  `chrono/bmw_e90_kc.py`, which holds the parked car's chassis and moves it
+  `chrono/kc.py bmw_e90`, which holds the parked car's chassis and moves it
   in heave and roll as a kinematics-and-compliance rig does. The static
   camber is Chrono's at rest, −1.19° front (Chrono's front spindle is built
   at −2°) and −0.09° rear. Neither tire produces force from camber, so the
@@ -134,7 +134,17 @@ Traces, as RMS difference over the manoeuvre divided by Chrono's range
 | sineSteer    | roll            | 8.1 %      | outside |
 | lowSpeedTurn | yaw rate        | 0.8 %      | pass    |
 
-21 of 23 predicted metrics and 9 of 13 traces are within tolerance. Steady
+21 of 23 predicted metrics and 9 of 13 traces are within tolerance.
+
+_Update 2026-10-10._ The travel curves are now read from Chrono's true
+equilibrium ride height (`chrono/equilibrium.py`), not the parked car's.
+For the E90 the two are within 0.6 mm, so nothing above moves by more than
+its rounding, and the sine steer's peak roll comes inside at 14.9 %. Two
+metrics were added for both reference cars: the front and rear ride heights
+while running straight, measured from equilibrium (±3 mm). Both are outside
+on the E90. Skidpad's front lifts 27 mm against Chrono's 6 mm, and Chrono's
+rear rides 29 mm up while Skidpad's rides 7 mm up ([chrono-sedan.md](chrono-sedan.md),
+finding 6). That makes 22 of 25 predicted metrics. Steady
 and transient handling both agree: understeer, lateral acceleration to the
 limit, yaw gain, roll, the step-steer response and the sine-steer lag are
 all inside their bands, and with the travel curves so are the braking
@@ -242,9 +252,11 @@ up its curve, where it is less stiff, and its benefit to the loaded outer
 wheel arrives only with the load transfer. So the car answers later and
 overshoots less.
 
-**2. Chrono's toe follows force, not travel.** Chrono's toe changes as it
+**2. Chrono's toe follows force, not travel.** _Corrected 2026-10-10: this
+finding is wrong. Chrono's toe follows travel; see the correction at the end
+of this finding and [chrono-sedan.md](chrono-sedan.md), finding 3._ Chrono's toe changes as it
 drives: 1.43° front and 0.67° rear driving straight, falling to about 0.9°
-and 0.52° at 0.8 g. Its own kinematics sweep (`chrono/bmw_e90_kc.py`, the
+and 0.52° at 0.8 g. Its own kinematics sweep (`chrono/kc.py bmw_e90`, the
 parked car's chassis held and rolled) does not produce that. At the 3.2° of
 roll the ramp reaches, the sweep holds the front's mean toe-in at 1.29°,
 and steers the rear by 0.30° out of the turn, where the driving car steers
@@ -255,6 +267,19 @@ curves Skidpad's car oversteers (−0.45°/g) and its yaw response slows by
 toe fixed at the straight-running value. That is still the likely reason
 the understeer gradient sits at about 0 against Chrono's 0.20.
 
+_Correction._ The comparison above set the toe of the driving car against
+the sweep at the same body roll, and read the toe as the left-right
+difference of the road-wheel angles. Both were wrong. The driving car
+rides at a different height from the parked one, and in a turn the
+difference includes Ackermann. Logged against each wheel's own travel, the
+toe of the driving car sits on the sweep's toe-against-travel curve within
+0.04° running straight. With Ackermann taken out (from a parked steering
+sweep), less than 0.06° is left in turns up to 0.6 g. Ten times the solver
+iterations leave it unchanged. There is no compliance steer to model. The
+toe curves failed because Skidpad's toe-in forces jack the front up more
+than Chrono's do, and the bump steer then adds toe-in
+([chrono-sedan.md](chrono-sedan.md), finding 6).
+
 The sweep also shows the front's bump steer is steep: 1.9° of toe-out over
 8 cm of bump, through zero at the design ride height, so Chrono's 1.27° at
 rest is that bump steer over the 5.2 cm the car settles. Solving the
@@ -264,8 +289,9 @@ rest 2.1 mm behind where Chrono's is. Holding the spindle where Chrono's
 is reproduces Chrono's toe exactly, with the tie rod 2.8 mm longer than
 its hardpoints. The same solve reproduces the rear within 0.1°. Chrono's
 front joints are rigid in its source, so the gap is unexplained; it is
-consistent with the front linkage giving under load, which would also be
-compliance steer.
+consistent with the front linkage giving under load. (Corrected: the
+driving car's toe matches the sweep at its own travel, so the linkage does
+not give under load.)
 
 **3. Travel curves close the braking pitch gap.** Skidpad now pitches
 4.33°/g against Chrono's 4.37, from 3.3 with the geometry fixed. The anti
@@ -299,7 +325,10 @@ against Skidpad's 73 m. Chrono's tire forces, rebuilt from its own logged
 slips through its own tire formula, show it realising about 7 % less brake
 torque than its nominal 800 N·m per wheel. Skidpad realises the nominal
 torque. The finding sits on the reference side. The likely cause is
-Chrono's friction-clutch brake constraint, but that is unconfirmed.
+Chrono's friction-clutch brake constraint, but that is unconfirmed. Chrono's
+Sedan uses the same brake model and stops within 2 % of Skidpad at the same
+pedal ([chrono-sedan.md](chrono-sedan.md)), which makes the E90's TMsimple
+tire the more likely cause.
 
 **7. A small coast-down remainder.** At the same start speed and engine map,
 Skidpad still decelerates 5 to 9 % faster than Chrono through the coast,
@@ -308,10 +337,10 @@ all carried over. The remaining difference is open and within tolerance.
 
 ## Recommendations
 
-1. **Compliance steer next, if the understeer gradient matters.** Toe that
-   moves with lateral force is what Chrono's car shows and what a
-   toe-against-travel curve cannot carry (finding 2). ADR-0026 lists it as
-   a follow-up.
+1. **Not compliance steer** (corrected 2026-10-10). Chrono's toe follows
+   travel (finding 2, corrected). The understeer gap, about 0.2°/g on both
+   reference cars, stays open; [chrono-sedan.md](chrono-sedan.md) has the
+   next steps.
 2. **Look at the roll progression.** Skidpad's roll per g now grows faster
    than Chrono's at high lateral acceleration (finding 4). A lateral
    roll-centre shift, or curves measured in roll rather than heave, would
@@ -337,5 +366,5 @@ To regenerate the reference, about 8 GB and 3 minutes:
 ```sh
 micromamba create -p /opt/mm/chrono -c projectchrono -c conda-forge python=3.12 pychrono=9.0.1 numpy
 /opt/mm/chrono/bin/python tools/chrono-compare/chrono/bmw_e90.py
-/opt/mm/chrono/bin/python tools/chrono-compare/chrono/bmw_e90_kc.py   # kinematics sweep
+/opt/mm/chrono/bin/python tools/chrono-compare/chrono/kc.py bmw_e90   # kinematics sweep
 ```

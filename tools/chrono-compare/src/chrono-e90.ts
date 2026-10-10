@@ -6,7 +6,7 @@
  * relative to the chassis reference frame unless noted.
  *
  * Measured quantities (static loads, ride height, inertia about the centre
- * of mass) come from `reference/static.json`, written by `chrono/bmw_e90.py`.
+ * of mass) come from `reference/bmw_e90/static.json`, written by `chrono/bmw_e90.py`.
  */
 
 /** TMsimple coefficients (`BMW_E90_TMsimpleTireFront.cpp`, `...Rear.cpp`). */

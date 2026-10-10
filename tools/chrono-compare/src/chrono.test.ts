@@ -1,7 +1,7 @@
 /**
  * Regression guard on the comparison with Project Chrono's BMW_E90
  * (docs/validation/chrono-bmw-e90.md). Needs no Chrono install: the reference
- * rows are committed in `reference/`.
+ * rows are committed in `reference/bmw_e90/`.
  *
  * Every metric and trace within tolerance today must stay within it. The
  * known gaps below are outside it for the reasons the report gives; when a
@@ -14,7 +14,7 @@ import { loadReference, MANEUVERS, runManeuver, type Row } from "./run.js";
 import { validateDefinition } from "@skidpad/core";
 import { measuredAngles, wheelAngles } from "./kinematics.js";
 import { loadKc } from "./reference.js";
-import { bmwE90, derive, loadStatic } from "./vehicle.js";
+import { bmwE90, derive, E90_FITTED, loadStatic } from "./vehicle.js";
 
 /** `maneuver: label` → why it is outside tolerance. */
 export const KNOWN_GAPS: Record<string, string> = {
@@ -26,8 +26,11 @@ export const KNOWN_GAPS: Record<string, string> = {
     "with migrating roll centres Skidpad's roll per g grows with lateral acceleration faster than Chrono's",
   "stepSteer: roll":
     "with migrating roll centres Skidpad's roll per g grows with lateral acceleration faster than Chrono's",
-  "sineSteer: peak roll": "open: Skidpad overshoots in roll more than Chrono",
   "sineSteer: roll": "open: Skidpad overshoots in roll more than Chrono",
+  "stepSteer: front ride height running straight, from equilibrium":
+    "Skidpad's toe-in forces jack the front up through its roll centre; Chrono's front lifts a quarter as much",
+  "stepSteer: rear ride height running straight, from equilibrium":
+    "open: Chrono's rear rides 29 mm up from equilibrium at any speed, which its roll centre does not explain",
 };
 
 describe("Skidpad against Project Chrono's BMW_E90", () => {
@@ -44,7 +47,7 @@ describe("Skidpad against Project Chrono's BMW_E90", () => {
       chrono[name] = loadReference(name);
       skidpad[name] = runManeuver(sp, name, { definition });
     }
-    ({ metrics, traces } = evaluate(chrono, skidpad, d.wheelbase));
+    ({ metrics, traces } = evaluate(chrono, skidpad, d.wheelbase, E90_FITTED));
   }, 120_000);
 
   it("keeps every metric outside the known gaps within tolerance", () => {

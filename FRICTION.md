@@ -245,7 +245,7 @@ still to run (`E2E_ALL_BROWSERS=1 pnpm e2e`).
 - **What I tried / what happened / what I expected:** AI traffic cruising
   at 12 m/s (throttle about 0.23) in `hatchbackFwd`: on the four-wheel model
   the automatic picks second at about 3100 rpm; after `setLod(car,
-  "singleTrack")` it stays in first at about 5700 rpm. At full throttle both
+"singleTrack")` it stays in first at about 5700 rpm. At full throttle both
   models shift alike (148 km/h, fourth, after 20 s). Harmless for
   far-away traffic, but audible once engine sound follows the rpm channel.
 - **Workaround:** none.
@@ -389,7 +389,7 @@ still to run (`E2E_ALL_BROWSERS=1 pnpm e2e`).
   and `sliceGhost(from, to)` by time, or build a new recorder at each lap
   start. Slicing compares float32 frame times against float64 bounds with
   `>=`/`<=`, so whether the boundary frames make it in depends on rounding;
-  and each frame's time is the time *after* its step, which the docs do not
+  and each frame's time is the time _after_ its step, which the docs do not
   say, so lining a ghost up with a lap clock takes a probe.
 - **Workaround:** `Run` starts a new `GhostRecorder` on the step that
   crosses the line and samples the crossing step into both laps' ghosts,

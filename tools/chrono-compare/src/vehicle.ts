@@ -1,7 +1,7 @@
 /**
  * Skidpad's model of Project Chrono's BMW_E90, built from Chrono's published
  * constants (`chrono-e90.ts`) and its measured static state
- * (`reference/static.json`). Every value is taken or derived from Chrono
+ * (`reference/bmw_e90/static.json`). Every value is taken or derived from Chrono
  * except the anti-roll bar rates, which are FITTED (see `fit.ts`): Chrono's
  * bars act through linkages Skidpad does not model, so their wheel rates
  * are identified from Chrono's roll gradient and front share of lateral
@@ -16,7 +16,7 @@ import type { PartialVehicleDefinition } from "@skidpad/core";
 import * as c from "./chrono-e90.js";
 import { doubleWishboneRollCentre, macphersonRollCentre } from "./geometry.js";
 import { travelCurves, type TravelCurves } from "./kinematics.js";
-import { loadReference, ROOT } from "./reference.js";
+import { loadEquilibrium, loadReference, referenceDir, type CarName } from "./reference.js";
 import { fitMagicFormula } from "./tire-fit.js";
 
 export { ROOT } from "./reference.js";
@@ -35,9 +35,39 @@ export interface ChronoStatic {
   toe: [number, number, number, number];
 }
 
-export function loadStatic(): ChronoStatic {
-  return JSON.parse(readFileSync(join(ROOT, "reference", "static.json"), "utf8")) as ChronoStatic;
+export function loadStatic(car: CarName = "bmw_e90"): ChronoStatic {
+  return JSON.parse(readFileSync(join(referenceDir(car), "static.json"), "utf8")) as ChronoStatic;
 }
+
+/**
+ * The static state with each spindle at Chrono's equilibrium ride height
+ * (`chrono/equilibrium.py`) instead of where the parked car's tires propped
+ * it. Skidpad's travel is measured from its own equilibrium, so the travel
+ * curves and the centre-of-mass height are taken there.
+ */
+export function atEquilibrium(s: ChronoStatic, car: CarName): ChronoStatic {
+  const { travel } = loadEquilibrium(car);
+  return {
+    ...s,
+    spindleLocal: s.spindleLocal.map(([x, y, z], i): Vec3 => [
+      x,
+      y,
+      z + travel[i]!,
+    ]) as ChronoStatic["spindleLocal"],
+  };
+}
+
+/** Each axle's equilibrium ride height from the parked one, m (+ bump; mean of its wheels). */
+export function equilibriumOffset(car: CarName): { front: number; rear: number } {
+  const { travel } = loadEquilibrium(car);
+  return { front: 0.5 * (travel[0] + travel[1]), rear: 0.5 * (travel[2] + travel[3]) };
+}
+
+/** The metrics the anti-roll bars are fitted to (`fit.ts`), so not predictions. */
+export const E90_FITTED: ReadonlySet<string> = new Set([
+  "rampSteer: roll gradient",
+  "rampSteer: front share of lateral load transfer",
+]);
 
 /** Anti-roll bar wheel rates, N/m: FITTED by `fit.ts` (`pnpm compare --fit`). */
 export const FITTED_ANTI_ROLL = { front: 14750, rear: 8250 };
@@ -133,7 +163,7 @@ function drivingToe(): { front: number; rear: number } {
   };
 }
 
-export function derive(s: ChronoStatic = loadStatic()): Derived {
+export function derive(s: ChronoStatic = atEquilibrium(loadStatic(), "bmw_e90")): Derived {
   const [fl, fr, rl, rr] = s.loads;
   const frontLoad = 0.5 * (fl + fr);
   const rearLoad = 0.5 * (rl + rr);
@@ -202,8 +232,24 @@ export function derive(s: ChronoStatic = loadStatic()): Derived {
     },
     staticToeDeg: drivingToe(),
     curves: {
-      front: travelCurves("front", sf[2], CURVE_TRAVELS, loadedFront, wheelbase, cgHeight),
-      rear: travelCurves("rear", sr[2], CURVE_TRAVELS, loadedRear, wheelbase, cgHeight),
+      front: travelCurves(
+        "front",
+        sf[2],
+        CURVE_TRAVELS,
+        loadedFront,
+        wheelbase,
+        cgHeight,
+        equilibriumOffset("bmw_e90").front,
+      ),
+      rear: travelCurves(
+        "rear",
+        sr[2],
+        CURVE_TRAVELS,
+        loadedRear,
+        wheelbase,
+        cgHeight,
+        equilibriumOffset("bmw_e90").rear,
+      ),
     },
   };
 }
@@ -403,7 +449,7 @@ function loadStaticCached(): ChronoStatic {
 
 /** Structural differences between the two models, reported with the results. */
 export const GAPS = [
-  "Toe that changes with lateral force: Chrono's toe-in is 1.27° front and 0.53° rear at rest, 1.43° and 0.67° driving straight, and falls to about 0.9° and 0.52° at 0.8 g. Its own kinematics sweep holds the front's mean toe-in constant in roll and steers the rear eight times more than it does while driving, so the change follows force, not travel (compliance steer, outside ADR-0026). Skidpad's toe is fixed at the straight-running value. The harness steers with Chrono's mean front road-wheel angle, which carries the front's net roll steer across.",
+  "Toe: fixed at Chrono's straight-running value (1.43° front, 0.67° rear). Chrono's toe follows travel through its bump steer (docs/validation/chrono-sedan.md, finding 3), but with the toe curves Skidpad's toe-in forces jack the front further than Chrono's and the bump steer runs away (finding 6). The harness steers with Chrono's mean front road-wheel angle, which carries the front's net roll steer across.",
   "Unsprung mass: Chrono's wheels, uprights and arms are separate bodies; Skidpad carries the whole mass on the chassis proxy.",
   "Roll centres and pitch geometry: travel curves derived from the hardpoints (ADR-0026), so each wheel's roll centre migrates and its links jack the body. Chrono's linkages do the same in full; Skidpad's curves are per wheel, from a level-body heave construction.",
   "Rebound stops: Chrono has a stop spring 2.4 cm (front) and 6.6 cm (rear) below static; Skidpad's droop limit lets the wheel hang instead.",
