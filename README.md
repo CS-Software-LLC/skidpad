@@ -131,6 +131,10 @@ pitch and the pitch in a turn into line. The remaining gaps, mostly
 Chrono's toe moving with force (compliance steer) and roll that grows
 faster with lateral acceleration, are in
 [docs/validation/chrono-bmw-e90.md](docs/validation/chrono-bmw-e90.md).
+A second reference car, Chrono's front-wheel-drive Sedan on a Magic Formula
+tire, is built with nothing fitted to its behaviour and agrees on 22 of 25
+metrics; the patterns the two cars share, and two tire-import bugs the
+Sedan found, are in [docs/validation/chrono-sedan.md](docs/validation/chrono-sedan.md).
 
 The determinism check runs a 50 s scripted drive of three vehicles, then a
 recorded lap of the sandbox track for each of the six presets (real driving
@@ -206,7 +210,7 @@ apps/sandbox        Vite + React Three Fiber playground
 apps/docs           VitePress docs with interactive explainers
 apps/bench          benchmark page and Node runner
 tools/validate      headless validation CLI with golden results
-tools/chrono-compare  behavioural comparison against Project Chrono's multibody BMW E90
+tools/chrono-compare  behavioural comparison against Project Chrono's multibody BMW E90 and Sedan
 tests/determinism   cross-browser determinism harness (Playwright), recorded laps
 examples/headless-node  a world in plain Node
 examples/babylon    Babylon.js on Jolt: AI traffic with level of detail, a lap ghost

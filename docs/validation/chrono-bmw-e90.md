@@ -299,7 +299,10 @@ against Skidpad's 73 m. Chrono's tire forces, rebuilt from its own logged
 slips through its own tire formula, show it realising about 7 % less brake
 torque than its nominal 800 N·m per wheel. Skidpad realises the nominal
 torque. The finding sits on the reference side. The likely cause is
-Chrono's friction-clutch brake constraint, but that is unconfirmed.
+Chrono's friction-clutch brake constraint, but that is unconfirmed. Chrono's
+Sedan uses the same brake model and stops within 2 % of Skidpad at the same
+pedal ([chrono-sedan.md](chrono-sedan.md)), which makes the E90's TMsimple
+tire the more likely cause.
 
 **7. A small coast-down remainder.** At the same start speed and engine map,
 Skidpad still decelerates 5 to 9 % faster than Chrono through the coast,
@@ -311,7 +314,8 @@ all carried over. The remaining difference is open and within tolerance.
 1. **Compliance steer next, if the understeer gradient matters.** Toe that
    moves with lateral force is what Chrono's car shows and what a
    toe-against-travel curve cannot carry (finding 2). ADR-0026 lists it as
-   a follow-up.
+   a follow-up. Chrono's Sedan shows the same: toe that follows tire force,
+   and a similar understeer gap ([chrono-sedan.md](chrono-sedan.md)).
 2. **Look at the roll progression.** Skidpad's roll per g now grows faster
    than Chrono's at high lateral acceleration (finding 4). A lateral
    roll-centre shift, or curves measured in roll rather than heave, would
