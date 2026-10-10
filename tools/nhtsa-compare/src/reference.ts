@@ -54,18 +54,37 @@ export interface Manoeuvre {
   title: string;
   /** Constant speed the test was driven at on cruise control, m/s. */
   speed: number;
+  /**
+   * The gear held through the manoeuvre: the highest that keeps the engine
+   * above about 1500 rpm, where a four-speed automatic cruises. The paper
+   * does not plot engine speed for the handling tests. ESTIMATE.
+   */
+  gear: number;
   /** The window of the paper's time axis that is simulated, s. */
   start: number;
   end: number;
 }
 
 export const MANOEUVRES: Record<string, Manoeuvre> = {
-  sis: { title: "Slowly increasing steer, 11 m/s (figures 1–4)", speed: 11, start: 3.1, end: 51 },
-  step: { title: "Step steer, 12 m/s (figures 5–8)", speed: 12, start: 4.0, end: 18 },
-  lc12: { title: "Double lane change, 12 m/s (figures 9–10)", speed: 12, start: 4.2, end: 12 },
+  sis: {
+    title: "Slowly increasing steer, 11 m/s (figures 1–4)",
+    speed: 11,
+    gear: 2,
+    start: 3.1,
+    end: 51,
+  },
+  step: { title: "Step steer, 12 m/s (figures 5–8)", speed: 12, gear: 2, start: 4.0, end: 18 },
+  lc12: {
+    title: "Double lane change, 12 m/s (figures 9–10)",
+    speed: 12,
+    gear: 2,
+    start: 4.2,
+    end: 12,
+  },
   lc22: {
     title: "Double lane change, 22.5 m/s (figures 11–12)",
     speed: 22.5,
+    gear: 3,
     start: 3.9,
     end: 10.1,
   },

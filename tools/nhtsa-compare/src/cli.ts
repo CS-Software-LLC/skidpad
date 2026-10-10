@@ -6,6 +6,10 @@
  *   pnpm compare --fit      # fit the three unknowns on the slowly increasing
  *                           # steer, then compare everything with them
  *   pnpm compare --measured # only the measured metrics, no Skidpad run
+ *   pnpm fit --compliance   # fit a compliance per m/s² at the published ratio
+ *                           # instead of an effective ratio
+ *   --body-fixed-ay         # compare Skidpad's body-fixed LatAccel as it is,
+ *                           # as the first run did (see run.ts)
  *
  * Writes out/report.json (metrics, traces, the build) and out/<manoeuvre>.csv
  * (Skidpad's rows beside the measured ones).
@@ -40,17 +44,24 @@ if (args.has("--measured")) {
 }
 
 const sp = await init();
+const bodyFixed = args.has("--body-fixed-ay");
 let tunable: Tunable = ESTIMATED;
 if (args.has("--fit")) {
-  tunable = fitOnSis(sp, ref.sis!, console.log);
+  tunable = fitOnSis(sp, ref.sis!, console.log, bodyFixed, args.has("--compliance"));
   console.log(`fitted on the slowly increasing steer: ${JSON.stringify(tunable)}\n`);
 }
 
 const sim: Record<string, Row[]> = {};
-const outDir = join(ROOT, "out", args.has("--fit") ? "fitted" : "estimated");
+const outDir = join(
+  ROOT,
+  "out",
+  (args.has("--fit") ? "fitted" : "estimated") +
+    (args.has("--compliance") ? "-compliance" : "") +
+    (bodyFixed ? "-body-fixed-ay" : ""),
+);
 mkdirSync(outDir, { recursive: true });
 for (const name of Object.keys(MANOEUVRES)) {
-  sim[name] = runManoeuvre(sp, name, { tunable });
+  sim[name] = runManoeuvre(sp, name, { tunable, bodyFixedAy: bodyFixed });
   const byT = new Map(sim[name]!.map((r) => [r.t, r]));
   const lines = [
     "t,handwheel,ay_measured,ay_skidpad,yaw_measured,yaw_skidpad,roll_measured,roll_skidpad,speed_skidpad",
@@ -74,7 +85,7 @@ const diff = (m: MetricResult) =>
     : `${m.difference >= 0 ? "+" : ""}${fmt(m.difference)} ${m.unit} (±${m.tolerance.value})`;
 
 console.log(
-  `Skidpad vs NHTSA VRTC 1997 Jeep Cherokee, ${args.has("--fit") ? "fitted" : "estimated"} build\n`,
+  `Skidpad vs NHTSA VRTC 1997 Jeep Cherokee, ${args.has("--fit") ? "fitted" : "estimated"} build${bodyFixed ? ", body-fixed ay" : ""}\n`,
 );
 console.log("| Manoeuvre | Metric | Measured | Skidpad | Difference (tolerance) | |");
 console.log("| --- | --- | --- | --- | --- | --- |");
@@ -95,5 +106,9 @@ console.log(
 );
 writeFileSync(
   join(outDir, "report.json"),
-  JSON.stringify({ tunable, definition: jeepCherokee(tunable), metrics, traces }, null, 2),
+  JSON.stringify(
+    { tunable, bodyFixedAy: bodyFixed, definition: jeepCherokee(tunable), metrics, traces },
+    null,
+    2,
+  ),
 );

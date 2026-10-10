@@ -43,12 +43,14 @@ function rollFromStart(rows: Row[]): number[] {
 
 /**
  * The slowly increasing steer's linear range, 1–4 m/s² of lateral
- * acceleration, on the way up to the peak (the measured car's ay falls again
- * past it as the front tires plough).
+ * acceleration, on the way up: the rows before the lateral acceleration
+ * first passes 4 m/s² (the measured car's ay falls again past its peak as
+ * the front tires plough, and a model that spins comes back through the
+ * range).
  */
 function linearRange(rows: Row[]): Row[] {
-  const peak = rows.reduce((b, r) => (r.ay > b.ay ? r : b), rows[0]!);
-  return rows.filter((r) => r.t < peak.t && r.ay >= 1 && r.ay <= 4);
+  const end = rows.find((r) => r.ay > 4)?.t ?? Infinity;
+  return rows.filter((r) => r.t < end && r.ay >= 1);
 }
 
 /** First time a channel reaches a fraction of its steady value, after `from`. */

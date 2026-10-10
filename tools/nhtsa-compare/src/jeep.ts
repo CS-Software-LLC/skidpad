@@ -67,17 +67,31 @@ export interface Tunable {
   steeringRatio: number;
   /** Tire peak friction at the nominal load. ESTIMATE: the pickup preset's all-terrain tire. */
   peakFriction: number;
+  /**
+   * Steering compliance as the harness applies it, hand-wheel degrees lost
+   * per m/s² of lateral acceleration: the road wheels steer by
+   * `(handwheel − compliance · ay) / steeringRatio`. Zero in the estimated
+   * build. A stand-in for compliance in the steering linkage and the axle's
+   * mounts under the aligning moment and lateral force, which Skidpad does
+   * not model (README roadmap: compliance steer).
+   */
+  compliance: number;
 }
 
 export const ESTIMATED: Tunable = {
   frontAntiRoll: 20000,
   steeringRatio: STEERING_RATIO,
   peakFriction: 0.85,
+  compliance: 0,
 };
 
-/** Hand-wheel angle to Skidpad's steer input (fraction of road-wheel lock, + right). */
-export function steerInput(handwheelDeg: number, t: Tunable): number {
-  return handwheelDeg / t.steeringRatio / MAX_WHEEL_ANGLE_DEG;
+/**
+ * Hand-wheel angle to Skidpad's steer input (fraction of road-wheel lock,
+ * + right), less the compliance at the current lateral acceleration (SAE,
+ * m/s², + right).
+ */
+export function steerInput(handwheelDeg: number, t: Tunable, ay = 0): number {
+  return (handwheelDeg - t.compliance * ay) / t.steeringRatio / MAX_WHEEL_ANGLE_DEG;
 }
 
 export function jeepCherokee(t: Tunable = ESTIMATED): PartialVehicleDefinition {
