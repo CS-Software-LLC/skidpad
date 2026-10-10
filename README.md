@@ -22,7 +22,8 @@ win on specific, measurable axes, together:
    (engine or motor, clutch, gearbox, differentials) solved implicitly with
    the wheels. Checked against linear vehicle-dynamics theory and against an
    independent multibody simulator on standard manoeuvres, with the results
-   and the misses published. Not yet checked against measured vehicle data;
+   and the misses published. Checked against one real car's instrumented
+   handling tests only with its setup partly estimated and partly fitted;
    see [What "validated" means here](#what-validated-means-here).
 2. **Stability.** No jitter at rest, no explosions across the supported
    timestep range, cars park on slopes, brakes lock without chatter. Tested
@@ -160,15 +161,15 @@ state hashes.
 
 ### What "validated" means here
 
-"Validated" covers four different checks, and Skidpad has done three of
-them:
+"Validated" covers four different checks. Skidpad has done three of them
+and started the fourth:
 
-| Level                 | Question                                                        | Status                                                                                                                                                                                                                  |
-| --------------------- | --------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Self-consistency      | Same answer every run, stable across timesteps, no regressions? | Yes. The golden results in `tools/validate/golden` are the model's own earlier output, so they catch changes, not errors.                                                                                               |
-| Analytic theory       | Does it reduce to the textbook result where one exists?         | Yes. The single-track understeer gradient matches linear theory with trail (table above).                                                                                                                               |
-| Independent simulator | Does it agree with a research-grade simulator on the same car?  | Partly. Against Project Chrono's multibody BMW E90, 21 of 23 metrics and 9 of 13 traces are within tolerances set before the run; two metrics were fitted. Chrono's E90 is itself a model, not a measured car.          |
-| Measured vehicle data | Does it match instrumented tests of a real car and tire?        | Not yet. The bundled tire is synthetic ([data/PROVENANCE.md](data/PROVENANCE.md)) and the presets are tuned class examples. A comparison against published instrumented tests with measured tire data is the next step. |
+| Level                 | Question                                                        | Status                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| --------------------- | --------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Self-consistency      | Same answer every run, stable across timesteps, no regressions? | Yes. The golden results in `tools/validate/golden` are the model's own earlier output, so they catch changes, not errors.                                                                                                                                                                                                                                                                                                                                                                                                         |
+| Analytic theory       | Does it reduce to the textbook result where one exists?         | Yes. The single-track understeer gradient matches linear theory with trail (table above).                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| Independent simulator | Does it agree with a research-grade simulator on the same car?  | Partly. Against Project Chrono's multibody BMW E90, 21 of 23 metrics and 9 of 13 traces are within tolerances set before the run; two metrics were fitted. Chrono's E90 is itself a model, not a measured car.                                                                                                                                                                                                                                                                                                                    |
+| Measured vehicle data | Does it match instrumented tests of a real car and tire?        | Started. Against NHTSA's instrumented 1997 Jeep Cherokee (handling tests digitised from SAE 2000-01-0700), with three unknowns fitted on one test (one of them a steering compliance the harness adds, since the core has no compliance steer yet), 11 of 12 predicted metrics and every trace are within tolerances set before the run; the car's measured parameters and tire data are not public, so the rest of its setup is estimated. See [docs/validation/nhtsa-jeep-cherokee.md](docs/validation/nhtsa-jeep-cherokee.md). |
 
 Skidpad aims to be physically plausible and internally consistent for
 games, training and tooling. It is not a substitute for an engineering
