@@ -165,7 +165,7 @@ parameter set is not public, so it is built from published specifications
 and estimates, and three unknowns are fitted on the slowly increasing steer
 alone: the front anti-roll bar, the tire's peak friction and the steering's
 compliance steer under the kingpin torque (`alignTorqueComplianceDeg`,
-ADR-0027), which this comparison is what showed Skidpad needed. With them
+ADR-0027), which this comparison showed Skidpad was missing. With them
 the step steer and both lane changes, at 12 and 22.5 m/s, are predicted on
 every metric and trace within tolerances set before the first run. The
 [report](https://github.com/CS-Software-LLC/skidpad/blob/main/docs/validation/nhtsa-jeep-cherokee.md)
