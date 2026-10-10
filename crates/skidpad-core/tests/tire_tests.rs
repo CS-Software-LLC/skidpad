@@ -270,3 +270,24 @@ fn tire_model_serialises_as_tagged_json() {
         _ => panic!("wrong variant"),
     }
 }
+
+#[test]
+fn nominal_load_scale_enters_the_cornering_stiffness_once() {
+    // Eq. 4.E25: Kyα = pKy1·F'z0·sin(2·atan(Fz / (pKy2·F'z0))) with
+    // F'z0 = λFz0·Fz0. A .tir with LFZO ≠ 1 must not scale it twice.
+    let base = tir::import_str(TIR).params;
+    let scaled = MagicFormulaParams {
+        lfzo: 0.81,
+        ..base.clone()
+    };
+    let f0 = scaled.fz0 * 0.81;
+    for fz in [2000.0, 4000.0, 6000.0] {
+        let expected =
+            (scaled.pky1 * f0 * m::sin(2.0 * m::atan(fz / (scaled.pky2 * f0)))).abs();
+        let k = scaled.cornering_stiffness(fz);
+        assert!(
+            (k - expected).abs() / expected < 1e-12,
+            "Fz {fz}: K {k} vs eq. 4.E25 {expected}"
+        );
+    }
+}
