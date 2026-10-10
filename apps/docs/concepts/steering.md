@@ -48,3 +48,31 @@ solid rear axle can turn without pushing. `steering.jackingRate` is the
 linearised version: metres of front contact travel per radian of steer,
 inner down and outer up; the body's roll and pitch stiffness carry the
 difference diagonally.
+
+## Compliance steer
+
+A real steering system is not rigid. The column, rack mounts and linkage
+wind up under the kingpin torque, and the suspension's rubber bushings let
+each wheel turn a little under its own lateral force. Both make a car
+understeer more as it corners harder, and both are standard
+kinematics-and-compliance rig measures (ADR-0027).
+
+- `steering.alignTorqueComplianceDeg`: degrees of road-wheel steer per kN·m
+  of the steered axle's total kingpin torque, with the hand wheel held. Both
+  steered wheels turn in the direction the torque pushes them: out of the
+  turn in steady cornering, and toward the harder-braking wheel on a split
+  surface when the scrub radius is positive. A firm rack-and-pinion car is
+  around 1 to 2; a recirculating-ball SUV can be near 10.
+- `axles[].lateralComplianceSteerDeg`: each wheel's steer per kN of its own
+  lateral force, positive understeer on either axle, so the front steers
+  away from its force and the rear toward it. Typical values are a few
+  hundredths to a few tenths; negative is oversteer compliance.
+
+The understeer gradient grows by Gillespie's terms: `c_at · (t_m + t_p) ·
+W_f / g` for the kingpin torque (mechanical plus pneumatic trail on the
+front axle load `W_f`), and `(c_f · W_f + c_r · W_r) / (2 g)` for the
+lateral compliances, with the rates in radians. Both act through the
+previous substep's forces and are in the snapshot. `ComplianceSteer_FL` …
+`ComplianceSteer_RR` report each wheel's compliance angle, which
+`WheelSteer_*` includes; `SteerAngle` stays the driver's. Both models carry
+it.

@@ -202,6 +202,12 @@ export interface AxleDefinition {
    * toward the centreline). Four-wheel model only.
    */
   staticToeDeg: number;
+  /**
+   * Lateral-force compliance steer (ADR-0027): each wheel's steer per kN of
+   * its own lateral force, degrees, positive understeer on either axle (the
+   * front steers away from its force, the rear toward it). Default 0.
+   */
+  lateralComplianceSteerDeg: number;
   /** Track width of this axle, m; 0 uses `chassis.trackWidth`. */
   trackWidth: number;
   /** Independent suspension at each wheel of this axle (four-wheel model). */
@@ -229,6 +235,12 @@ export interface SteeringDefinition {
   columnDamping: number;
   /** Front contact travel along its ray per radian of steer, m/rad: inner down, outer up. */
   jackingRate: number;
+  /**
+   * Aligning-torque compliance steer (ADR-0027): road-wheel degrees per kN·m
+   * of the steered axle's total kingpin torque, with the hand wheel held.
+   * Zero or positive; default 0.
+   */
+  alignTorqueComplianceDeg: number;
 }
 
 export interface BrakesDefinition {

@@ -112,6 +112,12 @@ pub struct AxleDef {
     /// lateral forces cancelling and a little drag left over. The
     /// single-track model ignores it because the mirrored forces cancel.
     pub static_toe_deg: f64,
+    /// Lateral-force compliance steer (ADR-0027): each wheel's steer per kN
+    /// of its own lateral force, degrees, positive understeer on either
+    /// axle. Ahead of the centre of mass positive steers the wheel away
+    /// from its lateral force, behind it toward it. Default 0. Four-wheel
+    /// and single-track models.
+    pub lateral_compliance_steer_deg: f64,
     /// Track width of this axle, m, between the contact patches. Zero (the
     /// default) uses `chassis.trackWidth`. Four-wheel model only.
     pub track_width: f64,
@@ -288,6 +294,12 @@ pub const MAX_STATIC_CAMBER_DEG: f64 = 45.0;
 
 /// Largest roll-centre height magnitude a definition may set, m.
 pub const MAX_ROLL_CENTER_HEIGHT: f64 = 1.0;
+/// Bound on `lateralComplianceSteerDeg`, deg/kN: a soft rubber-bushed axle
+/// is a few tenths (ADR-0027).
+pub const MAX_LATERAL_COMPLIANCE_STEER_DEG: f64 = 2.0;
+/// Bound on `alignTorqueComplianceDeg`, deg/kN·m: a compliant
+/// recirculating-ball system is near 10 (ADR-0027).
+pub const MAX_ALIGN_TORQUE_COMPLIANCE_DEG: f64 = 30.0;
 
 impl Default for AxleDef {
     fn default() -> Self {
@@ -362,6 +374,7 @@ impl AxleDef {
             max_brake_torque: 3600.0,
             static_camber_deg: 0.0,
             static_toe_deg: 0.0,
+            lateral_compliance_steer_deg: 0.0,
             track_width: 0.0,
             suspension: SuspensionDef::front_default(),
         }
@@ -376,6 +389,7 @@ impl AxleDef {
             max_brake_torque: 2000.0,
             static_camber_deg: 0.0,
             static_toe_deg: 0.0,
+            lateral_compliance_steer_deg: 0.0,
             track_width: 0.0,
             suspension: SuspensionDef::rear_default(),
         }
@@ -416,6 +430,12 @@ pub struct SteeringDef {
     /// with suspension; a kart lifts its inner rear with it. Four-wheel
     /// model only.
     pub jacking_rate: f64,
+    /// Aligning-torque compliance steer (ADR-0027): the steering system's
+    /// compliance with the hand wheel held, degrees of road-wheel steer per
+    /// kN·m of the steered axle's total kingpin torque. Both steered wheels
+    /// turn by it in the direction the kingpin torque pushes them. Zero or
+    /// positive; default 0.
+    pub align_torque_compliance_deg: f64,
 }
 
 impl Default for SteeringDef {
@@ -431,6 +451,7 @@ impl Default for SteeringDef {
             column_friction: 0.3,
             column_damping: 0.05,
             jacking_rate: 0.0,
+            align_torque_compliance_deg: 0.0,
         }
     }
 }
@@ -631,6 +652,14 @@ impl VehicleDefinition {
                     a.static_toe_deg
                 ));
             }
+            if !a.lateral_compliance_steer_deg.is_finite()
+                || m::abs(a.lateral_compliance_steer_deg) > MAX_LATERAL_COMPLIANCE_STEER_DEG
+            {
+                e.push(format!(
+                    "axles[{i}] ({name}).lateralComplianceSteerDeg must be within ±{MAX_LATERAL_COMPLIANCE_STEER_DEG} deg/kN (got {})",
+                    a.lateral_compliance_steer_deg
+                ));
+            }
             a.suspension
                 .validate(&format!("axles[{i}] ({name}).suspension"), &mut e);
             a.validate_kinematics(
@@ -679,6 +708,12 @@ impl VehicleDefinition {
             if !v.is_finite() || m::abs(v) > 0.5 {
                 e.push(format!("steering.{name} must be within ±0.5 m (got {v})"));
             }
+        }
+        let c = self.steering.align_torque_compliance_deg;
+        if !(c >= 0.0 && c <= MAX_ALIGN_TORQUE_COMPLIANCE_DEG) {
+            e.push(format!(
+                "steering.alignTorqueComplianceDeg must be in [0, {MAX_ALIGN_TORQUE_COMPLIANCE_DEG}] deg/kN·m (got {c})"
+            ));
         }
         for (name, v) in [
             ("columnFriction", self.steering.column_friction),

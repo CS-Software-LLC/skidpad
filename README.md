@@ -386,7 +386,8 @@ Not before 1.0: multibody suspension, tire thermals and wear, damage,
 motorcycles and trailers, netcode, a full racing AI, native bindings.
 Geometry that changes with travel does not wait for multibody suspension:
 toe, camber, roll-centre and anti-pitch curves against wheel travel are in
-the definition format now (ADR-0026). Compliance steer is the next step.
+the definition format now (ADR-0026), and so is compliance steer under the
+kingpin torque and each wheel's lateral force (ADR-0027).
 
 ### Force feedback platform
 

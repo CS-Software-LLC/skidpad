@@ -228,6 +228,17 @@ helps. Parameters are per tire unless noted.
   the scrub costs a little straight-line speed
   ([toe](/concepts/suspension#toe)).
 
+## Car understeers more at speed than the steering ratio suggests
+
+- Real steering gives under load. Measured against NHTSA's Jeep Cherokee
+  (`docs/validation/nhtsa-jeep-cherokee.md`), a fixed ratio that matched at 40 km/h gave 16–29 % too much response at 80 km/h. Add
+  `steering.alignTorqueComplianceDeg` (1 to 2 for a firm rack, up to about
+  10 for a soft recirculating-ball box) rather than slowing the ratio: the
+  compliance grows with cornering force, a ratio with steering angle.
+- `lateralComplianceSteerDeg` on the rear axle (a few hundredths to a tenth)
+  steadies a car that feels loose in fast corners without dulling its
+  turn-in at low speed ([compliance steer](/concepts/steering#compliance-steer)).
+
 ## The car jitters or creeps when parked
 
 - It should not. Raise `lowSpeedDamping` (the damping ratio of the

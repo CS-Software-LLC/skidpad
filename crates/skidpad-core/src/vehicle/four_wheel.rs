@@ -162,6 +162,8 @@ pub struct WheelState {
     /// Toe of this wheel, rad, positive toe-in: the static toe plus its
     /// travel curve (ADR-0026).
     pub toe: f64,
+    /// Compliance steer of this wheel this substep, rad about +z (ADR-0027).
+    pub compliance_steer: f64,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -219,6 +221,11 @@ pub struct FourWheelVehicle {
     /// with a roll-centre curve (ADR-0026), lagged like `axle_fy_prev`. In
     /// the snapshot.
     pub wheel_fy_prev: [f64; WHEEL_COUNT],
+    /// Total kingpin torque of the steered wheels at the end of the last
+    /// substep, N·m about +z: the input to the next substep's aligning-torque
+    /// compliance steer (ADR-0027), lagged like `axle_fy_prev`. In the
+    /// snapshot.
+    pub kingpin_prev: f64,
     /// Surface id the built-in flat ground carries under each wheel
     /// (ADR-0014). An external host tags each contact itself.
     pub builtin_surface_ids: [u32; WHEEL_COUNT],
@@ -258,6 +265,7 @@ impl FourWheelVehicle {
             axle_fy_prev: [0.0, 0.0],
             axle_fx_prev: [0.0, 0.0],
             wheel_fy_prev: [0.0; WHEEL_COUNT],
+            kingpin_prev: 0.0,
             builtin_surface_ids: [0; WHEEL_COUNT],
             ground_slope: [0.0, 0.0],
         };
@@ -370,6 +378,7 @@ impl FourWheelVehicle {
         self.axle_fy_prev = [0.0, 0.0];
         self.axle_fx_prev = [0.0, 0.0];
         self.wheel_fy_prev = [0.0; WHEEL_COUNT];
+        self.kingpin_prev = 0.0;
         for (i, w) in self.wheels.iter_mut().enumerate() {
             let g = self.geometry[i];
             *w = WheelState {
@@ -473,6 +482,28 @@ impl FourWheelVehicle {
         -self.geometry[i].side * m::deg_to_rad(self.def.axles[i / 2].static_toe_deg)
     }
 
+    /// Compliance steer of wheel `i` (ADR-0027), rad about +z, from the
+    /// previous substep's forces. The steered wheels turn with the steering
+    /// system's wind-up under the axle's kingpin torque; every wheel turns
+    /// under its own lateral force, toward understeer for a positive rate:
+    /// away from the force at the front, toward it at the rear.
+    #[inline]
+    fn compliance_steer(&self, i: usize) -> f64 {
+        let axle = i / 2;
+        let adef = &self.def.axles[axle];
+        let mut angle = 0.0;
+        let c_at = self.def.steering.align_torque_compliance_deg;
+        if adef.steered && c_at != 0.0 {
+            angle += m::deg_to_rad(c_at) * 1e-3 * self.kingpin_prev;
+        }
+        let c_lat = adef.lateral_compliance_steer_deg;
+        if c_lat != 0.0 {
+            let toward = if axle == 0 { -1.0 } else { 1.0 };
+            angle += toward * m::deg_to_rad(c_lat) * 1e-3 * self.wheel_fy_prev[i];
+        }
+        angle
+    }
+
     /// One substep of the pipeline on the reference surface everywhere.
     #[inline]
     pub fn substep(&mut self, dt: f64, input: &VehicleInput) {
@@ -510,6 +541,12 @@ impl FourWheelVehicle {
             self.wheel_steer(RR, delta),
         ];
         let toes = [self.toe(FL), self.toe(FR), self.toe(RL), self.toe(RR)];
+        let compliance = [
+            self.compliance_steer(FL),
+            self.compliance_steer(FR),
+            self.compliance_steer(RL),
+            self.compliance_steer(RR),
+        ];
 
         // --- contacts: ray from the top of travel to the contact plane ------
         // --- suspension travel and rate ---------------------------------------
@@ -519,6 +556,10 @@ impl FourWheelVehicle {
             let origin = self.pos + orient.rotate(g.ray_origin);
             let w = &mut self.wheels[i];
             w.steer = steer + toes[i];
+            if compliance[i] != 0.0 {
+                w.steer += compliance[i];
+            }
+            w.compliance_steer = compliance[i];
             let dn = down.dot(c.normal);
             let hit_t = if c.hit && dn < -1e-6 {
                 let tt = (c.point - origin).dot(c.normal) / dn;
@@ -969,6 +1010,7 @@ impl FourWheelVehicle {
         }
         self.steering_torque = self.def.hand_wheel_torque(kingpin);
         self.rack_force = kingpin / self.def.steering.steering_arm;
+        self.kingpin_prev = kingpin;
     }
 
     /// Write the telemetry record for the current state.
@@ -1046,6 +1088,7 @@ impl FourWheelVehicle {
             rec[t::SURFACE_ID_FL + i] = w.surface_id as f64;
             rec[t::SURFACE_GRIP_FL + i] = w.surface_grip;
             rec[t::TOE_FL + i] = w.toe;
+            rec[t::COMPLIANCE_STEER_FL + i] = w.compliance_steer;
             let tire = &self.def.axles[i / 2].tire;
             write_grip_telemetry(&w.out, 1.0, &w.transient, tire, i, rec);
         }
@@ -1110,7 +1153,7 @@ pub(crate) fn write_drivetrain_telemetry(d: &Drivetrain, input: &VehicleInput, r
 }
 
 /// Snapshot values of the body, before the wheels.
-pub const BODY_STATE_LEN: usize = 22;
+pub const BODY_STATE_LEN: usize = 23;
 /// Snapshot values per wheel.
 pub const WHEEL_STATE_LEN: usize = 4;
 /// Snapshot values of the whole four-wheel vehicle.
@@ -1142,6 +1185,7 @@ impl Snapshottable for FourWheelVehicle {
         out[16] = self.axle_fx_prev[0];
         out[17] = self.axle_fx_prev[1];
         out[18..22].copy_from_slice(&self.wheel_fy_prev);
+        out[22] = self.kingpin_prev;
         for (i, w) in self.wheels.iter().enumerate() {
             let o = BODY_STATE_LEN + WHEEL_STATE_LEN * i;
             out[o] = w.omega;
@@ -1163,6 +1207,7 @@ impl Snapshottable for FourWheelVehicle {
         self.axle_fy_prev = [v[14], v[15]];
         self.axle_fx_prev = [v[16], v[17]];
         self.wheel_fy_prev = [v[18], v[19], v[20], v[21]];
+        self.kingpin_prev = v[22];
         for (i, w) in self.wheels.iter_mut().enumerate() {
             let o = BODY_STATE_LEN + WHEEL_STATE_LEN * i;
             w.omega = v[o];
