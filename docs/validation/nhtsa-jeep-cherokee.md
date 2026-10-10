@@ -174,11 +174,26 @@ with what it did.
   increasing steer, as the speed controller opened the throttle; the shift's
   drive-torque transient on the open rear differential, with the inside rear
   tire lightly loaded, spun the car (yaw rate to 90 deg/s, the car stopped).
-  The measured car carries on ploughing at 6.4–6.6 m/s². Skidpad's automatic
-  sits in first at 11 m/s, at 2900 rpm, right at its own 1–2 shift point.
-  The test car's engine speed is not published for these runs, and a shift
-  is a powertrain-control event rather than handling, so each manoeuvre now
-  holds one gear.
+  The measured car carries on ploughing at 6.4–6.6 m/s². The test car's
+  engine speed is not published for these runs, and a shift is a
+  powertrain-control event rather than handling, so each manoeuvre now
+  holds one gear. A closer look found a core bug behind the spin, now
+  fixed (ADR-0025, amendment). The automatic cruises the manoeuvre in
+  second at about 1,600 rpm. The kickdown to first is the part-throttle
+  schedule working as designed: at a throttle of about 0.465, second's
+  downshift point rises to 30 % of redline (1,610 rpm). First then runs at
+  about 2,950 rpm, well below its 1–2 point at that throttle (about
+  4,170 rpm), so the box does not hunt. The fault was in the shift itself.
+  The automatic lifted the throttle while the clutch was open, which is
+  right for an upshift. On a downshift it let the engine fall to
+  1,210 rpm, and the re-engaging clutch then dragged it up to first's
+  speed with the rear wheels, a drive force of −3.6 kN at the limit. The
+  engine now flares up to the lower gear's speed on the driver's throttle.
+  With the fitted values (front bar 27 kN/m, ratio 21.5, peak friction
+  0.79), the same run left in automatic now kicks down and carries on in
+  first: speed at or above 10.6 m/s, yaw rate peaking at 46 deg/s against
+  the 98 deg/s spin. The harness still holds the gear, for the reasons
+  above.
 - **The linear range is the rise.** The slowly increasing steer's linear
   range was defined as the rows with 1–4 m/s² "before the peak"; when the
   model spun, its lateral acceleration came back down through that range
@@ -258,10 +273,14 @@ with what it did.
 - **The braking and acceleration runs**, digitised but not compared, once a
   brake gain and a part-throttle map are fitted on one run and predicted on
   the other.
-- **The automatic at a constant 11 m/s.** Skidpad's shift schedule holds
-  first gear to 11 m/s at part throttle and kicks down with a torque
-  transient big enough to spin a car near the limit. Worth a look on its
-  own, outside this comparison.
+- **The automatic at a constant 11 m/s.** The shift transient that spun
+  the car is fixed (see "What changed after the first run"). The schedule
+  still kicks the Jeep down from second to first at about half throttle at
+  11 m/s, because its full-throttle downshift point (`shiftDownAt` 0.4,
+  2,120 rpm) is high for a 4.0 l engine that pulls from 1,000 rpm.
+  Production shift maps also keep the part-pedal downshift line flatter
+  than ADR-0025's straight line. A measured shift map for the AW4 would
+  settle both.
 
 ## Compliance steer in the core
 

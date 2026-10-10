@@ -477,6 +477,17 @@ impl Drivetrain {
         m::clamp(m::max(synced, held), 0.0, 1.0)
     }
 
+    /// Throttle ceiling an automatic applies while the clutch is open for a
+    /// shift: none while the engine is below `target_omega`, the new gear's
+    /// input speed, closing over the last 3 % of redline below it, and
+    /// closed at or above it. An upshift, which starts above that speed, is
+    /// lifted; a downshift flares to the new gear's speed on the driver's
+    /// throttle and holds there.
+    fn flare_throttle_limit(&self, target_omega: f64) -> f64 {
+        let band = 0.03 * self.def.redline();
+        m::clamp((target_omega - self.engine_omega) / band, 0.0, 1.0)
+    }
+
     /// Locking torque an LSD may transfer at a given carrier torque, N·m;
     /// infinite for a locked differential.
     fn lock_capacity(
@@ -561,10 +572,13 @@ impl Drivetrain {
             sys.mass[i][i] += wheels[i].inertia;
             sys.v[i] = wheels[i].omega;
         }
-        // An automatic lifts the throttle while the clutch is open for a
-        // shift, so the engine falls toward the next gear's speed instead of
-        // revving to the limiter and dumping its inertia into the wheels on
-        // re-engagement.
+        // An automatic lifts the throttle while the clutch is open for an
+        // upshift, so the engine falls toward the next gear's speed instead
+        // of revving to the limiter and dumping its inertia into the wheels
+        // on re-engagement. On a downshift the next gear's speed is above
+        // the engine's, so it keeps the driver's throttle until the engine
+        // has flared up to it, as a power-on downshift does; lifting there
+        // would leave the clutch to drag the engine up with the wheels.
         // It keeps the torque reduced while the clutch re-engages until the
         // engine has come down to the new gear's speed; full throttle on a
         // barely-bitten clutch would flare the engine back up toward the
@@ -572,7 +586,10 @@ impl Drivetrain {
         let engine_throttle = if t.mode != TransmissionMode::Automatic {
             input.throttle
         } else if interrupted {
-            0.0
+            m::min(
+                input.throttle,
+                self.flare_throttle_limit(self.ratio(self.gear) * carrier_omega),
+            )
         } else {
             m::min(
                 input.throttle,
