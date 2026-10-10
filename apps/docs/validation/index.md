@@ -156,6 +156,22 @@ car. Its
 [report](https://github.com/CS-Software-LLC/skidpad/blob/main/docs/validation/chrono-sedan.md)
 compares the two.
 
+## Against a measured car
+
+The first comparison against a real car uses NHTSA's instrumented 1997 Jeep
+Cherokee, whose slowly increasing steer, step steer and two lane changes are
+read exactly from the vector plots of SAE 2000-01-0700. The car's measured
+parameter set is not public, so it is built from published specifications
+and estimates, and three unknowns are fitted on the slowly increasing steer
+alone: the front anti-roll bar, the tire's peak friction and the steering's
+compliance steer under the kingpin torque (`alignTorqueComplianceDeg`,
+ADR-0027), which this comparison is what showed Skidpad needed. With them
+the step steer and both lane changes, at 12 and 22.5 m/s, are predicted on
+every metric and trace within tolerances set before the first run. The
+[report](https://github.com/CS-Software-LLC/skidpad/blob/main/docs/validation/nhtsa-jeep-cherokee.md)
+records the estimated build's misses and every change made after the first
+run, and `tools/nhtsa-compare` reruns it.
+
 ## Coming with later milestones
 
 A rest-jitter measurement on an external host: the standstill scenarios run
