@@ -1,6 +1,6 @@
 # Skidpad
 
-**Deterministic, sim-grade vehicle physics for the web.** A Rust core compiled
+**Deterministic, simulation-style vehicle physics for the web.** A Rust core compiled
 to WebAssembly, TypeScript everywhere else, built in public from the published
 literature.
 
@@ -17,17 +17,22 @@ Existing web options (Rapier's raycast vehicle, cannon-es, Jolt's wheeled
 vehicle, assorted demos) each cover part of the problem. Skidpad aims to
 win on specific, measurable axes, together:
 
-1. **Sim-grade fidelity.** Slip-based tires with combined slip, load
+1. **Simulation-style models.** Slip-based tires with combined slip, load
    sensitivity, transient response, and aligning torque. A coupled drivetrain
    (engine or motor, clutch, gearbox, differentials) solved implicitly with
-   the wheels. Validated against published data and standard manoeuvres,
-   with results published.
+   the wheels. Checked against linear vehicle-dynamics theory and against an
+   independent multibody simulator on standard manoeuvres, with the results
+   and the misses published. Not yet checked against measured vehicle data;
+   see [What "validated" means here](#what-validated-means-here).
 2. **Stability.** No jitter at rest, no explosions across the supported
    timestep range, cars park on slopes, brakes lock without chatter. Tested
    like a feature.
 3. **Cross-browser bit-exact determinism.** Same inputs, byte-identical state
-   in Chrome, Firefox, and Safari, on x86 and ARM. Replays, ghosts, verifiable
-   leaderboards, lockstep and rollback multiplayer follow from it.
+   in every browser engine, by construction: plain WebAssembly float
+   arithmetic plus software transcendentals (ADR-0006). CI checks it in
+   Chromium, Firefox, WebKit and Node on x86 Linux; ARM and shipping Safari
+   are expected by design but not yet tested in CI. Replays, ghosts,
+   verifiable leaderboards, lockstep and rollback multiplayer follow from it.
 4. **Performance at scale.** One player car at 1 kHz for a small fraction of a
    frame; dozens of AI cars at lower detail through the same API.
 5. **Host- and renderer-agnostic.** Rapier first, Jolt next, a built-in
@@ -97,6 +102,15 @@ reference surface table:
 The kart brakes on its rear axle only, so on ice it swaps ends; the runner
 reports that rather than a distance.
 
+The presets are generic vehicle classes, not specific cars, and their tire
+parameters were tuned toward typical road-test figures for each class. They
+do not all land on those targets yet: with ABS, the hatchback stops from
+100 km/h in 42.6 m against a ~38 m target (+12 %), the electric crossover in
+40.1 m against ~37 m (+8 %), the pickup in 47.1 m against ~44 m (+7 %) and the
+sports car in 35.5 m against ~34 m (+4 %). The targets are in each preset's
+`dataSheet`. Treat the tables as what this model produces for these
+definitions, not as predictions for a real vehicle.
+
 Stability, from the same runner (all six presets, both models):
 
 | Check                                                                         | Result                                                                      |
@@ -106,7 +120,8 @@ Stability, from the same runner (all six presets, both models):
 | Stop on the held brake                                                        | spring-back ≤ 0.27 m/s and ≤ 5 cm, at rest (< 1e-4 m/s) after 2 s           |
 | Timestep sweep, 250–2000 Hz internal × 30–240 Hz host                         | understeer gradient within 0.001 deg/g, braking distance within 0.7 %       |
 
-Benchmarks on a Node 22 x64 container, 60 Hz host step, release build:
+Benchmarks on a Node 22 x64 Linux container (CI class, not M1), 60 Hz host
+step, release build:
 
 | Case                                    | ms per step |
 | --------------------------------------- | ----------- |
@@ -116,7 +131,7 @@ Benchmarks on a Node 22 x64 container, 60 Hz host step, release build:
 | 200 cars, single-track, 240 Hz internal | 1.26        |
 
 Targets: under 0.2 ms for one car and under 3 ms for twenty on M1-class
-hardware; under 2 ms for two hundred traffic cars; core WASM under 224 KB
+hardware (not yet measured there); under 2 ms for two hundred traffic cars; core WASM under 224 KB
 gzipped (currently 205.2 KB). `apps/bench/baseline` holds the committed
 baseline the benchmark compares against.
 
@@ -134,8 +149,25 @@ faster with lateral acceleration, are in
 
 The determinism check runs a 50 s scripted drive of three vehicles, then a
 recorded lap of the sandbox track for each of the six presets (real driving
-inputs, replayed open-loop), in Chromium, Firefox, WebKit, and Node, and
-asserts identical state hashes.
+inputs, replayed open-loop), in Chromium, Firefox, WebKit (Playwright's
+build, not shipping Safari), and Node on x86 Linux, and asserts identical
+state hashes.
+
+### What "validated" means here
+
+"Validated" covers four different checks, and Skidpad has done three of
+them:
+
+| Level                 | Question                                                        | Status                                                                                                                                                                                                                  |
+| --------------------- | --------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Self-consistency      | Same answer every run, stable across timesteps, no regressions? | Yes. The golden results in `tools/validate/golden` are the model's own earlier output, so they catch changes, not errors.                                                                                               |
+| Analytic theory       | Does it reduce to the textbook result where one exists?         | Yes. The single-track understeer gradient matches linear theory with trail (table above).                                                                                                                               |
+| Independent simulator | Does it agree with a research-grade simulator on the same car?  | Partly. Against Project Chrono's multibody BMW E90, 21 of 23 metrics and 9 of 13 traces are within tolerances set before the run; two metrics were fitted. Chrono's E90 is itself a model, not a measured car.          |
+| Measured vehicle data | Does it match instrumented tests of a real car and tire?        | Not yet. The bundled tire is synthetic ([data/PROVENANCE.md](data/PROVENANCE.md)) and the presets are tuned class examples. A comparison against published instrumented tests with measured tire data is the next step. |
+
+Skidpad aims to be physically plausible and internally consistent for
+games, training and tooling. It is not a substitute for an engineering
+simulator, and its numbers should not be used for engineering decisions.
 
 ## Quick start
 
