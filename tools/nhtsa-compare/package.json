@@ -1,6 +1,6 @@
 {
   "name": "@skidpad/nhtsa-compare",
-  "version": "0.0.0",
+  "version": "0.9.0",
   "private": true,
   "description": "Comparison against instrumented tests of a real car: NHTSA VRTC's 1997 Jeep Cherokee, digitised from the published plots.",
   "license": "MIT OR Apache-2.0",
