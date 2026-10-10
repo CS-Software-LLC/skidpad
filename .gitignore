@@ -18,6 +18,7 @@ tests/determinism/out/
 apps/bench/results/
 tools/validate/out/
 tools/chrono-compare/out/
+tools/nhtsa-compare/out/
 playwright-report/
 test-results/
 

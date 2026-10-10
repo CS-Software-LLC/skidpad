@@ -1,0 +1,23 @@
+{
+  "name": "@skidpad/nhtsa-compare",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Comparison against instrumented tests of a real car: NHTSA VRTC's 1997 Jeep Cherokee, digitised from the published plots.",
+  "license": "MIT OR Apache-2.0",
+  "type": "module",
+  "scripts": {
+    "compare": "tsx src/cli.ts",
+    "fit": "tsx src/cli.ts --fit",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@skidpad/core": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
+  }
+}
