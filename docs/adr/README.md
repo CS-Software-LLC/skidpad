@@ -33,3 +33,4 @@ Rejected.
 | [0024](0024-finite-suspension-rays.md)                 | Restrict suspension contacts to the finite forward ray                  | Proposed                  |
 | [0025](0025-part-throttle-shift-schedule.md)           | A part-throttle shift schedule for the automatic                        | Proposed                  |
 | [0026](0026-travel-dependent-geometry.md)              | Suspension geometry that changes with travel                            | Proposed                  |
+| [0027](0027-compliance-steer.md)                       | Compliance steer under kingpin torque and lateral force                 | Proposed                  |

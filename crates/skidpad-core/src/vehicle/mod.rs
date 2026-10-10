@@ -73,6 +73,12 @@ impl VehicleModel {
                 b.vy = -f.vel.x * sy + f.vel.y * cy;
                 b.yaw_rate = f.omega.z;
                 b.ax_prev = f.accel_body.x;
+                // The compliance steer's lagged forces (ADR-0027).
+                b.kingpin_prev = f.kingpin_prev;
+                b.axle_fy_prev = [
+                    f.wheel_fy_prev[0] + f.wheel_fy_prev[1],
+                    f.wheel_fy_prev[2] + f.wheel_fy_prev[3],
+                ];
                 for (a, ax) in b.axles.iter_mut().enumerate() {
                     let (l, r) = (&f.wheels[2 * a], &f.wheels[2 * a + 1]);
                     ax.omega = 0.5 * (l.omega + r.omega);
@@ -97,6 +103,11 @@ impl VehicleModel {
                 let (sy, cy) = (skidpad_math::sin(b.yaw), skidpad_math::cos(b.yaw));
                 f.vel = crate::geom::Vec3::new(b.vx * cy - b.vy * sy, b.vx * sy + b.vy * cy, 0.0);
                 f.omega = crate::geom::Vec3::new(0.0, 0.0, b.yaw_rate);
+                // The aligning-torque compliance steer's lagged torque
+                // (ADR-0027). The per-wheel lateral forces start from zero,
+                // as they always have, so the lateral compliance skips one
+                // substep after the switch.
+                f.kingpin_prev = b.kingpin_prev;
                 let geometry = *f.geometry();
                 let half_tracks = [
                     0.5 * f.definition().axle_track(0),

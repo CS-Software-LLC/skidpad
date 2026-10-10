@@ -59,6 +59,14 @@ pub struct BicycleVehicle {
     /// gain `μ·h/L` is well below one so it converges.
     pub ax_prev: f64,
     pub axles: [AxleState; 2],
+    /// Kingpin torque of the lumped front tire and the lateral force of each
+    /// axle in the body frame at the end of the last substep, N·m and N: the
+    /// inputs to the next substep's compliance steer (ADR-0027), lagged one
+    /// substep like `ax_prev`. In the snapshot.
+    pub kingpin_prev: f64,
+    pub axle_fy_prev: [f64; 2],
+    /// Compliance steer of each axle this substep, rad about +z (derived).
+    pub compliance_steer: [f64; 2],
     /// Power unit, clutch, gearbox and centre differential (ADR-0011); one
     /// wheel per axle, so the axle differentials do not apply.
     pub drivetrain: Drivetrain,
@@ -107,6 +115,9 @@ impl BicycleVehicle {
             yaw_rate: 0.0,
             ax_prev: 0.0,
             axles: [AxleState::default(); 2],
+            kingpin_prev: 0.0,
+            axle_fy_prev: [0.0, 0.0],
+            compliance_steer: [0.0, 0.0],
             steer_angle: 0.0,
             long_accel: 0.0,
             lat_accel: 0.0,
@@ -203,6 +214,9 @@ impl BicycleVehicle {
         self.vy = 0.0;
         self.yaw_rate = 0.0;
         self.ax_prev = 0.0;
+        self.kingpin_prev = 0.0;
+        self.axle_fy_prev = [0.0, 0.0];
+        self.compliance_steer = [0.0, 0.0];
         for ax in &mut self.axles {
             *ax = AxleState::default();
         }
@@ -298,7 +312,34 @@ impl BicycleVehicle {
         self.assist_telemetry.steer_assist_scale = steer_scale;
         let delta = -input.steer * steer_scale * self.def.max_wheel_angle();
         self.steer_angle = delta;
-        let (sin_d, cos_d) = (m::sin(delta), m::cos(delta));
+        // Each axle's wheel angle: the steering on a steered axle plus its
+        // compliance steer (ADR-0027), from the previous substep's forces.
+        // An axle at zero angle that does not steer skips the rotation, so
+        // definitions without compliance run exactly as before.
+        let mut rot = [None; 2];
+        let c_at = self.def.steering.align_torque_compliance_deg;
+        for (i, r) in rot.iter_mut().enumerate() {
+            let steered = self.def.axles[i].steered;
+            let c_lat = self.def.axles[i].lateral_compliance_steer_deg;
+            let mut c = 0.0;
+            if steered && c_at != 0.0 {
+                c += m::deg_to_rad(c_at) * 1e-3 * self.kingpin_prev;
+            }
+            if c_lat != 0.0 {
+                let toward = if i == FRONT { -1.0 } else { 1.0 };
+                // Per wheel: the lumped tire carries the pair.
+                c += toward * m::deg_to_rad(c_lat) * 1e-3 * 0.5 * self.axle_fy_prev[i];
+            }
+            self.compliance_steer[i] = c;
+            let angle = match (steered, c != 0.0) {
+                (true, true) => delta + c,
+                (true, false) => delta,
+                (false, _) => c,
+            };
+            if steered || c != 0.0 {
+                *r = Some((m::sin(angle), m::cos(angle)));
+            }
+        }
 
         // --- tires, then the drivetrain solve (ADR-0011) --------------------
         // One wheel per axle, representing the pair; tire forces are the
@@ -310,6 +351,7 @@ impl BicycleVehicle {
         let mut dyn_wheels = [WheelDyn::default(); 2];
         let mut outs = [TireOutput::default(); 2];
         let mut ploughs = [(0.0, 0.0); 2];
+        let mut axle_fy = [0.0; 2];
 
         for i in 0..2 {
             let surface = axle_surfaces[i];
@@ -334,15 +376,14 @@ impl BicycleVehicle {
             let _ = (axle_def.track_width, axle_def.suspension.anti_brake);
 
             // Contact velocity in the wheel frame.
-            let (bx, by, steered) = if i == FRONT {
-                (self.vx, self.vy + a * self.yaw_rate, axle_def.steered)
+            let (bx, by) = if i == FRONT {
+                (self.vx, self.vy + a * self.yaw_rate)
             } else {
-                (self.vx, self.vy - b * self.yaw_rate, axle_def.steered)
+                (self.vx, self.vy - b * self.yaw_rate)
             };
-            let (wx, wy) = if steered {
-                (bx * cos_d + by * sin_d, -bx * sin_d + by * cos_d)
-            } else {
-                (bx, by)
+            let (wx, wy) = match rot[i] {
+                Some((sin_d, cos_d)) => (bx * cos_d + by * sin_d, -bx * sin_d + by * cos_d),
+                None => (bx, by),
             };
 
             let st = &mut self.axles[i];
@@ -507,16 +548,15 @@ impl BicycleVehicle {
 
             // --- tire forces into the body frame -----------------------------
             let out = outs[i];
-            let steered = self.def.axles[i].steered;
             let (px, py) = ploughs[i];
-            let (fxb, fyb) = if steered {
-                (
+            let (fxb, fyb) = match rot[i] {
+                Some((sin_d, cos_d)) => (
                     (out.fx + px) * cos_d - (out.fy + py) * sin_d,
                     (out.fx + px) * sin_d + (out.fy + py) * cos_d,
-                )
-            } else {
-                (out.fx + px, out.fy + py)
+                ),
+                None => (out.fx + px, out.fy + py),
             };
+            axle_fy[i] = fyb;
             body_fx += fxb;
             body_fy += fyb;
             body_mz += out.mz;
@@ -573,6 +613,8 @@ impl BicycleVehicle {
         };
         self.steering_torque = self.def.hand_wheel_torque(kingpin);
         self.rack_force = kingpin / self.def.steering.steering_arm;
+        self.kingpin_prev = kingpin;
+        self.axle_fy_prev = axle_fy;
     }
 
     /// Write the telemetry record for the current state.
@@ -654,7 +696,13 @@ impl BicycleVehicle {
             rec[t::SUSP_TRAVEL_FL + i] = 0.0;
             rec[t::SUSP_RATE_FL + i] = 0.0;
             rec[t::SUSP_FORCE_FL + i] = 0.5 * ax.load;
-            rec[t::WHEEL_STEER_FL + i] = if steered { self.steer_angle } else { 0.0 };
+            let c = self.compliance_steer[i / 2];
+            rec[t::WHEEL_STEER_FL + i] = match (steered, c != 0.0) {
+                (true, true) => self.steer_angle + c,
+                (true, false) => self.steer_angle,
+                (false, _) => c,
+            };
+            rec[t::COMPLIANCE_STEER_FL + i] = c;
             rec[t::WHEEL_CONTACT_FL + i] = 1.0;
             rec[t::WHEEL_LOCKED_FL + i] = if ax.locked { 1.0 } else { 0.0 };
             rec[t::SPIN_ANGLE_FL + i] = ax.spin_angle;
@@ -673,7 +721,7 @@ impl BicycleVehicle {
 }
 
 /// Snapshot values of the single-track body and axles, before the drivetrain.
-pub const BICYCLE_STATE_LEN: usize = 8 + 2 * 4;
+pub const BICYCLE_STATE_LEN: usize = 8 + 2 * 4 + 3;
 /// Snapshot values of the whole single-track vehicle.
 pub const STATE_LEN: usize = BICYCLE_STATE_LEN + crate::drivetrain::STATE_LEN;
 
@@ -698,6 +746,9 @@ impl Snapshottable for BicycleVehicle {
             out[o + 2] = ax.transient.slip_angle;
             out[o + 3] = ax.spin_angle;
         }
+        out[16] = self.kingpin_prev;
+        out[17] = self.axle_fy_prev[0];
+        out[18] = self.axle_fy_prev[1];
         self.drivetrain.write_state(
             &mut out[BICYCLE_STATE_LEN..BICYCLE_STATE_LEN + crate::drivetrain::STATE_LEN],
         );
@@ -719,6 +770,8 @@ impl Snapshottable for BicycleVehicle {
             ax.transient.slip_angle = v[o + 2];
             ax.spin_angle = v[o + 3];
         }
+        self.kingpin_prev = v[16];
+        self.axle_fy_prev = [v[17], v[18]];
         self.drivetrain
             .read_state(&v[BICYCLE_STATE_LEN..BICYCLE_STATE_LEN + crate::drivetrain::STATE_LEN]);
         self.compute_static_loads();

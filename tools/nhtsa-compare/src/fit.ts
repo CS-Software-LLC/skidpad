@@ -37,23 +37,34 @@ const COMPLIANCE: Pair = {
   lo: 0,
   hi: 60,
 };
+const CORE: Pair = {
+  key: "alignTorqueCompliance",
+  fn: metric("lateral acceleration gain"),
+  lo: 0,
+  hi: 30,
+};
 const OTHERS: Pair[] = [
   { key: "frontAntiRoll", fn: metric("roll gradient"), lo: 0, hi: 120000 },
   { key: "peakFriction", fn: metric("maximum lateral acceleration"), lo: 0.5, hi: 1.3 },
 ];
 
 /**
- * `compliance`: fit a compliance per m/s² of lateral acceleration at the
- * published ratio of 14 instead of an effective ratio.
+ * What stands in for the steering's give, fitted to the lateral acceleration
+ * gain: `"ratio"` an effective steering ratio; `"harness"` a compliance per
+ * m/s² of lateral acceleration the harness takes off the hand wheel, at the
+ * published ratio of 14; `"core"` the core's aligning-torque compliance steer
+ * (ADR-0027), at the published ratio.
  */
+export type FitMode = "ratio" | "harness" | "core";
+
 export function fitOnSis(
   sp: Skidpad,
   measuredSis: Row[],
   log: (s: string) => void = () => {},
   bodyFixedAy = false,
-  compliance = false,
+  mode: FitMode = "ratio",
 ): Tunable {
-  const PAIRS = [compliance ? COMPLIANCE : RATIO, ...OTHERS];
+  const PAIRS = [{ ratio: RATIO, harness: COMPLIANCE, core: CORE }[mode], ...OTHERS];
   const t: Tunable = { ...ESTIMATED };
   const run = (x: Tunable) => runManoeuvre(sp, "sis", { tunable: x, bodyFixedAy });
   for (let round = 0; round < 3; round++) {
@@ -66,7 +77,7 @@ export function fitOnSis(
       let x1 = x0;
       let f1 = f0;
       if (Math.abs(f0) > tol) {
-        x1 = x0 === 0 ? (p.key === "compliance" ? 5 : 5000) : x0 * 1.02;
+        x1 = x0 === 0 ? (p.key === "frontAntiRoll" ? 5000 : 5) : x0 * 1.02;
         f1 = at(x1);
         for (let k = 0; k < 8 && Math.abs(f1) > tol && f1 !== f0; k++) {
           const x2 = Math.min(p.hi, Math.max(p.lo, x1 - (f1 * (x1 - x0)) / (f1 - f0)));

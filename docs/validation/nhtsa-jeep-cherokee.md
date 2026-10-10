@@ -231,16 +231,15 @@ with what it did.
    under the aligning moment and lateral force does. The term cannot be
    separated, from these tests, from other understeer that grows with
    lateral force: a lower front cornering stiffness than the class tire's,
-   or roll steer of the axles. Skidpad has neither compliance steer nor
-   axle roll steer yet; the README's roadmap names compliance steer as the
-   next step after the travel curves, and this is the first measured
-   evidence for it.
+   or roll steer of the axles. This finding led to compliance steer in the
+   core (ADR-0027), and with it the car is predicted on every metric: see
+   [Compliance steer in the core](#compliance-steer-in-the-core).
 2. **Transient lateral acceleration builds faster than the car's.** Every
    build reaches 90 % of its steady lateral acceleration 0.05–0.09 s sooner
    after the step than the car (0.28 s), while the yaw rate is within
    0.05 s. The harness's compliance acts instantly; real compliance and the
-   tire's lag have dynamics of their own. The estimated relaxation length
-   (0.45 m) and the steering's own dynamics are the candidates.
+   tire's lag have dynamics of their own. With the core's compliance, which
+   acts through the tire's lagging force, the gap closes to 0.03 s.
 3. **Roll grows less than linearly on the car.** With the bar fitted to the
    roll gradient between 1 and 4 m/s², the model rolls 17–19 % more than
    the car in the step steer at 5.5 m/s² and 11–13 % more at the lane
@@ -263,12 +262,9 @@ with what it did.
 
 ## Recommendations
 
-- **Compliance steer in the core.** A per-axle steer compliance under the
-  aligning moment and lateral force (and its lag) is what this car most
-  needs, and the measured data here can check it: with it, the fitted
-  build should not need the harness's compliance term, and the response
-  times should come into line. The same data can then judge axle roll
-  steer, which a solid axle on leaf springs has.
+- **Compliance steer in the core.** Done (ADR-0027); results below. The
+  same data can next judge axle roll steer, which a solid axle on leaf
+  springs has and which these tests cannot yet tell from compliance.
 - **Measured inertia and centre of mass.** NHTSA measured this car's
   inertial parameters (SAE 1999-01-1336; a copy is hosted by Auburn
   University, which this environment cannot reach). Replacing the estimated
@@ -286,12 +282,97 @@ with what it did.
   than ADR-0025's straight line. A measured shift map for the AW4 would
   settle both.
 
+## Compliance steer in the core
+
+### Expected results, set before the run
+
+Finding 1 led to compliance steer in the core (ADR-0027). The rerun keeps
+everything about the fitted builds but the steering: the ratio stays at the
+published 14, the harness steers with the measured hand wheel alone, and the
+core's aligning-torque compliance, `steering.alignTorqueComplianceDeg`, is
+fitted to the slowly increasing steer's lateral acceleration gain in place
+of the harness's term (`pnpm fit --core`). The tolerances are unchanged. The
+lateral-force compliances stay at zero: the slowly increasing steer cannot
+separate them from the aligning-torque term, and nothing public says how the
+Jeep's split between them.
+
+Expected, before the run:
+
+- **The fitted value** near 10 deg/kN·m. The harness's term took 0.63° of
+  road-wheel angle off per m/s²; the front kingpin torque grows by about the
+  mechanical trail (0.035 m) plus the class tire's pneumatic trail
+  (0.03 m) times the front axle's 935 N per m/s², about 61 N·m per m/s².
+  Within the schema's bound of 30.
+- **The predictions** as good as the harness's compliance or better on the
+  steady and peak metrics: the kingpin torque follows the front lateral
+  force, which in steady cornering is lateral acceleration times the front
+  axle's share, so the two terms differ only in transients and at the limit,
+  where the pneumatic trail collapses and the core's compliance lets go of
+  the wheels a little. Pass expected on 11 of 12 predicted metrics again,
+  every trace within tolerance.
+- **The lateral acceleration response time**, the harness version's one
+  miss (0.09 s quicker than the car against ±0.08 s), expected to move
+  toward the car's 0.28 s: the core's compliance acts through the tire's
+  force, which lags the slip angle by the relaxation length, where the
+  harness's acted on the body's acceleration at once. Expected inside its
+  band, but not by much.
+- **Maximum lateral acceleration** and the slowly increasing steer's limit
+  expected unchanged within 1 %: the fit still matches them by the tire's
+  peak friction.
+
+### Results
+
+| Manoeuvre | Metric (unit)                                                 | Tolerance | Measured | Fitted, core compliance |
+| --------- | ------------------------------------------------------------- | --------- | -------- | ----------------------- |
+| sis       | yaw-rate gain, 1–4 m/s² (deg/s per deg)                       | ±15 %     | 0.18     | 0.19 (+4 %)             |
+| sis       | lateral acceleration gain, 1–4 m/s² (m/s² per 100 deg)        | ±15 %     | 3.60     | 3.60 (fit)              |
+| sis       | understeer gradient at the published ratio of 14 (deg/g)      | ±1        | 7.40     | 7.48 (+0.08)            |
+| sis       | maximum lateral acceleration, 1 s mean (m/s²)                 | ±10 %     | 7.05     | 7.05 (fit)              |
+| sis       | roll gradient, 1–4 m/s² (deg/g)                               | ±25 %     | 3.63     | 3.63 (fit)              |
+| step      | steady lateral acceleration, 10–16 s (m/s²)                   | ±10 %     | 5.54     | 6.03 (+9 %)             |
+| step      | steady yaw rate, 10–16 s (deg/s)                              | ±10 %     | 27.1     | 28.8 (+6 %)             |
+| step      | steady roll, 10–16 s (deg)                                    | ±25 %     | 1.89     | 2.23 (+18 %)            |
+| step      | yaw-rate response time, 50 % wheel to 90 % yaw rate (s)       | ±0.08     | 0.28     | 0.27 (−0.01)            |
+| step      | lateral acceleration response time, 50 % wheel to 90 % ay (s) | ±0.08     | 0.28     | 0.25 (−0.03)            |
+| step      | yaw-rate overshoot (%)                                        | ±10       | 0.77     | 2.14 (+1.37)            |
+| lc12      | peak lateral acceleration (m/s²)                              | ±15 %     | 5.57     | 5.86 (+5 %)             |
+| lc12      | peak yaw rate (deg/s)                                         | ±15 %     | 27.6     | 29.2 (+6 %)             |
+| lc12      | peak roll (deg)                                               | ±25 %     | 2.13     | 2.33 (+9 %)             |
+| lc22      | peak lateral acceleration (m/s²)                              | ±15 %     | 6.21     | 6.63 (+7 %)             |
+| lc22      | peak yaw rate (deg/s)                                         | ±15 %     | 22.1     | 22.7 (+3 %)             |
+| lc22      | peak roll (deg)                                               | ±25 %     | 3.42     | 3.75 (+10 %)            |
+
+Every trace is within tolerance: lateral acceleration 2.4–9.3 % of the
+measured range, yaw rate 3.5–6.6 %, roll 6.8–18.0 %.
+
+The fit settles at 9.74 deg/kN·m of aligning-torque compliance, with the
+front bar at 28.6 kN/m and peak friction 0.82; the bar and the friction are
+where the harness-compliance fit put them. Against the expectations above:
+
+- The fitted value is 9.74 against the expected 10.
+- All 12 predicted metrics pass, one better than expected, and every trace.
+- The step steer's lateral acceleration response, the harness version's
+  one miss (0.19 s), is 0.25 s against the car's 0.28 s: the compliance now
+  acts through the tire's lagging force, as expected.
+- The maximum lateral acceleration is unchanged; it is still matched by
+  the peak friction.
+
+So a single physical parameter in the core, the steering system's
+compliance under the kingpin torque, at a value typical of a
+recirculating-ball steering box, replaces both the effective ratio and the
+harness's term, and predicts the car's step steer and both lane changes,
+at 12 m/s and at 22.5 m/s, within the tolerances set before the first run.
+The remaining estimates (mass properties, springs, roll centres, the tire's
+cornering stiffness) are unchanged from the estimated build; the three
+fitted values still come from the slowly increasing steer alone.
+
 ## Reproducing
 
 ```sh
 pnpm --filter @skidpad/nhtsa-compare compare              # estimated build
 pnpm --filter @skidpad/nhtsa-compare fit                  # fitted, ratio
-pnpm --filter @skidpad/nhtsa-compare fit -- --compliance  # fitted, compliance
+pnpm --filter @skidpad/nhtsa-compare fit -- --compliance  # fitted, harness compliance
+pnpm --filter @skidpad/nhtsa-compare fit -- --core        # fitted, the core's compliance steer
 pnpm --filter @skidpad/nhtsa-compare test                 # the regression guard
 ```
 

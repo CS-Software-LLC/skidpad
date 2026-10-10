@@ -6,8 +6,10 @@
  *   pnpm compare --fit      # fit the three unknowns on the slowly increasing
  *                           # steer, then compare everything with them
  *   pnpm compare --measured # only the measured metrics, no Skidpad run
- *   pnpm fit --compliance   # fit a compliance per m/s² at the published ratio
- *                           # instead of an effective ratio
+ *   pnpm fit --compliance   # fit a compliance per m/s² at the published ratio,
+ *                           # applied by the harness, instead of an effective ratio
+ *   pnpm fit --core         # fit the core's aligning-torque compliance steer
+ *                           # (ADR-0027) at the published ratio
  *   --body-fixed-ay         # compare Skidpad's body-fixed LatAccel as it is,
  *                           # as the first run did (see run.ts)
  *
@@ -47,7 +49,8 @@ const sp = await init();
 const bodyFixed = args.has("--body-fixed-ay");
 let tunable: Tunable = ESTIMATED;
 if (args.has("--fit")) {
-  tunable = fitOnSis(sp, ref.sis!, console.log, bodyFixed, args.has("--compliance"));
+  const mode = args.has("--core") ? "core" : args.has("--compliance") ? "harness" : "ratio";
+  tunable = fitOnSis(sp, ref.sis!, console.log, bodyFixed, mode);
   console.log(`fitted on the slowly increasing steer: ${JSON.stringify(tunable)}\n`);
 }
 
@@ -56,7 +59,7 @@ const outDir = join(
   ROOT,
   "out",
   (args.has("--fit") ? "fitted" : "estimated") +
-    (args.has("--compliance") ? "-compliance" : "") +
+    (args.has("--core") ? "-core" : args.has("--compliance") ? "-compliance" : "") +
     (bodyFixed ? "-body-fixed-ay" : ""),
 );
 mkdirSync(outDir, { recursive: true });

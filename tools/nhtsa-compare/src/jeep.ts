@@ -76,6 +76,12 @@ export interface Tunable {
    * not model (README roadmap: compliance steer).
    */
   compliance: number;
+  /**
+   * The core's aligning-torque compliance steer (ADR-0027), road-wheel
+   * degrees per kN·m of front kingpin torque: `steering.alignTorqueComplianceDeg`.
+   * Zero in the estimated build.
+   */
+  alignTorqueCompliance: number;
 }
 
 export const ESTIMATED: Tunable = {
@@ -83,6 +89,7 @@ export const ESTIMATED: Tunable = {
   steeringRatio: STEERING_RATIO,
   peakFriction: 0.85,
   compliance: 0,
+  alignTorqueCompliance: 0,
 };
 
 /**
@@ -202,6 +209,7 @@ export function jeepCherokee(t: Tunable = ESTIMATED): PartialVehicleDefinition {
       columnFriction: 0.4,
       columnDamping: 0.06,
       jackingRate: 0,
+      alignTorqueComplianceDeg: t.alignTorqueCompliance,
     },
     brakes: { handbrakeTorque: 1500 },
     // ESTIMATE: a tall, square body (Hucho, ch. 4); immaterial at these speeds.
