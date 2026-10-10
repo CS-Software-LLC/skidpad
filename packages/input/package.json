@@ -1,6 +1,6 @@
 {
   "name": "@skidpad/input",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "description": "Keyboard, gamepad, and wheel input filtering for Skidpad.",
   "license": "MIT OR Apache-2.0",
   "repository": {
