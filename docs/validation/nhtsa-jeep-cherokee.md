@@ -267,6 +267,44 @@ with what it did.
   transient big enough to spin a car near the limit. Worth a look on its
   own, outside this comparison.
 
+## Compliance steer in the core
+
+### Expected results, set before the run
+
+Finding 1 led to compliance steer in the core (ADR-0027). The rerun keeps
+everything about the fitted builds but the steering: the ratio stays at the
+published 14, the harness steers with the measured hand wheel alone, and the
+core's aligning-torque compliance, `steering.alignTorqueComplianceDeg`, is
+fitted to the slowly increasing steer's lateral acceleration gain in place
+of the harness's term (`pnpm fit --core`). The tolerances are unchanged. The
+lateral-force compliances stay at zero: the slowly increasing steer cannot
+separate them from the aligning-torque term, and nothing public says how the
+Jeep's split between them.
+
+Expected, before the run:
+
+- **The fitted value** near 10 deg/kN·m. The harness's term took 0.63° of
+  road-wheel angle off per m/s²; the front kingpin torque grows by about the
+  mechanical trail (0.035 m) plus the class tire's pneumatic trail
+  (0.03 m) times the front axle's 935 N per m/s², about 61 N·m per m/s².
+  Within the schema's bound of 30.
+- **The predictions** as good as the harness's compliance or better on the
+  steady and peak metrics: the kingpin torque follows the front lateral
+  force, which in steady cornering is lateral acceleration times the front
+  axle's share, so the two terms differ only in transients and at the limit,
+  where the pneumatic trail collapses and the core's compliance lets go of
+  the wheels a little. Pass expected on 11 of 12 predicted metrics again,
+  every trace within tolerance.
+- **The lateral acceleration response time**, the harness version's one
+  miss (0.09 s quicker than the car against ±0.08 s), expected to move
+  toward the car's 0.28 s: the core's compliance acts through the tire's
+  force, which lags the slip angle by the relaxation length, where the
+  harness's acted on the body's acceleration at once. Expected inside its
+  band, but not by much.
+- **Maximum lateral acceleration** and the slowly increasing steer's limit
+  expected unchanged within 1 %: the fit still matches them by the tire's
+  peak friction.
+
 ## Reproducing
 
 ```sh

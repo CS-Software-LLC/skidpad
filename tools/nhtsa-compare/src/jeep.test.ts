@@ -126,7 +126,7 @@ describe("Skidpad against NHTSA VRTC's measured Jeep Cherokee", () => {
   });
 
   it("fitted with a compliance: within tolerance outside the known gaps", () => {
-    const t = fitOnSis(sp, ref.sis!, () => {}, false, true);
+    const t = fitOnSis(sp, ref.sis!, () => {}, false, "harness");
     expect(t.steeringRatio).toBe(14);
     expect(t.compliance).toBeGreaterThan(7);
     expect(t.compliance).toBeLessThan(11);
