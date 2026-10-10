@@ -856,6 +856,55 @@ fn flooring_the_pedal_kicks_down_from_a_part_throttle_gear() {
 }
 
 #[test]
+fn a_kickdown_flares_the_engine_up_instead_of_dragging_it_with_the_wheels() {
+    // The NHTSA Jeep comparison (docs/validation/nhtsa-jeep-cherokee.md):
+    // the automatic lifted the throttle through every shift, so on a
+    // kickdown the engine fell away from the lower gear's speed and the
+    // re-engaging clutch dragged it up with the wheels, reversing the drive
+    // force at the cornering limit. It now flares up to that speed on the
+    // driver's throttle while the clutch is open.
+    for model in [VehicleModelKind::FourWheel, VehicleModelKind::SingleTrack] {
+        let mut w = World::new(1);
+        w.add_vehicle(hatchback(model)).unwrap();
+        let cfg = AiConfig {
+            max_speed: 9.0,
+            closed: false,
+            ..AiConfig::default()
+        };
+        w.set_ai(0, &[0.0, 0.0, 5000.0, 0.0], cfg).unwrap();
+        for _ in 0..(60 * 30) {
+            w.step(1.0 / 60.0);
+        }
+        assert_eq!(w.telemetry_of(0)[t::GEAR] as i32, 2, "{model:?}");
+        w.clear_ai(0).unwrap();
+        w.set_input(0, throttle(1.0)).unwrap();
+        let mut kickdown_rpm = None;
+        let mut flare_rpm: f64 = 0.0;
+        let mut drag: f64 = 0.0;
+        for _ in 0..100 {
+            w.step(0.01);
+            let v = w.telemetry_of(0);
+            if v[t::GEAR] as i32 == 1 {
+                let rpm = *kickdown_rpm.get_or_insert(v[t::ENGINE_RPM]);
+                if v[t::CLUTCH_TORQUE] == 0.0 {
+                    flare_rpm = m::max(flare_rpm, v[t::ENGINE_RPM] - rpm);
+                }
+                drag = m::min(drag, v[t::CLUTCH_TORQUE]);
+            }
+        }
+        assert!(kickdown_rpm.is_some(), "{model:?}: no kickdown");
+        assert!(
+            flare_rpm > 1000.0,
+            "{model:?}: engine rose {flare_rpm} rpm with the clutch open"
+        );
+        assert!(
+            drag > -5.0,
+            "{model:?}: the wheels dragged the engine up with {drag} N·m"
+        );
+    }
+}
+
+#[test]
 fn lifting_upshifts_but_lifting_to_brake_does_not() {
     for model in [VehicleModelKind::FourWheel, VehicleModelKind::SingleTrack] {
         for brake in [0.0, 0.5] {

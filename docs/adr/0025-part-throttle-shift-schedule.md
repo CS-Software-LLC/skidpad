@@ -110,3 +110,34 @@ presets (kart, crossover EV) and the Chrono comparison vehicle use it.
   `full_throttle_shifts_at_the_same_speeds_as_before`,
   `flooring_the_pedal_kicks_down_from_a_part_throttle_gear` and
   `lifting_upshifts_but_lifting_to_brake_does_not`.
+
+## Amendment: the engine flares up on a downshift (2026-10-10)
+
+The NHTSA Jeep Cherokee comparison (`docs/validation/nhtsa-jeep-cherokee.md`)
+held 11 m/s in second at about 1,600 rpm on the slowly increasing steer.
+Near the cornering limit the speed controller's throttle reached 0.465,
+where second's downshift point is, and the box kicked down to first, as
+this schedule intends. The kickdown spun the car. The schedule was not the
+cause. The automatic (ADR-0011) lifted the throttle whenever the clutch was
+open for a shift. That is right for an upshift, where the engine has to come
+down to the taller gear. On a downshift it has to come up. With the throttle
+lifted the engine fell from 1,610 to 1,210 rpm through the 0.4 s
+interruption, and the re-engaging clutch then dragged it up to first gear's
+2,950 rpm with the wheels: 240 N·m back through the clutch and a rear
+drive force of −3.6 kN at 7 m/s² of lateral acceleration.
+
+While the clutch is open, an automatic now keeps the driver's throttle as
+long as the engine is below the new gear's input speed. The throttle closes
+over the last 3 % of redline below that speed, and above it the throttle is
+lifted as before. A power-on downshift flares the engine to the lower
+gear's speed, and the clutch re-engages near sync. An upshift starts with
+the engine above the new gear's speed, so it is lifted as before; on every
+preset and on both models, full-throttle and constant-throttle runs are
+bit-identical. On the Jeep the engine reaches 2,780 rpm before
+re-engagement, the clutch closes within 1.1 rad/s of sync, the rear drive
+force dips to about −60 N, and the car carries on round the turn in first.
+A closed-throttle (coasting) downshift is also unchanged: with no pedal
+there is nothing to flare on, and the clutch pulls the engine up as before.
+
+Guarded by `drivetrain_tests.rs`:
+`a_kickdown_flares_the_engine_up_instead_of_dragging_it_with_the_wheels`.

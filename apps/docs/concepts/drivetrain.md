@@ -65,7 +65,12 @@ at `shiftDownAt`. On a lighter pedal both points move down toward
 a higher gear. Pressing the pedal raises the downshift point, which kicks
 down. An upshift is never so early that the new gear lands near its own
 downshift point, so the gearbox does not hunt. With the brake applied it
-uses the full-throttle points, so lifting off to brake does not upshift. A **manual** follows the `gear` input
+uses the full-throttle points, so lifting off to brake does not upshift.
+While the clutch is open for an upshift the automatic lifts the throttle, so
+the engine falls toward the new gear's speed. For a downshift it keeps the
+driver's throttle until the engine has flared up to the lower gear's speed,
+so the clutch re-engages near sync instead of dragging the engine up with
+the wheels. A **manual** follows the `gear` input
 exactly: negative is reverse, zero neutral, positive a gear number.
 
 The clutch capacity is the pedal's remainder times an automatic law: the
