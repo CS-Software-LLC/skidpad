@@ -282,8 +282,7 @@ fn nominal_load_scale_enters_the_cornering_stiffness_once() {
     };
     let f0 = scaled.fz0 * 0.81;
     for fz in [2000.0, 4000.0, 6000.0] {
-        let expected =
-            (scaled.pky1 * f0 * m::sin(2.0 * m::atan(fz / (scaled.pky2 * f0)))).abs();
+        let expected = (scaled.pky1 * f0 * m::sin(2.0 * m::atan(fz / (scaled.pky2 * f0)))).abs();
         let k = scaled.cornering_stiffness(fz);
         assert!(
             (k - expected).abs() / expected < 1e-12,

@@ -66,7 +66,7 @@ mf_params! {
         // Dimensions and references
         /// Unloaded radius `R0`, m.
         unloaded_radius: "UNLOADED_RADIUS" = 0.31,
-        /// Nominal load `Fz0`, N.
+        /// Nominal load `Fz0`, N (`FNOMIN` in PAC2002 and MF-Tyre files).
         fz0: "FZ0" = 4000.0,
         /// Reference speed `V0` for the rolling resistance speed terms, m/s.
         longvl: "LONGVL" = 16.7,

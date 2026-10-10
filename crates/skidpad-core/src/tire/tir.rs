@@ -109,6 +109,16 @@ const COEFFICIENT_SECTIONS: &[&str] = &[
     "CONTACT_PATCH_TRANSIENT",
 ];
 
+/// The key the parameter table uses for a `.tir` key. PAC2002 and MF-Tyre
+/// files quote the nominal load as `FNOMIN` in `[VERTICAL]`; `FZ0` is
+/// accepted as well.
+fn canonical_key(key: &str) -> &str {
+    match key {
+        "FNOMIN" => "FZ0",
+        _ => key,
+    }
+}
+
 /// Build Magic Formula parameters from a parsed file, collecting warnings for
 /// every key the subset ignores and for unit declarations that are not SI.
 pub fn import(file: &TirFile) -> TirImport {
@@ -145,7 +155,7 @@ pub fn import(file: &TirFile) -> TirImport {
                 for (k, v) in &section.entries {
                     match v {
                         TirValue::Number(n) => {
-                            if !params.set_by_key(k, *n) {
+                            if !params.set_by_key(canonical_key(k), *n) {
                                 warnings.push(TirWarning {
                                     section: section.name.clone(),
                                     key: k.clone(),
@@ -206,5 +216,12 @@ mod tests {
         assert_eq!(imp.params.pky1, -21.5);
         assert_eq!(imp.params.pcy1, 1.3);
         assert!(imp.warnings.iter().any(|w| w.key == "BOGUS"));
+    }
+
+    #[test]
+    fn reads_the_nominal_load_from_fnomin() {
+        let imp = import_str("[VERTICAL]\nVERTICAL_STIFFNESS = 280000\nFNOMIN = 4850\n");
+        assert_eq!(imp.params.fz0, 4850.0);
+        assert!(!imp.warnings.iter().any(|w| w.key == "FNOMIN"));
     }
 }
