@@ -709,10 +709,10 @@ impl VehicleDefinition {
                 e.push(format!("steering.{name} must be within ±0.5 m (got {v})"));
             }
         }
-        let c = self.steering.align_torque_compliance_deg;
-        if !(c >= 0.0 && c <= MAX_ALIGN_TORQUE_COMPLIANCE_DEG) {
+        let atc = self.steering.align_torque_compliance_deg;
+        if !(0.0..=MAX_ALIGN_TORQUE_COMPLIANCE_DEG).contains(&atc) {
             e.push(format!(
-                "steering.alignTorqueComplianceDeg must be in [0, {MAX_ALIGN_TORQUE_COMPLIANCE_DEG}] deg/kN·m (got {c})"
+                "steering.alignTorqueComplianceDeg must be in [0, {MAX_ALIGN_TORQUE_COMPLIANCE_DEG}] deg/kN·m (got {atc})"
             ));
         }
         for (name, v) in [

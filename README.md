@@ -133,7 +133,7 @@ step, release build:
 
 Targets: under 0.2 ms for one car and under 3 ms for twenty on M1-class
 hardware (not yet measured there); under 2 ms for two hundred traffic cars; core WASM under 224 KB
-gzipped (currently 205.2 KB). `apps/bench/baseline` holds the committed
+gzipped (currently 207.4 KB). `apps/bench/baseline` holds the committed
 baseline the benchmark compares against.
 
 An independent check drives Skidpad and Project Chrono's multibody BMW E90

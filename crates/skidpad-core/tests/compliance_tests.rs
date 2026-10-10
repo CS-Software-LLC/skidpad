@@ -100,7 +100,8 @@ fn lateral_compliance_adds_its_understeer_terms() {
     let mg = base.chassis.mass * GRAVITY;
     let wf = mg * base.cg_to_rear_axle() / l;
     let wr = mg * base.chassis.cg_to_front_axle / l;
-    let expected = (cf_deg.to_radians() * 1e-3 * 0.5 * wf + cr_deg.to_radians() * 1e-3 * 0.5 * wr) / GRAVITY;
+    let expected =
+        (cf_deg.to_radians() * 1e-3 * 0.5 * wf + cr_deg.to_radians() * 1e-3 * 0.5 * wr) / GRAVITY;
     assert!(
         (measured / expected - 1.0).abs() < 0.1,
         "measured {measured}, Gillespie {expected}"
@@ -120,7 +121,10 @@ fn the_single_track_model_carries_the_same_compliance() {
     let d4 = gradient(&four) - gradient(&four_base);
     let d1 = gradient(&single) - gradient(&single_base);
     assert!(d4 > 0.0 && d1 > 0.0, "{d4} {d1}");
-    assert!((d1 / d4 - 1.0).abs() < 0.15, "four-wheel {d4}, single-track {d1}");
+    assert!(
+        (d1 / d4 - 1.0).abs() < 0.15,
+        "four-wheel {d4}, single-track {d1}"
+    );
 }
 
 /// A compliance as large as a recirculating-ball SUV's (the NHTSA Jeep
@@ -132,8 +136,16 @@ fn large_compliance_is_stable_at_every_substep_rate() {
         let mut d = compliant(12.0, 0.3, 0.2);
         d.simulation.substep_rate_hz = rate;
         let r = step_steer::run(&d, &StepSteerConfig::default()).unwrap();
-        assert!(r.yaw_rate.is_finite() && r.yaw_rate.abs() > 0.05, "{rate} Hz: {}", r.yaw_rate);
-        assert!(r.yaw_rate_overshoot < 0.5, "{rate} Hz: overshoot {}", r.yaw_rate_overshoot);
+        assert!(
+            r.yaw_rate.is_finite() && r.yaw_rate.abs() > 0.05,
+            "{rate} Hz: {}",
+            r.yaw_rate
+        );
+        assert!(
+            r.yaw_rate_overshoot < 0.5,
+            "{rate} Hz: overshoot {}",
+            r.yaw_rate_overshoot
+        );
         yaw.push(r.yaw_rate);
     }
     for y in &yaw {
