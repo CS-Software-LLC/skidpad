@@ -127,14 +127,15 @@ agree within a few percent once static toe, anti-dive and anti-squat, a
 measured engine-braking curve and per-axle tracks are carried over
 (ADR-0017, ADR-0018). Roll centres and pitch geometry that change with
 travel, derived from Chrono's hardpoints (ADR-0026), bring the braking
-pitch and the pitch in a turn into line. The remaining gaps, mostly
-Chrono's toe moving with force (compliance steer) and roll that grows
-faster with lateral acceleration, are in
+pitch and the pitch in a turn into line. The remaining gaps, mostly the
+ride height while toe-in forces jack the car and roll that grows faster
+with lateral acceleration, are in
 [docs/validation/chrono-bmw-e90.md](docs/validation/chrono-bmw-e90.md).
 A second reference car, Chrono's front-wheel-drive Sedan on a Magic Formula
-tire, is built with nothing fitted to its behaviour and agrees on 22 of 25
-metrics; the patterns the two cars share, and two tire-import bugs the
-Sedan found, are in [docs/validation/chrono-sedan.md](docs/validation/chrono-sedan.md).
+tire, is built with nothing fitted to its behaviour and agrees on 22 of 27
+metrics. Its report covers the patterns the two cars share, the two
+tire-import bugs the Sedan found, and why the parked Chrono car is not at
+its equilibrium: [docs/validation/chrono-sedan.md](docs/validation/chrono-sedan.md).
 
 The determinism check runs a 50 s scripted drive of three vehicles, then a
 recorded lap of the sandbox track for each of the six presets (real driving

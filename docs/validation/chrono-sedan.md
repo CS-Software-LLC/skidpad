@@ -23,8 +23,9 @@ when one simulator is compared against another.
 
 Both simulators drive the E90's eight manoeuvres (`chrono/maneuvers.json`)
 with the same inputs, the same PI speed controller and the same metrics and
-tolerances, which were set before the E90's first run and are not changed
-here.
+tolerances. Those tolerances were set before the E90's first run. Two
+ride-height metrics were added for both cars, with their tolerances set
+before either car was run against them.
 
 ## How the Skidpad model was built
 
@@ -37,16 +38,24 @@ Sedan has none, so those two metrics are predictions here.
   rates and the front spring stops, wheel and driveline inertias, brake
   torque, the full-throttle and closed-throttle engine maps, gear and
   final-drive ratios, aero drag (`src/chrono-sedan.ts`).
+- **Ride height, measured at equilibrium** (`chrono/equilibrium.py`): the
+  chassis held with the tires off the ground, each spindle pushed up by its
+  static load, so no tire force props or jacks the car. Skidpad's travel is
+  measured from its own equilibrium, so the travel curves and the
+  centre-of-mass height are taken there. The parked car is not at
+  equilibrium: its front rests 24 mm high, propped by its tires' static
+  friction (finding 2).
 - **Measured from Chrono's kinematics sweep** (`chrono/kc.py sedan`, the
-  parked car's chassis held and moved in heave): the spring and damper
-  motion ratios (0.52 front; 0.63 and 0.68 rear), each axle's roll-centre
-  height from the contact patch's lateral scrub, and the anti fractions from
-  the wheel centre's fore-aft travel, all as travel curves (ADR-0026). The
-  E90's come from instant-centre constructions on its hardpoints, but the
-  Sedan's multi-link has no two-arm construction, so both axles are measured
-  (`src/sedan-kc.ts`). The front roll centre sits at 0.234 m and falls
-  2.3 mm per mm of bump; the rear's is 0.059 m. The front's anti geometry is
-  almost nil, and the rear's anti-lift is 0.69.
+  parked car's chassis held and moved in heave, read from the equilibrium
+  ride height): the spring and damper motion ratios (0.52 front; 0.63 and
+  0.68 rear), each axle's roll-centre height from the contact patch's
+  lateral scrub, and the anti fractions from the wheel centre's fore-aft
+  travel, all as travel curves (ADR-0026). The E90's come from
+  instant-centre constructions on its hardpoints, but the Sedan's multi-link
+  has no two-arm construction, so both axles are measured
+  (`src/sedan-kc.ts`). At equilibrium the front roll centre sits at 0.188 m
+  and falls 2.3 mm per mm of bump; the rear's is 0.059 m. The rear's
+  anti-lift is 0.69, and the front has almost no anti geometry.
 - **Measured while driving:** the static toe, as for the E90: Chrono's
   front-wheel angles over the first 2 s of the step steer give 0.43° of
   toe-in per front wheel and 0.07° of toe-out at the rear.
@@ -63,38 +72,37 @@ The harness steers Skidpad with Chrono's logged mean front road-wheel angle
 and settles it at the speed Chrono's car actually starts from, as for the
 E90.
 
-## Results: the blind run
+## Results
 
-This is the first run, unchanged. The model was built, its derived values
-were checked for sense, and then the comparison was run once.
-
-| Manoeuvre    | Metric                                        | Chrono | Skidpad | Difference (tolerance) |         |
-| ------------ | --------------------------------------------- | ------ | ------- | ---------------------- | ------- |
-| accel        | 0–60 km/h (s)                                 | 4.05   | 4.08    | 0.8 % (±10 %)          | pass    |
-| accel        | 0–100 km/h (s)                                | 7.60   | 7.41    | −2.5 % (±10 %)         | pass    |
-| accel        | speed at 30 s (km/h)                          | 216    | 224     | 3.4 % (±5 %)           | pass    |
-| coast        | speed at 20 s (km/h)                          | 86.3   | 85.9    | −0.5 % (±5 %)          | pass    |
-| brake100     | stopping distance, wheels locked (m)          | 35.6   | 36.0    | 1.1 % (±5 %)           | pass    |
-| brakeHalf    | stopping distance, 0.4 pedal (m)              | 69.9   | 71.2    | 2.0 % (±5 %)           | pass    |
-| brakeHalf    | pitch per g of braking (deg/g)                | 2.03   | 1.87    | −7.8 % (±20 %)         | pass    |
-| rampSteer    | understeer gradient (deg/g)                   | 0.14   | −0.04   | −0.18 deg/g (±0.3)     | pass    |
-| rampSteer    | lateral acceleration at 15 s (g)              | 0.72   | 0.76    | 5.4 % (±5 %)           | outside |
-| rampSteer    | peak lateral acceleration (g)                 | 0.93   | 0.96    | 2.7 % (±5 %)           | pass    |
-| rampSteer    | roll gradient (deg/g)                         | 3.37   | 3.06    | −9.2 % (±15 %)         | pass    |
-| rampSteer    | front share of lateral load transfer (%)      | 38.0   | 43.2    | +5.2 % (±3)            | outside |
-| rampSteer    | body slip gradient (deg/g)                    | 1.77   | 1.91    | +0.15 deg/g (±0.3)     | pass    |
-| rampSteer    | pitch in the turn at 0.7 g (deg)              | −0.03  | 0.10    | +0.14 deg (±0.2)       | pass    |
-| stepSteer    | steady yaw rate (deg/s)                       | 13.7   | 14.7    | 6.9 % (±10 %)          | pass    |
-| stepSteer    | yaw rate overshoot (%)                        | 23.2   | 16.8    | −6.5 % (±5)            | outside |
-| stepSteer    | yaw rate response time (ISO 7401, 90 %) (s)   | 0.09   | 0.10    | 12.4 % (±20 %)         | pass    |
-| stepSteer    | lateral acceleration response time (90 %) (s) | 0.09   | 0.10    | 12.4 % (±20 %)         | pass    |
-| stepSteer    | steady lateral acceleration (g)               | 0.54   | 0.58    | 6.9 % (±10 %)          | pass    |
-| stepSteer    | steady roll (deg)                             | 1.85   | 1.79    | −3.2 % (±15 %)         | pass    |
-| sineSteer    | peak yaw rate (deg/s)                         | 15.5   | 15.9    | 2.7 % (±10 %)          | pass    |
-| sineSteer    | peak lateral acceleration (g)                 | 0.61   | 0.63    | 2.7 % (±10 %)          | pass    |
-| sineSteer    | yaw rate lag behind steer (ms)                | 70     | 80      | 14.3 % (±20 %)         | pass    |
-| sineSteer    | peak roll (deg)                               | 1.74   | 1.58    | −9.2 % (±15 %)         | pass    |
-| lowSpeedTurn | turn radius (m)                               | 9.21   | 9.40    | 2.1 % (±5 %)           | pass    |
+| Manoeuvre    | Metric                                                    | Chrono | Skidpad | Difference (tolerance) |         |
+| ------------ | --------------------------------------------------------- | ------ | ------- | ---------------------- | ------- |
+| accel        | 0–60 km/h (s)                                             | 4.05   | 4.07    | 0.5 % (±10 %)          | pass    |
+| accel        | 0–100 km/h (s)                                            | 7.60   | 7.40    | −2.6 % (±10 %)         | pass    |
+| accel        | speed at 30 s (km/h)                                      | 216    | 224     | 3.4 % (±5 %)           | pass    |
+| coast        | speed at 20 s (km/h)                                      | 86.3   | 85.9    | −0.5 % (±5 %)          | pass    |
+| brake100     | stopping distance, wheels locked (m)                      | 35.6   | 35.8    | 0.7 % (±5 %)           | pass    |
+| brakeHalf    | stopping distance, 0.4 pedal (m)                          | 69.9   | 71.2    | 2.0 % (±5 %)           | pass    |
+| brakeHalf    | pitch per g of braking (deg/g)                            | 2.03   | 1.84    | −9.3 % (±20 %)         | pass    |
+| rampSteer    | understeer gradient (deg/g)                               | 0.14   | −0.08   | −0.22 deg/g (±0.3)     | pass    |
+| rampSteer    | lateral acceleration at 15 s (g)                          | 0.72   | 0.79    | 10.7 % (±5 %)          | outside |
+| rampSteer    | peak lateral acceleration (g)                             | 0.93   | 1.18    | 26.3 % (±5 %)          | outside |
+| rampSteer    | roll gradient (deg/g)                                     | 3.37   | 3.24    | −3.8 % (±15 %)         | pass    |
+| rampSteer    | front share of lateral load transfer (%)                  | 38.0   | 38.4    | +0.4 % (±3)            | pass    |
+| rampSteer    | body slip gradient (deg/g)                                | 1.77   | 1.93    | +0.17 deg/g (±0.3)     | pass    |
+| rampSteer    | pitch in the turn at 0.7 g (deg)                          | −0.03  | 0.17    | +0.20 deg (±0.2)       | outside |
+| stepSteer    | front ride height running straight, from equilibrium (mm) | −4.1   | −6.2    | −2.1 mm (±3)           | pass    |
+| stepSteer    | rear ride height running straight, from equilibrium (mm)  | 0.0    | 0.2     | +0.2 mm (±3)           | pass    |
+| stepSteer    | steady yaw rate (deg/s)                                   | 13.7   | 15.0    | 9.4 % (±10 %)          | pass    |
+| stepSteer    | yaw rate overshoot (%)                                    | 23.2   | 14.7    | −8.6 % (±5)            | outside |
+| stepSteer    | yaw rate response time (ISO 7401, 90 %) (s)               | 0.09   | 0.10    | 12.4 % (±20 %)         | pass    |
+| stepSteer    | lateral acceleration response time (90 %) (s)             | 0.09   | 0.11    | 23.6 % (±20 %)         | outside |
+| stepSteer    | steady lateral acceleration (g)                           | 0.54   | 0.59    | 9.3 % (±10 %)          | pass    |
+| stepSteer    | steady roll (deg)                                         | 1.85   | 1.95    | 5.5 % (±15 %)          | pass    |
+| sineSteer    | peak yaw rate (deg/s)                                     | 15.5   | 16.1    | 3.7 % (±10 %)          | pass    |
+| sineSteer    | peak lateral acceleration (g)                             | 0.61   | 0.63    | 3.7 % (±10 %)          | pass    |
+| sineSteer    | yaw rate lag behind steer (ms)                            | 70     | 80      | 14.3 % (±20 %)         | pass    |
+| sineSteer    | peak roll (deg)                                           | 1.74   | 1.69    | −2.9 % (±15 %)         | pass    |
+| lowSpeedTurn | turn radius (m)                                           | 9.21   | 9.42    | 2.3 % (±5 %)           | pass    |
 
 Traces, as RMS difference over the manoeuvre divided by Chrono's range
 (tolerance 5 %):
@@ -104,46 +112,53 @@ Traces, as RMS difference over the manoeuvre divided by Chrono's range
 | accel        | speed           | 2.7 %      | pass    |
 | coast        | speed           | 1.3 %      | pass    |
 | brakeHalf    | speed           | 0.9 %      | pass    |
-| brakeHalf    | pitch           | 27.0 %     | outside |
-| rampSteer    | yaw rate        | 2.9 %      | pass    |
-| rampSteer    | roll            | 1.7 %      | pass    |
-| rampSteer    | front-left load | 11.3 %     | outside |
-| rampSteer    | rear-left load  | 4.5 %      | pass    |
-| stepSteer    | yaw rate        | 4.6 %      | pass    |
-| stepSteer    | roll            | 5.3 %      | outside |
-| sineSteer    | yaw rate        | 1.4 %      | pass    |
-| sineSteer    | roll            | 6.2 %      | outside |
-| lowSpeedTurn | yaw rate        | 2.1 %      | pass    |
+| brakeHalf    | pitch           | 27.3 %     | outside |
+| rampSteer    | yaw rate        | 8.8 %      | outside |
+| rampSteer    | roll            | 7.0 %      | outside |
+| rampSteer    | front-left load | 6.8 %      | outside |
+| rampSteer    | rear-left load  | 10.0 %     | outside |
+| stepSteer    | yaw rate        | 6.2 %      | outside |
+| stepSteer    | roll            | 5.2 %      | outside |
+| sineSteer    | yaw rate        | 1.6 %      | pass    |
+| sineSteer    | roll            | 5.9 %      | outside |
+| lowSpeedTurn | yaw rate        | 2.2 %      | pass    |
 
-**22 of 25 predicted metrics and 9 of 13 traces are within tolerance, with
-nothing fitted.** Acceleration, coast-down and both stops agree. The roll
-gradient, the steady and peak roll, and the steady and transient yaw
-response agree. These are predictions from the springs, the measured
-geometry and the tire file, with no anti-roll bar to absorb an error. The
-locked-wheel stop agrees only because Skidpad's tire is fitted to the curve
-Chrono actually computes (finding 1).
+**22 of 27 predicted metrics and 5 of 13 traces are within tolerance, with
+nothing fitted.** Acceleration, coast-down and both stops agree, as do the
+roll gradient, the front share of load transfer, the steady and peak roll,
+and the yaw gain. The ride height while running straight is a prediction:
+Skidpad's own toe-in forces lift its front 6.2 mm from equilibrium, against
+Chrono's 4.1 mm. What is outside is the car near its limit and the step
+response (findings 4 and 5).
 
-### Variants
+### The blind run, and the variants
 
-| Metric                                   | Chrono | Blind (travel curves) | Fixed geometry | Also toe curves |
-| ---------------------------------------- | ------ | --------------------- | -------------- | --------------- |
-| understeer gradient (deg/g)              | 0.14   | −0.04                 | −0.04          | 1.98            |
-| front share of lateral load transfer (%) | 38.0   | 43.2                  | 43.6           | 50.8            |
-| roll gradient (deg/g)                    | 3.37   | 3.06                  | 3.01           | 2.80            |
-| pitch per g of braking (deg/g)           | 2.03   | 1.87                  | 1.71           | 4.14            |
-| pitch in the turn at 0.7 g (deg)         | −0.03  | 0.10                  | −0.03          | 0.43            |
-| yaw rate overshoot (%)                   | 23.2   | 16.8                  | 17.3           | 39.1            |
-| coast, speed at 20 s (km/h)              | 86.3   | 85.9                  | 85.9           | 72.3            |
-| predicted metrics within tolerance       |        | 22 of 25              | 23 of 25       | 9 of 25         |
-| traces within tolerance                  |        | 9 of 13               | 8 of 13        | 2 of 13         |
+The first run took the travel curves from the parked car, as the E90 did,
+and Skidpad's straight-running ride height was not yet compared. It was run
+once, blind, and is kept here as it came out. Its load transfer was 5.2
+points off, which led to finding 2.
 
-"Fixed geometry" drops the travel curves (`--fixed-geometry`). The curves
-bring the braking pitch closer and the front-left load trace inside
-(13.5 % to 11.3 %), but they also make the nose dip in a turn where
-Chrono's doesn't, by 0.10° at 0.7 g, which is inside the band. "Also toe
-curves" (`--toe-curve`) adds the toe against travel from the kinematics
-sweep, starting from the parked toe. That makes things much worse,
-for the reason finding 3 gives.
+| Metric                                   | Chrono | Blind (parked) | Equilibrium (default) | Equilibrium, fixed geometry | Equilibrium, also toe curves |
+| ---------------------------------------- | ------ | -------------- | --------------------- | --------------------------- | ---------------------------- |
+| understeer gradient (deg/g)              | 0.14   | −0.04          | −0.08                 | −0.07                       | 0.30                         |
+| front share of lateral load transfer (%) | 38.0   | 43.2           | 38.4                  | 39.2                        | 39.4                         |
+| roll gradient (deg/g)                    | 3.37   | 3.06           | 3.24                  | 3.18                        | 3.15                         |
+| peak lateral acceleration (g)            | 0.93   | 0.96           | 1.18                  | 0.96                        | 1.22                         |
+| pitch in the turn at 0.7 g (deg)         | −0.03  | 0.10           | 0.17                  | −0.03                       | 1.48                         |
+| front ride height running straight (mm)  | −4.1   |                | −6.2                  | 0.3                         | −68.5                        |
+| yaw rate overshoot (%)                   | 23.2   | 16.8           | 14.7                  | 15.5                        | 0.0                          |
+| coast, speed at 20 s (km/h)              | 86.3   | 85.9           | 85.9                  | 85.9                        | 73.8                         |
+| predicted metrics within tolerance       |        | 22 of 25       | 22 of 27              | 24 of 27                    | 14 of 27                     |
+| traces within tolerance                  |        | 9 of 13        | 5 of 13               | 9 of 13                     | 2 of 13                      |
+
+Anchoring the curves at equilibrium brought the load transfer and the roll
+gradient onto Chrono's. It also raised the car's grip at the limit and moved
+the ramp and step traces outside. Fixed geometry, with no travel curves,
+scores best. But it cannot jack the car while running straight, so its ride
+height (0.3 mm) does not follow Chrono's, and it is not chosen for its score.
+The default stays the one the E90 uses, travel curves, so the two cars are
+judged the same way. With the toe curves as well, Skidpad's front lifts
+68 mm running straight (finding 6).
 
 ## Findings
 
@@ -163,8 +178,8 @@ MF 5.2 in four ways:
   because the file has no rolling coefficients.
 
 Loaded unchanged, the file would have left a locked wheel with 28 % less
-force than Chrono's. Importing it also exposed two bugs in Skidpad's core, both
-fixed:
+force than Chrono's. Importing it also exposed two bugs in Skidpad's core,
+both fixed:
 
 - The cornering stiffness applied the nominal-load scale `LFZO` twice.
   Pacejka's eq. 4.E25 applies it once, and the file's `LFZO = 0.81` made
@@ -172,103 +187,119 @@ fixed:
 - The importer did not read `FNOMIN`, the nominal-load key that PAC2002 and
   MF-Tyre files use. It kept a default of 4 000 N against the file's 4 850 N.
 
-The E90's TMsimple tire never reached either code path, and no preset sets
-`LFZO`, so no other validation result moved.
+No preset sets `LFZO`, so no other validation result moved. Separately, the
+harness's Chrono driver read each tire force from a temporary that SWIG had
+already freed. The loads it logged were right by chance, within 15 N of the
+ground-normal load. The longitudinal and lateral forces were not. No metric
+uses them, and the driver now copies the force first.
 
-**2. Chrono's car carries less of its load transfer through its links than
-its kinematics say.** The front share of lateral load transfer is 43.2 %
-against Chrono's 38.0 %. Skidpad does what its inputs say: the elastic
-share from the springs plus the geometric share from the roll centres gives
-43.9 % by hand. Working backwards from each car's roll angle and wheel
-loads on the ramp, with the same springs, Skidpad's effective roll centres
-come out at its inputs, 0.234 m front and 0.055 m rear. Chrono's come out
-lower, at 0.154 m and 0.028 m.
+**2. A parked Chrono car is not at its equilibrium.** Settling with its
+brakes on, the Sedan's tires grip sideways as the suspension compresses and
+prop the front 24 mm above its equilibrium. Rolling releases them, and the
+front settles 4 mm above equilibrium, lifted by its toe-in forces. The E90's
+parked state is within 0.6 mm of its equilibrium. Every travel curve was
+read from the parked car, so on the Sedan the front's geometry was taken
+24 mm away from where the car runs. With its steep roll-centre curve, that
+put the front roll centre at 0.234 m instead of 0.188 m, and the front share
+of load transfer 5.2 points high. Read from equilibrium, the front share is
+38.4 % against Chrono's 38.0 %, and the roll gradient is 3.24 against
+3.37°/g.
 
-Chrono's own sweep gives 0.234 m and 0.059 m in heave. In roll, the same
-sweep gives 0.213 m and 0.045 m, so about a quarter of the gap comes from
-building the roll centre in heave rather than in roll. The rest appears
-only when the car is driven. Using the roll-sweep centres moves the front
-share only to 41.5 % and puts more traces outside, so they were not
-adopted.
+**3. Chrono's toe follows travel; there is no compliance steer.** The E90
+report put its understeer gap down to toe that moves with tire force (its
+finding 2), and the first version of this report agreed. Measured properly,
+that is wrong on both cars:
 
-The E90 points the same way. Its roll traces moved outside when its roll
-centres began to migrate (E90 finding 4), and that report already suggested
-"curves measured in roll rather than heave". The lateral acceleration at
-15 s (5.4 % against 5 %) and the front-left load trace follow from this
-difference.
+- Running straight, each front wheel's toe sits on its own K&C
+  toe-against-travel curve at the travel it actually runs at: within 0.01° on
+  the Sedan and 0.04° on the E90, coasting, cruising and under full drive.
+  The large toe changes between parked, rolling and driving all come from
+  ride height through the bump steer.
+- In a turn, the left-right toe difference includes Ackermann. With
+  Ackermann taken out (from a fine parked steering sweep) and the bump steer
+  at each wheel's travel, less than 0.06° is left up to 0.6 g on both cars,
+  and 0.1–0.16° on the outer wheel at 0.8 g.
+- It is not the solver either. Chrono's vehicles use an iterative solver
+  capped at 150 iterations, but ten times the iterations and a much tighter
+  tolerance leave the toe unchanged.
 
-**3. Chrono's toe follows what its tires do, on both cars.** The Sedan's
-front toe-in is 1.28° parked, about 0.4° whenever it rolls (at any speed
-from 5 m/s to 30 m/s), and 2–3° under full drive. The E90's moves the same
-way, by less: 1.27° parked, 1.44° rolling, 1.67° under drive. In cornering
-the Sedan's front toe-in grows by about 0.25° at 0.8 g, which its bump
-steer accounts for. The E90's falls, which its kinematics do not account
-for (E90 finding 2). Neither car's toe is a function of travel alone.
-Starting the toe curve from the parked toe gives the Sedan about 0.85° too
-much toe-in while driving, which costs 16 % of the coast-down speed and
-overturns the handling. So on both cars the comparison keeps the toe fixed
-at the straight-running value, and compliance steer (toe that moves with
-tire force) is the common gap.
+Compliance steer in the engine would therefore have nothing to be checked
+against here. The understeer gap of about 0.2°/g on both cars remains open.
 
-**4. Step-steer overshoot.** Chrono's yaw rate overshoots by 23 % and
-Skidpad's by 17 %. Both respond within 0.1 s. The yaw gain, the lag in the
-sine steer and the yaw traces agree, so only the damping of the yaw mode
-differs. Skidpad's minimum relaxation length (0.02 m, 1 ms at this speed)
-is too short to explain it. The unsprung mass, which Chrono carries on
-separate bodies and Skidpad on the chassis, is the next suspect. The cause
-is open.
+**4. Near the limit Skidpad holds more grip.** On the ramp Skidpad's car
+reaches 1.0 g where Chrono's holds 0.93 g, and its peak reading of
+`speed × yaw rate` touches 1.18 g. Its outer rear tire carries about 300 N
+more load than Chrono's near the limit, with the outer front wheel 50 mm
+into bump, near the end of its roll-centre curve. With fixed geometry the
+peak is 0.96 g. The ramp's load, roll and yaw traces follow from this
+difference. The cause is open.
 
-**5. Braking pitch settles faster, on both cars.** The pitch per g matches
-(1.87 against 2.03°/g), but the pitch trace in the 0.4-pedal stop is 27 %
-out. The E90's is 24.5 % out for the same reason (E90 finding 3). On both
-cars Chrono's body keeps moving after Skidpad's has settled.
+**5. Step-steer overshoot.** Chrono's yaw rate overshoots by 23 % and
+Skidpad's by 15 %. Both respond within 0.11 s, and the yaw gain, the
+sine-steer lag and the sine-steer yaw trace agree. Only the damping of the
+yaw mode differs. The unsprung mass, which Chrono carries on separate bodies
+and Skidpad on the chassis, is the first suspect. The cause is open.
+
+**6. Toe-force jacking is weaker in Chrono than its geometry says.** Toe-in
+pushes each front tire inward, and through the roll centre that lifts the
+front. Skidpad lifts it as the geometry says, 6.2 mm on the Sedan against
+Chrono's 4.1 mm. On the E90 the geometry predicts about 20 mm, and Chrono's
+front lifts 6 mm. Skidpad's lifts 27 mm, which puts the E90's new
+ride-height metric outside.
+
+With the toe curves added, the loop closes. A higher front gives more
+toe-in through the bump steer, which gives more lift, and Skidpad's Sedan
+front runs away to 68 mm, wrecking the handling. That is why the toe curves
+failed on both cars, not compliance steer.
+
+Separately, the E90's rear rides 29 mm above its equilibrium at every speed
+from 5 to 30 m/s, which its rear roll centre (0.12 m, the same from the
+hardpoints and from the sweep) cannot explain. Both are open.
+
+**7. Braking pitch settles faster, on both cars.** The pitch per g matches
+(1.84 against 2.03°/g), but the pitch trace in the 0.4-pedal stop is 27 %
+out. The E90's is 24.5 % out. On both cars Chrono's body keeps moving after
+Skidpad's has settled.
 
 ## Across both reference cars
 
 | Pattern                                       | E90                    | Sedan                  |
 | --------------------------------------------- | ---------------------- | ---------------------- |
-| understeer gradient, Skidpad − Chrono (deg/g) | −0.22                  | −0.18                  |
-| braking pitch trace                           | 24.5 %, settles faster | 27.0 %, settles faster |
-| toe moves with tire force                     | yes (finding 2)        | yes (finding 3)        |
-| effective roll centres below the kinematics'  | roll traces outside    | front share +5.2       |
+| understeer gradient, Skidpad − Chrono (deg/g) | −0.22                  | −0.22                  |
+| braking pitch trace                           | 24.5 %, settles faster | 27.3 %, settles faster |
+| toe follows travel (no compliance steer)      | yes                    | yes                    |
+| parked ride height is the equilibrium         | yes (within 0.6 mm)    | no (front 24 mm high)  |
+| front lift running straight, Skidpad / Chrono | 27 / 6 mm              | 6.2 / 4.1 mm           |
 | 0.4-pedal stop                                | Skidpad 7.8 % short    | Skidpad 2.0 % long     |
-| roll overshoot in the sine steer              | 15 % high              | 9 % low, inside        |
 
-The first four rows match across two cars with different tires,
-drivelines and rear linkages, so they belong to the engine or to how Chrono
-builds a vehicle, not to either car:
+Three patterns hold on both cars, so they belong to the engine or to how
+Chrono builds a vehicle:
 
-- **Understeer.** Skidpad shows about 0.2°/g less understeer on both. On the
-  E90 that was put down to compliance steer. The Sedan has the same gap and
-  the same force-dependent toe, which supports that.
-- **Pitch damping.** The braking pitch settles too fast on both.
-- **Roll centres.** The heave-built roll centres sit above what Chrono's
-  cars use on both.
+- **Understeer.** Skidpad shows 0.22°/g less on both cars.
+- **Pitch damping.** The braking pitch settles too fast on both cars.
+- **Front lift.** Skidpad lifts the front further than Chrono does when
+  toe-in forces jack it.
 
-The last two rows differ between the cars, so they are specific to one car:
-
-- **The E90's 0.4-pedal stop** was put down to Chrono's shaft brake
-  realising less torque. The Sedan uses the same brake model and stops
-  within 2 %, so that cause is less likely. Its TMsimple tire is the more
-  likely one.
-- **The E90's roll overshoot** doesn't appear on the Sedan.
+The E90's 0.4-pedal stop was put down to Chrono's shaft brake realising less
+torque. The Sedan uses the same brake model and stops within 2 %, so the
+E90's TMsimple tire is the more likely cause.
 
 ## Recommendations
 
-1. **Compliance steer.** Two cars now show toe that follows tire force, and
-   the same understeer gap. This is the strongest candidate for an engine
-   change, and both comparisons will judge it.
-2. **Roll centres measured in roll, and the dynamic part.** The roll sweep
-   accounts for a quarter of the load-transfer gap. The rest needs Chrono's
-   wheel forces logged against its link forces to explain. That is a
-   harness change, not an engine change.
+1. **Not compliance steer.** Neither car has it (finding 3).
+2. **Find out why Chrono's front jacks less than its geometry.** The
+   understeer gap, the runaway with toe curves, the E90's rear ride height
+   and Skidpad's extra grip near the limit may share a cause in how the
+   wheel loads reach the body through the links. Logging Chrono's link and
+   spring forces per wheel would show it. That is a harness change first,
+   and an engine change only once the cause is known.
 3. **Look at the pitch and yaw damping with the unsprung mass in mind.**
    Both settle faster in Skidpad on both cars.
 
 ## Reproducing
 
-The reference rows and the tire file are committed, so the comparison needs
-no Chrono:
+The reference rows, the equilibrium and the tire file are committed, so the
+comparison needs no Chrono:
 
 ```sh
 pnpm --filter @skidpad/chrono-compare compare --car sedan                   # tables, out/sedan/
@@ -277,10 +308,11 @@ pnpm --filter @skidpad/chrono-compare compare --car sedan --toe-curve       # wi
 pnpm --filter @skidpad/chrono-compare test                                  # both cars' regression guards
 ```
 
-To regenerate the reference, about 8 GB and 2 minutes:
+To regenerate the reference, about 8 GB and a few minutes:
 
 ```sh
 micromamba create -p /opt/mm/chrono -c projectchrono -c conda-forge python=3.12 pychrono=9.0.1 numpy
 /opt/mm/chrono/bin/python tools/chrono-compare/chrono/sedan.py
-/opt/mm/chrono/bin/python tools/chrono-compare/chrono/kc.py sedan   # kinematics sweep
+/opt/mm/chrono/bin/python tools/chrono-compare/chrono/kc.py sedan            # kinematics sweep
+/opt/mm/chrono/bin/python tools/chrono-compare/chrono/equilibrium.py sedan   # after sedan.py
 ```

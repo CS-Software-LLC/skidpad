@@ -148,10 +148,11 @@ has the full results, and `tools/chrono-compare` reruns them.
 
 A second Chrono car, a front-wheel-drive sedan with no anti-roll bars and a
 Magic Formula tire, is built with nothing fitted to its behaviour, so its roll
-gradient and load transfer are predictions. It agrees on 22 of 25 metrics.
+gradient and load transfer are predictions. It agrees on 22 of 27 metrics.
 Where both cars miss in the same way (about 0.2°/g less understeer, braking
-pitch that settles too quickly, toe that moves with tire force in Chrono),
-the cause lies in the engine or in Chrono rather than in either car. Its
+pitch that settles too quickly, a front that toe-in forces lift further than
+in Chrono), the cause lies in the engine or in Chrono rather than in either
+car. Its
 [report](https://github.com/CS-Software-LLC/skidpad/blob/main/docs/validation/chrono-sedan.md)
 compares the two.
 
