@@ -1,5 +1,35 @@
 # @skidpad/presets
 
+## 0.8.0
+
+### Minor Changes
+
+- 5f88288: physics: the automatic has a part-throttle shift schedule (ADR-0025). Before, it upshifted only at `shiftUpAt × redline` whatever the throttle, so a car holding a moderate speed stayed in a low gear at high revs. The hatchback held by the AI at 12 m/s sat in first at about 5,560 rpm on both models (F-25). A new transmission parameter, `shiftLightFactor` (default 0.55, range (0, 1]), sets both shift points on a closed throttle as a fraction of `shiftUpAt` and `shiftDownAt`. The points move linearly with the driver's pedal (the throttle before traction or stability control), back to the full-throttle points at full throttle. Upshifts are held back so the new gear lands at least 15 % above its downshift point, at the throttle that gear needs, so the gearbox does not hunt. Pressing the pedal raises the downshift point, and that is the kickdown. With the brake on, the automatic uses the full-throttle points. Full-throttle runs are bit-identical, so 0–100 km/h and the straight-line results do not change. The 12 m/s hatchback now cruises in second at about 3,060 rpm on both models. Validation results that hold part throttle move (lane change, step steer, timestep sweep, scripted drive hash). The presets set `shiftLightFactor` explicitly: hatchback 0.55, pickup 0.55, sports 0.6, open-wheeler 0.65, and 1 on the single-speed kart and EV. Set it to 1 to restore the old fixed points.
+- 446d725: Definitions are typed for what they are:
+
+  - Breaking (types only): `presets.*` and `preset()` are typed as `PresetDefinition`, a partial definition with a complete `name` and `chassis`, instead of a full `VehicleDefinition` they never were (no preset carries static toe or per-axle track widths, and `hatchbackFwd`, `kart` and `pickup4x4` carry no `assists`, so every assist is off on them). Reading `preset("kart").assists.abs` no longer type-checks and then throws. The package docs list which presets ship which assists.
+  - `sp.completeDefinition(def)` returns a partial definition completed with the core's defaults exactly as `addVehicle` reads it.
+  - `createChassisBody` in `@skidpad/rapier` and `@skidpad/jolt` takes a partial definition and reads the chassis sizes it needs, with an error pointing at `completeDefinition` when one is missing.
+  - `@skidpad/rapier` types Rapier structurally, so `@dimforge/rapier3d-deterministic-compat` works without a cast and without installing the standard build; both are optional peer dependencies. `surfaceIdsByHandle(map)` builds the `surfaceId` callback from a collider-handle map, and the option's docs no longer suggest collider user data, which Rapier colliders do not have.
+
+### Patch Changes
+
+- 875ff5b: Every package now ships a README (install, a minimal example, links to the guide), so the npm pages are no longer empty; the core's covers bundling a Node server.
+
+  Breaking (types only): `World.read` and `WorkerWorld.read` take a `ChannelName`, the union of every telemetry channel name, so a typo such as `"Speeed"` fails to compile instead of throwing at runtime; `readAll` returns `Record<ChannelName, number>`. `CHANNEL_NAMES` lists them at runtime. Per-wheel names compose from `WHEEL_ORDER` (`` `SlipRatio_${WHEEL_ORDER[i]}` ``); a name held in a plain `string` needs a `ChannelName` type, or use `sp.channel(name)` and `telemetryView` to probe.
+
+- Updated dependencies [a69723f]
+- Updated dependencies [4365732]
+- Updated dependencies [df5031b]
+- Updated dependencies [5f88288]
+- Updated dependencies [446d725]
+- Updated dependencies [875ff5b]
+- Updated dependencies [78cd842]
+- Updated dependencies [f48a141]
+- Updated dependencies [a69723f]
+- Updated dependencies [d61b245]
+  - @skidpad/core@0.8.0
+
 ## 0.7.0
 
 ### Minor Changes
