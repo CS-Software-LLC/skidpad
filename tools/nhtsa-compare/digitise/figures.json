@@ -1,0 +1,234 @@
+[
+  {
+    "file": "sis_ay",
+    "page": 2,
+    "axis": 0,
+    "x": "t",
+    "y": "ay",
+    "series": { "exp": "thin", "nads": "thick" }
+  },
+  {
+    "file": "sis_handwheel",
+    "page": 2,
+    "axis": 1,
+    "x": "t",
+    "y": "handwheel_deg",
+    "series": { "exp": "thin" }
+  },
+  {
+    "file": "sis_yawrate",
+    "page": 2,
+    "axis": 2,
+    "x": "t",
+    "y": "yawrate_degs",
+    "series": { "exp": "thin", "nads": "thick" }
+  },
+  {
+    "file": "sis_roll",
+    "page": 2,
+    "axis": 3,
+    "x": "t",
+    "y": "roll_deg",
+    "series": { "front": "thin", "rear": "dashed", "nads": "thick" }
+  },
+  {
+    "file": "step_handwheel",
+    "page": 3,
+    "axis": 1,
+    "x": "t",
+    "y": "handwheel_deg",
+    "series": { "exp": "thin" }
+  },
+  {
+    "file": "step_ay",
+    "page": 3,
+    "axis": 3,
+    "x": "t",
+    "y": "ay",
+    "series": { "exp": "thin", "nads": "thick" }
+  },
+  {
+    "file": "step_yawrate",
+    "page": 3,
+    "axis": 4,
+    "x": "t",
+    "y": "yawrate_degs",
+    "series": { "exp": "thin", "nads": "thick" }
+  },
+  {
+    "file": "step_roll",
+    "page": 4,
+    "axis": 0,
+    "x": "t",
+    "y": "roll_deg",
+    "series": { "front": "thin", "rear": "dashed", "nads": "thick" }
+  },
+  {
+    "file": "lc12_handwheel",
+    "page": 4,
+    "axis": 2,
+    "x": "t",
+    "y": "handwheel_deg",
+    "series": { "exp": "thin" }
+  },
+  {
+    "file": "lc12_roll",
+    "page": 4,
+    "axis": 3,
+    "x": "t",
+    "y": "roll_deg",
+    "series": { "front": "thin", "rear": "dashed", "nads": "thick" }
+  },
+  {
+    "file": "lc12_ay",
+    "page": 4,
+    "axis": 4,
+    "x": "t",
+    "y": "ay",
+    "series": { "exp": "thin", "nads": "thick" }
+  },
+  {
+    "file": "lc12_yawrate",
+    "page": 4,
+    "axis": 1,
+    "x": "t",
+    "y": "yawrate_degs",
+    "series": { "exp": "thin", "nads": "thick" }
+  },
+  {
+    "file": "lc22_handwheel",
+    "page": 4,
+    "axis": 5,
+    "x": "t",
+    "y": "handwheel_deg",
+    "series": { "exp": "thin" }
+  },
+  {
+    "file": "lc22_roll",
+    "page": 4,
+    "axis": 6,
+    "x": "t",
+    "y": "roll_deg",
+    "series": { "front": "thin", "rear": "dashed", "nads": "thick" }
+  },
+  {
+    "file": "lc22_ay",
+    "page": 4,
+    "axis": 7,
+    "x": "t",
+    "y": "ay",
+    "series": { "exp": "thin", "nads": "thick" }
+  },
+  {
+    "file": "lc22_yawrate",
+    "page": 4,
+    "axis": 8,
+    "x": "t",
+    "y": "yawrate_degs",
+    "series": { "exp": "thin", "nads": "thick" }
+  },
+  {
+    "file": "brakeMod_pedal",
+    "page": 6,
+    "axis": 0,
+    "x": "t",
+    "y": "pedal_N",
+    "series": { "exp": "thin" }
+  },
+  {
+    "file": "brakeMod_frontPressure",
+    "page": 6,
+    "axis": 1,
+    "x": "t",
+    "y": "kPa",
+    "series": { "exp": "thin", "nads": "thick" }
+  },
+  {
+    "file": "brakeMod_rearPressure",
+    "page": 6,
+    "axis": 2,
+    "x": "t",
+    "y": "kPa",
+    "series": { "exp": "thin", "nads": "thick" }
+  },
+  {
+    "file": "brakeMod_ax",
+    "page": 6,
+    "axis": 4,
+    "x": "t",
+    "y": "ax",
+    "series": { "exp": "thin", "nads": "thick" }
+  },
+  {
+    "file": "brakeMod_speed",
+    "page": 6,
+    "axis": 5,
+    "x": "t",
+    "y": "speed",
+    "series": { "exp": "thin", "nads": "thick" }
+  },
+  {
+    "file": "brakeSev_pedal",
+    "page": 6,
+    "axis": 9,
+    "x": "t",
+    "y": "pedal_N",
+    "series": { "exp": "thin" }
+  },
+  {
+    "file": "brakeSev_frontPressure",
+    "page": 6,
+    "axis": 10,
+    "x": "t",
+    "y": "kPa",
+    "series": { "exp": "thin", "nads": "thick" }
+  },
+  {
+    "file": "brakeSev_rearPressure",
+    "page": 6,
+    "axis": 11,
+    "x": "t",
+    "y": "kPa",
+    "series": { "exp": "thin", "nads": "thick" }
+  },
+  {
+    "file": "brakeSev_ax",
+    "page": 6,
+    "axis": 12,
+    "x": "t",
+    "y": "ax",
+    "series": { "exp": "thin", "nads": "thick" }
+  },
+  {
+    "file": "brakeSev_speed",
+    "page": 7,
+    "axis": 0,
+    "x": "t",
+    "y": "speed",
+    "series": { "exp": "thin", "nads": "thick" }
+  },
+  {
+    "file": "accel_throttle",
+    "page": 7,
+    "axis": 1,
+    "x": "t",
+    "y": "throttle",
+    "series": { "exp": "thin" }
+  },
+  {
+    "file": "accel_ax",
+    "page": 7,
+    "axis": 6,
+    "x": "t",
+    "y": "ax",
+    "series": { "exp": "thin", "nads": "thick" }
+  },
+  {
+    "file": "accel_speed",
+    "page": 7,
+    "axis": 7,
+    "x": "t",
+    "y": "speed",
+    "series": { "exp": "thin", "nads": "thick" }
+  }
+]
