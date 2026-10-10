@@ -12,8 +12,8 @@ Usage (needs a PyChrono 9.0.1 environment, see tools/chrono-compare/README.md):
 Writes tools/chrono-compare/reference/<car>/kc.csv. Columns: phase (rest, heave, roll), heave (m,
 + raises the chassis), roll (rad, + = left side up), then per wheel 0..3 (FL, FR, RL, RR): z (m,
 spindle height in the chassis frame), toe (deg, + = toe-in) and camber (deg, + = top outboard,
-so negative is top-in); then per wheel x and y (m, spindle position in the chassis frame) and
-spring (m, spring length, where the suspension type reports it). The E90's committed sweep
+so negative is top-in); then per wheel x and y (m, spindle position in the chassis frame),
+spring and shock (m, spring and damper lengths, where the suspension type reports them). The E90's committed sweep
 predates the last two groups.
 """
 import csv
@@ -41,14 +41,14 @@ def outboard_axle(v, rot, a, s):
     return axle
 
 
-def spring_length(v, a, s):
-    """Spring length of the suspension at axle a, side s, or NaN if its type does not report one."""
+def spring_shock_length(v, a, s):
+    """Spring and damper lengths at axle a, side s, or NaN if the suspension type reports none."""
     susp = v.GetSuspension(a)
     for cast in (veh.CastToChDoubleWishbone, veh.CastToChMultiLink, veh.CastToChMacPhersonStrut):
         typed = cast(susp)
         if typed is not None:
-            return typed.GetSpringLength(s)
-    return float('nan')
+            return [typed.GetSpringLength(s), typed.GetShockLength(s)]
+    return [float('nan')] * 2
 
 
 def wheel_row(v, ref_frame):
@@ -63,7 +63,7 @@ def wheel_row(v, ref_frame):
         toe = math.degrees(math.atan2(axle.x, abs(axle.y)))
         camber = -math.degrees(math.asin(max(-1.0, min(1.0, axle.z))))
         out += [p.z, toe, camber]
-        extra += [p.x, p.y, spring_length(v, a, s)]
+        extra += [p.x, p.y] + spring_shock_length(v, a, s)
     return out + extra
 
 
@@ -112,7 +112,7 @@ def main(spec):
     for i in range(4):
         header += [f'z{i}', f'toe{i}', f'camber{i}']
     for i in range(4):
-        header += [f'x{i}', f'y{i}', f'spring{i}']
+        header += [f'x{i}', f'y{i}', f'spring{i}', f'shock{i}']
     os.makedirs(spec.out, exist_ok=True)
     with open(os.path.join(spec.out, 'kc.csv'), 'w', newline='') as f:
         w = csv.writer(f)

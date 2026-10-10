@@ -94,8 +94,9 @@ export interface KcRow {
   /** Spindle position in the chassis frame, m (sweeps newer than the E90's). */
   x?: [number, number, number, number] | undefined;
   y?: [number, number, number, number] | undefined;
-  /** Spring length, m, where the suspension reports one (sweeps newer than the E90's). */
+  /** Spring and damper lengths, m, where the suspension reports them (sweeps newer than the E90's). */
   spring?: [number, number, number, number] | undefined;
+  shock?: [number, number, number, number] | undefined;
 }
 
 export function loadKc(car: CarName = "bmw_e90"): KcRow[] {
@@ -120,6 +121,7 @@ export function loadKc(car: CarName = "bmw_e90"): KcRow[] {
       x: wheel("x"),
       y: wheel("y"),
       spring: wheel("spring"),
+      shock: wheel("shock"),
     };
   });
 }

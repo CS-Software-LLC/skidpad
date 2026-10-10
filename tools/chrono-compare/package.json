@@ -2,11 +2,12 @@
   "name": "@skidpad/chrono-compare",
   "version": "0.0.0",
   "private": true,
-  "description": "Behavioural comparison against Project Chrono's multibody BMW_E90: same manoeuvres, same inputs, trace by trace.",
+  "description": "Behavioural comparison against Project Chrono's multibody BMW_E90 and Sedan: same manoeuvres, same inputs, trace by trace.",
   "license": "MIT OR Apache-2.0",
   "type": "module",
   "scripts": {
     "compare": "tsx src/cli.ts",
+    "compare:sedan": "tsx src/cli.ts --car sedan",
     "fit": "tsx src/cli.ts --fit",
     "toe-check": "tsx src/toe-check.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
