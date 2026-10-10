@@ -19,6 +19,7 @@ import { loadReference, MANEUVERS, runManeuver, type Row, type RowKey } from "./
 import {
   bmwE90,
   derive,
+  E90_FITTED,
   FITTED_ANTI_ROLL,
   FITTED_ANTI_ROLL_FIXED_GEOMETRY,
   GAPS,
@@ -62,7 +63,7 @@ for (const name of Object.keys(MANEUVERS)) {
     ].join("\n") + "\n",
   );
 }
-const { metrics, traces } = evaluate(chrono, skidpad, d.wheelbase);
+const { metrics, traces } = evaluate(chrono, skidpad, d.wheelbase, E90_FITTED);
 
 const fmt = (v: number) =>
   !Number.isFinite(v)

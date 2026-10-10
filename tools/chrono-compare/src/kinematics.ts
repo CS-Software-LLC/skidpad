@@ -7,7 +7,7 @@
  * Roll-centre heights and anti fractions come from the hardpoints, through
  * the front-view solver in `geometry.ts`, whose spindle positions match
  * Chrono's to 0.1 mm. Toe and camber come from Chrono itself, the heave
- * sweep of `chrono/bmw_e90_kc.py` (`reference/kc.csv`): the 3D hardpoint
+ * sweep of `chrono/kc.py` (`reference/bmw_e90/kc.csv`): the 3D hardpoint
  * solve below reproduces the rear's (rest toe within 0.01°, bump steer and
  * camber within 0.06°), but gives the front a tenth of the bump steer
  * Chrono's car shows, so it is kept as a cross-check, not a source

@@ -1,27 +1,31 @@
 """
-Kinematics sweep of Project Chrono's BMW_E90, as a kinematics-and-compliance rig does it: the
-parked car's chassis is held and moved slowly in heave, then in roll, with the steering centred,
-and every wheel's travel, toe and camber relative to the chassis is logged. Skidpad's travel
-curves (ADR-0026) for the comparison car take their toe from here; see
-docs/validation/chrono-bmw-e90.md for why the front's comes from Chrono rather than the
-hardpoint solver in src/kinematics.ts.
+Kinematics sweep of a Project Chrono reference car, as a kinematics-and-compliance rig does it:
+the parked car's chassis is held and moved slowly in heave, then in roll, with the steering
+centred, and every wheel's travel, toe and camber relative to the chassis is logged. Skidpad's
+travel curves (ADR-0026) for the E90 take their toe and camber from here (see
+docs/validation/chrono-bmw-e90.md); the Sedan takes all of its geometry from here, because its
+multi-link rear has no front-view instant-centre construction (docs/validation/chrono-sedan.md).
 
 Usage (needs a PyChrono 9.0.1 environment, see tools/chrono-compare/README.md):
-    python tools/chrono-compare/chrono/bmw_e90_kc.py
+    python tools/chrono-compare/chrono/kc.py bmw_e90|sedan
 
-Writes tools/chrono-compare/reference/kc.csv. Columns: phase (rest, heave, roll), heave (m, +
-raises the chassis), roll (rad, + = left side up), then per wheel 0..3 (FL, FR, RL, RR): z (m,
+Writes tools/chrono-compare/reference/<car>/kc.csv. Columns: phase (rest, heave, roll), heave (m,
++ raises the chassis), roll (rad, + = left side up), then per wheel 0..3 (FL, FR, RL, RR): z (m,
 spindle height in the chassis frame), toe (deg, + = toe-in) and camber (deg, + = top outboard,
-so negative is top-in).
+so negative is top-in); then per wheel x and y (m, spindle position in the chassis frame) and
+spring (m, spring length, where the suspension type reports it). The E90's committed sweep
+predates the last two groups.
 """
 import csv
+import importlib
 import math
 import os
+import sys
 
 import pychrono as chrono
 import pychrono.vehicle as veh
 
-from bmw_e90 import OUT, STEP, make_car, wheel_list
+from common import STEP, make_car, wheel_list
 
 SPEED = 0.01  # m/s of heave, rad/s of roll: slow enough to be quasi-static
 LOG_EVERY = 0.002  # m or rad between rows
@@ -37,18 +41,30 @@ def outboard_axle(v, rot, a, s):
     return axle
 
 
+def spring_length(v, a, s):
+    """Spring length of the suspension at axle a, side s, or NaN if its type does not report one."""
+    susp = v.GetSuspension(a)
+    for cast in (veh.CastToChDoubleWishbone, veh.CastToChMultiLink, veh.CastToChMacPhersonStrut):
+        typed = cast(susp)
+        if typed is not None:
+            return typed.GetSpringLength(s)
+    return float('nan')
+
+
 def wheel_row(v, ref_frame):
     rot = ref_frame.GetRot()
     out = []
+    extra = []
     for a, s in wheel_list(v):
         p = ref_frame.TransformPointParentToLocal(v.GetSpindlePos(a, s))
         axle = outboard_axle(v, rot, a, s)
         # Toe-in, the wheel's front turned toward the centreline: the outboard axle leans
-        # forward on either side (`bmw_e90.py`'s `wheel_angle`, negated on the left).
+        # forward on either side (`common.py`'s `wheel_angle`, negated on the left).
         toe = math.degrees(math.atan2(axle.x, abs(axle.y)))
         camber = -math.degrees(math.asin(max(-1.0, min(1.0, axle.z))))
         out += [p.z, toe, camber]
-    return out
+        extra += [p.x, p.y, spring_length(v, a, s)]
+    return out + extra
 
 
 def advance(car, terrain, t, inputs):
@@ -59,8 +75,8 @@ def advance(car, terrain, t, inputs):
     return t + STEP
 
 
-def main():
-    car, terrain = make_car()
+def main(spec):
+    car, terrain = make_car(spec)
     v = car.GetVehicle()
     inputs = veh.DriverInputs()
     inputs.m_braking = 0.3
@@ -95,8 +111,10 @@ def main():
     header = ['phase', 'heave', 'roll']
     for i in range(4):
         header += [f'z{i}', f'toe{i}', f'camber{i}']
-    os.makedirs(OUT, exist_ok=True)
-    with open(os.path.join(OUT, 'kc.csv'), 'w', newline='') as f:
+    for i in range(4):
+        header += [f'x{i}', f'y{i}', f'spring{i}']
+    os.makedirs(spec.out, exist_ok=True)
+    with open(os.path.join(spec.out, 'kc.csv'), 'w', newline='') as f:
         w = csv.writer(f)
         w.writerow(header)
         w.writerows([[r[0]] + [f'{x:.6g}' for x in r[1:]] for r in rows])
@@ -104,4 +122,6 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    if len(sys.argv) != 2:
+        sys.exit('usage: kc.py bmw_e90|sedan')
+    main(importlib.import_module(sys.argv[1]).CAR)

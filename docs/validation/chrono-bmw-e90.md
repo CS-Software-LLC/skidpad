@@ -50,7 +50,7 @@ one pair:
   fraction against travel. The front roll centre falls 2.9 mm per mm of
   bump and the rear 1.6 mm. The anti fractions barely move: the front's
   changes by 0.02 over the whole range. Camber against travel comes from
-  `chrono/bmw_e90_kc.py`, which holds the parked car's chassis and moves it
+  `chrono/kc.py bmw_e90`, which holds the parked car's chassis and moves it
   in heave and roll as a kinematics-and-compliance rig does. The static
   camber is Chrono's at rest, −1.19° front (Chrono's front spindle is built
   at −2°) and −0.09° rear. Neither tire produces force from camber, so the
@@ -244,7 +244,7 @@ overshoots less.
 
 **2. Chrono's toe follows force, not travel.** Chrono's toe changes as it
 drives: 1.43° front and 0.67° rear driving straight, falling to about 0.9°
-and 0.52° at 0.8 g. Its own kinematics sweep (`chrono/bmw_e90_kc.py`, the
+and 0.52° at 0.8 g. Its own kinematics sweep (`chrono/kc.py bmw_e90`, the
 parked car's chassis held and rolled) does not produce that. At the 3.2° of
 roll the ramp reaches, the sweep holds the front's mean toe-in at 1.29°,
 and steers the rear by 0.30° out of the turn, where the driving car steers
@@ -337,5 +337,5 @@ To regenerate the reference, about 8 GB and 3 minutes:
 ```sh
 micromamba create -p /opt/mm/chrono -c projectchrono -c conda-forge python=3.12 pychrono=9.0.1 numpy
 /opt/mm/chrono/bin/python tools/chrono-compare/chrono/bmw_e90.py
-/opt/mm/chrono/bin/python tools/chrono-compare/chrono/bmw_e90_kc.py   # kinematics sweep
+/opt/mm/chrono/bin/python tools/chrono-compare/chrono/kc.py bmw_e90   # kinematics sweep
 ```

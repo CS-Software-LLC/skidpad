@@ -18,7 +18,7 @@
  * view that axis is taken where it pierces the transverse plane of the arm's
  * outer joint. The hardpoints are quoted at Chrono's design position, and the
  * car settles below its design load, so each linkage is first solved for the
- * spindle height Chrono reports at rest (`reference/static.json`).
+ * spindle height Chrono reports at rest (`reference/bmw_e90/static.json`).
  *
  * Front-view coordinates: [y left, z up], metres, suspension frame.
  */

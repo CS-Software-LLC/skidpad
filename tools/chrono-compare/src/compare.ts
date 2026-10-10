@@ -51,9 +51,10 @@ export interface Metric {
   fn: (rows: Row[], wheelbase: number) => number;
   /** Allowed difference: a fraction of Chrono's value, or an absolute amount. */
   tolerance: { kind: Kind; value: number };
-  /** Identified from Chrono rather than predicted (fitted parameters). */
-  fitted?: boolean;
 }
+
+/** A metric's key, `maneuver: label`, as `evaluate`'s `fitted` set and the known gaps use it. */
+export const metricKey = (m: { maneuver: string; label: string }) => `${m.maneuver}: ${m.label}`;
 
 const rel = (value: number) => ({ kind: "relative" as const, value });
 const abs = (value: number) => ({ kind: "absolute" as const, value });
@@ -149,7 +150,6 @@ export const METRICS: Metric[] = [
     label: "roll gradient",
     unit: "deg/g",
     tolerance: rel(0.15),
-    fitted: true,
     fn: (r) => {
       const w = linearRange(r);
       return (
@@ -166,7 +166,6 @@ export const METRICS: Metric[] = [
     label: "front share of lateral load transfer",
     unit: "%",
     tolerance: abs(3),
-    fitted: true,
     fn: (r) => {
       const w = linearRange(r);
       const f = slope(
@@ -352,10 +351,16 @@ export interface TraceResult {
   pass: boolean;
 }
 
+/**
+ * Every metric and trace on both sets of rows. `fitted` names the metrics
+ * (`metricKey`) a car's definition was fitted to, which are reported but
+ * are not predictions.
+ */
 export function evaluate(
   chrono: Record<string, Row[]>,
   skidpad: Record<string, Row[]>,
   wheelbase: number,
+  fitted: ReadonlySet<string> = new Set(),
 ): { metrics: MetricResult[]; traces: TraceResult[] } {
   const metrics = METRICS.filter((m) => chrono[m.maneuver] && skidpad[m.maneuver]).map((m) => {
     const c = m.fn(chrono[m.maneuver]!, wheelbase);
@@ -369,7 +374,7 @@ export function evaluate(
       skidpad: s,
       difference,
       tolerance: m.tolerance,
-      fitted: m.fitted ?? false,
+      fitted: fitted.has(metricKey(m)),
       pass: Number.isFinite(difference) && Math.abs(difference) <= m.tolerance.value,
     };
   });

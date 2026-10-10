@@ -1,7 +1,7 @@
 /**
  * Skidpad's model of Project Chrono's BMW_E90, built from Chrono's published
  * constants (`chrono-e90.ts`) and its measured static state
- * (`reference/static.json`). Every value is taken or derived from Chrono
+ * (`reference/bmw_e90/static.json`). Every value is taken or derived from Chrono
  * except the anti-roll bar rates, which are FITTED (see `fit.ts`): Chrono's
  * bars act through linkages Skidpad does not model, so their wheel rates
  * are identified from Chrono's roll gradient and front share of lateral
@@ -16,7 +16,7 @@ import type { PartialVehicleDefinition } from "@skidpad/core";
 import * as c from "./chrono-e90.js";
 import { doubleWishboneRollCentre, macphersonRollCentre } from "./geometry.js";
 import { travelCurves, type TravelCurves } from "./kinematics.js";
-import { loadReference, ROOT } from "./reference.js";
+import { loadReference, referenceDir, type CarName } from "./reference.js";
 import { fitMagicFormula } from "./tire-fit.js";
 
 export { ROOT } from "./reference.js";
@@ -35,9 +35,15 @@ export interface ChronoStatic {
   toe: [number, number, number, number];
 }
 
-export function loadStatic(): ChronoStatic {
-  return JSON.parse(readFileSync(join(ROOT, "reference", "static.json"), "utf8")) as ChronoStatic;
+export function loadStatic(car: CarName = "bmw_e90"): ChronoStatic {
+  return JSON.parse(readFileSync(join(referenceDir(car), "static.json"), "utf8")) as ChronoStatic;
 }
+
+/** The metrics the anti-roll bars are fitted to (`fit.ts`), so not predictions. */
+export const E90_FITTED: ReadonlySet<string> = new Set([
+  "rampSteer: roll gradient",
+  "rampSteer: front share of lateral load transfer",
+]);
 
 /** Anti-roll bar wheel rates, N/m: FITTED by `fit.ts` (`pnpm compare --fit`). */
 export const FITTED_ANTI_ROLL = { front: 14750, rear: 8250 };

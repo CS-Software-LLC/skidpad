@@ -16,12 +16,12 @@ pnpm test        # regression guard (CI runs it)
 
 ## Layout
 
-- `chrono/bmw_e90.py` drives Chrono and writes `reference/`. `chrono/maneuvers.json`
-  holds the manoeuvres both harnesses run.
-- `chrono/bmw_e90_kc.py` holds the parked car's chassis and moves it in heave and
-  roll, as a kinematics-and-compliance rig does, and writes `reference/kc.csv`:
+- `chrono/common.py` drives Chrono; `chrono/bmw_e90.py` describes the car and writes
+  `reference/bmw_e90/`. `chrono/maneuvers.json` holds the manoeuvres both harnesses run.
+- `chrono/kc.py bmw_e90` holds the parked car's chassis and moves it in heave and
+  roll, as a kinematics-and-compliance rig does, and writes `reference/bmw_e90/kc.csv`:
   each wheel's travel, toe and camber.
-- `reference/` holds Chrono's rows at 100 Hz and its static state. They are
+- `reference/bmw_e90/` holds Chrono's rows at 100 Hz and its static state. They are
   committed, so nothing here needs Chrono installed.
 - `src/chrono-e90.ts` holds the constants from Chrono's source, with the file
   each one comes from.
@@ -29,7 +29,7 @@ pnpm test        # regression guard (CI runs it)
 - `src/geometry.ts` computes roll-centre heights and anti-pitch fractions
   from the hardpoints.
 - `src/kinematics.ts` builds the travel curves (ADR-0026): toe and camber from
-  `reference/kc.csv`, roll-centre height and anti fraction from `geometry.ts`
+  `reference/bmw_e90/kc.csv`, roll-centre height and anti fraction from `geometry.ts`
   swept over travel. It also solves each upright's 3D pose from the
   hardpoints, kept as a cross-check.
 - `src/vehicle.ts` builds the Skidpad definition and lists the structural
@@ -47,7 +47,7 @@ The Chrono environment takes about 8 GB and a run about 3 minutes:
 micromamba create -p /opt/mm/chrono -c projectchrono -c conda-forge python=3.12 pychrono=9.0.1 numpy
 /opt/mm/chrono/bin/python tools/chrono-compare/chrono/bmw_e90.py            # all manoeuvres
 /opt/mm/chrono/bin/python tools/chrono-compare/chrono/bmw_e90.py stepSteer  # one
-/opt/mm/chrono/bin/python tools/chrono-compare/chrono/bmw_e90_kc.py         # kinematics sweep
+/opt/mm/chrono/bin/python tools/chrono-compare/chrono/kc.py bmw_e90      # kinematics sweep
 ```
 
 A manoeuvre added to `chrono/maneuvers.json` runs in both harnesses. Add its
