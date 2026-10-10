@@ -25,6 +25,10 @@ pnpm test        # both cars' regression guards (CI runs them)
   each wheel's travel, toe and camber.
 - `chrono/sedan.py` describes the Sedan and writes `reference/sedan/`; `chrono/kc.py sedan`
   sweeps it, also logging each spindle's position and the spring and damper lengths.
+- `chrono/equilibrium.py <car>` measures each car's ride height at its true static equilibrium,
+  tires off the ground and each spindle pushed up by its static load, and writes
+  `reference/<car>/equilibrium.json`. The travel curves are read from there: a parked car rests
+  where its tires' static friction propped it.
 - `reference/<car>/` holds Chrono's rows at 100 Hz and its static state. They are
   committed, so nothing here needs Chrono installed.
 - `src/chrono-e90.ts` holds the constants from Chrono's source, with the file
@@ -57,6 +61,8 @@ micromamba create -p /opt/mm/chrono -c projectchrono -c conda-forge python=3.12 
 /opt/mm/chrono/bin/python tools/chrono-compare/chrono/kc.py bmw_e90      # kinematics sweep
 /opt/mm/chrono/bin/python tools/chrono-compare/chrono/sedan.py           # the Sedan
 /opt/mm/chrono/bin/python tools/chrono-compare/chrono/kc.py sedan
+/opt/mm/chrono/bin/python tools/chrono-compare/chrono/equilibrium.py bmw_e90   # after each car's run
+/opt/mm/chrono/bin/python tools/chrono-compare/chrono/equilibrium.py sedan
 ```
 
 A manoeuvre added to `chrono/maneuvers.json` runs in both harnesses, for both cars. Add its

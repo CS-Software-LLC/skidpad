@@ -207,6 +207,22 @@ export const METRICS: Metric[] = [
   },
   {
     maneuver: "stepSteer",
+    label: "front ride height running straight, from equilibrium",
+    unit: "mm",
+    tolerance: abs(3),
+    fn: (r) =>
+      1000 * mean(window(r, 0, 1.8).map((x) => 0.5 * ((x.travel0 ?? NaN) + (x.travel1 ?? NaN)))),
+  },
+  {
+    maneuver: "stepSteer",
+    label: "rear ride height running straight, from equilibrium",
+    unit: "mm",
+    tolerance: abs(3),
+    fn: (r) =>
+      1000 * mean(window(r, 0, 1.8).map((x) => 0.5 * ((x.travel2 ?? NaN) + (x.travel3 ?? NaN)))),
+  },
+  {
+    maneuver: "stepSteer",
     label: "steady yaw rate",
     unit: "deg/s",
     tolerance: rel(0.1),

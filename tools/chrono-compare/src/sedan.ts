@@ -19,15 +19,26 @@ import * as c from "./chrono-sedan.js";
 import { fitError, fitPac02, fz0Prime, loadSedanTir, offsetToe } from "./pac02.js";
 import { loadReference, referenceDir } from "./reference.js";
 import { axleGeometry, heaveSamples, restSpringLength, type Axle } from "./sedan-kc.js";
-import { loadStatic, MAX_WHEEL_ANGLE_DEG, type ChronoStatic } from "./vehicle.js";
+import {
+  atEquilibrium,
+  equilibriumOffset,
+  loadStatic,
+  MAX_WHEEL_ANGLE_DEG,
+  type ChronoStatic,
+} from "./vehicle.js";
 
 /** Tire relaxation length, m. Chrono's Pac02 is steady-state; as for the E90. */
 const RELAXATION_LENGTH = 0.02;
 
-/** Travels the curves are sampled at, m (+ bump): inside Chrono's heave sweep on both axles. */
-const CURVE_TRAVELS = [
-  -0.04, -0.03, -0.02, -0.01, 0, 0.01, 0.02, 0.03, 0.04, 0.05, 0.06, 0.07, 0.08,
-];
+/**
+ * Travels the curves are sampled at, m (+ bump), per axle: inside Chrono's heave sweep once shifted
+ * to the equilibrium ride height, which sits 24 mm into bump from the parked car at the front and
+ * at it at the rear.
+ */
+const CURVE_TRAVELS: Record<Axle, number[]> = {
+  front: [-0.06, -0.05, -0.04, -0.03, -0.02, -0.01, 0, 0.01, 0.02, 0.03, 0.04, 0.05, 0.06],
+  rear: [-0.04, -0.03, -0.02, -0.01, 0, 0.01, 0.02, 0.03, 0.04, 0.05, 0.06, 0.07, 0.08],
+};
 
 const IDLE_RPM = 800;
 
@@ -55,7 +66,7 @@ export interface SedanDerived {
   rollCentre: { front: number; rear: number };
   /** Anti fractions at rest (ADR-0018): the front both brakes and drives, through the wheel centre. */
   anti: { front: number; rear: number };
-  /** Toe-in per wheel at rest, degrees (Chrono's linkage). */
+  /** Toe-in per wheel at the equilibrium ride height, degrees (Chrono's linkage). */
   restToeDeg: { front: number; rear: number };
   /** Toe-in per wheel while driving straight, degrees (see `drivingToe`). */
   drivingToeDeg: { front: number; rear: number };
@@ -81,7 +92,9 @@ function drivingToe(): { front: number; rear: number } {
   };
 }
 
-export function deriveSedan(s: ChronoStatic = loadStatic("sedan")): SedanDerived {
+export function deriveSedan(
+  s: ChronoStatic = atEquilibrium(loadStatic("sedan"), "sedan"),
+): SedanDerived {
   const [fl, fr, rl, rr] = s.loads;
   const frontLoad = 0.5 * (fl + fr);
   const rearLoad = 0.5 * (rl + rr);
@@ -100,8 +113,10 @@ export function deriveSedan(s: ChronoStatic = loadStatic("sedan")): SedanDerived
   const cgHeight = s.comLocal[2] - groundBelow;
 
   const samples = heaveSamples();
+  // The sweep's travel is measured from the parked car; the curves from the equilibrium.
+  const offset = equilibriumOffset("sedan");
   const geo = (axle: Axle, t: number) =>
-    axleGeometry(axle, t, axle === "front" ? loadedFront : loadedRear, samples);
+    axleGeometry(axle, t + offset[axle], axle === "front" ? loadedFront : loadedRear, samples);
   const front = geo("front", 0);
   const rear = geo("rear", 0);
   // Anti fraction from the wheel centre's path (ADR-0018, `sedan-kc.ts`).
@@ -110,7 +125,7 @@ export function deriveSedan(s: ChronoStatic = loadStatic("sedan")): SedanDerived
   const round = (v: number, k: number) => Math.round(v * 10 ** k) / 10 ** k;
   const curve = (axle: Axle, f: (g: ReturnType<typeof geo>) => number, k: number) => {
     const at0 = f(geo(axle, 0));
-    return CURVE_TRAVELS.map((t): [number, number] => [
+    return CURVE_TRAVELS[axle].map((t): [number, number] => [
       t,
       t === 0 ? 0 : round(f(geo(axle, t)) - at0, k),
     ]);
@@ -160,10 +175,8 @@ export function deriveSedan(s: ChronoStatic = loadStatic("sedan")): SedanDerived
     },
     rollCentre: { front: front.rollCentre, rear: rear.rollCentre },
     anti: { front: anti("front", front.dxdz), rear: anti("rear", rear.dxdz) },
-    restToeDeg: {
-      front: (((s.toe[1] - s.toe[0]) / 2) * 180) / Math.PI,
-      rear: (((s.toe[3] - s.toe[2]) / 2) * 180) / Math.PI,
-    },
+    // Toe-in at the equilibrium ride height, from the sweep, where the toe curves start.
+    restToeDeg: { front: front.toeDeg, rear: rear.toeDeg },
     drivingToeDeg: drivingToe(),
     offsetToeDeg: { front: offsetToe(tir, frontLoad), rear: offsetToe(tir, rearLoad) },
     curves: { front: curves("front"), rear: curves("rear") },
@@ -344,7 +357,8 @@ export const SEDAN_GAPS = [
   "Tire: Chrono's Pac02 clamps B·κ and B·α below π/2, so its forces stay near their peaks past it; Skidpad's Magic Formula shape is fitted to those curves (`pac02.ts`), within 4 % of the peak.",
   "Tire combined slip: Chrono combines with a friction ellipse; Skidpad uses its Magic Formula weighting functions with their defaults (the file has no combined-slip coefficients).",
   "Tire offsets: Chrono mirrors the lateral offsets on the right tires, so they push inward as a pair; Skidpad carries them as an equivalent static toe at each axle's static load.",
-  "Toe: fixed at Chrono's straight-running value. Chrono's front toe-in is 1.28° parked, about 0.4° rolling and 2–3° under drive, so it follows tire force as the E90's does; a toe-against-travel curve cannot carry it (`--toe-curve` adds the steep front bump steer, about 4.5° over 10 cm of travel). The harness steers with Chrono's mean front road-wheel angle, which carries the front's net roll steer across.",
+  "Toe: fixed at Chrono's straight-running value. Chrono's toe follows travel through its steep front bump steer (about 4.5° over 10 cm), but with the toe curves (`--toe-curve`) Skidpad's toe-in forces jack the front further than Chrono's and the bump steer runs away (docs/validation/chrono-sedan.md, finding 6). The harness steers with Chrono's mean front road-wheel angle, which carries the front's net roll steer across.",
+  "Ride height: the travel curves are read from Chrono's equilibrium (`chrono/equilibrium.py`), not the parked car, whose tires prop its front 24 mm high.",
   "Unsprung mass: Chrono's wheels, uprights and links are separate bodies; Skidpad carries the whole mass on the chassis proxy.",
   "Roll centres and pitch geometry: measured from Chrono's heave sweep as each wheel's travel curves (ADR-0026), from a level-body heave construction.",
   "Springs: Chrono's rear spring rate at the wheel rises in droop and falls in bump as its motion ratio moves (0.65 to 0.59 over 10 cm); Skidpad's is linear at the rest value.",

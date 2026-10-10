@@ -246,7 +246,8 @@ export function measuredAngles(
 
 /**
  * The travel curves of one axle, as offsets from their values at `restZ`
- * (the spindle height Chrono settles at), sampled at `travels` (m, + bump,
+ * (the spindle height at Chrono's equilibrium, `sweepOffset` from the
+ * parked car the sweep starts from), sampled at `travels` (m, + bump,
  * including zero). `loadedRadius` places the contact patch; `wheelbase`
  * and `cgHeight` turn the side-view instant centre into an anti fraction
  * (ADR-0018).
@@ -258,10 +259,15 @@ export function travelCurves(
   loadedRadius: number,
   wheelbase: number,
   cgHeight: number,
+  sweepOffset = 0,
 ): TravelCurves {
   if (!travels.includes(0)) throw new Error("travels must include zero");
   const heights = travels.map((z) => restZ + z);
-  const ang = measuredAngles(axle, travels);
+  // The sweep's travel is measured from the parked car; `restZ` may sit `sweepOffset` from it.
+  const ang = measuredAngles(
+    axle,
+    travels.map((t) => t + sweepOffset),
+  );
   const rc = heights.map((z): RollCentre =>
     axle === "front"
       ? macphersonRollCentre(z, loadedRadius)

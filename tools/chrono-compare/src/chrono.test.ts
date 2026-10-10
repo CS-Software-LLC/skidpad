@@ -26,8 +26,11 @@ export const KNOWN_GAPS: Record<string, string> = {
     "with migrating roll centres Skidpad's roll per g grows with lateral acceleration faster than Chrono's",
   "stepSteer: roll":
     "with migrating roll centres Skidpad's roll per g grows with lateral acceleration faster than Chrono's",
-  "sineSteer: peak roll": "open: Skidpad overshoots in roll more than Chrono",
   "sineSteer: roll": "open: Skidpad overshoots in roll more than Chrono",
+  "stepSteer: front ride height running straight, from equilibrium":
+    "Skidpad's toe-in forces jack the front up through its roll centre; Chrono's front lifts a quarter as much",
+  "stepSteer: rear ride height running straight, from equilibrium":
+    "open: Chrono's rear rides 29 mm up from equilibrium at any speed, which its roll centre does not explain",
 };
 
 describe("Skidpad against Project Chrono's BMW_E90", () => {

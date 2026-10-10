@@ -183,6 +183,7 @@ export function runManeuver(sp: Skidpad, name: string, opts: RunOptions = {}): R
         row[`slip${i}`] = read(`SlipRatio_${w}`);
         row[`alpha${i}`] = read(`SlipAngle_${w}`);
         row[`omega${i}`] = read(`WheelSpeed_${w}`);
+        row[`travel${i}`] = read(`SuspTravel_${w}`);
       });
       rows.push(row as Row);
     }

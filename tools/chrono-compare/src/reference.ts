@@ -17,6 +17,7 @@ export function referenceDir(car: CarName): string {
 }
 
 type WheelChannel = `${"fz" | "fx" | "fy" | "slip" | "alpha" | "omega"}${0 | 1 | 2 | 3}`;
+type TravelChannel = `${"sz" | "travel"}${0 | 1 | 2 | 3}`;
 type Channel =
   | "t"
   | "x"
@@ -39,7 +40,7 @@ type Channel =
  * (`delta0`…`delta3`); Skidpad's carry the mean front angle it was steered
  * with (`delta`).
  */
-export type Row = { [K in Channel]: number } & {
+export type Row = { [K in Channel]: number } & { [K in TravelChannel]?: number } & {
   delta?: number;
   delta0?: number;
   delta1?: number;
@@ -48,16 +49,48 @@ export type Row = { [K in Channel]: number } & {
 };
 export type RowKey = keyof Row;
 
+/**
+ * Chrono's rows of a manoeuvre. Where they log spindle heights (`sz0`…`sz3`)
+ * and the car's equilibrium is measured, each wheel's travel from that
+ * equilibrium is added as `travel0`…`travel3` (m, + bump), as Skidpad's
+ * rows carry it.
+ */
 export function loadReference(name: string, car: CarName = "bmw_e90"): Row[] {
   const text = readFileSync(join(referenceDir(car), `${name}.csv`), "utf8").trim();
-  const [head = "", ...lines] = text.split("\n");
+  const [head = "", ...lines] = text.split(/\r?\n/);
   const keys = head.split(",");
+  const eq = keys.includes("sz0") ? loadEquilibrium(car) : null;
   return lines.map((l) => {
     const v = l.split(",");
     const r: Record<string, number> = {};
     keys.forEach((k, i) => (r[k] = Number(v[i])));
+    if (eq) for (let i = 0; i < 4; i++) r[`travel${i}`] = r[`sz${i}`]! - eq.equilibriumZ[i]!;
     return r as Row;
   });
+}
+
+type Wheels = [number, number, number, number];
+
+/**
+ * The car's ride height at its true static equilibrium (`chrono/equilibrium.py`,
+ * `reference/<car>/equilibrium.json`): each spindle pushed up by its static
+ * load with the tires off the ground, so no tire force props or jacks it.
+ * Heights are in the chassis frame, m; `travel` is each wheel's
+ * equilibrium less its parked height (+ bump); `toe` is each wheel's toe-in
+ * there, rad.
+ */
+export interface Equilibrium {
+  loads: Wheels;
+  restZ: Wheels;
+  equilibriumZ: Wheels;
+  travel: Wheels;
+  toe: Wheels;
+}
+
+export function loadEquilibrium(car: CarName): Equilibrium {
+  return JSON.parse(
+    readFileSync(join(referenceDir(car), "equilibrium.json"), "utf8"),
+  ) as Equilibrium;
 }
 
 /** Linear interpolation of a channel at time t (rows sorted by time). */

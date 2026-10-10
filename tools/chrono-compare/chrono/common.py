@@ -6,7 +6,8 @@ calls `main`; everything else is shared, so both cars drive exactly the same man
 Adapted from bench/chrono/bmw_e90.py in the sibling project csummers88/vehicle-physics-new (MIT,
 same author), which produced the first version of the E90 data. Changes here: output paths, and the
 road-wheel angle of all four wheels is logged (delta0..delta3) and measured at rest (static.json
-"toe"), because the Skidpad harness drives its car with Chrono's mean front road-wheel angle.
+"toe"), because the Skidpad harness drives its car with Chrono's mean front road-wheel angle; and
+each spindle's height in the chassis frame (sz0..sz3), its travel against equilibrium.json's.
 
 Writes tools/chrono-compare/reference/<car>/<maneuver>.csv (100 Hz) and reference/<car>/static.json.
 Maneuver inputs are defined in chrono/maneuvers.json and shared with the Skidpad harness.
@@ -109,9 +110,20 @@ class SpeedController:
 
 
 def tire_force(tire, terrain, rot=None):
-    """Tire force in the vehicle frame (x fwd, y left, z up). ReportTireForceLocal is unreliable for TMsimple."""
-    f = tire.ReportTireForce(terrain).force
-    return rot.RotateBack(f) if rot is not None else f
+    """
+    Tire force: x and y in the vehicle's heading frame (x fwd, y left), z the load normal to the
+    flat ground, as Skidpad's TireLoad. ReportTireForceLocal is unreliable for TMsimple.
+    """
+    # Keep the report alive while its force is copied: SWIG frees the temporary otherwise, and
+    # `.force` then reads freed memory.
+    report = tire.ReportTireForce(terrain)
+    f = chrono.ChVector3d(report.force)  # global frame
+    if rot is None:
+        return f
+    # Heading only: the body's roll and pitch must not mix the lateral force into the load.
+    yaw = rot.GetCardanAnglesZYX().z
+    c, s = math.cos(yaw), math.sin(yaw)
+    return chrono.ChVector3d(c * f.x + s * f.y, -s * f.x + c * f.y, f.z)
 
 
 def wheel_list(v):
@@ -199,6 +211,11 @@ def run(car_spec: Car, name, spec):
             # Road-wheel steer angles (rad, + = left) of all four wheels relative to the chassis.
             for i, (a, s) in enumerate(wheel_list(v)):
                 row[f'delta{i}'] = wheel_angle(v, rot, a, s)
+            # Spindle heights in the chassis reference frame, m: each wheel's travel against
+            # equilibrium.json's (the chassis reference is static.json's spindleLocal frame).
+            chassis = v.GetChassisBody().GetFrameRefToAbs()
+            for i, (a, s) in enumerate(wheel_list(v)):
+                row[f'sz{i}'] = chassis.TransformPointParentToLocal(v.GetSpindlePos(a, s)).z
             for i, (a, s) in enumerate(wheel_list(v)):
                 tire = v.GetTire(a, s)
                 f = tire_force(tire, terrain, rot)

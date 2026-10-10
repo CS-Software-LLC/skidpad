@@ -12,18 +12,25 @@ import { init, validateDefinition, type Skidpad } from "@skidpad/core";
 import { evaluate, metricKey, type MetricResult, type TraceResult } from "./compare.js";
 import { chronoFy, loadSedanTir, mirrored, offsetToe } from "./pac02.js";
 import { loadReference, MANEUVERS, runManeuver, type Row } from "./run.js";
+import { loadEquilibrium } from "./reference.js";
 import { deriveSedan, sedan, sedanTireFitError } from "./sedan.js";
-import { loadStatic } from "./vehicle.js";
 
 /** `maneuver: label` → why it is outside tolerance. */
 export const KNOWN_GAPS: Record<string, string> = {
-  "rampSteer: front share of lateral load transfer":
-    "Chrono's car transfers load as if its roll centres were 0.154 m and 0.028 m, below its own kinematics' 0.234 m and 0.059 m",
-  "rampSteer: lateral acceleration at 15 s": "follows the front share: 5.4 % against 5 %",
-  "rampSteer: fz0": "follows the front share",
-  "stepSteer: yaw rate overshoot": "open: Chrono overshoots 23 %, Skidpad 17 %",
+  "rampSteer: lateral acceleration at 15 s":
+    "near the limit Skidpad carries more load on the outer rear tire and holds 1.0 g where Chrono holds 0.93 g",
+  "rampSteer: peak lateral acceleration": "as above",
+  "rampSteer: pitch in the turn at 0.7 g":
+    "the roll-centre curves dip the nose in a turn; Chrono's stays level",
+  "stepSteer: yaw rate overshoot": "open: Chrono overshoots 23 %, Skidpad 15 %",
+  "stepSteer: lateral acceleration response time (90 %)": "follows the overshoot",
   "brakeHalf: pitch":
     "the pitch per g matches, but Skidpad's pitch settles faster than Chrono's, as on the E90",
+  "rampSteer: yawRate": "follows the limit grip",
+  "rampSteer: roll": "follows the limit grip",
+  "rampSteer: fz0": "follows the limit grip",
+  "rampSteer: fz2": "follows the limit grip",
+  "stepSteer: yawRate": "follows the overshoot",
   "stepSteer: roll": "open: small, as on the E90",
   "sineSteer: roll": "open: small, as on the E90",
 };
@@ -100,12 +107,14 @@ describe("the Sedan's tire (pac02.ts)", () => {
 });
 
 describe("the Sedan's kinematics (sedan-kc.ts)", () => {
-  it("take Chrono's rest toe from its sweep", () => {
-    const s = loadStatic("sedan");
+  it("start the toe curves from the toe the equilibrium rig measures", () => {
     const d = deriveSedan();
-    const toe = (l: number, r: number) => ((r - l) / 2) * (180 / Math.PI);
-    expect(Math.abs(d.restToeDeg.front - toe(s.toe[0], s.toe[1]))).toBeLessThan(1e-9);
-    expect(Math.abs(d.curves.front.toeDeg.find(([t]) => t === 0)![1])).toBe(0);
+    const eq = loadEquilibrium("sedan");
+    const deg = (rad: number) => (rad * 180) / Math.PI;
+    // The sweep at the equilibrium travel against the rig's own wheel angles.
+    expect(Math.abs(d.restToeDeg.front - deg(0.5 * (eq.toe[0] + eq.toe[1])))).toBeLessThan(0.05);
+    expect(Math.abs(d.restToeDeg.rear - deg(0.5 * (eq.toe[2] + eq.toe[3])))).toBeLessThan(0.05);
+    expect(d.curves.front.toeDeg.find(([t]) => t === 0)![1]).toBe(0);
   });
 
   it("place the spring stops inside the sweep's travel", () => {
