@@ -62,6 +62,9 @@ const COMPLIANCE_GAPS: Record<string, string> = {
     "0.09 s quicker than measured; the harness's compliance acts without lag",
 };
 
+/** Fitted with the core's aligning-torque compliance steer (ADR-0027). */
+const CORE_GAPS: Record<string, string> = {};
+
 function check(metrics: MetricResult[], traces: TraceResult[], gaps: Record<string, string>) {
   const outside = [...metrics, ...traces].filter((m) => !m.pass).map(key);
   expect(outside.filter((k) => !(k in gaps))).toEqual([]);
@@ -126,11 +129,21 @@ describe("Skidpad against NHTSA VRTC's measured Jeep Cherokee", () => {
   });
 
   it("fitted with a compliance: within tolerance outside the known gaps", () => {
-    const t = fitOnSis(sp, ref.sis!, () => {}, false, true);
+    const t = fitOnSis(sp, ref.sis!, () => {}, false, "harness");
     expect(t.steeringRatio).toBe(14);
     expect(t.compliance).toBeGreaterThan(7);
     expect(t.compliance).toBeLessThan(11);
     const { metrics, traces } = run(t);
     check(metrics, traces, COMPLIANCE_GAPS);
+  });
+
+  it("fitted with the core's compliance steer: every metric and trace within tolerance", () => {
+    const t = fitOnSis(sp, ref.sis!, () => {}, false, "core");
+    expect(t.steeringRatio).toBe(14);
+    expect(t.compliance).toBe(0);
+    expect(t.alignTorqueCompliance).toBeGreaterThan(8);
+    expect(t.alignTorqueCompliance).toBeLessThan(12);
+    const { metrics, traces } = run(t);
+    check(metrics, traces, CORE_GAPS);
   });
 });

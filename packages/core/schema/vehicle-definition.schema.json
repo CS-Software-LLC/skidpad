@@ -145,6 +145,13 @@
           "maximum": 0.5,
           "default": 0,
           "description": "Front contact travel along its ray per radian of steer, m/rad (inner down, outer up)"
+        },
+        "alignTorqueComplianceDeg": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 30,
+          "default": 0,
+          "description": "Aligning-torque compliance steer (ADR-0027): the steering system's compliance with the hand wheel held, degrees of road-wheel steer per kN·m of the steered axle's total kingpin torque. Both steered wheels turn in the direction the kingpin torque pushes them."
         }
       },
       "additionalProperties": false
@@ -684,6 +691,13 @@
           "maximum": 10,
           "default": 0,
           "description": "Static toe per wheel, degrees. Positive is toe-in: each wheel points toward the centreline"
+        },
+        "lateralComplianceSteerDeg": {
+          "type": "number",
+          "minimum": -2,
+          "maximum": 2,
+          "default": 0,
+          "description": "Lateral-force compliance steer (ADR-0027): each wheel's steer per kN of its own lateral force, degrees, positive understeer on either axle (front away from the force, rear toward it)."
         },
         "trackWidth": {
           "type": "number",

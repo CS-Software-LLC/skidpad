@@ -514,6 +514,12 @@ export function validateDefinition(def: unknown): ValidationResult {
             `${path}.staticToeDeg of ${toe} degrees is far beyond a road alignment (a few tenths); the tires scrub hard`,
           );
         }
+        const lc = a?.lateralComplianceSteerDeg;
+        if (lc !== undefined && (!isNum(lc) || Math.abs(lc) > 2)) {
+          errors.push(
+            `${path}.lateralComplianceSteerDeg must be within ±2 deg/kN (got ${String(lc)})`,
+          );
+        }
         const s = a?.suspension;
         if (s !== undefined) {
           if (typeof s !== "object" || s === null) {
@@ -602,6 +608,12 @@ export function validateDefinition(def: unknown): ValidationResult {
     if (v !== undefined && (!isNum(v) || Math.abs(v) > 0.5)) {
       errors.push(`steering.${k} must be within ±0.5 m (got ${String(v)})`);
     }
+  }
+  const atc = s.alignTorqueComplianceDeg;
+  if (atc !== undefined && (!isNum(atc) || atc < 0 || atc > 30)) {
+    errors.push(
+      `steering.alignTorqueComplianceDeg must be in [0, 30] deg/kN·m (got ${String(atc)})`,
+    );
   }
   nonNegative(errors, "steering.columnFriction", s.columnFriction);
   nonNegative(errors, "steering.columnDamping", s.columnDamping);
