@@ -366,6 +366,68 @@ The remaining estimates (mass properties, springs, roll centres, the tire's
 cornering stiffness) are unchanged from the estimated build; the three
 fitted values still come from the slowly increasing steer alone.
 
+## Measured mass properties
+
+Everything above ran with the mass properties estimated. NHTSA's light
+vehicle inertial parameter database lists a 1997 Jeep Cherokee measured on
+S.E.A.'s Vehicle Inertia Measurement Facility with a driver and a full tank:
+G. J. Heydinger, R. A. Bixel, W. R. Garrott, M. Pyne, J. G. Howe and
+D. A. Guenther, "Measured Vehicle Inertial Parameters – NHTSA's Data Through
+November 1998", SAE 1999-01-1336, vehicle 386 (VIN 1J4FJ68S3VL579212). The
+facility's quoted error is ±0.5 % on the centre-of-mass position, 1 % on the
+pitch and yaw inertias and 2 % on the roll inertia.
+
+| Parameter                        | Estimated            | Measured (vehicle 386)  |
+| -------------------------------- | -------------------- | ----------------------- |
+| Mass                             | 1700 kg              | 1663 kg (16 311 N)      |
+| Centre of mass behind front axle | 1.159 m (55 % front) | 1.147 m (55.5 % front)  |
+| Centre-of-mass height            | 0.69 m               | 0.682 m                 |
+| Roll inertia                     | 600 kg·m²            | 653 kg·m²               |
+| Pitch inertia                    | 2600 kg·m²           | 2498 kg·m²              |
+| Yaw inertia                      | 2700 kg·m²           | 2704 kg·m²              |
+| Roll/yaw product of inertia      | none                 | 85 kg·m² (not modelled) |
+| Wheelbase                        | 2.576 m              | 2.578 m                 |
+| Track, front and rear            | 1.473 m              | 1.466 m and 1.468 m     |
+
+Whether vehicle 386 is the car VRTC drove for SAE 2000-01-0700 is not
+established here: neither paper in hand gives the handling car's VIN. Both
+are VRTC's 1997 Cherokees of the same period, and the NADS parameter paper
+(SAE 1999-01-0121) shares an author with the facility. Either way these are
+a measured car of the same model and year in place of class-typical values.
+The listing is with a driver only; the handling car also carried its
+instrumentation, which stays unknown and is left out rather than estimated
+on top of measured values.
+
+### Expected results, set before the run
+
+The rerun takes the table's measured values into `src/jeep.ts` and changes
+nothing else: the springs (carried to the wheel over the new track), bar,
+roll centres, tire and steering stay as they were, and all three fits are
+run again on the slowly increasing steer. The tolerances are unchanged.
+
+Expected, before the run:
+
+- **Small changes.** The estimates were close except roll inertia (+9 %
+  measured). Mass is 2 % lower and the centre of mass 8 mm lower, so the
+  roll moment about the 0.4 m roll centres falls by about 5 %; the extra
+  0.5 % on the front axle adds a little understeer.
+- **Estimated build.** The steering-gain misses stay, within 3 % of their
+  values above. The roll gradient falls by about 5 %, to about 4.55 deg/g,
+  which is at the edge of its ±25 % band: whether it passes cannot be
+  called. 4 or 5 of 17 metrics within tolerance.
+- **The fits.** The front bar about 5 % softer than before (near
+  27 kN/m) for the same roll gradient; peak friction within 0.01 of 0.82;
+  the core's compliance within 5 % of 9.74 deg/kN·m, a little lower for the
+  added front weight; the effective ratio within 0.5 of 20.5.
+- **Predictions with the core's compliance.** All 12 predicted metrics and
+  every trace inside tolerance again, each metric within 2 % (0.02 s for
+  the response times) of its value above. Steady roll unchanged in the step
+  steer, since the bar is refitted to the same gradient. The 22.5 m/s lane
+  change's peak roll 1–3 % higher, from the larger roll inertia.
+- **The other two fitted builds** keep their known misses: the effective
+  ratio's three at 22.5 m/s and the harness compliance's lateral
+  acceleration response time.
+
 ## Reproducing
 
 ```sh
