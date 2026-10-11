@@ -19,7 +19,7 @@
     "prebuilt:update": "node scripts/prebuilt.mjs --update",
     "prebuilt:check": "node scripts/prebuilt.mjs --check",
     "prebuilt:install": "node scripts/prebuilt.mjs --install",
-    "test": "pnpm -r --filter './packages/**' --filter './tools/**' --filter './tests/**' run test",
+    "test": "pnpm -r --filter './packages/**' --filter './tools/**' --filter './tests/**' --filter @skidpad/sandbox run test",
     "test:rust": "cargo test --workspace",
     "test:determinism": "pnpm --filter @skidpad/determinism-tests run test:browsers",
     "typecheck": "pnpm -r run typecheck",

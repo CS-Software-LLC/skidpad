@@ -2,7 +2,15 @@ import { useEffect, useRef, useState } from "react";
 import { Scene, type CameraView } from "./Scene.js";
 import { Graph } from "./Graph.js";
 import { surfaceId, surfaces, type SurfaceId } from "@skidpad/presets";
-import { Sim, presetIds, hostKinds, type HostKind, type PresetId } from "./sim.js";
+import {
+  Sim,
+  presetIds,
+  hostKinds,
+  mapKinds,
+  type HostKind,
+  type MapKind,
+  type PresetId,
+} from "./sim.js";
 import { ClipRecorder, download } from "./record.js";
 import { WheelPanel } from "./WheelPanel.js";
 import { TuningPanel } from "./TuningPanel.js";
@@ -53,6 +61,8 @@ export function App() {
   const [error, setError] = useState<string | null>(null);
   const [presetId, setPresetId] = useState<PresetId>("hatchbackFwd");
   const [hostKind, setHostKind] = useState<HostKind>("builtin");
+  const [mapKind, setMapKind] = useState<MapKind>("provingGround");
+  const [ghost, setGhost] = useState(true);
   const [primitives, setPrimitives] = useState(false);
   const [cameraView, setCameraView] = useState<CameraView>("chase");
   const [recording, setRecording] = useState(false);
@@ -74,7 +84,13 @@ export function App() {
     s.load()
       .then(() => {
         if (cancelled) s.dispose();
-        else setSim(s);
+        else {
+          setSim(s);
+          // `?debug` hands the simulation to browser tests (see scripts/).
+          if (new URLSearchParams(window.location.search).has("debug")) {
+            (window as unknown as { __skidpadSim: Sim }).__skidpadSim = s;
+          }
+        }
       })
       .catch((e: unknown) => setError(String(e)));
     return () => {
@@ -87,6 +103,7 @@ export function App() {
     if (!sim) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.code === "KeyR" && !e.repeat) sim.reset();
+      if (e.code === "KeyG" && !e.repeat) sim.toGrid();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -136,6 +153,7 @@ export function App() {
       <Scene
         sim={sim}
         hostKind={hostKind}
+        mapKind={mapKind}
         surface={surface}
         revision={revision}
         primitives={primitives}
@@ -143,6 +161,7 @@ export function App() {
         canvasRef={canvasRef}
       />
       <Hud sim={sim} />
+      {mapKind === "circuit" && <LapPanel sim={sim} />}
       <div className="right">
         <div className="panels">
           <WheelPanel sim={sim} />
@@ -180,12 +199,39 @@ export function App() {
             ))}
           </select>
           <select
+            aria-label="Map"
+            value={mapKind}
+            onChange={(e) => {
+              const kind = e.target.value as MapKind;
+              sim
+                .setMap(kind)
+                .then(() => {
+                  // The circuit brings the Rapier host with it.
+                  setMapKind(sim.mapKind);
+                  setHostKind(sim.hostKind);
+                  bump();
+                })
+                .catch((err: unknown) => setError(String(err)));
+            }}
+          >
+            {mapKinds.map((k) => (
+              <option key={k} value={k}>
+                {k === "circuit" ? "Map: circuit (Rapier)" : "Map: proving ground"}
+              </option>
+            ))}
+          </select>
+          <select
+            aria-label="Host"
             value={hostKind}
             onChange={(e) => {
               const kind = e.target.value as HostKind;
               sim
                 .setHost(kind)
-                .then(() => setHostKind(kind))
+                .then(() => {
+                  // The built-in host has flat ground only: off the circuit.
+                  setHostKind(kind);
+                  setMapKind(sim.mapKind);
+                })
                 .catch((err: unknown) => setError(String(err)));
             }}
           >
@@ -193,7 +239,9 @@ export function App() {
               <option key={k} value={k}>
                 {k === "builtin"
                   ? "Host: built-in (flat ground)"
-                  : "Host: Rapier (bumps, ramp, kerb)"}
+                  : mapKind === "circuit"
+                    ? "Host: Rapier"
+                    : "Host: Rapier (bumps, ramp, kerb)"}
               </option>
             ))}
           </select>
@@ -210,6 +258,28 @@ export function App() {
             <option value="frontQuarter">Camera: front quarter</option>
           </select>
           <button onClick={() => sim.reset()}>Reset (R)</button>
+          {mapKind === "circuit" && (
+            <>
+              <button onClick={() => sim.toGrid()}>Back to the grid (G)</button>
+              <button
+                aria-pressed={ghost}
+                onClick={() => {
+                  sim.showGhost = !ghost;
+                  setGhost(!ghost);
+                }}
+              >
+                {ghost ? "Ghost: on" : "Ghost: off"}
+              </button>
+              <button
+                onClick={() => {
+                  if (window.confirm(`Forget the best lap and ghost of ${presetId}?`))
+                    sim.clearBest();
+                }}
+              >
+                Clear best lap
+              </button>
+            </>
+          )}
           <button
             onClick={() => {
               const csv = sim.recorder.toCSV();
@@ -258,10 +328,12 @@ export function App() {
       <div className="help">
         WASD / arrows to drive · Space handbrake · Q / E shift down / up (E from neutral for drive,
         Q below first for reverse) · C clutch · R reset · gamepad supported · the ramp is 70 m ahead
-        under the Rapier host · sound follows the engine plus tire squeal past the grip peak ·
-        Tuning edits the running car live (reset, copy, download or load its JSON) · the Surface
-        menu changes the grip under the wheels · every preset has its own detailed model; switch
-        Visuals to primitives for debugging · roadside props are visual markers
+        under the Rapier host · on the circuit R puts you back on the track (the lap no longer
+        counts) and G back on the grid; a lap counts with at least one wheel on the asphalt or kerbs
+        · sound follows the engine plus tire squeal past the grip peak · Tuning edits the running
+        car live (reset, copy, download or load its JSON) · the Surface menu changes the grip under
+        the wheels · every preset has its own detailed model; switch Visuals to primitives for
+        debugging · roadside props are visual markers
       </div>
       <Graph recorder={sim.recorder} />
     </>
@@ -396,6 +468,85 @@ function Hud({ sim }: { sim: Sim }) {
           </div>
         </>
       )}
+    </div>
+  );
+}
+
+function formatTime(t: number): string {
+  const m = Math.floor(t / 60);
+  const s = t - m * 60;
+  return m > 0 ? `${m}:${s.toFixed(3).padStart(6, "0")}` : s.toFixed(3);
+}
+
+function signed(t: number): string {
+  return `${t < 0 ? "−" : "+"}${Math.abs(t).toFixed(2)}`;
+}
+
+/** Lap timing on the circuit. Polls at 10 Hz like the HUD. */
+function LapPanel({ sim }: { sim: Sim }) {
+  const [state, setState] = useState(() => sim.timing);
+  useEffect(() => {
+    const update = () => setState(sim.timing);
+    sim.onBestChanged = update;
+    const id = setInterval(update, 100);
+    return () => {
+      clearInterval(id);
+      sim.onBestChanged = undefined;
+    };
+  }, [sim]);
+  if (!state) return null;
+  const best = state.best;
+  const sectorCell = (i: number) => {
+    const t = state.sectorTimes[i];
+    if (t === undefined) return <td key={i}>—</td>;
+    const ref = best?.sectors[i];
+    const cls = ref === undefined ? "" : t <= ref ? "ahead" : "behind";
+    return (
+      <td key={i} className={cls}>
+        {t.toFixed(2)}
+        {ref !== undefined ? ` (${signed(t - ref)})` : ""}
+      </td>
+    );
+  };
+  return (
+    <div className="laps">
+      {state.running ? (
+        <>
+          <div className={`lap-time${state.valid ? "" : " invalid"}`}>
+            {formatTime(state.lapTime)}
+          </div>
+          {state.delta !== null && (
+            <div className={`delta ${state.delta <= 0 ? "ahead" : "behind"}`}>
+              {signed(state.delta)} to best
+            </div>
+          )}
+          {!state.valid && <div className="muted">lap invalid</div>}
+        </>
+      ) : (
+        <div className="muted">Cross the start/finish line to start the clock</div>
+      )}
+      <table>
+        <tbody>
+          <tr>
+            <td className="muted">Sectors</td>
+            {[0, 1, 2].map(sectorCell)}
+          </tr>
+          <tr>
+            <td className="muted">Last</td>
+            <td colSpan={3} className={state.last && !state.last.valid ? "invalid" : ""}>
+              {state.last ? formatTime(state.last.time) : "—"}
+            </td>
+          </tr>
+          <tr>
+            <td className="muted">Best</td>
+            <td colSpan={3}>
+              {best
+                ? `${formatTime(best.time)} · ${best.sectors.map((t) => t.toFixed(2)).join(" / ")}`
+                : "—"}
+            </td>
+          </tr>
+        </tbody>
+      </table>
     </div>
   );
 }

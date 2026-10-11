@@ -4,7 +4,9 @@
  *
  * Two hosts: the built-in minimal host (flat ground, the core integrates the
  * pose) and a Rapier scene with obstacles, driven through
- * `@skidpad/rapier` (ADR-0002).
+ * `@skidpad/rapier` (ADR-0002). Two maps: the proving ground (either host)
+ * and the circuit (Rapier only: it has real elevation), with lap timing and
+ * a ghost of the best lap.
  */
 import {
   init,
@@ -27,13 +29,30 @@ import { TelemetryRecorder } from "@skidpad/telemetry";
 import { preset, presetIds, surfaceId, surfaceTable, type PresetId } from "@skidpad/presets";
 import { createChassisBody, RapierVehicle } from "@skidpad/rapier";
 import type RAPIER from "@dimforge/rapier3d-compat";
+import { GhostPlayer, GhostRecorder, ghostQuaternion, type GhostPose } from "@skidpad/replay";
 import { OBSTACLES, obstacleQuaternion } from "./track.js";
 import { SandboxAudio } from "./audio.js";
+import {
+  buildCircuit,
+  poseAt,
+  Projector,
+  SHOULDER,
+  yawPitchQuat,
+  type CircuitGeometry,
+  type SpawnPose,
+  type SurfaceKind,
+} from "./circuit/geometry.js";
+import { CIRCUIT } from "./circuit/layout.js";
+import { LapTimer, type TimerState } from "./circuit/timing.js";
+import { clearBest, loadBest, saveBest } from "./circuit/store.js";
 
 export const HOST_DT = 1 / 60;
 
 export type HostKind = "builtin" | "rapier";
 export const hostKinds: HostKind[] = ["builtin", "rapier"];
+
+export type MapKind = "provingGround" | "circuit";
+export const mapKinds: MapKind[] = ["provingGround", "circuit"];
 
 /** What the renderer needs: body pose in three.js terms plus per-wheel state. */
 export interface SimSnapshot {
@@ -103,6 +122,15 @@ export function coreQuatToThree(
 
 const WHEELS = ["FL", "FR", "RL", "RR"] as const;
 const KERB_SURFACE = surfaceId("kerb");
+const GRASS_SURFACE = surfaceId("grass");
+const GRAVEL_SURFACE = surfaceId("gravel");
+
+/** The circuit's geometry, built once on first use. */
+let circuitGeometry: CircuitGeometry | undefined;
+export function circuitGeometryOnce(): CircuitGeometry {
+  circuitGeometry ??= buildCircuit(CIRCUIT);
+  return circuitGeometry;
+}
 
 export class Sim {
   sp!: Skidpad;
@@ -161,6 +189,19 @@ export class Sim {
   private groundHandle = -1;
   private readonly kerbHandles = new Set<number>();
   private readonly channel = new Map<string, number>();
+  // Circuit.
+  mapKind: MapKind = "provingGround";
+  /** What each circuit collider is, by handle. */
+  private readonly circuitKinds = new Map<number, SurfaceKind>();
+  private projector: Projector | undefined;
+  private wheelProjector: Projector | undefined;
+  timer: LapTimer | undefined;
+  private ghostRecorder: GhostRecorder | undefined;
+  private ghostPlayer: GhostPlayer | null = null;
+  /** Called when the best lap or its ghost changes (a new best, a load, a clear). */
+  onBestChanged: (() => void) | undefined;
+  /** Show the ghost of the best lap. */
+  showGhost = true;
 
   async load(): Promise<void> {
     this.sp = await init();
@@ -226,6 +267,7 @@ export class Sim {
     this.audio.setDefinition(this.definition);
     this.recorder.clear();
     this.syncPoses();
+    if (this.mapKind === "circuit") this.enterCircuit();
   }
 
   /**
@@ -266,7 +308,10 @@ export class Sim {
       this.definition.steering.ratio * this.definition.steering.maxWheelAngleDeg;
   }
 
-  /** Switch hosts. The Rapier module loads on first use. */
+  /**
+   * Switch hosts. The Rapier module loads on first use. The circuit needs
+   * Rapier, so the built-in host takes the car back to the proving ground.
+   */
   async setHost(kind: HostKind): Promise<void> {
     if (kind === this.hostKind) return;
     if (kind === "rapier") {
@@ -279,6 +324,7 @@ export class Sim {
       this.buildScene();
       this.rebuildRapierBody();
     } else {
+      if (this.mapKind === "circuit") this.leaveCircuit();
       this.host?.detach();
       this.host = undefined;
       this.body = undefined;
@@ -292,17 +338,205 @@ export class Sim {
     this.syncPoses();
   }
 
+  /** Switch maps. The circuit loads Rapier if it is not the host already. */
+  async setMap(kind: MapKind): Promise<void> {
+    if (kind === this.mapKind) return;
+    if (kind === "circuit") {
+      this.mapKind = kind;
+      if (this.hostKind !== "rapier") await this.setHost("rapier");
+      else this.rebuildRapierScene();
+      this.enterCircuit();
+    } else {
+      this.leaveCircuit();
+      this.rebuildRapierScene();
+      this.reset();
+    }
+  }
+
+  /** A new Rapier scene for the current map, with a new chassis body in it. */
+  private rebuildRapierScene(): void {
+    // The old body and host belong to the scene about to be freed.
+    this.host?.detach();
+    this.host = undefined;
+    this.body = undefined;
+    this.buildScene();
+    this.rebuildRapierBody();
+  }
+
+  private enterCircuit(): void {
+    const g = circuitGeometryOnce();
+    this.projector = new Projector(g.samples, g.length);
+    this.wheelProjector = new Projector(g.samples, g.length);
+    this.timer = new LapTimer(g.gates, g.length, HOST_DT);
+    // Half rate keeps a stored ghost small; the player interpolates.
+    this.ghostRecorder = new GhostRecorder(this.world, this.vehicle, this.sp, { every: 2 });
+    this.ghostPlayer = null;
+    this.toGrid();
+    void this.loadBest();
+  }
+
+  private leaveCircuit(): void {
+    this.mapKind = "provingGround";
+    this.projector = undefined;
+    this.wheelProjector = undefined;
+    this.timer = undefined;
+    this.ghostRecorder = undefined;
+    this.ghostPlayer = null;
+    this.onBestChanged?.();
+  }
+
+  /** The key a preset's best lap is stored under. */
+  private get bestKey(): string {
+    return `${CIRCUIT.name}.${this.presetId}`;
+  }
+
+  private async loadBest(): Promise<void> {
+    const key = this.bestKey;
+    const stored = await loadBest(key);
+    // The preset or map may have changed while the ghost decoded.
+    if (key !== this.bestKey || !this.timer) return;
+    this.timer.setBest(stored?.lap ?? null);
+    this.ghostPlayer = stored?.ghost ? new GhostPlayer(stored.ghost) : null;
+    this.onBestChanged?.();
+  }
+
+  /** Forget the current preset's best lap and ghost. */
+  clearBest(): void {
+    clearBest(this.bestKey);
+    this.timer?.setBest(null);
+    this.ghostPlayer = null;
+    this.onBestChanged?.();
+  }
+
+  /** Lap timing on the circuit, or undefined elsewhere. */
+  get timing(): TimerState | undefined {
+    return this.timer?.state;
+  }
+
+  /**
+   * The ghost's pose at the current lap time, in the core frame, or null
+   * when there is none to show. Not for anything deterministic.
+   */
+  ghostPose(out: GhostPose): GhostPose | null {
+    const t = this.timer;
+    if (!this.showGhost || !t || !this.ghostPlayer || !t.isRunning) return null;
+    // The lap clock between steps: the renderer interpolates the car the same way.
+    const lapTime = t.state.lapTime + this.alpha * HOST_DT;
+    return this.ghostPlayer.poseAt(lapTime, out);
+  }
+
+  /** The ghost pose's orientation as a three.js quaternion. */
+  ghostQuat(
+    pose: GhostPose,
+    out: [number, number, number, number],
+  ): [number, number, number, number] {
+    return coreQuatToThree(ghostQuaternion(pose), out);
+  }
+
+  /** Back to the grid behind the start/finish line; the clock stops until the line. */
+  toGrid(): void {
+    if (this.mapKind !== "circuit") return;
+    this.placeAt(circuitGeometryOnce().grid);
+    this.timer?.stop();
+    this.projector?.reset();
+    this.wheelProjector?.reset();
+  }
+
+  /** Put the car on the ground at a pose, at rest. */
+  private placeAt(p: SpawnPose): void {
+    this.world.resetVehicle(this.vehicle, p.x, -p.z, p.yaw);
+    if (this.body) {
+      const q = yawPitchQuat(p.yaw, p.pitch);
+      // A little above the ground so the wheels settle onto it.
+      const lift = this.definition.chassis.cgHeight + 0.1;
+      this.body.setTranslation({ x: p.x, y: p.y + lift, z: p.z }, true);
+      this.body.setRotation({ x: q[0], y: q[1], z: q[2], w: q[3] }, true);
+      this.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
+      this.body.setAngvel({ x: 0, y: 0, z: 0 }, true);
+      this.body.resetForces(true);
+      this.body.resetTorques(true);
+    }
+    this.audio.setDefinition(this.definition);
+    this.recorder.clear();
+    this.syncPoses();
+  }
+
+  /** Whether every wheel in contact is outside the track's limits (asphalt and kerbs). */
+  private allWheelsOff(): boolean {
+    const proj = this.wheelProjector!;
+    const samples = circuitGeometryOnce().samples;
+    const w = this.world.wheelPositionsView(this.vehicle);
+    const stride = this.sp.hostOutWheelStride;
+    let contact = false;
+    for (let i = 0; i < 4; i++) {
+      if (this.currPose.wheelContact[i]! < 0.5) continue;
+      contact = true;
+      // Contact point, core frame → three plan (x, −y).
+      const p = proj.project(w[i * stride + 3]!, -w[i * stride + 4]!);
+      if (Math.abs(p.lateral) <= samples[p.index]!.width / 2 + SHOULDER) return false;
+    }
+    return contact;
+  }
+
+  /** After each host step on the circuit: the lap clock and the ghost. */
+  private stepCircuit(): void {
+    const timer = this.timer!;
+    const p = this.prevPose;
+    const c = this.currPose;
+    const s = this.projector!.project(c.x, -c.y).s;
+    const r = timer.step(p.x, -p.y, c.x, -c.y, s, this.allWheelsOff());
+    const rec = this.ghostRecorder!;
+    if (timer.isRunning || r.completed) rec.sample(HOST_DT);
+    if (r.completed?.valid && timer.state.best === r.completed) {
+      const ghost = rec.finish();
+      ghost.meta = { preset: this.presetId, time: r.completed.time };
+      this.ghostPlayer = new GhostPlayer(ghost);
+      void saveBest(this.bestKey, r.completed, ghost);
+      this.onBestChanged?.();
+    }
+    if (r.started) rec.restart();
+  }
+
   private buildScene(): void {
     const R = this.rapier!;
     this.scene?.free();
     const scene = new R.World({ x: 0, y: -9.80665, z: 0 });
     scene.timestep = HOST_DT;
     const ground = scene.createRigidBody(R.RigidBodyDesc.fixed());
+    this.kerbHandles.clear();
+    this.circuitKinds.clear();
+    if (this.mapKind === "circuit") {
+      this.groundHandle = -1;
+      const g = circuitGeometryOnce();
+      const flags = R.TriMeshFlags.FIX_INTERNAL_EDGES;
+      for (const m of g.surfaces) {
+        const c = scene.createCollider(
+          R.ColliderDesc.trimesh(m.positions, m.indices, flags),
+          ground,
+        );
+        this.circuitKinds.set(c.handle, m.kind);
+      }
+      const t = scene.createCollider(
+        R.ColliderDesc.trimesh(g.terrain.positions, g.terrain.indices, flags),
+        ground,
+      );
+      this.circuitKinds.set(t.handle, "grass");
+      for (const b of g.barriers) {
+        scene.createCollider(
+          R.ColliderDesc.cuboid(b.halfExtents[0], b.halfExtents[1], b.halfExtents[2])
+            .setTranslation(b.center[0], b.center[1], b.center[2])
+            .setRotation({ x: b.quat[0], y: b.quat[1], z: b.quat[2], w: b.quat[3] }),
+          ground,
+        );
+      }
+      scene.step();
+      this.scene = scene;
+      return;
+    }
     this.groundHandle = scene.createCollider(
       R.ColliderDesc.cuboid(2000, 0.5, 2000).setTranslation(0, -0.5, 0),
       ground,
     ).handle;
-    this.kerbHandles.clear();
     for (const o of OBSTACLES) {
       const q = obstacleQuaternion(o);
       const collider = scene.createCollider(
@@ -327,18 +561,48 @@ export class Sim {
     this.body = createChassisBody(R, scene, this.definition, { up: "y" });
     this.host = new RapierVehicle(R, this.world, this.vehicle, this.body, scene, {
       up: "y",
-      // The ground plane is whatever surface the sandbox selected; the kerb
-      // obstacle is painted concrete; bumps and the ramp are the reference.
-      surfaceId: (collider) =>
-        collider.handle === this.groundHandle
+      // On the circuit the wheels touch the ground only: a ray landing on top
+      // of a barrier block would lift the wheel 0.8 m in one step. The
+      // chassis collider meets the barriers instead.
+      filterPredicate: (collider) =>
+        this.mapKind !== "circuit" || this.circuitKinds.has(collider.handle),
+      // Proving ground: the ground plane is whatever surface the sandbox
+      // selected; the kerb obstacle is painted concrete; bumps and the ramp
+      // are the reference. Circuit: the asphalt takes the selected surface,
+      // the runoff its own; barriers are the reference.
+      surfaceId: (collider) => {
+        const kind = this.circuitKinds.get(collider.handle);
+        if (kind !== undefined) {
+          return kind === "asphalt"
+            ? this.surfaceId
+            : kind === "kerb"
+              ? KERB_SURFACE
+              : kind === "gravel"
+                ? GRAVEL_SURFACE
+                : GRASS_SURFACE;
+        }
+        return collider.handle === this.groundHandle
           ? this.surfaceId
           : this.kerbHandles.has(collider.handle)
             ? KERB_SURFACE
-            : 0,
+            : 0;
+      },
     });
   }
 
+  /**
+   * Reset the car. On the circuit it goes back onto the centreline at the
+   * nearest point, facing along the lap, and the lap no longer counts.
+   */
   reset(): void {
+    if (this.mapKind === "circuit" && this.projector) {
+      const proj = this.projector.project(this.currPose.x, -this.currPose.y);
+      this.placeAt(poseAt(circuitGeometryOnce().samples, proj.index));
+      this.timer?.invalidate();
+      this.projector.reset();
+      this.wheelProjector?.reset();
+      return;
+    }
     this.world.resetVehicle(this.vehicle, 0, 0, 0);
     if (this.body) {
       this.body.setTranslation({ x: 0, y: this.definition.chassis.cgHeight, z: 0 }, true);
@@ -402,6 +666,7 @@ export class Sim {
       }
       const cost = performance.now() - t0;
       this.readPose(this.currPose);
+      if (this.timer) this.stepCircuit();
       this.stepCostMs = this.stepCostMs === 0 ? cost : this.stepCostMs * 0.98 + cost * 0.02;
       this.recorder.record(this.world.telemetryView(this.vehicle));
       this.accumulator -= HOST_DT;
