@@ -1,9 +1,24 @@
-import { useMemo, useRef } from "react";
+import { useLayoutEffect, useMemo, useRef } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
-import { BufferAttribute, BufferGeometry, type DirectionalLight, type Group } from "three";
+import {
+  BufferAttribute,
+  BufferGeometry,
+  type DirectionalLight,
+  type Group,
+  type Material,
+  type Mesh,
+} from "three";
+import type { GhostPose } from "@skidpad/replay";
 import type { TireDefinition } from "@skidpad/core";
 import type { SurfaceId } from "@skidpad/presets";
-import { emptySnapshot, type Sim, type SimSnapshot } from "./sim.js";
+import {
+  circuitGeometryOnce,
+  emptySnapshot,
+  type MapKind,
+  type Sim,
+  type SimSnapshot,
+} from "./sim.js";
+import { CircuitScene } from "./circuit/CircuitScene.js";
 import { OBSTACLES, obstacleQuaternion, trackRibbon } from "./track.js";
 import { VehicleModel } from "./models/VehicleModel.js";
 import { VehicleWheel } from "./models/Wheel.js";
@@ -108,8 +123,8 @@ function Car({
     // runs out; a fixed light would pop shadows a few metres from the origin.
     const l = light.current;
     if (l) {
-      l.position.set(s.x + 30, 50, -s.y + 20);
-      l.target.position.set(s.x, 0, -s.y);
+      l.position.set(s.x + 30, s.z + 50, -s.y + 20);
+      l.target.position.set(s.x, s.z, -s.y);
       l.target.updateMatrixWorld();
     }
     if (debug) {
@@ -202,6 +217,101 @@ function Car({
         ))}
       </group>
     </>
+  );
+}
+
+/**
+ * The best lap's ghost: the same preset's model, translucent, posed from
+ * the stored ghost at the current lap time. Wheels are drawn but not
+ * animated; a ghost carries the body pose only.
+ */
+function GhostCar({ sim }: { sim: Sim }) {
+  const group = useRef<Group>(null);
+  const pose = useRef<GhostPose>({
+    t: 0,
+    x: 0,
+    y: 0,
+    z: 0,
+    yaw: 0,
+    pitch: 0,
+    roll: 0,
+    steer: 0,
+    speed: 0,
+  });
+  const quat = useRef<[number, number, number, number]>([0, 0, 0, 1]);
+  const snap = useRef<SimSnapshot>(emptySnapshot());
+  const def = sim.definition;
+  const a = def.chassis.cgToFrontAxle;
+  const b = def.chassis.wheelbase - a;
+  const halfTrack = (axle: number) => (def.axles[axle]!.trackWidth || def.chassis.trackWidth) / 2;
+  const halfF = halfTrack(0);
+  const halfR = halfTrack(1);
+  const h = def.chassis.cgHeight;
+  const rF = tireRadius(def.axles[0]!.tire);
+  const rR = tireRadius(def.axles[1]!.tire);
+  const wheels = WHEEL_STYLES[sim.presetId];
+  const hubs: Array<[number, number, number, number]> = [
+    [a, halfF, rF - h, rF],
+    [a, -halfF, rF - h, rF],
+    [-b, halfR, rR - h, rR],
+    [-b, -halfR, rR - h, rR],
+  ];
+  // Make every material see-through, on copies so the real car keeps its own.
+  useLayoutEffect(() => {
+    group.current?.traverse((o) => {
+      const mesh = o as Mesh;
+      if (!mesh.isMesh) return;
+      const swap = (m: Material) => {
+        const c = m.clone();
+        c.transparent = true;
+        c.opacity = 0.32;
+        c.depthWrite = false;
+        return c;
+      };
+      mesh.material = Array.isArray(mesh.material) ? mesh.material.map(swap) : swap(mesh.material);
+      mesh.castShadow = false;
+    });
+  }, []);
+  useFrame(() => {
+    const g = group.current;
+    if (!g) return;
+    const p = sim.ghostPose(pose.current);
+    g.visible = p !== null;
+    if (!p) return;
+    g.position.set(p.x, p.z, -p.y);
+    const q = sim.ghostQuat(p, quat.current);
+    g.quaternion.set(q[0], q[1], q[2], q[3]);
+    snap.current.steer = p.steer;
+    snap.current.speed = p.speed;
+  });
+  return (
+    <group ref={group} name="ghost" visible={false}>
+      <group position={[0, -h, 0]}>
+        <VehicleModel
+          preset={sim.presetId}
+          dimensions={{
+            frontAxle: a,
+            rearAxle: -b,
+            frontHalfTrack: halfF,
+            rearHalfTrack: halfR,
+            halfWidth: Math.max(halfF + wheels.widths[0] / 2, halfR + wheels.widths[1] / 2) - 0.01,
+            frontRadius: rF,
+            rearRadius: rR,
+          }}
+          snapshot={snap}
+        />
+      </group>
+      {hubs.map((hub, i) => (
+        <group key={i} position={[hub[0], hub[2], -hub[1]]}>
+          <VehicleWheel
+            radius={hub[3]}
+            width={wheels.widths[i < 2 ? 0 : 1]}
+            style={wheels.style}
+            side={i % 2 === 0 ? -1 : 1}
+          />
+        </group>
+      ))}
+    </group>
   );
 }
 
@@ -309,6 +419,7 @@ function Ground({ surface }: { surface: SurfaceId }) {
 export function Scene({
   sim,
   hostKind,
+  mapKind,
   surface,
   revision,
   primitives,
@@ -317,6 +428,7 @@ export function Scene({
 }: {
   sim: Sim;
   hostKind: string;
+  mapKind: MapKind;
   /** The selected ground surface, for the ground colour. */
   surface: SurfaceId;
   /** Bumped when the definition changed, so the car's geometry is rebuilt. */
@@ -334,13 +446,25 @@ export function Scene({
         canvasRef.current = gl.domElement;
       }}
     >
-      <color attach="background" args={["#10131a"]} />
-      <fog attach="fog" args={["#10131a", 80, 400]} />
-      <hemisphereLight args={["#dde6ff", "#3a3f4c", 1.4]} />
-      <Ground surface={surface} />
-      <Track />
-      <Obstacles active={hostKind === "rapier"} />
-      {!primitives && <ProvingGround active={hostKind === "rapier"} />}
+      {mapKind === "circuit" ? (
+        <>
+          <color attach="background" args={["#8fa9c4"]} />
+          <fog attach="fog" args={["#8fa9c4", 250, 1400]} />
+          <hemisphereLight args={["#e6efff", "#4a5a3c", 1.5]} />
+          <CircuitScene geometry={circuitGeometryOnce()} />
+          <GhostCar key={`ghost:${sim.presetId}:${revision}`} sim={sim} />
+        </>
+      ) : (
+        <>
+          <color attach="background" args={["#10131a"]} />
+          <fog attach="fog" args={["#10131a", 80, 400]} />
+          <hemisphereLight args={["#dde6ff", "#3a3f4c", 1.4]} />
+          <Ground surface={surface} />
+          <Track />
+          <Obstacles active={hostKind === "rapier"} />
+          {!primitives && <ProvingGround active={hostKind === "rapier"} />}
+        </>
+      )}
       <Car
         key={`${sim.presetId}:${revision}`}
         sim={sim}

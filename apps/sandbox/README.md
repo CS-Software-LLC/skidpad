@@ -49,13 +49,68 @@ not represent a solved suspension linkage. The car updates its snapshot at frame
 priority -1 so these details consume the same frame's pose before rendering.
 Visual changes do not alter mass, inertia, contact queries, or collision shapes.
 
+## The circuit
+
+**Map: circuit** loads an original road course on the Rapier host (it has
+real elevation, so the built-in flat-ground host takes the car back to the
+proving ground). Everything about it comes from one description in
+`src/circuit/layout.ts`: control points with elevation, width and banking,
+and ranges for kerbs, gravel, wider runoff, barriers, the timing gates and
+the grid. `src/circuit/geometry.ts` turns that into plain arrays, with no
+three.js or Rapier in it, and both the scene (`CircuitScene.tsx`) and the
+Rapier colliders (`sim.ts`) are built from those arrays, so what is drawn
+is what the wheels hit.
+
+- **Surfaces.** Asphalt, kerbs, grass and gravel are separate trimesh
+  colliders mapped to the preset surface table; the Surface menu changes the
+  asphalt only. The terrain beyond the runoff is grass. Wheel rays hit the
+  ground only; the chassis collider meets the walls and tyre barriers.
+- **Timing.** `src/circuit/timing.ts` counts host steps and places each gate
+  crossing inside its step, so the same inputs give the same times. A lap
+  needs the start/finish and both sector lines in order, forwards. It is
+  invalid once all four wheels' contact points are outside the asphalt and
+  kerbs, after a backwards crossing, or after a reset. The live delta
+  compares elapsed time at the same distance along the lap.
+- **Ghost.** The best valid lap of each preset, recorded at 30 Hz with
+  `@skidpad/replay`, drawn as a translucent copy of the preset's model and
+  stored gzipped in `localStorage` (about 150 KB per preset). It is keyed by
+  preset, not by tuning: a tuned car races the stock car's ghost until it
+  sets a faster lap. **Clear best lap** forgets it.
+- **Keys.** R puts the car back on the centreline at the nearest point,
+  facing along the lap; G puts it back on the grid, where the clock waits
+  for the start/finish line.
+
+To change the layout, edit `layout.ts` and run
+
+```sh
+pnpm --filter @skidpad/sandbox exec tsx scripts/circuit-preview.ts out.svg
+```
+
+which prints the layout limits the tests enforce (length, tightest radius,
+steepest grade, crest and sag radii, banking, clearance between parts of the
+track) and draws the plan and elevation profile. Then drive every preset
+round it with the core's path-following driver, through the sandbox's own
+simulation and Rapier scene:
+
+```sh
+pnpm --filter @skidpad/sandbox exec tsx scripts/circuit-drive.ts --laps 2
+```
+
+At the time of writing all six presets complete valid laps (the driver is
+cautious; these are not lap records): open-wheeler 80.7 s, sports car
+92.4 s, crossover 100.6 s, hatchback 106.3 s, pickup 108.7 s, kart 109.6 s.
+
 ## Local verification
 
 ```sh
 pnpm --filter @skidpad/sandbox typecheck
+pnpm --filter @skidpad/sandbox test
 pnpm --filter @skidpad/sandbox build
 ```
 
 In the browser, check every preset in all three camera views, steering and wheel
-spin, primitive view, and wheel travel over the Rapier bumps and ramp. Change
+spin, primitive view, and wheel travel over the Rapier bumps and ramp. On the
+circuit, check a lap's timing and ghost, R and G, and switching map and host
+both ways. `?debug` exposes the simulation as `window.__skidpadSim` for
+browser tests. Change
 wheelbase and per-axle track width through Tuning to inspect geometry alignment.

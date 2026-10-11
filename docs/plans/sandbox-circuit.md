@@ -231,3 +231,31 @@ changed from the suggested layout and why.
 - The track and timer modules' tests pass, the sandbox typechecks and
   builds, and lint and format are clean.
 - README and sandbox README describe the circuit.
+
+## As built
+
+Built on branch `claude/zealous-goodall-evdg26`. What differs from the plan
+above, and why:
+
+- **Length 2.3 km, not 2.5.** The layout's character came out right at that
+  length, inside the limits; stretching it only lengthened straights.
+- **Terrain under the track follows it 0.2 m down**, not 1.5 m. With the
+  terrain on a 6 m grid, a deep drop under the track made a ditch up to
+  1.5 m deep along the runoff's outer edge, and cars leaving the runoff
+  rolled over in it. A test now checks the ground beside the runoff and
+  under the track.
+- **Wheel rays ignore barriers** (`filterPredicate` on `RapierVehicle`). The
+  chassis collider ends at the wheel centreline, so against a wall a wheel's
+  ray could land on top of the 0.8 m barrier block and jack the car up.
+- **Track limits use the wheels' contact points** (`wheelPositionsView`)
+  against the asphalt and kerb width, not the per-wheel surface ids, so the
+  rule holds whatever surface the Surface menu gives the asphalt.
+- **Barrier impacts** were checked by launching cars at 108 km/h, 40° into
+  the pit wall: all stop at the wall face with under 3° of roll.
+- **Gravel traps beach a stopped car**, as real ones do: a car at a
+  standstill in deep gravel may not drive out. R puts it back on the track.
+- **The path-following driver over-drives the downhill compression into the
+  double apex** at its default lateral acceleration, because it plans corner
+  speeds without load transfer or grade. `scripts/circuit-drive.ts` sets a
+  limit per preset below each car's grip. This is the driver, not the
+  circuit; with the limits set, every preset laps.

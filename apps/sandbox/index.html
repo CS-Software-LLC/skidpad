@@ -253,6 +253,49 @@
         flex: 1;
         min-width: 0;
       }
+      .laps {
+        position: absolute;
+        top: 12px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: rgba(10, 12, 18, 0.78);
+        padding: 8px 14px;
+        border-radius: 8px;
+        font-variant-numeric: tabular-nums;
+        text-align: center;
+        min-width: 240px;
+        backdrop-filter: blur(4px);
+      }
+      .laps .lap-time {
+        font-size: 26px;
+        font-weight: 700;
+      }
+      .laps .invalid {
+        text-decoration: line-through;
+        color: #ff8a7a;
+      }
+      .laps .delta {
+        font-size: 15px;
+        font-weight: 600;
+      }
+      .laps .ahead {
+        color: #6fdc8c;
+      }
+      .laps .behind {
+        color: #ff8a7a;
+      }
+      .laps table {
+        margin: 4px auto 0;
+        border-collapse: collapse;
+        font-size: 12px;
+      }
+      .laps td {
+        padding: 1px 6px;
+      }
+      .laps .muted {
+        opacity: 0.65;
+        font-size: 12px;
+      }
       .graph {
         position: absolute;
         bottom: 12px;

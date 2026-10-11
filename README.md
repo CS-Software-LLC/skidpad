@@ -335,6 +335,15 @@ export CSV and record a WebM clip. A sound toggle adds a synthesised engine
 note and tire squeal (Web Audio, no samples): the note follows the core's
 engine speed and gear, and the squeal follows each wheel's combined slip
 past its force peak. It is sound only and does not touch the simulation.
+The map selector adds a circuit: an original 2.3 km road course with 18 m of
+elevation change, a hairpin, climbing esses, a blind crest, a banked
+sweeper, a downhill compression into a double apex and a chicane. Kerbs,
+grass and gravel change the grip under each wheel, walls and tyre barriers
+stop the car, and lap and sector timing (counted in simulation steps, so it
+is repeatable) shows a live delta to the best lap, whose ghost drives
+alongside and is kept per preset in the browser. A lap is invalid once all
+four wheels leave the asphalt and kerbs; R puts the car back on the track,
+G back on the grid. The circuit runs on the Rapier host.
 The site deploys to GitHub Pages on every merge to `main`, and CI uploads a
 preview build of the sandbox, docs, and bench page for every pull request.
 
