@@ -34,7 +34,6 @@
  */
 import type { PartialVehicleDefinition } from "@skidpad/core";
 
-const IN = 0.0254;
 const LBF_PER_IN = 175.127; // N/m
 
 export const TRACK_FRONT = 1.466; // [vimf]; [cars] gives 58.0 in (1.473 m) front and rear
