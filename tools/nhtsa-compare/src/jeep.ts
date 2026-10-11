@@ -4,12 +4,12 @@
  * four-speed automatic, solid axles front and rear, Goodyear Wrangler RT/S
  * P225/75R15 at 33 psi.
  *
- * Built from published specifications where they exist and class-typical
- * values where they do not. The measured parameter set is in SAE
- * 1999-01-0121, which this comparison does not have; every value below that
- * paper would replace is marked ESTIMATE, with the reasoning. Nothing here is
- * fitted to the measured behaviour: the fitted build (`fit.ts`) changes three
- * named values on top of this one and says so.
+ * Built from measured mass properties, published specifications where they
+ * exist and class-typical values where they do not. The NADS parameter set
+ * is in SAE 1999-01-0121, which this comparison does not have; every value
+ * below that paper would replace is marked ESTIMATE, with the reasoning.
+ * Nothing here is fitted to the measured behaviour: the fitted build
+ * (`fit.ts`) changes three named values on top of this one and says so.
  *
  * Sources:
  *   [cars]   cars.com, 1997 Jeep Cherokee Sport specifications: wheelbase
@@ -26,14 +26,20 @@
  *            side; 3.55 axles with the AW4. Not authoritative.
  *   [paper]  SAE 2000-01-0700: the vehicle, engine, transmission, tires and
  *            inflation.
+ *   [vimf]   SAE 1999-01-1336, NHTSA's light vehicle inertial parameter
+ *            database, vehicle 386: a 1997 Cherokee (VIN 1J4FJ68S3VL579212)
+ *            measured with a driver and a full tank on S.E.A.'s Vehicle
+ *            Inertia Measurement Facility. Whether it is the car VRTC drove
+ *            for [paper] is not established; it is the same model and year.
  */
 import type { PartialVehicleDefinition } from "@skidpad/core";
 
 const IN = 0.0254;
 const LBF_PER_IN = 175.127; // N/m
 
-export const TRACK = 58.0 * IN; // [cars] 1.473 m
-export const WHEELBASE = 101.4 * IN; // [cars] 101 in; 101.4 in is the factory figure, 2.576 m
+export const TRACK_FRONT = 1.466; // [vimf]; [cars] gives 58.0 in (1.473 m) front and rear
+export const TRACK_REAR = 1.468; // [vimf]
+export const WHEELBASE = 2.578; // [vimf]; [cars] 101 in, 101.4 in (2.576 m) the factory figure
 export const STEERING_RATIO = 14; // [cars] overall ratio
 /** Road-wheel lock: 1.5 turns of the hand wheel either way over the ratio. */
 export const MAX_WHEEL_ANGLE_DEG = (1.5 * 360) / STEERING_RATIO; // [cars] 38.6°
@@ -52,8 +58,8 @@ const FRONT_SPRING_SPACING = 0.95;
 const REAR_SPRING_SPACING = 1.05;
 const FRONT_COIL = 180 * LBF_PER_IN; // [forum] 31.5 kN/m
 const REAR_LEAF = 120 * LBF_PER_IN; // [forum] mid-range of 107–135 lb/in, 21.0 kN/m
-export const FRONT_SPRING_AT_WHEEL = FRONT_COIL * (FRONT_SPRING_SPACING / TRACK) ** 2;
-export const REAR_SPRING_AT_WHEEL = REAR_LEAF * (REAR_SPRING_SPACING / TRACK) ** 2;
+export const FRONT_SPRING_AT_WHEEL = FRONT_COIL * (FRONT_SPRING_SPACING / TRACK_FRONT) ** 2;
+export const REAR_SPRING_AT_WHEEL = REAR_LEAF * (REAR_SPRING_SPACING / TRACK_REAR) ** 2;
 
 /** The values a fit may change, at their estimated settings. */
 export interface Tunable {
@@ -123,25 +129,24 @@ export function jeepCherokee(t: Tunable = ESTIMATED): PartialVehicleDefinition {
   };
   return {
     formatVersion: 1,
-    name: "1997 Jeep Cherokee Sport (NHTSA VRTC test vehicle, estimated build)",
+    name: "1997 Jeep Cherokee Sport (NHTSA VRTC test vehicle, estimated build, measured mass properties)",
     chassis: {
-      // ESTIMATE: [a123] curb mass 1519 kg plus driver and instrumentation
-      // (steering stop, brake ram, data system), about 180 kg.
-      mass: 1700,
-      // ESTIMATE: radii of gyration typical of a compact SUV of this size
-      // (yaw 1.26 m, pitch 1.24 m, roll 0.59 m about the centre of mass);
-      // NHTSA measured this car's (SAE 1999-01-1336) but the listing is not
-      // reachable from here.
-      yawInertia: 2700,
-      pitchInertia: 2600,
-      rollInertia: 600,
+      // [vimf] 16 311 N with a driver and a full tank. The handling car's
+      // instrumentation (steering stops, brake ram, data system) is not
+      // in it and is left out rather than estimated on top.
+      mass: 16311 / 9.80665,
+      // [vimf] about the centre of mass, ±1 % (pitch, yaw) and ±2 % (roll).
+      // The roll/yaw product of inertia, 85 kg·m², has no place in the
+      // definition.
+      yawInertia: 2704,
+      pitchInertia: 2498,
+      rollInertia: 653,
       wheelbase: WHEELBASE,
-      // ESTIMATE: 55 % on the front axle, typical of the 4.0 l XJ.
-      cgToFrontAxle: 0.45 * WHEELBASE,
-      // ESTIMATE: 0.69 m, a static stability factor near 1.07, typical of
-      // the XJ 4x4 four-door.
-      cgHeight: 0.69,
-      trackWidth: TRACK,
+      // [vimf] 1.147 m behind the front axle, 55.5 % of the weight on it.
+      cgToFrontAxle: 1.147,
+      // [vimf] 0.682 m; static stability factor 1.076.
+      cgHeight: 0.682,
+      trackWidth: TRACK_FRONT,
     },
     axles: [
       {
@@ -153,7 +158,7 @@ export function jeepCherokee(t: Tunable = ESTIMATED): PartialVehicleDefinition {
         maxBrakeTorque: 3600, // ESTIMATE; braking is not compared yet
         staticCamberDeg: 0,
         staticToeDeg: 0,
-        trackWidth: TRACK,
+        trackWidth: TRACK_FRONT,
         suspension: {
           kind: "solid",
           springRate: FRONT_SPRING_AT_WHEEL,
@@ -178,7 +183,7 @@ export function jeepCherokee(t: Tunable = ESTIMATED): PartialVehicleDefinition {
         maxBrakeTorque: 1800, // ESTIMATE; braking is not compared yet
         staticCamberDeg: 0,
         staticToeDeg: 0,
-        trackWidth: TRACK,
+        trackWidth: TRACK_REAR,
         suspension: {
           kind: "solid",
           springRate: REAR_SPRING_AT_WHEEL,

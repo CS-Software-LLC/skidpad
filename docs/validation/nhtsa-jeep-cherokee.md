@@ -45,10 +45,14 @@ read yet.
 
 ## How the Skidpad model was built
 
-The measured parameter set is in a companion paper, SAE 1999-01-0121, which
-this comparison does not have. The car is built from published
+The NADS parameter set is in a companion paper, SAE 1999-01-0121, which
+this comparison does not have. The car was first built from published
 specifications and class-typical values (`src/jeep.ts`, each value marked
-with its source or as an estimate):
+with its source or as an estimate). The mass, centre of mass, inertias,
+wheelbase and track have since been replaced by NHTSA's measurements of a
+1997 Cherokee (SAE 1999-01-1336); every result above
+[Measured mass properties](#measured-mass-properties) ran with the
+estimates listed here.
 
 - **Published:** wheelbase, track, steering ratio and lock, curb mass, the
   engine's rating, the transmission and axle ratios, the tire size and
@@ -265,11 +269,11 @@ with what it did.
 - **Compliance steer in the core.** Done (ADR-0027); results below. The
   same data can next judge axle roll steer, which a solid axle on leaf
   springs has and which these tests cannot yet tell from compliance.
-- **Measured inertia and centre of mass.** NHTSA measured this car's
-  inertial parameters (SAE 1999-01-1336; a copy is hosted by Auburn
-  University, which this environment cannot reach). Replacing the estimated
-  mass, centre-of-mass height and inertias would remove the largest
-  remaining estimates outside the fit.
+- **Measured inertia and centre of mass.** Done, from NHTSA's database
+  (SAE 1999-01-1336); results in
+  [Measured mass properties](#measured-mass-properties). The handling car's
+  VIN, from SAE 1999-01-0121 or VRTC, would settle whether vehicle 386 is
+  the same car.
 - **The braking and acceleration runs**, digitised but not compared, once a
   brake gain and a part-throttle map are fitted on one run and predicted on
   the other.
@@ -365,6 +369,139 @@ at 12 m/s and at 22.5 m/s, within the tolerances set before the first run.
 The remaining estimates (mass properties, springs, roll centres, the tire's
 cornering stiffness) are unchanged from the estimated build; the three
 fitted values still come from the slowly increasing steer alone.
+
+## Measured mass properties
+
+Everything above ran with the mass properties estimated. NHTSA's light
+vehicle inertial parameter database lists a 1997 Jeep Cherokee measured on
+S.E.A.'s Vehicle Inertia Measurement Facility with a driver and a full tank:
+G. J. Heydinger, R. A. Bixel, W. R. Garrott, M. Pyne, J. G. Howe and
+D. A. Guenther, "Measured Vehicle Inertial Parameters – NHTSA's Data Through
+November 1998", SAE 1999-01-1336, vehicle 386 (VIN 1J4FJ68S3VL579212). The
+facility's quoted error is ±0.5 % on the centre-of-mass position, 1 % on the
+pitch and yaw inertias and 2 % on the roll inertia.
+
+| Parameter                        | Estimated            | Measured (vehicle 386)  |
+| -------------------------------- | -------------------- | ----------------------- |
+| Mass                             | 1700 kg              | 1663 kg (16 311 N)      |
+| Centre of mass behind front axle | 1.159 m (55 % front) | 1.147 m (55.5 % front)  |
+| Centre-of-mass height            | 0.69 m               | 0.682 m                 |
+| Roll inertia                     | 600 kg·m²            | 653 kg·m²               |
+| Pitch inertia                    | 2600 kg·m²           | 2498 kg·m²              |
+| Yaw inertia                      | 2700 kg·m²           | 2704 kg·m²              |
+| Roll/yaw product of inertia      | none                 | 85 kg·m² (not modelled) |
+| Wheelbase                        | 2.576 m              | 2.578 m                 |
+| Track, front and rear            | 1.473 m              | 1.466 m and 1.468 m     |
+
+Whether vehicle 386 is the car VRTC drove for SAE 2000-01-0700 is not
+established here: neither paper in hand gives the handling car's VIN. Both
+are VRTC's 1997 Cherokees of the same period, and the NADS parameter paper
+(SAE 1999-01-0121) shares an author with the facility. Either way these are
+a measured car of the same model and year in place of class-typical values.
+The listing is with a driver only; the handling car also carried its
+instrumentation, which stays unknown and is left out rather than estimated
+on top of measured values.
+
+### Expected results, set before the run
+
+The rerun takes the table's measured values into `src/jeep.ts` and changes
+nothing else: the springs (carried to the wheel over the new track), bar,
+roll centres, tire and steering stay as they were, and all three fits are
+run again on the slowly increasing steer. The tolerances are unchanged.
+
+Expected, before the run:
+
+- **Small changes.** The estimates were close except roll inertia (+9 %
+  measured). Mass is 2 % lower and the centre of mass 8 mm lower, so the
+  roll moment about the 0.4 m roll centres falls by about 5 %; the extra
+  0.5 % on the front axle adds a little understeer.
+- **Estimated build.** The steering-gain misses stay, within 3 % of their
+  values above. The roll gradient falls by about 5 %, to about 4.55 deg/g,
+  which is at the edge of its ±25 % band: whether it passes cannot be
+  called. 4 or 5 of 17 metrics within tolerance.
+- **The fits.** The front bar about 5 % softer than before (near
+  27 kN/m) for the same roll gradient; peak friction within 0.01 of 0.82;
+  the core's compliance within 5 % of 9.74 deg/kN·m, a little lower for the
+  added front weight; the effective ratio within 0.5 of 20.5.
+- **Predictions with the core's compliance.** All 12 predicted metrics and
+  every trace inside tolerance again, each metric within 2 % (0.02 s for
+  the response times) of its value above. Steady roll unchanged in the step
+  steer, since the bar is refitted to the same gradient. The 22.5 m/s lane
+  change's peak roll 1–3 % higher, from the larger roll inertia.
+- **The other two fitted builds** keep their known misses: the effective
+  ratio's three at 22.5 m/s and the harness compliance's lateral
+  acceleration response time.
+
+### Results
+
+The measured understeer gradient moves from 7.40 to 7.38 deg/g: the harness
+takes the Ackermann term from the wheelbase, now the measured 2.578 m. No
+other measured value changes.
+
+| Manoeuvre | Metric (unit)                                                 | Tolerance | Measured | Estimated         | Fitted, core compliance |
+| --------- | ------------------------------------------------------------- | --------- | -------- | ----------------- | ----------------------- |
+| sis       | yaw-rate gain, 1–4 m/s² (deg/s per deg)                       | ±15 %     | 0.18     | 0.28 (**+53 %**)  | 0.19 (+4 %)             |
+| sis       | lateral acceleration gain, 1–4 m/s² (m/s² per 100 deg)        | ±15 %     | 3.60     | 5.28 (**+47 %**)  | 3.60 (fit)              |
+| sis       | understeer gradient at the published ratio of 14 (deg/g)      | ±1        | 7.38     | 1.26 (**−6.12**)  | 7.46 (+0.08)            |
+| sis       | maximum lateral acceleration, 1 s mean (m/s²)                 | ±10 %     | 7.05     | 7.28 (+3 %)       | 7.05 (fit)              |
+| sis       | roll gradient, 1–4 m/s² (deg/g)                               | ±25 %     | 3.63     | 4.57 (**+26 %**)  | 3.63 (fit)              |
+| step      | steady lateral acceleration, 10–16 s (m/s²)                   | ±10 %     | 5.54     | 7.28 (**+31 %**)  | 6.04 (+9 %)             |
+| step      | steady yaw rate, 10–16 s (deg/s)                              | ±10 %     | 27.1     | 34.8 (**+28 %**)  | 28.8 (+6 %)             |
+| step      | steady roll, 10–16 s (deg)                                    | ±25 %     | 1.89     | 3.38 (**+79 %**)  | 2.23 (+18 %)            |
+| step      | yaw-rate response time, 50 % wheel to 90 % yaw rate (s)       | ±0.08     | 0.28     | 0.23 (−0.05)      | 0.27 (−0.01)            |
+| step      | lateral acceleration response time, 50 % wheel to 90 % ay (s) | ±0.08     | 0.28     | 0.24 (−0.04)      | 0.26 (−0.02)            |
+| step      | yaw-rate overshoot (%)                                        | ±10       | 0.77     | 2.72 (+1.95)      | 2.11 (+1.34)            |
+| lc12      | peak lateral acceleration (m/s²)                              | ±15 %     | 5.57     | 7.09 (**+27 %**)  | 5.82 (+5 %)             |
+| lc12      | peak yaw rate (deg/s)                                         | ±15 %     | 27.6     | 35.5 (**+29 %**)  | 29.2 (+6 %)             |
+| lc12      | peak roll (deg)                                               | ±25 %     | 2.13     | 3.80 (**+79 %**)  | 2.35 (+10 %)            |
+| lc22      | peak lateral acceleration (m/s²)                              | ±15 %     | 6.21     | 8.30 (**+34 %**)  | 6.58 (+6 %)             |
+| lc22      | peak yaw rate (deg/s)                                         | ±15 %     | 22.1     | 38.3 (**+73 %**)  | 22.7 (+3 %)             |
+| lc22      | peak roll (deg)                                               | ±25 %     | 3.42     | 10.4 (**+204 %**) | 3.80 (+11 %)            |
+
+| Build              | Front anti-roll bar | Steering                              | Peak friction | Within tolerance                        |
+| ------------------ | ------------------- | ------------------------------------- | ------------- | --------------------------------------- |
+| Estimated          | 20.0 kN/m           | ratio 14 (published)                  | 0.85          | 4 of 17 metrics, 5 of 12 traces         |
+| Fitted, ratio      | 27.1 kN/m           | ratio 20.5                            | 0.82          | 15 of 17 (10 of 12 predicted), 12 of 12 |
+| Fitted, compliance | 27.0 kN/m           | ratio 14, 8.8° of hand wheel per m/s² | 0.82          | 16 of 17 (11 of 12 predicted), 12 of 12 |
+| Fitted, core       | 27.0 kN/m           | ratio 14, 9.89 deg/kN·m               | 0.82          | 17 of 17 (12 of 12 predicted), 12 of 12 |
+
+With the core's compliance every trace is within tolerance: lateral
+acceleration 2.4–9.4 % of the measured range, yaw rate 3.4–6.6 %, roll
+6.8–18.0 %. The estimated build's traces: the 12 m/s lane change's roll
+comes inside its band (26.0 % to 24.1 %), the 22.5 m/s lane change's roll
+goes further out (115 % to 142 %); the rest move by under 1.5 points.
+
+Against the expectations above:
+
+- **Estimated build.** As expected: the steering-gain misses within 3 % of
+  their values above, and the roll gradient down 5 % to 4.57 deg/g, just
+  outside its band (+26 % against ±25 %). 4 of 17 metrics, and one more
+  trace (the 12 m/s lane change's roll) than before.
+- **The fits.** The bar settles at 27.0–27.1 kN/m (5–6 % softer), peak
+  friction at 0.82 and the effective ratio at 20.5, as expected. The
+  core's compliance settles at 9.89 deg/kN·m: within 5 % of 9.74 as
+  expected, but 1.5 % higher, not lower. The added front weight was
+  expected to need less. A likely reason, not isolated here: the rear
+  axle loses 3 % of its load and the front 1 %, and under the
+  load-sensitive tire the rear gains more cornering stiffness per newton,
+  which outweighs the shift forward.
+- **Predictions with the core's compliance.** All 12 predicted metrics and
+  every trace, each metric within 1 % (0.01 s) of its value above. Step
+  steer roll unchanged (2.23°); the 22.5 m/s lane change's peak roll 1.3 %
+  higher (3.75° to 3.80°), as expected.
+- **The other two fitted builds.** The harness compliance keeps its miss,
+  now on the edge (0.20 s against 0.28 s, −0.08 s against ±0.08 s). The
+  effective ratio's 22.5 m/s lateral acceleration peak comes inside its band
+  by 0.3 points (+14.7 %), against the expectation; its peak yaw rate
+  (+20 %) and peak roll (+30 %) stay out. The finding it supports (a
+  constant ratio steers too much at speed) stands.
+
+So the estimated mass properties were not what the earlier results rested
+on: with the measured ones the car is predicted as before, and the estimated
+build's roll gradient, a "coin flip" in the first expectations, comes out
+26 % high from the springs, bar and roll centres rather than from the mass.
+What stays estimated is the suspension (springs, damping, bar, roll
+centres), the tire and the instrumentation's mass.
 
 ## Reproducing
 

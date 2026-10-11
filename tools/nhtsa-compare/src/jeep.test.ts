@@ -27,7 +27,7 @@ const ESTIMATED_GAPS: Record<string, string> = {
   "sis: yaw-rate gain, 1–4 m/s²": STEERING_GAIN,
   "sis: lateral acceleration gain, 1–4 m/s²": STEERING_GAIN,
   "sis: understeer gradient at the published ratio of 14": STEERING_GAIN,
-  "sis: roll gradient, 1–4 m/s²": "estimated springs, bar and roll centres: 4.8 deg/g against 3.6",
+  "sis: roll gradient, 1–4 m/s²": "estimated springs, bar and roll centres: 4.6 deg/g against 3.6",
   "step: steady lateral acceleration, 10–16 s": STEERING_GAIN,
   "step: steady yaw rate, 10–16 s": STEERING_GAIN,
   "step: steady roll, 10–16 s": "follows the steering gain and the roll gradient",
@@ -41,7 +41,6 @@ const ESTIMATED_GAPS: Record<string, string> = {
   "step: ay": STEERING_GAIN,
   "step: yawRate": STEERING_GAIN,
   "step: roll": "follows the steering gain and the roll gradient",
-  "lc12: roll": "follows the steering gain and the roll gradient",
   "lc22: ay": STEERING_GAIN,
   "lc22: yawRate": STEERING_GAIN,
   "lc22: roll": "follows the steering gain and the roll gradient",
@@ -51,7 +50,6 @@ const RATIO_AT_SPEED =
   "a constant effective ratio fitted at 11 m/s steers too much at 22.5 m/s: the compliance grows with lateral force";
 /** Fitted with an effective steering ratio. */
 const RATIO_GAPS: Record<string, string> = {
-  "lc22: peak lateral acceleration": RATIO_AT_SPEED,
   "lc22: peak yaw rate": RATIO_AT_SPEED,
   "lc22: peak roll": RATIO_AT_SPEED,
 };
@@ -59,7 +57,7 @@ const RATIO_GAPS: Record<string, string> = {
 /** Fitted with a compliance per m/s² at the published ratio. */
 const COMPLIANCE_GAPS: Record<string, string> = {
   "step: lateral acceleration response time, 50 % wheel to 90 % ay":
-    "0.09 s quicker than measured; the harness's compliance acts without lag",
+    "0.08 s quicker than measured, on the edge; the harness's compliance acts without lag",
 };
 
 /** Fitted with the core's aligning-torque compliance steer (ADR-0027). */
