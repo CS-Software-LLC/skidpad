@@ -98,6 +98,30 @@ describe("the surface meshes", () => {
     expect(counts.filter((c) => c === 1).length).toBe(2 * N);
   });
 
+  it("keeps every asphalt quad flat enough that a wheel crossing its diagonal feels no ridge", () => {
+    // Each quad is four consecutive vertices split into two triangles; its
+    // twist is the fourth vertex's distance from the plane of the other three.
+    const m = g.surfaces.find((s) => s.kind === "asphalt")!;
+    const p = m.positions;
+    const v = (i: number, k: number) => p[i * 3 + k]!;
+    let worst = 0;
+    for (let q = 0; q < p.length / 12; q++) {
+      const a = 4 * q;
+      const u = [0, 1, 2].map((k) => v(a + 1, k) - v(a, k));
+      const w = [0, 1, 2].map((k) => v(a + 2, k) - v(a, k));
+      const n = [
+        u[1]! * w[2]! - u[2]! * w[1]!,
+        u[2]! * w[0]! - u[0]! * w[2]!,
+        u[0]! * w[1]! - u[1]! * w[0]!,
+      ];
+      const len = Math.hypot(n[0]!, n[1]!, n[2]!);
+      const d = [0, 1, 2].reduce((sum, k) => sum + (v(a + 3, k) - v(a, k)) * n[k]!, 0) / len;
+      worst = Math.max(worst, Math.abs(d));
+    }
+    // One full-width quad per sample twisted by up to 58 mm in the corners.
+    expect(worst).toBeLessThan(0.01);
+  });
+
   it("has every kind of ground the description asks for", () => {
     expect(g.surfaces.map((m) => m.kind).sort()).toEqual(["asphalt", "grass", "gravel", "kerb"]);
   });
