@@ -151,6 +151,12 @@ export interface CircuitGeometry {
 
 /** Spacing of the cross-sections, m. */
 export const SAMPLE_SPACING = 2.5;
+/**
+ * Columns the asphalt is split into across its width: a metre or less on the
+ * widest asphalt (13 m). A fixed count keeps the vertices of one row's far
+ * section and the next row's near section identical, so the mesh welds.
+ */
+export const ASPHALT_COLUMNS = 13;
 /** Shoulder outside the asphalt that carries the kerb where there is one, m. */
 export const SHOULDER = 1.2;
 /** Painted edge line inside the shoulder, m. */
@@ -482,6 +488,14 @@ class MeshBuilder {
   }
 }
 
+/** Point `k` of {@link ASPHALT_COLUMNS} + 1 across the asphalt from edge `p` to edge `q`; the ends are the edges exactly, so neighbouring strips weld. */
+function columnPoint(p: number[], q: number[], k: number): number[] {
+  if (k === 0) return p;
+  if (k === ASPHALT_COLUMNS) return q;
+  const t = k / ASPHALT_COLUMNS;
+  return [p[0]! + (q[0]! - p[0]!) * t, p[1]! + (q[1]! - p[1]!) * t, p[2]! + (q[2]! - p[2]!) * t];
+}
+
 function buildSurfaces(samples: Sample[]): SurfaceMesh[] {
   const N = samples.length;
   const meshes: Record<SurfaceKind, MeshBuilder> = {
@@ -519,6 +533,20 @@ function buildSurfaces(samples: Sample[]): SurfaceMesh[] {
         kind = "asphalt";
         const line = c === 3 || c === 5;
         color = line ? COLORS.line! : COLORS.asphalt!;
+      }
+      if (c === 4) {
+        // The asphalt in narrow columns: across a corner on a grade the
+        // section lines are not parallel, so one full-width quad twists and
+        // folds along its diagonal into a ridge the wheels hit every
+        // sample. The fold shrinks with the column width.
+        for (let k = 0; k < ASPHALT_COLUMNS; k++) {
+          const a = columnPoint(A[4]!, A[5]!, k);
+          const b = columnPoint(A[4]!, A[5]!, k + 1);
+          const cc = columnPoint(C[4]!, C[5]!, k);
+          const d = columnPoint(C[4]!, C[5]!, k + 1);
+          meshes[kind].quad(a, b, cc, d, color);
+        }
+        continue;
       }
       meshes[kind].quad(A[c]!, A[c + 1]!, C[c]!, C[c + 1]!, color);
     }
