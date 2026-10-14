@@ -156,6 +156,27 @@ car. Its
 [report](https://github.com/CS-Software-LLC/skidpad/blob/main/docs/validation/chrono-sedan.md)
 compares the two.
 
+## Against exact answers
+
+The comparisons above ask whether the model describes a car. A separate set
+of tests asks whether the code solves its own equations. They drive the core
+where textbook theory has a closed form and compare the two:
+
+- heave and pitch free decay, and a four-post rig that moves the ground
+  under a parked car from 0.5 to 8 Hz;
+- a coast-down with and without aero;
+- a step steer and a 0.2 to 3 Hz sine steer against the linear single-track
+  model with tire lag;
+- steady roll and load transfer;
+- the integrator's order of convergence.
+
+All agree within 0.6 %, except the sine steer's lateral acceleration at
+2 Hz (1.9 %) and the four-wheel step's yaw rate (1.3 %), which includes
+lateral load transfer the single-track theory lacks. Each test's tolerance
+was set before the first run. The
+[report](https://github.com/CS-Software-LLC/skidpad/blob/main/docs/validation/analytic.md)
+lists them, and `cargo test --test analytic_tests` reruns them.
+
 ## Against a measured car
 
 The first comparison against a real car uses NHTSA's instrumented 1997 Jeep

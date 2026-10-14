@@ -2,6 +2,8 @@
 //! own and uses only part of it.
 #![allow(dead_code)]
 
+pub mod textbook;
+
 use skidpad_core::kinematics::{KinematicsDef, TravelCurve};
 use skidpad_core::VehicleDefinition;
 
