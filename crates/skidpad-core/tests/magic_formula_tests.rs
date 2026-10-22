@@ -20,7 +20,10 @@ const SYNTHETIC: &str = include_str!("fixtures/synthetic_passenger.tir");
 /// so `D`, `BCD` and the asymptote read straight off the curve. The camber
 /// terms that change the curve's shape stay.
 fn sets() -> Vec<(&'static str, MagicFormulaParams)> {
-    vec![("synthetic", centred(tir::import_str(SYNTHETIC).params))]
+    vec![
+        ("synthetic", centred(tir::import_str(SYNTHETIC).params)),
+        ("shifted", centred(shifted())),
+    ]
 }
 
 fn centred(mut p: MagicFormulaParams) -> MagicFormulaParams {
@@ -127,7 +130,7 @@ fn cornering_stiffness(p: &MagicFormulaParams, fz: f64, gamma: f64) -> f64 {
     let f0 = fz0(p);
     p.pky1
         * f0
-        * m::sin(2.0 * m::atan(fz / (p.pky2 * f0)))
+        * m::sin(p.pky4 * m::atan(fz / (p.pky2 * f0)))
         * (1.0 - p.pky3 * m::abs(gamma * p.lgay))
         * p.lky
 }
@@ -221,14 +224,15 @@ fn sliding_force_is_the_asymptote() {
     }
 }
 
-/// `Kyα` rises with load to its maximum `|PKY1| F'z0` at `Fz = PKY2 F'z0`
-/// (eq. 4.E25: `sin(2 atan(Fz / PKY2 F'z0))` peaks when the argument is 1).
+/// `Kyα` rises with load to its maximum `|PKY1| F'z0` where
+/// `sin(PKY4 atan(Fz / PKY2 F'z0))` reaches 1 (eq. 4.E25), at
+/// `Fz = PKY2 F'z0 tan(π / 2 PKY4)`: `PKY2 F'z0` itself when `PKY4 = 2`.
 #[test]
-fn cornering_stiffness_peaks_at_pky2_times_the_nominal_load() {
+fn cornering_stiffness_peaks_where_the_load_term_reaches_one() {
     for (name, p) in sets() {
         let ky = |fz: f64| -slope(|a| eval(&p, fz, 0.0, a, 0.0).fy, 0.0, 1e-5);
         let f_peak = argmax(ky, 0.2 * fz0(&p), 5.0 * fz0(&p));
-        let f_book = p.pky2 * fz0(&p);
+        let f_book = p.pky2 * fz0(&p) * m::tan(m::PI / (2.0 * p.pky4));
         assert!(
             rel(f_peak, f_book) < 1e-4,
             "{name}: peak at {f_peak} vs {f_book}"
@@ -375,6 +379,153 @@ fn aligning_stiffness_is_trail_times_cornering_stiffness() {
                 rel(k_mz, k_book) < 1e-6,
                 "{name} {l}: K_Mz {k_mz} vs {k_book}"
             );
+        }
+    }
+}
+
+// --- every term at once --------------------------------------------------
+
+/// The synthetic tire with every shift term this subset reads switched on,
+/// `PKY4` moved off MF 5.2's fixed 2, and the residual moment and the `Fx`
+/// arm of `Mz` made non-zero. The values are made up for the test; they are
+/// a passenger tire's order of magnitude.
+fn shifted() -> MagicFormulaParams {
+    let mut p = tir::import_str(SYNTHETIC).params;
+    for (k, v) in [
+        ("PHX1", 0.002),
+        ("PHX2", 0.001),
+        ("PVX1", 0.01),
+        ("PVX2", 0.005),
+        ("PEX4", 0.05),
+        ("PHY1", 0.003),
+        ("PHY2", -0.002),
+        ("PVY1", 0.02),
+        ("PVY2", -0.01),
+        ("PEY3", 0.1),
+        ("PKY4", 2.05),
+        ("RHX1", 0.001),
+        ("RBY3", 0.002),
+        ("RHY1", 0.005),
+        ("RHY2", 0.002),
+        ("RVY1", 0.05),
+        ("RVY4", 50.0),
+        ("QHZ1", 0.002),
+        ("QHZ2", -0.001),
+        ("QDZ6", 0.002),
+        ("QDZ7", -0.001),
+        ("SSZ1", 0.01),
+        ("SSZ2", 0.03),
+    ] {
+        assert!(p.set_by_key(k, v), "{k}");
+    }
+    p
+}
+
+struct Reference {
+    fx: f64,
+    fy: f64,
+    mz: f64,
+}
+
+/// Pacejka's equations at zero camber with every shift term in (eq. 4.E9 to
+/// 4.E67, and 4.E31 to 4.E49 for `Mz` at `κ = 0`, where the equivalent slip
+/// angles of 4.E77 and 4.E78 are the plain ones). Scaling factors are 1.
+fn reference(p: &MagicFormulaParams, fz: f64, kappa: f64, alpha: f64) -> Reference {
+    let f0 = p.fz0;
+    let df = (fz - f0) / f0;
+    let r0 = p.unloaded_radius;
+    let mf = |b: f64, c: f64, d: f64, e: f64, x: f64| {
+        let bx = b * x;
+        d * m::sin(c * m::atan(bx - e * (bx - m::atan(bx))))
+    };
+    let mf_cos = |b: f64, c: f64, e: f64, x: f64| {
+        let bx = b * x;
+        m::cos(c * m::atan(bx - e * (bx - m::atan(bx))))
+    };
+
+    let kx = kappa + p.phx1 + p.phx2 * df;
+    let cx = p.pcx1;
+    let dx = (p.pdx1 + p.pdx2 * df) * fz;
+    let ex = (p.pex1 + p.pex2 * df + p.pex3 * df * df) * (1.0 - p.pex4 * m::signum(kx));
+    let kxk = fz * (p.pkx1 + p.pkx2 * df) * m::exp(p.pkx3 * df);
+    let fx0 = mf(kxk / (cx * dx), cx, dx, ex, kx) + fz * (p.pvx1 + p.pvx2 * df);
+
+    let kya = p.pky1 * f0 * m::sin(p.pky4 * m::atan(fz / (p.pky2 * f0)));
+    let shy = p.phy1 + p.phy2 * df;
+    let svy = fz * (p.pvy1 + p.pvy2 * df);
+    let ay = alpha + shy;
+    let cy = p.pcy1;
+    let muy = p.pdy1 + p.pdy2 * df;
+    let dy = muy * fz;
+    let ey = (p.pey1 + p.pey2 * df) * (1.0 - p.pey3 * m::signum(ay));
+    let by = kya / (cy * dy);
+    let fy0 = mf(by, cy, dy, ey, ay) + svy;
+
+    let bxa = p.rbx1 * m::cos(m::atan(p.rbx2 * kappa));
+    let exa = p.rex1 + p.rex2 * df;
+    let gxa = mf_cos(bxa, p.rcx1, exa, alpha + p.rhx1) / mf_cos(bxa, p.rcx1, exa, p.rhx1);
+    let fx = gxa * fx0;
+    let byk = p.rby1 * m::cos(m::atan(p.rby2 * (alpha - p.rby3)));
+    let eyk = p.rey1 + p.rey2 * df;
+    let shyk = p.rhy1 + p.rhy2 * df;
+    let gyk = mf_cos(byk, p.rcy1, eyk, kappa + shyk) / mf_cos(byk, p.rcy1, eyk, shyk);
+    let dvyk = muy * fz * (p.rvy1 + p.rvy2 * df) * m::cos(m::atan(p.rvy4 * alpha));
+    let svyk = dvyk * m::sin(p.rvy5 * m::atan(p.rvy6 * kappa));
+    let fy = gyk * fy0 + svyk;
+
+    let alpha_t = alpha + p.qhz1 + p.qhz2 * df;
+    let bt = p.qbz1 + p.qbz2 * df + p.qbz3 * df * df;
+    let ct = p.qcz1;
+    let dt = fz * (r0 / f0) * (p.qdz1 + p.qdz2 * df);
+    let et = (p.qez1 + p.qez2 * df + p.qez3 * df * df)
+        * (1.0 + p.qez4 * (2.0 / m::PI) * m::atan(bt * ct * alpha_t));
+    let cos_a = m::cos(alpha);
+    let t = dt * mf_cos(bt, ct, et, alpha_t) * cos_a;
+    let alpha_r = alpha + shy + svy / kya;
+    let br = p.qbz9 + p.qbz10 * by * cy;
+    let dr = fz * r0 * (p.qdz6 + p.qdz7 * df);
+    let mzr = dr * m::cos(m::atan(br * alpha_r)) * cos_a;
+    let s = r0 * (p.ssz1 + p.ssz2 * fy / f0);
+    let mz = -t * (fy - svyk) + mzr + s * fx;
+    Reference { fx, fy, mz }
+}
+
+/// With every shift on, skidpad's forces and aligning moment equal the
+/// equations over 0.5 to 2 `F'z0`, |κ| up to 0.5 and |α| up to 0.3 (`Mz`
+/// at `κ = 0`).
+#[test]
+fn every_term_together_matches_the_equations_at_zero_camber() {
+    let p = shifted();
+    let kappas = [-0.5, -0.1, -0.03, -0.005, 0.0, 0.005, 0.03, 0.1, 0.5];
+    let alphas = [-0.3, -0.1, -0.03, -0.005, 0.0, 0.005, 0.03, 0.1, 0.3];
+    for l in LOADS {
+        let fz = l * p.fz0;
+        for kappa in kappas {
+            for alpha in alphas {
+                let got = eval(&p, fz, kappa, alpha, 0.0);
+                let want = reference(&p, fz, kappa, alpha);
+                let at = format!("Fz {fz} κ {kappa} α {alpha}");
+                assert!(
+                    m::abs(got.fx - want.fx) < 1e-9 * fz,
+                    "{at}: Fx {} vs {}",
+                    got.fx,
+                    want.fx
+                );
+                assert!(
+                    m::abs(got.fy - want.fy) < 1e-9 * fz,
+                    "{at}: Fy {} vs {}",
+                    got.fy,
+                    want.fy
+                );
+                if kappa == 0.0 {
+                    assert!(
+                        m::abs(got.mz - want.mz) < 1e-9 * fz * p.unloaded_radius,
+                        "{at}: Mz {} vs {}",
+                        got.mz,
+                        want.mz
+                    );
+                }
+            }
         }
     }
 }
