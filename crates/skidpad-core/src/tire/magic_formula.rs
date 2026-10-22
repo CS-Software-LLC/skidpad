@@ -14,7 +14,7 @@
 //!
 //! Ignored, with a warning on import: turn slip (`PPY*`, `PDXP*`, `PKYP*`,
 //! `PECP*`, `QDTP*`, `QCRP*`, `QBRP*`, `QDRP*`), the extended camber stiffness
-//! terms of MF 6.x (`PKY4`–`PKY7`, `PVY*` beyond 4), inflation pressure (`PPX*`,
+//! terms of MF 6.x (`PKY5`–`PKY7`, `PVY*` beyond 4), inflation pressure (`PPX*`,
 //! `PPY*`, `PPZ*`, `PPMX*`), contact-patch and belt dynamics (`[CONTACT_PATCH]`,
 //! `[STRUCTURAL]`), and vertical stiffness (`[VERTICAL]` beyond `FZ0`).
 //!
@@ -129,6 +129,9 @@ mf_params! {
         pky1: "PKY1" = -18.0,
         pky2: "PKY2" = 2.0,
         pky3: "PKY3" = 0.0,
+        /// Curvature of `Kyα` against load (MF 6.x; 2 in MF 5.2, where it
+        /// is not a parameter).
+        pky4: "PKY4" = 2.0,
         phy1: "PHY1" = 0.0,
         phy2: "PHY2" = 0.0,
         phy3: "PHY3" = 0.0,
@@ -232,14 +235,15 @@ impl MagicFormulaParams {
         m::abs(self.kya(fz, 0.0))
     }
 
-    /// `Kyα` with camber (eq. 4.E25). `F'z0 = λFz0·Fz0` carries the
-    /// nominal-load scale once; it is not applied again.
+    /// `Kyα` with camber (eq. 4.E25, with MF 6.x's `PKY4` in place of the 2).
+    /// `F'z0 = λFz0·Fz0` carries the nominal-load scale once; it is not
+    /// applied again.
     #[inline]
     fn kya(&self, fz: f64, gamma: f64) -> f64 {
         let f0 = self.fz0_prime();
         self.pky1
             * f0
-            * m::sin(2.0 * m::atan(fz / (self.pky2 * f0)))
+            * m::sin(self.pky4 * m::atan(fz / (self.pky2 * f0)))
             * (1.0 - self.pky3 * m::abs(gamma))
             * self.lky
     }
