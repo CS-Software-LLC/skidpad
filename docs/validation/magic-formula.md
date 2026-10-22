@@ -56,43 +56,48 @@ search finds a peak's value to round-off but its location only to about
 1e-8, and `κ = 10⁶` leaves the asymptote's arctangent about 1e-7 short of
 `π/2`. The worst result is over both sets.
 
-| Check                                             | Pacejka                                                         | Tolerance    | Worst result   |
-| ------------------------------------------------- | --------------------------------------------------------------- | ------------ | -------------- |
-| Slope at the origin, `Fx(κ)` and `Fy(α)`          | `BCD = Kxκ` (4.E15), `Kyα` (4.E25)                              | 1e-6         | 1.7e-8         |
-| Peak force                                        | `D = (PD1 + PD2 dfz) Fz`                                        | 1e-9         | 1.1e-16        |
-| Peak slip                                         | Root of `Bx − E(Bx − atan Bx) = tan(π/2C)`                      | 1e-5         | 1.8e-8         |
-| Sliding force at `κ = 10⁶`                        | `D sin(πC/2)`                                                   | 1e-5         | 3.1e-7         |
-| Cornering stiffness against load                  | Peaks at `Fz = PKY2 F'z0 tan(π/2 PKY4)` with value `PKY1 F'z0`  | 1e-4, 1e-6   | 2.5e-8, 2.3e-9 |
-| Camber at ±0.02 and ±0.06 rad                     | `Kyα` scaled by `1 − PKY3 \|γ\|`                                | 1e-6         | 4.6e-9         |
-| Scaling factors and surface grip                  | `λμy` and grip scale the peak only; `λKy` scales the slope only | 1e-9, 1e-6   | 2.6e-9         |
-| Combined slip, 6 × 6 grid of `κ` and `α`          | `Fx = Gxα Fx0`, `Fy = Gyκ Fy0 + SVyκ` (4.E50 to 4.E67)          | 1e-9         | 0              |
-| Pneumatic trail at zero slip                      | `Dt = Fz (QDZ1 + QDZ2 dfz) R0 / F'z0` (4.E42)                   | 1e-12        | 2.2e-16        |
-| Aligning stiffness                                | `−Dt Kyα`, with no slope from `Mzr`                             | 1e-6         | 1.2e-10        |
-| Every term, `Fx` and `Fy`, 9 × 9 grid of `κ`, `α` | The full equations at zero camber                               | 1e-9 `Fz`    | 1.3e-16, 0     |
-| Every term, `Mz` at `κ = 0`                       | The same                                                        | 1e-9 `Fz R0` | 7.8e-20        |
+| Check                                              | Pacejka                                                         | Tolerance    | Worst result   |
+| -------------------------------------------------- | --------------------------------------------------------------- | ------------ | -------------- |
+| Slope at the origin, `Fx(κ)` and `Fy(α)`           | `BCD = Kxκ` (4.E15), `Kyα` (4.E25)                              | 1e-6         | 1.7e-8         |
+| Peak force                                         | `D = (PD1 + PD2 dfz) Fz`                                        | 1e-9         | 1.1e-16        |
+| Peak slip                                          | Root of `Bx − E(Bx − atan Bx) = tan(π/2C)`                      | 1e-5         | 1.8e-8         |
+| Sliding force at `κ = 10⁶`                         | `D sin(πC/2)`                                                   | 1e-5         | 3.1e-7         |
+| Cornering stiffness against load                   | Peaks at `Fz = PKY2 F'z0 tan(π/2 PKY4)` with value `PKY1 F'z0`  | 1e-4, 1e-6   | 2.5e-8, 2.3e-9 |
+| Camber at ±0.02 and ±0.06 rad                      | `Kyα` scaled by `1 − PKY3 \|γ\|`                                | 1e-6         | 4.6e-9         |
+| Scaling factors and surface grip                   | `λμy` and grip scale the peak only; `λKy` scales the slope only | 1e-9, 1e-6   | 2.6e-9         |
+| Combined slip, 6 × 6 grid of `κ` and `α`           | `Fx = Gxα Fx0`, `Fy = Gyκ Fy0 + SVyκ` (4.E50 to 4.E67)          | 1e-9         | 0              |
+| Pneumatic trail at zero slip                       | `Dt = Fz (QDZ1 + QDZ2 dfz) R0 / F'z0` (4.E42)                   | 1e-12        | 2.2e-16        |
+| Aligning stiffness                                 | `−Dt Kyα`, with no slope from `Mzr`                             | 1e-6         | 1.2e-10        |
+| Every term, `Fx` and `Fy`, 9 × 9 grid of `κ`, `α*` | The full equations at zero camber                               | 1e-9 `Fz`    | 1.3e-16, 0     |
+| Every term, `Mz` at `κ = 0`                        | The same                                                        | 1e-9 `Fz R0` | 7.8e-20        |
+| Slip input, ±2° to ±20°                            | `Fy`, `Mz` at `α* = tan α`                                      | 1e-9 `Fz`    | 0              |
 
-All residuals are numerical error. Given the same slip input, the code
-computes the book's equations exactly.
+All residuals are numerical error. The code computes the book's equations
+exactly.
 
 ## Findings
 
-**Skidpad feeds the formula `α`, where the book uses `tan α`.** Pacejka
-defines the lateral slip input as `α* = tan α · sgn Vcx`, and every lateral
-equation takes `α*`. The vehicle models pass the tire `atan(v / σy)`, a true
-angle, and `eval` uses it as `α*`. The two agree at small slip angles and
-part as the angle grows. For the synthetic tire (no shifts zeroed):
+**The formula is fed `tan α`, as in the book.** Pacejka defines the lateral
+slip input as `α* = tan α · sgn Vcx` (eq. 4.E3), and every lateral equation
+takes `α*`. The vehicle models pass the tire the angle `α = atan(v / σy)`.
+Until 2026-10-22, `eval` used that angle as `α*`. It now takes `tan α`, and
+the angle itself enters only through `cos α` in the aligning moment. The
+equivalent slips of the aligning moment under combined slip (4.E77, 4.E78)
+take the 3rd edition's `α*` form, `√(αt² + (Kxκ / Kyα)² κ²)`, which is
+the same as before at `κ = 0`. A further check feeds `eval` the angle and
+compares with the equations at `tan α`; it matches exactly.
 
-| Slip angle | `Fy` gap, 4.5 kN | `Fy` gap, 9 kN | `Mz` gap as a share of its peak, 9 kN |
-| ---------- | ---------------- | -------------- | ------------------------------------- |
-| 4°         | 0.08 %           | 0.12 %         | under 0.1 %                           |
-| 6°         | 0.07 %           | 0.17 %         | 0.2 %                                 |
-| 10°        | 0.05 %           | 0.09 %         | 1.0 %                                 |
-| 15°        | 0.21 %           | 0.15 %         | 1.6 %                                 |
+The change was small. On the synthetic tire, before and after:
 
-The force gap is small. The aligning-moment gap is larger because `Mz`
-falls steeply past its peak, so a small shift in slip moves it a lot. The
-tests feed both sides the same slip, so they pin the equations and leave
-this choice to be settled on its own.
+| Slip angle | `Fy` change, 4.5 kN | `Fy` change, 9 kN | `Mz` change as a share of its peak, 9 kN |
+| ---------- | ------------------- | ----------------- | ---------------------------------------- |
+| 4°         | 0.08 %              | 0.12 %            | under 0.1 %                              |
+| 6°         | 0.07 %              | 0.17 %            | 0.2 %                                    |
+| 10°        | 0.05 %              | 0.09 %            | 1.0 %                                    |
+| 15°        | 0.21 %              | 0.15 %            | 1.6 %                                    |
+
+The aligning moment moves more than the force because `Mz` falls steeply
+past its peak, so a small shift in slip moves it a lot.
 
 **Camber is MF 5.2's.** MF 6.x restructures the camber terms of `Fy` and
 `Mz` (camber stiffness `PKY6`, `PKY7`; `PHY3` dropped). Skidpad implements
@@ -103,14 +108,13 @@ intends.
 
 **Also outside these checks:** inflation pressure, turn slip, the
 overturning and rolling-resistance moments, and the aligning moment under
-combined slip, where the editions write the equivalent slip angle
-differently.
+combined slip.
 
 **The tests catch real errors.** Each of these mutations of
 `magic_formula.rs` fails at least one check, and each was reverted:
 scaling `Gxα` by 1.001, dropping the absolute value on camber in `Kyα`,
-dividing the trail by `Fz` instead of `F'z0`, scaling `Cy` by 1.0001, and
-fixing `PKY4` at 2.
+dividing the trail by `Fz` instead of `F'z0`, scaling `Cy` by 1.0001,
+fixing `PKY4` at 2, and feeding the formula `α` instead of `tan α`.
 
 **What this does not cover.** These checks pin the equations, not the
 tire. A tire fitted wrongly would still pass.
