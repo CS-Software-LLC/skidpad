@@ -47,11 +47,13 @@ fn dfz(p: &MagicFormulaParams, fz: f64) -> f64 {
     (fz - fz0(p)) / fz0(p)
 }
 
+/// Evaluate at lateral slip `α* = tan α` (eq. 4.E3), the variable every
+/// lateral equation takes, so the checks below read in the book's terms.
 fn eval(p: &MagicFormulaParams, fz: f64, kappa: f64, alpha: f64, gamma: f64) -> TireOutput {
     p.eval(&TireInput {
         fz,
         slip_ratio: kappa,
-        slip_angle: alpha,
+        slip_angle: m::atan(alpha),
         camber: gamma,
         vx: 20.0,
         ..TireInput::default()
@@ -271,7 +273,7 @@ fn scaling_factors_scale_what_they_name() {
             let f = |a: f64| {
                 -p.eval(&TireInput {
                     fz,
-                    slip_angle: a,
+                    slip_angle: m::atan(a),
                     vx: 20.0,
                     grip,
                     ..TireInput::default()
@@ -479,7 +481,7 @@ fn reference(p: &MagicFormulaParams, fz: f64, kappa: f64, alpha: f64) -> Referen
     let dt = fz * (r0 / f0) * (p.qdz1 + p.qdz2 * df);
     let et = (p.qez1 + p.qez2 * df + p.qez3 * df * df)
         * (1.0 + p.qez4 * (2.0 / m::PI) * m::atan(bt * ct * alpha_t));
-    let cos_a = m::cos(alpha);
+    let cos_a = m::cos(m::atan(alpha));
     let t = dt * mf_cos(bt, ct, et, alpha_t) * cos_a;
     let alpha_r = alpha + shy + svy / kya;
     let br = p.qbz9 + p.qbz10 * by * cy;
@@ -527,5 +529,34 @@ fn every_term_together_matches_the_equations_at_zero_camber() {
                 }
             }
         }
+    }
+}
+
+/// The slip angle the vehicle passes is the angle `α`; the formula is fed
+/// `α* = tan α` (eq. 4.E3), not the angle itself.
+#[test]
+fn the_formula_is_fed_tan_alpha() {
+    let p = shifted();
+    for deg in [-20.0, -8.0, -2.0, 2.0, 8.0, 20.0] {
+        let a = m::deg_to_rad(deg);
+        let got = p.eval(&TireInput {
+            fz: p.fz0,
+            slip_angle: a,
+            vx: 20.0,
+            ..TireInput::default()
+        });
+        let want = reference(&p, p.fz0, 0.0, m::tan(a));
+        assert!(
+            m::abs(got.fy - want.fy) < 1e-9 * p.fz0,
+            "{deg}°: Fy {} vs {}",
+            got.fy,
+            want.fy
+        );
+        assert!(
+            m::abs(got.mz - want.mz) < 1e-9 * p.fz0 * p.unloaded_radius,
+            "{deg}°: Mz {} vs {}",
+            got.mz,
+            want.mz
+        );
     }
 }
