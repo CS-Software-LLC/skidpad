@@ -122,19 +122,21 @@ Stability, from the same runner (all six presets, both models):
 | Timestep sweep, 250–2000 Hz internal × 30–240 Hz host                         | understeer gradient within 0.001 deg/g, braking distance within 0.7 %       |
 
 Benchmarks on a Node 22 x64 Linux container (CI class, not M1), 60 Hz host
-step, release build:
+step, release build, CI on 2026-10-23:
 
 | Case                                    | ms per step |
 | --------------------------------------- | ----------- |
-| 1 car, four-wheel, 1 kHz internal       | 0.06        |
-| 20 cars, four-wheel, 1 kHz internal     | 1.09        |
-| 50 cars, four-wheel, 500 Hz internal    | 1.26        |
-| 200 cars, single-track, 240 Hz internal | 1.26        |
+| 1 car, four-wheel, 1 kHz internal       | 0.075       |
+| 20 cars, four-wheel, 1 kHz internal     | 1.15        |
+| 50 cars, four-wheel, 500 Hz internal    | 1.38        |
+| 200 cars, single-track, 240 Hz internal | 1.32        |
 
 Targets: under 0.2 ms for one car and under 3 ms for twenty on M1-class
 hardware (not yet measured there); under 2 ms for two hundred traffic cars; core WASM under 224 KB
-gzipped (currently 213.0 KB). `apps/bench/baseline` holds the committed
-baseline the benchmark compares against.
+gzipped (currently 193.5 KB). Every pull request runs `pnpm bench:compare`,
+which times the base branch's core and the pull request's back to back on the
+same runner and fails above 1.15× in any case. `apps/bench/baseline` holds the
+numbers above, for reference across machines.
 
 An independent check drives Skidpad and Project Chrono's multibody BMW E90
 through the same eight manoeuvres, with the Skidpad car built from Chrono's
@@ -280,6 +282,7 @@ pnpm test:rust             # cargo test --workspace
 pnpm test                  # vitest across packages, tools and tests
 pnpm validate              # standard manoeuvres vs golden results
 pnpm bench                 # Node benchmark
+pnpm bench:compare         # this core against origin/main, same machine
 pnpm test:determinism      # Playwright: Chromium, Firefox, WebKit
 pnpm dev:packages          # rebuild packages on change while an app is running
 ```
