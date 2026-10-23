@@ -178,6 +178,20 @@ pub struct SuspensionDef {
     /// height. Four-wheel model only.
     #[cfg_attr(feature = "serde", serde(skip_serializing_if = "Option::is_none"))]
     pub kinematics: Option<KinematicsDef>,
+    /// Unsprung mass per wheel, kg: the wheel, tire, brake, hub and the
+    /// share of the links that move with them (ADR-0028). Zero (the default)
+    /// keeps the massless raycast strut of ADR-0009. Above zero the wheel
+    /// gets its own vertical motion on the tire's vertical spring, so it can
+    /// hop. On a solid axle the beam carries both wheels' mass. Part of
+    /// `chassis.mass`, not added to it. Four-wheel model only.
+    pub unsprung_mass: f64,
+    /// Roll inertia of a solid axle's beam with its wheels, kg·m², about
+    /// its own centre (ADR-0028). Zero (the default) puts the axle's whole
+    /// unsprung mass at the wheels, `2 m_u (t/2)²`; a housing and
+    /// differential near the middle make it smaller, which raises the
+    /// beam's roll (tramp) frequency above its hop. Solid axles with
+    /// unsprung mass only.
+    pub beam_roll_inertia: f64,
 }
 
 /// How the two wheels of an axle are held (ADR-0016).
@@ -219,6 +233,8 @@ impl SuspensionDef {
             anti_brake: 0.0,
             anti_drive: 0.0,
             kinematics: None,
+            unsprung_mass: 0.0,
+            beam_roll_inertia: 0.0,
         }
     }
 
@@ -236,6 +252,8 @@ impl SuspensionDef {
             anti_brake: 0.0,
             anti_drive: 0.0,
             kinematics: None,
+            unsprung_mass: 0.0,
+            beam_roll_inertia: 0.0,
         }
     }
 
@@ -256,12 +274,22 @@ impl SuspensionDef {
             ("reboundDamping", self.rebound_damping),
             ("antiRollStiffness", self.anti_roll_stiffness),
             ("bumpStopStiffness", self.bump_stop_stiffness),
+            ("unsprungMass", self.unsprung_mass),
+            ("beamRollInertia", self.beam_roll_inertia),
         ] {
             if !(v >= 0.0) || !v.is_finite() {
                 errors.push(format!(
                     "{prefix}.{name} must be zero or positive (got {v})"
                 ));
             }
+        }
+        if self.beam_roll_inertia > 0.0
+            && !(self.kind == SuspensionKind::Solid && self.unsprung_mass > 0.0)
+        {
+            errors.push(format!(
+                "{prefix}.beamRollInertia applies only to a solid axle with unsprungMass (got {}); use 0",
+                self.beam_roll_inertia
+            ));
         }
         if !self.roll_center_height.is_finite()
             || m::abs(self.roll_center_height) > MAX_ROLL_CENTER_HEIGHT
@@ -667,6 +695,49 @@ impl VehicleDefinition {
                 &mut e,
             );
         }
+        if self.axles.len() == 2 && c.mass > 0.0 && c.wheelbase > 0.0 {
+            let unsprung: f64 = self
+                .axles
+                .iter()
+                .map(|a| 2.0 * a.suspension.unsprung_mass)
+                .sum();
+            if unsprung > 0.0 && !(unsprung < 0.5 * c.mass) {
+                e.push(format!(
+                    "the four wheels' unsprungMass ({unsprung} kg) must be below half of chassis.mass ({} kg)",
+                    c.mass
+                ));
+            }
+            // Along up the body rolls and pitches with the wheels' share of
+            // the inertias taken out (ADR-0028); keep a tenth of each.
+            let x = [c.cg_to_front_axle, c.wheelbase - c.cg_to_front_axle];
+            let (mut roll, mut pitch) = (0.0, 0.0);
+            for (i, a) in self.axles.iter().enumerate() {
+                let mu = a.suspension.unsprung_mass;
+                roll += self.unsprung_roll_inertia(i);
+                pitch += 2.0 * mu * x[i] * x[i];
+            }
+            if roll > 0.0 && !(roll <= 0.9 * c.roll_inertia) {
+                e.push(format!(
+                    "the wheels' unsprungMass at the track ({roll:.1} kg·m²) must leave at least a tenth of chassis.rollInertia ({} kg·m²) to the body",
+                    c.roll_inertia
+                ));
+            }
+            if pitch > 0.0 && !(pitch <= 0.9 * c.pitch_inertia) {
+                e.push(format!(
+                    "the wheels' unsprungMass at the axles ({pitch:.1} kg·m²) must leave at least a tenth of chassis.pitchInertia ({} kg·m²) to the body",
+                    c.pitch_inertia
+                ));
+            }
+            for (i, a) in self.axles.iter().enumerate() {
+                let mu = a.suspension.unsprung_mass;
+                if mu > 0.0 && !(mu * crate::GRAVITY < self.static_wheel_load(i)) {
+                    e.push(format!(
+                        "axles[{i}].suspension.unsprungMass ({mu} kg) must weigh less than the wheel's static load ({:.0} N)",
+                        self.static_wheel_load(i)
+                    ));
+                }
+            }
+        }
         if !self.axles.iter().any(|a| a.driven) {
             e.push(String::from("at least one axle must be driven"));
         }
@@ -830,6 +901,24 @@ impl VehicleDefinition {
 
     /// Static vertical load on one wheel of axle `axle` (0 front, 1 rear) on
     /// level ground, N.
+    /// Roll inertia of axle `axle`'s unsprung mass about the body's roll
+    /// axis through the axle's centre, kg·m² (ADR-0028): the wheels at the
+    /// track, or a solid axle's beam inertia when it is set.
+    pub fn unsprung_roll_inertia(&self, axle: usize) -> f64 {
+        let s = &self.axles[axle].suspension;
+        if s.kind == SuspensionKind::Solid && s.beam_roll_inertia > 0.0 {
+            s.beam_roll_inertia
+        } else {
+            let y = 0.5 * self.axle_track(axle);
+            2.0 * s.unsprung_mass * y * y
+        }
+    }
+
+    /// Whether any axle carries unsprung mass (ADR-0028).
+    pub fn has_unsprung_mass(&self) -> bool {
+        self.axles.iter().any(|a| a.suspension.unsprung_mass > 0.0)
+    }
+
     pub fn static_wheel_load(&self, axle: usize) -> f64 {
         let c = &self.chassis;
         let mg = c.mass * crate::GRAVITY;

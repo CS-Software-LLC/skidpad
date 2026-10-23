@@ -39,6 +39,15 @@ helps. Parameters are per tire unless noted.
   to 0.5 are typical. They change only the body's pitch, not the tire loads
   ([anti-dive](/concepts/suspension#anti-dive-and-anti-squat)).
 
+## Wheels skip over bumps and kerbs, or ride feels too smooth
+
+- Set `suspension.unsprungMass` on independent axles (35–45 kg per corner
+  for a road car, 5–10 kg for a kart) to give the wheels their own motion
+  ([unsprung mass](/concepts/suspension#unsprung-mass)). Tire load then
+  rises and falls over rough ground and a wheel can skip.
+- Lower the tire's `verticalStiffness` or raise the dampers to calm the
+  wheel hop; a heavier wheel hops lower and longer.
+
 ## Car rolls too much in corners but rides well
 
 - Raise `rollCenterHeight` on one or both axles. The share

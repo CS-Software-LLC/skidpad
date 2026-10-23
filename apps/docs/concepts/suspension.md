@@ -31,10 +31,35 @@ The sum, never negative because the ground cannot pull, is the strut force.
 Its component along the contact normal is the tire's vertical load, which is
 what the [tire model](/concepts/slip) sees.
 
-There is no unsprung mass: the wheel is massless and rigid. The only vertical
-modes are the body's own, at a few hertz, so the model stays stable at every
-substep rate the core supports. Wheel hop and kerb strikes arrive with an
-unsprung-mass option later ([ADR-0009](https://github.com/CS-Software-LLC/skidpad/blob/main/docs/adr/0009-raycast-suspension-and-host-contract.md)).
+By default there is no unsprung mass: the wheel is massless and rigid. The
+only vertical modes are the body's own, at a few hertz, so the model stays
+stable at every substep rate the core supports
+([ADR-0009](https://github.com/CS-Software-LLC/skidpad/blob/main/docs/adr/0009-raycast-suspension-and-host-contract.md)).
+
+## Unsprung mass
+
+Set `suspension.unsprungMass` (kg per wheel, part of `chassis.mass`) on an
+axle and each of its wheels gets its own vertical motion: the
+spring, dampers, anti-roll bar and bump stop sit between the body and the
+wheel, and the tire is a second spring and damper between the wheel and the
+road, `verticalStiffness` and `verticalDamping` on the tire (defaults
+250 kN/m and 500 N·s/m; a `.tir` file's `VERTICAL_STIFFNESS` and
+`VERTICAL_DAMPING`). The tire's force on the road is then its vertical
+load. The wheel can hop, a bump or a kerb makes the tire load rise and fall
+at the wheel-hop frequency (12–14 Hz for a road car), and the wheel leaves
+the ground when the tire unloads. `TireDeflection_*` reports how far each
+tire is pressed in, negative once it is off the ground.
+
+Ride height and the static tire loads do not change when you switch it on.
+Typical values are 35–45 kg per corner for a road car and 5–10 kg for a kart.
+
+On a solid axle the two wheels' mass is one beam that heaves and rolls.
+`suspension.beamRollInertia` (kg·m²) is its roll inertia about its own
+centre. Zero puts the mass at the wheels; a live axle's differential sits in
+the middle, so a real beam is nearer 0.5–0.7 of that, and it then rocks side
+to side (axle tramp) faster than it hops. The wheels stand square to the
+line through the two hubs, so the beam's own roll cambers them
+([ADR-0028](https://github.com/CS-Software-LLC/skidpad/blob/main/docs/adr/0028-unsprung-mass.md)).
 
 ## What the body does
 
@@ -237,9 +262,9 @@ tilts both wheels together. If a wheel is off the ground the axle has no
 beam to stand on and the wheel falls back to the body's axis.
 
 Only the camber geometry changes. The springs, dampers, anti-roll bar and
-travel are still those of the two corner struts, so the beam has no mass of
-its own (there is no unsprung mass in the model) and the axle's roll
-stiffness is set the same way as an independent one. Pair it with a
+travel are still those of the two corner struts, and the axle's roll
+stiffness is set the same way as an independent one. With `unsprungMass`
+the beam has mass of its own (see [Unsprung mass](#unsprung-mass)). Pair it with a
 `rollCenterHeight` for the geometry of a real beam axle: a leaf-sprung or
 four-link rear sits its roll centre high, which is why trucks and older
 rear-drive cars take so much of their transfer at the back.

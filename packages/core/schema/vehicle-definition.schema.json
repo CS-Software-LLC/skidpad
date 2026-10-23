@@ -862,6 +862,18 @@
           "exclusiveMinimum": 0,
           "default": 2,
           "description": "m/s. Rolling speed at which the low-speed damping has faded to zero (ADR-0010)"
+        },
+        "verticalStiffness": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "default": 250000,
+          "description": "N/m. Tire vertical stiffness, used only with unsprung mass (ADR-0028)"
+        },
+        "verticalDamping": {
+          "type": "number",
+          "minimum": 0,
+          "default": 500,
+          "description": "N·s/m. Tire vertical damping, used only with unsprung mass (ADR-0028)"
         }
       },
       "required": ["model"],
@@ -913,6 +925,18 @@
           "type": "number",
           "exclusiveMinimum": 0,
           "default": 2
+        },
+        "verticalStiffness": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "default": 250000,
+          "description": "N/m (VERTICAL_STIFFNESS). Used only with unsprung mass (ADR-0028)"
+        },
+        "verticalDamping": {
+          "type": "number",
+          "minimum": 0,
+          "default": 500,
+          "description": "N·s/m (VERTICAL_DAMPING). Used only with unsprung mass (ADR-0028)"
         }
       },
       "required": ["model"],
@@ -995,6 +1019,18 @@
         },
         "kinematics": {
           "$ref": "#/$defs/kinematics"
+        },
+        "unsprungMass": {
+          "type": "number",
+          "minimum": 0,
+          "default": 0,
+          "description": "kg per wheel (ADR-0028): wheel, tire, brake, hub and the share of the links that move with them, part of chassis.mass. Zero keeps the massless strut; above zero each wheel rides on the tire's vertical spring and can hop. On a solid axle the beam carries both wheels' mass"
+        },
+        "beamRollInertia": {
+          "type": "number",
+          "minimum": 0,
+          "default": 0,
+          "description": "kg·m² (ADR-0028): roll inertia of a solid axle's beam with its wheels about its own centre. Zero puts the axle's unsprung mass at the wheels; smaller values make the beam's roll (tramp) faster than its hop. Solid axles with unsprung mass only"
         }
       },
       "additionalProperties": false,

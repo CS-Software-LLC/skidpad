@@ -66,6 +66,10 @@ export interface FeelTireParams {
   lowSpeedDamping?: number;
   /** Rolling speed at which the low-speed damping has faded to zero, m/s (ADR-0010). */
   lowSpeedDampingFade?: number;
+  /** Vertical stiffness, N/m; used only with unsprung mass (ADR-0028). Default 250000. */
+  verticalStiffness?: number;
+  /** Vertical damping, N·s/m; used only with unsprung mass (ADR-0028). Default 500. */
+  verticalDamping?: number;
 }
 
 /**
@@ -83,6 +87,10 @@ export interface MagicFormulaParams {
   lowSpeedFloor?: number;
   lowSpeedDamping?: number;
   lowSpeedDampingFade?: number;
+  /** `VERTICAL_STIFFNESS`, N/m; used only with unsprung mass (ADR-0028). Default 250000. */
+  verticalStiffness?: number;
+  /** `VERTICAL_DAMPING`, N·s/m; used only with unsprung mass (ADR-0028). Default 500. */
+  verticalDamping?: number;
   [coefficient: string]: number | string | undefined;
 }
 
@@ -160,6 +168,22 @@ export interface SuspensionDefinition {
    * geometry fixed at ride height. Four-wheel model only.
    */
   kinematics?: KinematicsDefinition;
+  /**
+   * Unsprung mass per wheel, kg (ADR-0028): wheel, tire, brake, hub and the
+   * share of the links that move with them, part of `chassis.mass`. Zero
+   * (the default) keeps the massless strut; above zero each wheel rides on
+   * the tire's vertical spring and can hop. On a solid axle the beam
+   * carries both wheels' mass. Four-wheel model only.
+   */
+  unsprungMass?: number;
+  /**
+   * Roll inertia of a solid axle's beam with its wheels, kg·m², about its
+   * own centre (ADR-0028). Zero (the default) puts the axle's unsprung mass
+   * at the wheels, `2 m_u (t/2)²`; a housing and differential near the
+   * middle make it smaller and the beam's roll (tramp) faster than its
+   * hop. Solid axles with unsprung mass only.
+   */
+  beamRollInertia?: number;
 }
 
 /**

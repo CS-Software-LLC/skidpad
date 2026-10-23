@@ -37,6 +37,7 @@ fn latest_definition() -> VehicleDefinition {
         low_speed_floor: 0.5,
         low_speed_damping: 0.7,
         low_speed_damping_fade: 2.0,
+        ..FeelTireParams::default()
     });
     d.axles[1].tire = TireModel::Feel(FeelTireParams {
         radius: 0.2,
@@ -61,6 +62,7 @@ fn latest_definition() -> VehicleDefinition {
         low_speed_floor: 0.5,
         low_speed_damping: 0.7,
         low_speed_damping_fade: 2.0,
+        ..FeelTireParams::default()
     });
     d.drivetrain.power_unit = PowerUnitDef::Direct(DirectDriveDef {
         max_wheel_torque: 4863.0865454779005,
@@ -113,6 +115,7 @@ fn earlier_definition() -> VehicleDefinition {
         low_speed_floor: 0.5,
         low_speed_damping: 0.7,
         low_speed_damping_fade: 2.0,
+        ..FeelTireParams::default()
     });
     d.axles[1].tire = TireModel::Feel(FeelTireParams {
         radius: 0.2,
@@ -137,6 +140,7 @@ fn earlier_definition() -> VehicleDefinition {
         low_speed_floor: 0.5,
         low_speed_damping: 0.7,
         low_speed_damping_fade: 2.0,
+        ..FeelTireParams::default()
     });
     d.drivetrain.power_unit = PowerUnitDef::Direct(DirectDriveDef {
         max_wheel_torque: 500.0,

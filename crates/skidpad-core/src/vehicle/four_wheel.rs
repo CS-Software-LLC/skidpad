@@ -10,10 +10,16 @@
 //! travel finds the ground, the compression gives the spring force, the
 //! compression rate the damper force, and the left-right travel difference
 //! the anti-roll bar force. The tire sits at the ray hit with the corner's
-//! total suspension force as its vertical load. There is no unsprung mass:
-//! the wheel is massless and rigid, so the only vertical modes are the body's
-//! heave, pitch and roll, which keeps every substep rate in the supported
-//! range stable (stable beats accurate).
+//! total suspension force as its vertical load. By default there is no
+//! unsprung mass: the wheel is massless and rigid, so the only vertical modes
+//! are the body's heave, pitch and roll, which keeps every substep rate in the
+//! supported range stable (stable beats accurate).
+//!
+//! An axle with `suspension.unsprungMass` above zero gives each of its wheels
+//! its own travel along the strut (ADR-0028): the textbook two-mass quarter
+//! car, with the tire a vertical spring and damper between the wheel and the
+//! ray hit. The wheel is stepped with a linearly implicit Euler update, so
+//! the wheel-hop mode stays stable at every supported rate.
 //!
 //! The chassis is the proxy of ADR-0002. In the built-in host the proxy *is*
 //! the vehicle and this struct integrates its pose on flat ground. Under an
@@ -42,6 +48,116 @@ pub const FL: usize = 0;
 pub const FR: usize = 1;
 pub const RL: usize = 2;
 pub const RR: usize = 3;
+
+/// The body along its up axis as the sprung mass (ADR-0028): heave, roll
+/// and pitch with the wheels' share of the mass and inertias taken out.
+#[derive(Clone, Copy, Debug, Default)]
+struct SprungBody {
+    /// `Jᵢ`: (heave, roll rate, pitch rate) to corner `i`'s rate along up.
+    jacobian: [[f64; 3]; WHEEL_COUNT],
+    /// Inverse of the sprung mass matrix `M − Σ Jᵢᵀ M_u,ij Jⱼ`, summed over
+    /// each axle's two wheels.
+    inv: [[f64; 3]; 3],
+    /// Each corner's acceleration along up from the forces before the
+    /// wheels' own, gravity left out.
+    corner_accel: [f64; WHEEL_COUNT],
+    /// `Jᵢ M_s⁻¹ Jᵢᵀ`: the body's inverse mass at corner `i`.
+    corner_inv_mass: [f64; WHEEL_COUNT],
+}
+
+impl SprungBody {
+    #[allow(clippy::too_many_arguments)]
+    fn new(
+        mass: f64,
+        roll_inertia: f64,
+        pitch_inertia: f64,
+        axle_mass: &[[[f64; 2]; 2]; 2],
+        wheels: &[WheelState; WHEEL_COUNT],
+        pos: Vec3,
+        orient: Quat,
+        load: [f64; 3],
+    ) -> Self {
+        let mut b = SprungBody::default();
+        let mut mm = [
+            [mass, 0.0, 0.0],
+            [0.0, roll_inertia, 0.0],
+            [0.0, 0.0, pitch_inertia],
+        ];
+        for (j, w) in b.jacobian.iter_mut().zip(wheels) {
+            let r = orient.inverse_rotate(w.hub - pos);
+            *j = [1.0, r.y, -r.x];
+        }
+        for (axle, ma) in axle_mass.iter().enumerate() {
+            for (a, row_m) in ma.iter().enumerate() {
+                for (c, &mab) in row_m.iter().enumerate() {
+                    if mab == 0.0 {
+                        continue;
+                    }
+                    let ja = b.jacobian[2 * axle + a];
+                    let jb = b.jacobian[2 * axle + c];
+                    for (row, jr) in mm.iter_mut().zip(ja) {
+                        for (e, jc) in row.iter_mut().zip(jb) {
+                            *e -= mab * jr * jc;
+                        }
+                    }
+                }
+            }
+        }
+        b.inv = inverse3(&mm);
+        let q = b.solve(load);
+        for i in 0..WHEEL_COUNT {
+            let j = b.jacobian[i];
+            b.corner_accel[i] = dot3(j, q);
+            b.corner_inv_mass[i] = dot3(j, b.solve(j));
+        }
+        b
+    }
+
+    /// `Jᵢ M_s⁻¹ Jⱼᵀ`: how a force along up at corner `j` accelerates
+    /// corner `i`.
+    fn coupling(&self, i: usize, j: usize) -> f64 {
+        dot3(self.jacobian[i], self.solve(self.jacobian[j]))
+    }
+
+    /// `M_s⁻¹ v`.
+    fn solve(&self, v: [f64; 3]) -> [f64; 3] {
+        [
+            dot3(self.inv[0], v),
+            dot3(self.inv[1], v),
+            dot3(self.inv[2], v),
+        ]
+    }
+}
+
+fn dot3(a: [f64; 3], b: [f64; 3]) -> f64 {
+    a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
+}
+
+/// Inverse of a 3×3 matrix by its adjugate.
+fn inverse3(a: &[[f64; 3]; 3]) -> [[f64; 3]; 3] {
+    let c00 = a[1][1] * a[2][2] - a[1][2] * a[2][1];
+    let c01 = a[1][2] * a[2][0] - a[1][0] * a[2][2];
+    let c02 = a[1][0] * a[2][1] - a[1][1] * a[2][0];
+    let det = a[0][0] * c00 + a[0][1] * c01 + a[0][2] * c02;
+    let d = 1.0 / det;
+    [
+        [
+            c00 * d,
+            (a[0][2] * a[2][1] - a[0][1] * a[2][2]) * d,
+            (a[0][1] * a[1][2] - a[0][2] * a[1][1]) * d,
+        ],
+        [
+            c01 * d,
+            (a[0][0] * a[2][2] - a[0][2] * a[2][0]) * d,
+            (a[0][2] * a[1][0] - a[0][0] * a[1][2]) * d,
+        ],
+        [
+            c02 * d,
+            (a[0][1] * a[2][0] - a[0][0] * a[2][1]) * d,
+            (a[0][0] * a[1][1] - a[0][1] * a[1][0]) * d,
+        ],
+    ]
+}
 
 /// Who integrates the chassis pose.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
@@ -111,6 +227,17 @@ pub struct WheelGeometry {
     pub static_load: f64,
     /// +1 for left wheels, −1 for right.
     pub side: f64,
+    /// Unsprung mass of this wheel, kg; zero for the massless strut
+    /// (ADR-0028).
+    pub unsprung_mass: f64,
+    /// Tire vertical stiffness, N/m, and damping, N·s/m (ADR-0028). Used
+    /// only with unsprung mass.
+    pub tire_rate: f64,
+    pub tire_damping: f64,
+    /// Tire deflection at ride height under the static load, m (ADR-0028).
+    /// The ray is this much longer than the massless strut's so the tire
+    /// can unload fully before the wheel leaves the ground.
+    pub tire_static_deflection: f64,
 }
 
 /// Dynamic state and last outputs of one wheel.
@@ -122,6 +249,11 @@ pub struct WheelState {
     pub transient: TireTransient,
     /// Wheel spin angle for rendering, rad, wrapped to (−π, π].
     pub spin_angle: f64,
+    /// Suspension travel of a wheel with unsprung mass, m (+ bump), and its
+    /// rate, m/s (ADR-0028). In the snapshot only when the vehicle has
+    /// unsprung mass; zero otherwise.
+    pub hub_travel: f64,
+    pub hub_rate: f64,
     // --- derived per substep, not part of the snapshot ---
     pub in_contact: bool,
     /// Suspension compression from the static ride position, m (+ bump).
@@ -164,6 +296,14 @@ pub struct WheelState {
     pub toe: f64,
     /// Compliance steer of this wheel this substep, rad about +z (ADR-0027).
     pub compliance_steer: f64,
+    /// Tire deflection beyond the ray hit, m, negative when the wheel is off
+    /// the ground (ADR-0028). Zero for the massless strut.
+    pub tire_deflection: f64,
+    /// Rate of `tire_deflection`, m/s.
+    pub tire_deflection_rate: f64,
+    /// Tire vertical spring and damper force, N (ADR-0028). Zero for the
+    /// massless strut, whose tire load is the suspension force.
+    pub tire_force: f64,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -345,17 +485,34 @@ impl FourWheelVehicle {
             let radius = a.tire.unloaded_radius();
             let s = &a.suspension;
             let static_load = self.def.static_wheel_load(axle);
+            let mu = s.unsprung_mass;
+            let (tire_rate, tire_damping) = a.tire.vertical_rates();
+            let (spring_load, tire_static_deflection) = if mu > 0.0 {
+                // The spring holds the body, the tire the body and the
+                // wheel; both preloaded so ride height stays the
+                // definition's (ADR-0028).
+                (
+                    static_load - mu * GRAVITY,
+                    static_load / m::max(tire_rate, 1.0),
+                )
+            } else {
+                (static_load, 0.0)
+            };
             self.geometry[i] = WheelGeometry {
                 // At ride height the hub sits at z = radius above ground and
                 // the centre of mass at z = cg_height; the ray starts a full
                 // bump travel above the hub.
                 ray_origin: Vec3::new(x, side * half_track, radius - c.cg_height + s.travel_bump),
                 ray_direction: Vec3::new(0.0, 0.0, -1.0),
-                ray_length: radius + s.travel_bump + s.travel_droop,
+                ray_length: radius + s.travel_bump + s.travel_droop + tire_static_deflection,
                 radius,
-                static_compression: static_load / s.spring_rate,
+                static_compression: spring_load / s.spring_rate,
                 static_load,
                 side,
+                unsprung_mass: mu,
+                tire_rate,
+                tire_damping,
+                tire_static_deflection,
             };
         }
     }
@@ -384,7 +541,12 @@ impl FourWheelVehicle {
             *w = WheelState {
                 in_contact: true,
                 load: g.static_load,
-                susp_force: g.static_load,
+                susp_force: g.static_load - g.unsprung_mass * GRAVITY,
+                tire_force: if g.unsprung_mass > 0.0 {
+                    g.static_load
+                } else {
+                    0.0
+                },
                 surface_grip: 1.0,
                 ..WheelState::default()
             };
@@ -581,6 +743,33 @@ impl FourWheelVehicle {
                 // Behind-origin hits during rollover otherwise acquire an
                 // unbounded lever arm as the strut becomes parallel to the
                 // plane (ADR-0024).
+                Some(tt) if tt >= 0.0 && tt <= g.ray_length && g.unsprung_mass > 0.0 => {
+                    // A wheel with its own mass (ADR-0028): the ray hit
+                    // sets how far the tire is pressed in, the wheel's own
+                    // state the suspension travel.
+                    w.in_contact = true;
+                    let s = &self.def.axles[i / 2].suspension;
+                    let ground =
+                        g.ray_length - g.tire_static_deflection - s.travel_droop - tt + jack;
+                    let v_origin = self.vel + omega_world.cross(origin - self.pos);
+                    let ground_rate = (v_origin - c.surface_velocity).dot(c.normal) / dn;
+                    w.travel = w.hub_travel;
+                    w.travel_rate = w.hub_rate;
+                    w.tire_deflection = ground - w.hub_travel;
+                    w.tire_deflection_rate = ground_rate - w.hub_rate;
+                    w.contact_point = origin + down * tt;
+                    w.hub = origin + down * (s.travel_bump - w.hub_travel);
+                }
+                _ if g.unsprung_mass > 0.0 => {
+                    w.in_contact = false;
+                    let s = &self.def.axles[i / 2].suspension;
+                    w.travel = w.hub_travel;
+                    w.travel_rate = w.hub_rate;
+                    w.tire_deflection = -g.tire_static_deflection;
+                    w.tire_deflection_rate = 0.0;
+                    w.hub = origin + down * (s.travel_bump - w.hub_travel);
+                    w.contact_point = w.hub + down * g.radius;
+                }
                 Some(tt) if tt >= 0.0 && tt <= g.ray_length => {
                     w.in_contact = true;
                     // At the static position the hit is one bump travel plus
@@ -610,7 +799,8 @@ impl FourWheelVehicle {
             let s = &self.def.axles[i / 2].suspension;
             let other = self.wheels[i ^ 1].travel;
             let w = &mut self.wheels[i];
-            if !w.in_contact {
+            let unsprung = g.unsprung_mass > 0.0;
+            if !w.in_contact && !unsprung {
                 w.susp_force = 0.0;
                 w.load = 0.0;
                 continue;
@@ -627,10 +817,46 @@ impl FourWheelVehicle {
             } else {
                 0.0
             };
-            // The ground can push but not pull.
-            w.susp_force = m::max(spring + damper + arb + stop, 0.0);
             let n = self.contacts[i].normal;
-            w.load = w.susp_force * m::max(-down.dot(n), 0.0);
+            if unsprung {
+                // ADR-0028: the strut pushes the body up and the wheel down
+                // whether or not the tire touches; a droop stop as stiff as
+                // the bump stop holds the hanging wheel. The tire is a
+                // spring and damper on its deflection, preloaded with the
+                // static load, and the ground can push but not pull.
+                let droop = if w.travel < -s.travel_droop {
+                    s.bump_stop_stiffness * (w.travel + s.travel_droop)
+                } else {
+                    0.0
+                };
+                w.susp_force = spring + damper + arb + stop + droop;
+                let f = up * w.susp_force;
+                force = force + f;
+                torque = torque + (w.contact_point - self.pos).cross(f);
+                if !w.in_contact {
+                    w.tire_force = 0.0;
+                    w.load = 0.0;
+                    w.geometric_load = 0.0;
+                    w.pitch_load = 0.0;
+                    continue;
+                }
+                w.tire_force = m::max(
+                    g.tire_rate * (w.tire_deflection + g.tire_static_deflection)
+                        + g.tire_damping * w.tire_deflection_rate,
+                    0.0,
+                );
+                // The wheel slides along the strut, so only the tire force
+                // along it moves the wheel; the rest of a tilted contact's
+                // normal force reaches the body through the links.
+                let f = (n - up * n.dot(up)) * w.tire_force;
+                force = force + f;
+                torque = torque + (w.contact_point - self.pos).cross(f);
+                w.load = w.tire_force;
+            } else {
+                // The ground can push but not pull.
+                w.susp_force = m::max(spring + damper + arb + stop, 0.0);
+                w.load = w.susp_force * m::max(-down.dot(n), 0.0);
+            }
             // Roll centre (ADR-0016): the part of this axle's lateral load
             // transfer that the links carry straight to the ground, as a
             // couple on the body through the two contacts. Left wheels
@@ -680,8 +906,15 @@ impl FourWheelVehicle {
             } else {
                 0.0
             };
-            w.load = m::max(w.load + w.geometric_load + w.pitch_load, 0.0);
-            let f = n * w.load;
+            let f = if unsprung {
+                // The links' share goes straight from the tire to the body.
+                let link = w.geometric_load + w.pitch_load;
+                w.load = m::max(w.load + link, 0.0);
+                n * link
+            } else {
+                w.load = m::max(w.load + w.geometric_load + w.pitch_load, 0.0);
+                n * w.load
+            };
             force = force + f;
             torque = torque + (w.contact_point - self.pos).cross(f);
         }
@@ -719,10 +952,18 @@ impl FourWheelVehicle {
         // lateral axis (pointing left) is that line while both wheels touch.
         let mut beam_lat = [None; 2];
         for (axle, beam) in beam_lat.iter_mut().enumerate() {
-            if self.def.axles[axle].suspension.kind == SuspensionKind::Solid {
+            let s = &self.def.axles[axle].suspension;
+            if s.kind == SuspensionKind::Solid {
                 let l = &self.wheels[2 * axle];
                 let r = &self.wheels[2 * axle + 1];
-                if l.in_contact && r.in_contact {
+                if s.unsprung_mass > 0.0 {
+                    // A beam with mass (ADR-0028) is the line through its
+                    // hubs, touching the ground or not.
+                    let d = l.hub - r.hub;
+                    if d.length() > 1e-6 {
+                        *beam = Some(d.normalized());
+                    }
+                } else if l.in_contact && r.in_contact {
                     let d = l.contact_point - r.contact_point;
                     if d.length() > 1e-6 {
                         *beam = Some(d.normalized());
@@ -966,6 +1207,53 @@ impl FourWheelVehicle {
             torque = torque + (up * aero.drag_height_above_cg).cross(f_drag);
         }
 
+        // --- unsprung mass (ADR-0028) -----------------------------------------
+        // The wheels move with the body except along its up axis, where each
+        // rides on its own spring. Along up, the body heaves, rolls and
+        // pitches as the sprung mass: its mass and inertias less the wheels'
+        // share, `M_s = M − Σ m_u Jᵢᵀ Jᵢ` with `Jᵢ = (1, yᵢ, −xᵢ)` taking
+        // (heave, roll rate, pitch rate) to corner `i`'s rate along up (a
+        // solid axle's beam couples its two wheels: `Σ Jᵢᵀ M_u,ij Jⱼ`). Each
+        // wheel pushes on its corner with the force that gives it the
+        // corner's own acceleration along up, `m_u Jᵢ q̈`, so the integration
+        // below and an external host keep the whole car's mass, inertias and
+        // gravity, and at rest the corners carry the massless strut's loads.
+        let unsprung: f64 = self.geometry.iter().map(|g| g.unsprung_mass).sum();
+        let mut sprung = SprungBody::default();
+        if unsprung > 0.0 {
+            let c = &self.def.chassis;
+            let iw = Vec3::new(
+                c.roll_inertia * self.omega.x,
+                c.pitch_inertia * self.omega.y,
+                c.yaw_inertia * self.omega.z,
+            );
+            let net = orient.inverse_rotate(torque) - self.omega.cross(iw);
+            let axle_mass = [self.axle_unsprung_mass(0), self.axle_unsprung_mass(1)];
+            sprung = SprungBody::new(
+                mass,
+                c.roll_inertia,
+                c.pitch_inertia,
+                &axle_mass,
+                &self.wheels,
+                self.pos,
+                orient,
+                [force.dot(up), net.x, net.y],
+            );
+            for i in 0..WHEEL_COUNT {
+                let ma = axle_mass[i / 2][i % 2];
+                let (own, other) = (ma[i % 2], ma[1 - i % 2]);
+                if own > 0.0 {
+                    let mut fu = own * sprung.corner_accel[i];
+                    if other != 0.0 {
+                        fu += other * sprung.corner_accel[i ^ 1];
+                    }
+                    let f = up * fu;
+                    force = force + f;
+                    torque = torque + (self.wheels[i].hub - self.pos).cross(f);
+                }
+            }
+        }
+
         // --- chassis proxy integration (semi-implicit Euler) ------------------
         self.impulse = self.impulse + force * dt;
         self.angular_impulse = self.angular_impulse + torque * dt;
@@ -991,6 +1279,19 @@ impl FourWheelVehicle {
                 net.z / inertia.z * dt,
             );
 
+        if unsprung > 0.0 {
+            // The strut forces' change over the step, as the whole car's
+            // impulse so an external host sees it too.
+            let (roll_inertia, pitch_inertia) = (c.roll_inertia, c.pitch_inertia);
+            let dq = self.step_hubs(dt, up, &sprung);
+            let dw = Vec3::new(dq[1], dq[2], 0.0);
+            self.vel = self.vel + up * dq[0];
+            self.omega = self.omega + dw;
+            self.impulse = self.impulse + up * (mass * dq[0]);
+            self.angular_impulse = self.angular_impulse
+                + orient.rotate(Vec3::new(roll_inertia * dw.x, pitch_inertia * dw.y, 0.0));
+        }
+
         // --- pose integration (the minimal host, or the proxy's own copy) -----
         self.pos = self.pos + self.vel * dt;
         self.orient = self.orient.integrate(self.omega, dt);
@@ -1011,6 +1312,180 @@ impl FourWheelVehicle {
         self.steering_torque = self.def.hand_wheel_torque(kingpin);
         self.rack_force = kingpin / self.def.steering.steering_arm;
         self.kingpin_prev = kingpin;
+    }
+
+    /// Step each wheel with unsprung mass along its strut (ADR-0028). Its
+    /// travel accelerates as `(F_t n·u − F_s) / m_u` less its corner's own
+    /// acceleration along up (gravity cancels). A linearly implicit Euler
+    /// step takes the tire, spring, bar and stop rates and both dampers on
+    /// the wheel's own coordinate, the strut's against the reduced mass of
+    /// the wheel and the sprung body at that corner, so the wheel-hop mode
+    /// and the body's light corners in roll are stable at any substep; the
+    /// strut force's change over the step goes back to the body, whose
+    /// (heave, roll rate, pitch rate) change is returned. The coupling
+    /// between corners stays explicit.
+    fn step_hubs(&mut self, dt: f64, up: Vec3, sprung: &SprungBody) -> [f64; 3] {
+        let mut impulse = [0.0; 3];
+        for axle in 0..2 {
+            let s = &self.def.axles[axle].suspension;
+            if s.kind == SuspensionKind::Solid && s.unsprung_mass > 0.0 {
+                self.step_beam(axle, dt, up, sprung, &mut impulse);
+            }
+        }
+        for i in 0..WHEEL_COUNT {
+            if self.def.axles[i / 2].suspension.kind == SuspensionKind::Solid {
+                continue;
+            }
+            let g = self.geometry[i];
+            let mu = g.unsprung_mass;
+            if !(mu > 0.0) {
+                continue;
+            }
+            let s = &self.def.axles[i / 2].suspension;
+            let w = &mut self.wheels[i];
+            let n_up = if w.in_contact && w.tire_force > 0.0 {
+                self.contacts[i].normal.dot(up)
+            } else {
+                0.0
+            };
+            let accel = (w.tire_force * n_up - w.susp_force) / mu - sprung.corner_accel[i];
+            let stop = if w.travel > s.travel_bump || w.travel < -s.travel_droop {
+                s.bump_stop_stiffness
+            } else {
+                0.0
+            };
+            let k = s.spring_rate + s.anti_roll_stiffness + stop;
+            let c = if w.travel_rate > 0.0 {
+                s.bump_damping
+            } else {
+                s.rebound_damping
+            };
+            // Inverse reduced mass of the strut: the wheel's and the body's at
+            // this corner.
+            let inv = 1.0 / mu + sprung.corner_inv_mass[i];
+            let damp = dt * (c * inv + g.tire_damping * n_up / mu);
+            let stiff = dt * dt * (k * inv + g.tire_rate * n_up / mu);
+            let d_rate = dt * accel / (1.0 + damp + stiff);
+            w.hub_rate += d_rate;
+            w.hub_travel += dt * w.hub_rate;
+            let d_force = (c + dt * k) * d_rate * dt;
+            let j = sprung.jacobian[i];
+            for (a, jr) in impulse.iter_mut().zip(j) {
+                *a += jr * d_force;
+            }
+        }
+        sprung.solve(impulse)
+    }
+
+    /// The unsprung mass matrix of axle `axle` on its two wheels' travel,
+    /// kg (ADR-0028): `m_u` on the diagonal for independent wheels; for a
+    /// solid axle's beam of mass `m_a = 2 m_u` and roll inertia `I_a` over
+    /// track `t`, `m_a/4 [[1, 1], [1, 1]] + I_a/t² [[1, −1], [−1, 1]]`, the
+    /// beam's heave and roll in the wheels' coordinates.
+    fn axle_unsprung_mass(&self, axle: usize) -> [[f64; 2]; 2] {
+        let s = &self.def.axles[axle].suspension;
+        let mu = s.unsprung_mass;
+        if !(mu > 0.0) {
+            return [[0.0; 2]; 2];
+        }
+        if s.kind != SuspensionKind::Solid {
+            return [[mu, 0.0], [0.0, mu]];
+        }
+        let t = self.def.axle_track(axle);
+        let heave = 0.5 * mu;
+        let roll = self.def.unsprung_roll_inertia(axle) / (t * t);
+        [[heave + roll, heave - roll], [heave - roll, heave + roll]]
+    }
+
+    /// Step a solid axle's beam (ADR-0028): both wheels' travel together,
+    /// with the beam's mass matrix, as the linearly implicit step of
+    /// [`Self::step_hubs`] in two coordinates. The anti-roll bar couples
+    /// the two ends inside the step, and the body's response to each end's
+    /// strut force at both ends enters through `J M_s⁻¹ Jᵀ`.
+    fn step_beam(
+        &mut self,
+        axle: usize,
+        dt: f64,
+        up: Vec3,
+        sprung: &SprungBody,
+        impulse: &mut [f64; 3],
+    ) {
+        let ma = self.axle_unsprung_mass(axle);
+        let s = &self.def.axles[axle].suspension;
+        let ids = [2 * axle, 2 * axle + 1];
+        let mut rhs = [0.0; 2];
+        let mut k = [[0.0; 2]; 2];
+        let mut c = [0.0; 2];
+        let mut tire = [0.0; 2];
+        for (a, &i) in ids.iter().enumerate() {
+            let g = self.geometry[i];
+            let w = &self.wheels[i];
+            let n_up = if w.in_contact && w.tire_force > 0.0 {
+                self.contacts[i].normal.dot(up)
+            } else {
+                0.0
+            };
+            rhs[a] = w.tire_force * n_up
+                - w.susp_force
+                - ma[a][0] * sprung.corner_accel[ids[0]]
+                - ma[a][1] * sprung.corner_accel[ids[1]];
+            let stop = if w.travel > s.travel_bump || w.travel < -s.travel_droop {
+                s.bump_stop_stiffness
+            } else {
+                0.0
+            };
+            k[a][a] = s.spring_rate + s.anti_roll_stiffness + stop;
+            k[a][1 - a] = -s.anti_roll_stiffness;
+            c[a] = if w.travel_rate > 0.0 {
+                s.bump_damping
+            } else {
+                s.rebound_damping
+            };
+            tire[a] = dt * g.tire_damping * n_up + dt * dt * g.tire_rate * n_up;
+        }
+        // The strut's impulse change per unit rate change: `dt (C + dt K)`.
+        let mut strut = [[0.0; 2]; 2];
+        for a in 0..2 {
+            for b in 0..2 {
+                strut[a][b] = dt * dt * k[a][b] + if a == b { dt * c[a] } else { 0.0 };
+            }
+        }
+        // `M B`, with `B = J M_s⁻¹ Jᵀ` on the axle's two corners.
+        let mut bm = [[0.0; 2]; 2];
+        for a in 0..2 {
+            for b in 0..2 {
+                bm[a][b] = sprung.coupling(ids[a], ids[b]);
+            }
+        }
+        // `A = M + (I + M B) dt (C + dt K) + dt (C_t + dt K_t)`.
+        let mut a_mat = [[0.0; 2]; 2];
+        for a in 0..2 {
+            for b in 0..2 {
+                let mut strut_ab = 0.0;
+                for m in 0..2 {
+                    let reduced =
+                        if a == m { 1.0 } else { 0.0 } + ma[a][0] * bm[0][m] + ma[a][1] * bm[1][m];
+                    strut_ab += reduced * strut[m][b];
+                }
+                a_mat[a][b] = ma[a][b] + strut_ab + if a == b { tire[a] } else { 0.0 };
+            }
+        }
+        let det = a_mat[0][0] * a_mat[1][1] - a_mat[0][1] * a_mat[1][0];
+        let d_rate = [
+            dt * (a_mat[1][1] * rhs[0] - a_mat[0][1] * rhs[1]) / det,
+            dt * (a_mat[0][0] * rhs[1] - a_mat[1][0] * rhs[0]) / det,
+        ];
+        for (a, &i) in ids.iter().enumerate() {
+            let w = &mut self.wheels[i];
+            w.hub_rate += d_rate[a];
+            w.hub_travel += dt * w.hub_rate;
+            // The strut's impulse change over the step.
+            let d_impulse = strut[a][0] * d_rate[0] + strut[a][1] * d_rate[1];
+            let j = sprung.jacobian[i];
+            for (acc, jr) in impulse.iter_mut().zip(j) {
+                *acc += jr * d_impulse;
+            }
+        }
     }
 
     /// Write the telemetry record for the current state.
@@ -1089,6 +1564,11 @@ impl FourWheelVehicle {
             rec[t::SURFACE_GRIP_FL + i] = w.surface_grip;
             rec[t::TOE_FL + i] = w.toe;
             rec[t::COMPLIANCE_STEER_FL + i] = w.compliance_steer;
+            rec[t::TIRE_DEFLECTION_FL + i] = if self.geometry[i].unsprung_mass > 0.0 {
+                w.tire_deflection + self.geometry[i].tire_static_deflection
+            } else {
+                0.0
+            };
             let tire = &self.def.axles[i / 2].tire;
             write_grip_telemetry(&w.out, 1.0, &w.transient, tire, i, rec);
         }
@@ -1160,9 +1640,24 @@ pub const WHEEL_STATE_LEN: usize = 4;
 pub const STATE_LEN: usize =
     BODY_STATE_LEN + WHEEL_COUNT * WHEEL_STATE_LEN + crate::drivetrain::STATE_LEN;
 
+/// Values per wheel appended to the snapshot when the vehicle has unsprung
+/// mass (ADR-0028): its travel and travel rate.
+pub const HUB_STATE_LEN: usize = 2;
+
+/// Snapshot length of a four-wheel vehicle with this definition: the
+/// massless layout is unchanged, and unsprung mass appends each wheel's
+/// travel and rate after it.
+pub fn state_len(def: &VehicleDefinition) -> usize {
+    if def.has_unsprung_mass() {
+        STATE_LEN + WHEEL_COUNT * HUB_STATE_LEN
+    } else {
+        STATE_LEN
+    }
+}
+
 impl Snapshottable for FourWheelVehicle {
     fn state_len(&self) -> usize {
-        STATE_LEN
+        state_len(&self.def)
     }
 
     fn write_state(&self, out: &mut [f64]) {
@@ -1196,6 +1691,12 @@ impl Snapshottable for FourWheelVehicle {
         let o = BODY_STATE_LEN + WHEEL_STATE_LEN * WHEEL_COUNT;
         self.drivetrain
             .write_state(&mut out[o..o + crate::drivetrain::STATE_LEN]);
+        if self.def.has_unsprung_mass() {
+            for (i, w) in self.wheels.iter().enumerate() {
+                out[STATE_LEN + 2 * i] = w.hub_travel;
+                out[STATE_LEN + 2 * i + 1] = w.hub_rate;
+            }
+        }
     }
 
     fn read_state(&mut self, v: &[f64]) {
@@ -1218,5 +1719,11 @@ impl Snapshottable for FourWheelVehicle {
         let o = BODY_STATE_LEN + WHEEL_STATE_LEN * WHEEL_COUNT;
         self.drivetrain
             .read_state(&v[o..o + crate::drivetrain::STATE_LEN]);
+        if self.def.has_unsprung_mass() {
+            for (i, w) in self.wheels.iter_mut().enumerate() {
+                w.hub_travel = v[STATE_LEN + 2 * i];
+                w.hub_rate = v[STATE_LEN + 2 * i + 1];
+            }
+        }
     }
 }

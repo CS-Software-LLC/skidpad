@@ -9,7 +9,8 @@
       "Suspension rates for ~1.5 Hz front and ~1.6 Hz rear ride frequencies (Gillespie ch. 5), roll centres of a strut front near 80 mm and a multilink rear near 130 mm (Milliken & Milliken ch. 17).",
       "Drivetrain [ILLUSTRATIVE]: two motors modelled as one unit of 520 N·m and 300 kW to 16 000 rpm through a 9:1 reduction, torque split evenly through an open centre differential, 90 N·m of lift-off regeneration. An electric motor's torque is instant, so the preset ships with traction control on, as every production EV does (ADR-0013).",
       "Steering geometry [ILLUSTRATIVE]: 6° of caster (about 28 mm of trail), a small scrub radius and strong electric assist; aero after Hucho ch. 4, a smooth body with a little front lift.",
-      "Travel curves [ILLUSTRATIVE] (ADR-0026): roll-centre height falling with bump and camber gain at rates scaled from the curves derived for Project Chrono's BMW E90 from its hardpoints (MacPherson front: roll centre −2.9 mm per mm of bump, camber about −20°/m; double wishbone: −1.6 mm per mm; docs/validation/chrono-bmw-e90.md), eased for this car's lower roll centres. No toe curves: road cars are set up for near-zero bump steer, and the E90 comparison found toe follows force more than travel."
+      "Travel curves [ILLUSTRATIVE] (ADR-0026): roll-centre height falling with bump and camber gain at rates scaled from the curves derived for Project Chrono's BMW E90 from its hardpoints (MacPherson front: roll centre −2.9 mm per mm of bump, camber about −20°/m; double wishbone: −1.6 mm per mm; docs/validation/chrono-bmw-e90.md), eased for this car's lower roll centres. No toe curves: road cars are set up for near-zero bump steer, and the E90 comparison found toe follows force more than travel.",
+      "Unsprung mass and tire vertical rates [ILLUSTRATIVE] (ADR-0028): wheel, tire, brake, hub and about half of each link per corner, typical of the class, with the tire about ten times as stiff as the suspension spring so the wheel hops at 10–15 Hz (Gillespie, Fundamentals of Vehicle Dynamics, ch. 5)."
     ],
     "notes": "Not a specific production model. The two motors share one torque curve in this format; the centre differential's torque split stands in for the independent rear-biased control a real dual-motor car has."
   },
@@ -29,16 +30,18 @@
         "model": "feel",
         "radius": 0.36,
         "nominalLoad": 5500,
-        "peakFriction": 1.0,
+        "peakFriction": 1,
         "loadSensitivity": 0.1,
-        "peakSlipAngleDeg": 7.0,
+        "peakSlipAngleDeg": 7,
         "peakSlipRatio": 0.12,
         "corneringStiffness": 18,
         "longitudinalStiffness": 22,
         "stiffnessPeakLoad": 7000,
         "relaxationLengthLat": 0.35,
         "relaxationLengthLong": 0.25,
-        "rollingResistance": 0.009
+        "rollingResistance": 0.009,
+        "verticalStiffness": 320000,
+        "verticalDamping": 700
       },
       "wheelInertia": 2.2,
       "driven": true,
@@ -62,11 +65,12 @@
             [0.08, -0.2]
           ],
           "camberDeg": [
-            [-0.1, 2.0],
+            [-0.1, 2],
             [0, 0],
             [0.08, -1.6]
           ]
-        }
+        },
+        "unsprungMass": 55
       }
     },
     {
@@ -74,22 +78,24 @@
         "model": "feel",
         "radius": 0.36,
         "nominalLoad": 5500,
-        "peakFriction": 1.0,
+        "peakFriction": 1,
         "loadSensitivity": 0.1,
-        "peakSlipAngleDeg": 7.0,
+        "peakSlipAngleDeg": 7,
         "peakSlipRatio": 0.12,
         "corneringStiffness": 18,
         "longitudinalStiffness": 22,
         "stiffnessPeakLoad": 7000,
         "relaxationLengthLat": 0.35,
         "relaxationLengthLong": 0.25,
-        "rollingResistance": 0.009
+        "rollingResistance": 0.009,
+        "verticalStiffness": 320000,
+        "verticalDamping": 700
       },
       "wheelInertia": 2.2,
       "driven": true,
       "steered": false,
       "maxBrakeTorque": 3200,
-      "staticCamberDeg": -1.0,
+      "staticCamberDeg": -1,
       "suspension": {
         "kind": "independent",
         "springRate": 52000,
@@ -111,21 +117,22 @@
             [0, 0],
             [0.09, -0.9]
           ]
-        }
+        },
+        "unsprungMass": 55
       }
     }
   ],
   "steering": {
     "maxWheelAngleDeg": 34,
     "ratio": 14.5,
-    "ackermann": 1.0,
+    "ackermann": 1,
     "mechanicalTrail": 0.028,
     "scrubRadius": 0.008,
     "steeringArm": 0.13,
     "powerAssist": 0.65,
     "columnFriction": 0.3,
     "columnDamping": 0.05,
-    "jackingRate": 0.0
+    "jackingRate": 0
   },
   "brakes": {
     "handbrakeTorque": 2200
@@ -152,13 +159,13 @@
       "regenTorque": 90
     },
     "transmission": {
-      "gears": [9.0],
-      "reverse": 9.0,
-      "finalDrive": 1.0,
+      "gears": [9],
+      "reverse": 9,
+      "finalDrive": 1,
       "mode": "automatic",
       "shiftTime": 0,
       "shiftHold": 0,
-      "shiftUpAt": 1.0,
+      "shiftUpAt": 1,
       "shiftDownAt": 0,
       "shiftLightFactor": 1,
       "clutchMaxTorque": 2000,

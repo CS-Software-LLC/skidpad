@@ -172,6 +172,8 @@ function validateTire(errors: string[], warnings: string[], path: string, tire: 
       positive(errors, `${path}.${k}`, t[k]);
     }
     nonNegative(errors, `${path}.lowSpeedDamping`, t.lowSpeedDamping);
+    positive(errors, `${path}.verticalStiffness`, t.verticalStiffness);
+    nonNegative(errors, `${path}.verticalDamping`, t.verticalDamping);
     for (const k of ["falloffLong", "falloffLat"]) {
       const v = t[k];
       if (v !== undefined && (!isNum(v) || v <= 0 || v > 1)) {
@@ -222,10 +224,12 @@ function validateTire(errors: string[], warnings: string[], path: string, tire: 
       "relaxationLengthLat",
       "lowSpeedFloor",
       "lowSpeedDampingFade",
+      "verticalStiffness",
     ]) {
       positive(errors, `${path}.${k}`, t[k]);
     }
     nonNegative(errors, `${path}.lowSpeedDamping`, t.lowSpeedDamping);
+    nonNegative(errors, `${path}.verticalDamping`, t.verticalDamping);
     const pky1 = t.pky1;
     if (isNum(pky1) && pky1 > 0) {
       errors.push(
@@ -532,6 +536,17 @@ export function validateDefinition(def: unknown): ValidationResult {
             nonNegative(errors, `${path}.suspension.reboundDamping`, s.reboundDamping);
             nonNegative(errors, `${path}.suspension.antiRollStiffness`, s.antiRollStiffness);
             nonNegative(errors, `${path}.suspension.bumpStopStiffness`, s.bumpStopStiffness);
+            nonNegative(errors, `${path}.suspension.unsprungMass`, s.unsprungMass);
+            nonNegative(errors, `${path}.suspension.beamRollInertia`, s.beamRollInertia);
+            if (
+              isNum(s.beamRollInertia) &&
+              s.beamRollInertia > 0 &&
+              !(s.kind === "solid" && isNum(s.unsprungMass) && s.unsprungMass > 0)
+            ) {
+              errors.push(
+                `${path}.suspension.beamRollInertia applies only to a solid axle with unsprungMass (got ${s.beamRollInertia}); use 0`,
+              );
+            }
             if (s.kind !== undefined && s.kind !== "independent" && s.kind !== "solid") {
               errors.push(
                 `${path}.suspension.kind must be "independent" or "solid" (got "${String(s.kind)}")`,
@@ -569,6 +584,12 @@ export function validateDefinition(def: unknown): ValidationResult {
             ) {
               const share = i === 0 ? (wb - cgf) / wb : cgf / wb;
               const staticLoad = 0.5 * mass * 9.80665 * share;
+              const mu = s.unsprungMass;
+              if (isNum(mu) && mu > 0 && !(mu * 9.80665 < staticLoad)) {
+                errors.push(
+                  `axles[${i}].suspension.unsprungMass (${mu} kg) must weigh less than the wheel's static load (${staticLoad.toFixed(0)} N)`,
+                );
+              }
               const compression = staticLoad / s.springRate;
               if (compression > s.travelBump) {
                 warnings.push(
@@ -579,6 +600,33 @@ export function validateDefinition(def: unknown): ValidationResult {
           }
         }
       });
+      // Along up the body rolls and pitches with the wheels' share of the
+      // inertias taken out (ADR-0028); keep a tenth of each.
+      if (d.axles.length === 2 && isNum(c.wheelbase) && isNum(c.cgToFrontAxle)) {
+        const x = [c.cgToFrontAxle, c.wheelbase - c.cgToFrontAxle];
+        let roll = 0;
+        let pitch = 0;
+        d.axles.forEach((a, i) => {
+          const mu = a?.suspension?.unsprungMass;
+          if (!isNum(mu) || !(mu > 0)) return;
+          const track = isNum(a?.trackWidth) && a.trackWidth > 0 ? a.trackWidth : c.trackWidth;
+          const y = isNum(track) ? 0.5 * track : 0;
+          const beam = a?.suspension?.beamRollInertia;
+          roll +=
+            a?.suspension?.kind === "solid" && isNum(beam) && beam > 0 ? beam : 2 * mu * y * y;
+          pitch += 2 * mu * x[i]! * x[i]!;
+        });
+        if (roll > 0 && isNum(c.rollInertia) && !(roll <= 0.9 * c.rollInertia)) {
+          errors.push(
+            `the wheels' unsprungMass at the track (${roll.toFixed(1)} kg·m²) must leave at least a tenth of chassis.rollInertia (${c.rollInertia} kg·m²) to the body`,
+          );
+        }
+        if (pitch > 0 && isNum(c.pitchInertia) && !(pitch <= 0.9 * c.pitchInertia)) {
+          errors.push(
+            `the wheels' unsprungMass at the axles (${pitch.toFixed(1)} kg·m²) must leave at least a tenth of chassis.pitchInertia (${c.pitchInertia} kg·m²) to the body`,
+          );
+        }
+      }
       if (d.axles.length === 2 && d.axles.every((a) => a?.driven === false)) {
         errors.push("at least one axle must be driven");
       }

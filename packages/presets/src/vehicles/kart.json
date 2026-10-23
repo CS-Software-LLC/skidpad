@@ -8,7 +8,9 @@
       "Tire feel parameters tuned to a ~1.4 g skidpad on slick kart tires.",
       "Drivetrain [ILLUSTRATIVE]: a 125 cc two-stroke (peak 17 N·m, 18 kW at 11000 rpm) through a centrifugal clutch that engages between 1800 and 4300 rpm and an 11:80 chain reduction (7.3:1) to a solid rear axle, as on a rental or junior kart.",
       "Steering geometry [ILLUSTRATIVE]: kart spindles with large caster and kingpin inclination jack the frame with steer; the linearised jacking rate of 10 mm per radian unloads the inner rear wheel by about a quarter in a steady corner. No assist; direct steering with a short arm.",
-      "The driver sits high on a kart, so the drag acts well above the centre of mass; no measurable lift."
+      "The driver sits high on a kart, so the drag acts well above the centre of mass; no measurable lift.",
+      "Unsprung mass and tire vertical rates [ILLUSTRATIVE] (ADR-0028): wheel, tire, brake, hub and about half of each link per corner, typical of the class, with the tire about ten times as stiff as the suspension spring so the wheel hops at 10–15 Hz (Gillespie, Fundamentals of Vehicle Dynamics, ch. 5).",
+      "The live rear axle [ILLUSTRATIVE] (ADR-0028): about 12 kg of axle, wheels, hubs, sprocket and brake disc, 6 kg per wheel; its roll inertia of 2.5 kg·m² is about 0.55 of that mass at the wheels, since the sprocket and disc sit near the middle."
     ],
     "notes": "Not a specific chassis. The rear is a solid axle (suspension.kind \"solid\", ADR-0016) driven through a locked differential: both rear wheels turn at one speed and stay upright to the track. On the four-wheel model it pushes at low speed because the inner rear wheel carries load until the steering-geometry jacking (ADR-0012) and lateral transfer unload it, so the fitted skidpad gradient is slightly negative; the per-point steer angles in the golden file show the push easing with speed."
   },
@@ -30,13 +32,15 @@
         "nominalLoad": 350,
         "peakFriction": 1.4,
         "loadSensitivity": 0.15,
-        "peakSlipAngleDeg": 6.0,
+        "peakSlipAngleDeg": 6,
         "corneringStiffness": 16,
         "longitudinalStiffness": 20,
         "stiffnessPeakLoad": 520,
         "relaxationLengthLat": 0.15,
         "relaxationLengthLong": 0.1,
-        "rollingResistance": 0.015
+        "rollingResistance": 0.015,
+        "verticalStiffness": 80000,
+        "verticalDamping": 150
       },
       "wheelInertia": 0.05,
       "driven": false,
@@ -52,7 +56,8 @@
         "antiRollStiffness": 0,
         "bumpStopStiffness": 400000,
         "kind": "independent",
-        "rollCenterHeight": 0.0
+        "rollCenterHeight": 0,
+        "unsprungMass": 4
       }
     },
     {
@@ -62,13 +67,15 @@
         "nominalLoad": 450,
         "peakFriction": 1.45,
         "loadSensitivity": 0.15,
-        "peakSlipAngleDeg": 6.0,
+        "peakSlipAngleDeg": 6,
         "corneringStiffness": 17,
         "longitudinalStiffness": 22,
         "stiffnessPeakLoad": 620,
         "relaxationLengthLat": 0.15,
         "relaxationLengthLong": 0.1,
-        "rollingResistance": 0.015
+        "rollingResistance": 0.015,
+        "verticalStiffness": 80000,
+        "verticalDamping": 150
       },
       "wheelInertia": 0.12,
       "driven": true,
@@ -84,18 +91,20 @@
         "antiRollStiffness": 0,
         "bumpStopStiffness": 400000,
         "kind": "solid",
-        "rollCenterHeight": 0.0
+        "rollCenterHeight": 0,
+        "unsprungMass": 6,
+        "beamRollInertia": 2.5
       }
     }
   ],
   "steering": {
     "maxWheelAngleDeg": 25,
     "ratio": 2.5,
-    "ackermann": 1.0,
+    "ackermann": 1,
     "mechanicalTrail": 0.012,
-    "scrubRadius": 0.0,
+    "scrubRadius": 0,
     "steeringArm": 0.06,
-    "powerAssist": 0.0,
+    "powerAssist": 0,
     "columnFriction": 0.4,
     "columnDamping": 0.02,
     "jackingRate": 0.01
@@ -107,8 +116,8 @@
     "dragCoefficient": 0.8,
     "frontalArea": 0.7,
     "airDensity": 1.225,
-    "liftCoefficientFront": 0.0,
-    "liftCoefficientRear": 0.0,
+    "liftCoefficientFront": 0,
+    "liftCoefficientRear": 0,
     "dragHeightAboveCg": 0.15
   },
   "simulation": {
@@ -134,13 +143,13 @@
       "idleTorqueMax": 6
     },
     "transmission": {
-      "gears": [1.0],
+      "gears": [1],
       "reverse": 0,
       "finalDrive": 7.3,
       "mode": "automatic",
       "shiftTime": 0,
       "shiftHold": 0,
-      "shiftUpAt": 1.0,
+      "shiftUpAt": 1,
       "shiftDownAt": 0,
       "shiftLightFactor": 1,
       "clutchMaxTorque": 60,
