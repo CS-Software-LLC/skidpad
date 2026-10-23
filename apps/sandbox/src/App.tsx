@@ -164,7 +164,7 @@ export function App() {
       {mapKind === "circuit" && <LapPanel sim={sim} />}
       <div className="right">
         <div className="panels">
-          <WheelPanel sim={sim} />
+          <WheelPanel sim={sim} revision={revision} onAssistChanged={bump} />
           <TuningPanel sim={sim} revision={revision} onApplied={bump} />
         </div>
         <div className="controls">
