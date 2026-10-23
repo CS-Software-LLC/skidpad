@@ -265,10 +265,36 @@ export interface SteeringDefinition {
    * fraction. 0 … 20.
    */
   powerAssistOnset: number;
+  /**
+   * Speed-sensitive assist (ADR-0034): the assist fraction at and above
+   * `powerAssistFadeEnd`, in place of `powerAssist`. 0 … 1.
+   */
+  powerAssistAtSpeed: number;
+  /** Road speed, m/s, where the assist starts fading toward `powerAssistAtSpeed`. */
+  powerAssistFadeStart: number;
+  /**
+   * Road speed, m/s, where the assist reaches `powerAssistAtSpeed`; 0 (the
+   * default) keeps the assist the same at every speed. start ≤ end ≤ 100.
+   */
+  powerAssistFadeEnd: number;
   /** Column friction for the force-feedback device, N·m (not simulated). */
   columnFriction: number;
-  /** Column damping for the force-feedback device, N·m per rad/s. */
+  /**
+   * Column damping for the force-feedback device, N·m per rad/s; with
+   * `columnDampingSpeed` set, the damping at standstill.
+   */
   columnDamping: number;
+  /**
+   * Speed-sensitive damping (ADR-0033): the column damping reached at
+   * `columnDampingSpeed` and held above it, N·m per rad/s, as an electric
+   * assist's active damping rises with speed. Zero or positive.
+   */
+  columnDampingAtSpeed: number;
+  /**
+   * Road speed at which `columnDampingAtSpeed` is reached, m/s, linear
+   * below it. 0 (the default) keeps the damping at `columnDamping`. 0 … 100.
+   */
+  columnDampingSpeed: number;
   /** Front contact travel along its ray per radian of steer, m/rad: inner down, outer up. */
   jackingRate: number;
   /**

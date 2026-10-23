@@ -62,6 +62,12 @@ export interface WheelStatus {
 export class WheelInput {
   private readonly profiles: WheelProfile[];
   steeringLockDeg: number | undefined;
+  /**
+   * The wheel's rotation as set on the device, degrees lock to lock, when a
+   * force-feedback sink changed it (`LogitechWebHidSink.setRotation`); the
+   * axis then spans this range instead of the profile's `rotationDeg`.
+   */
+  rotationDeg: number | undefined;
   /** The gear state this wheel shifts. */
   readonly gears: GearSelector;
   private readonly matchStandardPads: boolean;
@@ -153,9 +159,13 @@ export class WheelInput {
     const steerRaw = this.axis(profile.steer);
     const steerNorm =
       steerRaw === undefined ? 0 : calibrateCentred(steerRaw, profile.steer.calibration);
-    const angle = steerNorm * 0.5 * profile.rotationDeg;
+    const rotation = this.rotationDeg ?? profile.rotationDeg;
+    const angle = steerNorm * 0.5 * rotation;
     this.status.wheelAngleDeg = angle;
-    const lock = this.steeringLockDeg ?? 0.5 * profile.rotationDeg;
+    // With the rotation matched to the car, a car whose lock is wider than
+    // the wheel turns still reaches it: the wheel's end stop is full steer.
+    const carLock = this.steeringLockDeg ?? 0.5 * rotation;
+    const lock = this.rotationDeg === undefined ? carLock : Math.min(carLock, 0.5 * rotation);
     frame.steer = clamp(angle / lock, -1, 1);
     const pedal = (b: AxisBinding | undefined): number => {
       const raw = this.axis(b);

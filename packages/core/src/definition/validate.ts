@@ -665,6 +665,17 @@ export function validateDefinition(def: unknown): ValidationResult {
   if (caster !== undefined && (!isNum(caster) || caster < -10 || caster > 20)) {
     errors.push(`steering.casterDeg must be in [-10, 20] deg (got ${String(caster)})`);
   }
+  const pas = s.powerAssistAtSpeed;
+  if (pas !== undefined && (!isNum(pas) || pas < 0 || pas > 1)) {
+    errors.push(`steering.powerAssistAtSpeed must be in [0, 1] (got ${String(pas)})`);
+  }
+  const fs = s.powerAssistFadeStart ?? 0;
+  const fe = s.powerAssistFadeEnd ?? 0;
+  if (!isNum(fs) || !isNum(fe) || fs < 0 || fe < fs || fe > 100) {
+    errors.push(
+      `steering.powerAssistFadeStart and powerAssistFadeEnd must satisfy 0 ≤ start ≤ end ≤ 100 m/s (got ${String(fs)} and ${String(fe)})`,
+    );
+  }
   const onset = s.powerAssistOnset;
   if (onset !== undefined && (!isNum(onset) || onset < 0 || onset > 20)) {
     errors.push(`steering.powerAssistOnset must be in [0, 20] N·m (got ${String(onset)})`);
@@ -677,6 +688,11 @@ export function validateDefinition(def: unknown): ValidationResult {
   }
   nonNegative(errors, "steering.columnFriction", s.columnFriction);
   nonNegative(errors, "steering.columnDamping", s.columnDamping);
+  nonNegative(errors, "steering.columnDampingAtSpeed", s.columnDampingAtSpeed);
+  const cds = s.columnDampingSpeed;
+  if (cds !== undefined && (!isNum(cds) || cds < 0 || cds > 100)) {
+    errors.push(`steering.columnDampingSpeed must be in [0, 100] m/s (got ${String(cds)})`);
+  }
   nonNegative(errors, "brakes.handbrakeTorque", d.brakes?.handbrakeTorque);
   validateDrivetrain(errors, warnings, d.drivetrain);
   const as = d.assists;

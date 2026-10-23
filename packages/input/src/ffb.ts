@@ -19,6 +19,11 @@ export interface FfbFrame {
    * scaler's runaway guard needs it; without it the guard is off.
    */
   wheelAngle?: number | undefined;
+  /**
+   * The host step's torque in equal slices of time, oldest first, N·m
+   * (ADR-0032), for a sink that plays it out faster than the host rate.
+   */
+  samples?: readonly number[] | undefined;
 }
 
 /** A device that reproduces the frame. */
@@ -46,12 +51,53 @@ export function ffbFrameFromTelemetry(
   steering: { columnFriction: number; columnDamping: number },
   wheelAngleDeg?: number,
 ): FfbFrame {
+  // The core's speed-sensitive damping (ADR-0033), when it reports it.
+  const damping = read("ColumnDamping");
   return {
     torque: read("SteeringTorqueMean"),
-    damping: steering.columnDamping,
+    damping: Number.isFinite(damping) ? damping : steering.columnDamping,
     friction: steering.columnFriction,
     wheelAngle: wheelAngleDeg === undefined ? undefined : (wheelAngleDeg * Math.PI) / 180,
+    samples: TORQUE_SLICES.map(read),
   };
+}
+
+/** The core's `SteeringTorqueSlice*` channels, oldest first. */
+export const TORQUE_SLICES = Array.from({ length: 8 }, (_, k) => `SteeringTorqueSlice${k}`);
+
+/**
+ * Plays a host step's torque slices out between host steps, one step
+ * behind, with linear interpolation: the step that just ended is replayed
+ * over the next `dt`, starting from the previous step's last slice, so the
+ * output is continuous and the wheel never sees the 60 Hz staircase. The
+ * pattern of iRacing's 360 Hz mode, which costs one host step of delay.
+ */
+export class TorquePlayout {
+  private points: number[] = [0];
+  private start = 0;
+  private span = 0;
+
+  /** A new step's slices arrived at `now` (s); they play over the next `dt`. */
+  push(samples: readonly number[], dt: number, now: number): void {
+    const last = this.points.at(-1) ?? 0;
+    this.points = [last, ...samples];
+    this.start = now;
+    this.span = dt;
+  }
+
+  /** The torque at `now`, N·m: held at the last slice past the step's end. */
+  at(now: number): number {
+    const p = this.points;
+    if (p.length < 2 || !(this.span > 0)) return p.at(-1) ?? 0;
+    const u = Math.max(0, Math.min(1, (now - this.start) / this.span)) * (p.length - 1);
+    const i = Math.min(Math.floor(u), p.length - 2);
+    return p[i]! + (u - i) * (p[i + 1]! - p[i]!);
+  }
+
+  reset(): void {
+    this.points = [0];
+    this.span = 0;
+  }
 }
 
 export interface FfbScalerOptions {
@@ -140,6 +186,23 @@ export class FfbScaler {
    * positive right) feeds the runaway guard.
    */
   scale(torque: number, dt: number, wheelAngle?: number): number {
+    this.watch(dt, wheelAngle);
+    return this.shape(torque, dt);
+  }
+
+  /**
+   * Feed the runaway guard the hand-wheel angle (rad) once per host step,
+   * for a sink that shapes the torque on its own faster timer.
+   */
+  watch(dt: number, wheelAngle?: number): void {
+    this.watchRunaway(dt, wheelAngle);
+  }
+
+  /**
+   * Normalised output for a torque, without touching the runaway guard
+   * (see `watch`): gain, clipping, smoothing and the slew limit.
+   */
+  shape(torque: number, dt: number): number {
     this.requested = this.gain * torque;
     this.peak = Math.max(this.peak, Math.abs(this.requested));
     const raw = this.requested / Math.max(this.maxTorque, 1e-6);
@@ -148,7 +211,6 @@ export class FfbScaler {
     this.frames++;
     this.lastClipped = Math.abs(raw) > limit;
     if (this.lastClipped) this.clipped++;
-    this.watchRunaway(dt, wheelAngle);
     if (this.trippedReason !== undefined) {
       this.output = 0;
       return 0;

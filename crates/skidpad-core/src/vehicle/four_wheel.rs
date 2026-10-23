@@ -1327,7 +1327,7 @@ impl FourWheelVehicle {
                 parts[3] += lift;
             }
         }
-        self.steering_torque = self.def.hand_wheel_torque(kingpin);
+        self.steering_torque = self.def.hand_wheel_torque_at(kingpin, self.speed());
         self.steering_parts = self
             .def
             .steering_parts(parts, kingpin, self.steering_torque);
@@ -1545,10 +1545,14 @@ impl FourWheelVehicle {
         rec[t::BRAKE] = input.brake;
         rec[t::HANDBRAKE] = input.handbrake;
         rec[t::STEERING_TORQUE] = self.steering_torque;
-        // The host step's mean is `World::step`'s; outside a step, the value.
+        // The host step's mean and slices are `World::step`'s; outside a step,
+        // the value.
         rec[t::STEERING_TORQUE_MEAN] = self.steering_torque;
+        rec[t::STEERING_TORQUE_SLICE_0..t::STEERING_TORQUE_SLICE_0 + t::STEERING_TORQUE_SLICES]
+            .fill(self.steering_torque);
         rec[t::STEER_TORQUE_MZ..t::STEER_TORQUE_MZ + 5].copy_from_slice(&self.steering_parts);
         rec[t::RACK_FORCE] = self.rack_force;
+        rec[t::COLUMN_DAMPING] = self.def.column_damping_at(self.speed());
         rec[t::DRAG_FORCE] = self.drag_force;
 
         for axle in 0..2 {

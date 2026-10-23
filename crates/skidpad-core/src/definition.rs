@@ -332,6 +332,9 @@ pub const MAX_ALIGN_TORQUE_COMPLIANCE_DEG: f64 = 30.0;
 /// Bound on `powerAssistOnset`, N·m at the hand wheel: a heavy truck's
 /// manual torque at the limit is about this (ADR-0029).
 pub const MAX_POWER_ASSIST_ONSET: f64 = 20.0;
+
+/// Largest `steering.columnDampingSpeed`, m/s.
+pub const MAX_COLUMN_DAMPING_SPEED: f64 = 100.0;
 /// Bounds on the steering axis angles, degrees (ADR-0030). Road cars run
 /// about 10 to 15 of inclination and 3 to 8 of caster; a kart runs more.
 pub const MAX_KINGPIN_INCLINATION_DEG: f64 = 25.0;
@@ -465,11 +468,30 @@ pub struct SteeringDef {
     /// torque plus `powerAssist × powerAssistOnset`. Zero (the default) is
     /// the constant fraction. 0 … 20.
     pub power_assist_onset: f64,
+    /// Speed-sensitive assist (ADR-0034): the assist fraction at and above
+    /// `power_assist_fade_end`, in place of `power_assist`, as electric and
+    /// variable hydraulic systems give less help at speed. 0 … 1.
+    pub power_assist_at_speed: f64,
+    /// Road speeds, m/s, between which the assist fades linearly from
+    /// `power_assist` to `power_assist_at_speed`. A zero end (the default)
+    /// keeps the assist the same at every speed. 0 ≤ start ≤ end ≤ 100.
+    pub power_assist_fade_start: f64,
+    pub power_assist_fade_end: f64,
     /// Column friction, N·m at the hand wheel, for the force-feedback device
     /// (not simulated: the hand wheel is the input).
     pub column_friction: f64,
     /// Column damping, N·m per rad/s of hand-wheel rate, for the device.
+    /// With `column_damping_speed` set, the damping at standstill.
     pub column_damping: f64,
+    /// Speed-sensitive damping (ADR-0033): the column damping reached at
+    /// `column_damping_speed` and held above it, N·m per rad/s, as an
+    /// electric assist's active damping rises with speed so a released
+    /// wheel settles at speed while parking stays light. Zero or positive.
+    pub column_damping_at_speed: f64,
+    /// The road speed at which `column_damping_at_speed` is reached, m/s;
+    /// the damping is linear in speed below it. Zero (the default) keeps
+    /// the damping constant at `column_damping`. 0 … 100.
+    pub column_damping_speed: f64,
     /// Jacking: how far each front contact moves along its ray per radian of
     /// road-wheel steer, m/rad (inner wheel down, outer up). Zero for a car
     /// with suspension; a kart lifts its inner rear with it. Four-wheel
@@ -504,8 +526,13 @@ impl Default for SteeringDef {
             steering_arm: 0.12,
             power_assist: 0.0,
             power_assist_onset: 0.0,
+            power_assist_at_speed: 0.0,
+            power_assist_fade_start: 0.0,
+            power_assist_fade_end: 0.0,
             column_friction: 0.3,
             column_damping: 0.05,
+            column_damping_at_speed: 0.0,
+            column_damping_speed: 0.0,
             jacking_rate: 0.0,
             align_torque_compliance_deg: 0.0,
             kingpin_inclination_deg: 0.0,
@@ -822,10 +849,32 @@ impl VehicleDefinition {
                 "steering.casterDeg must be in [{MIN_CASTER_DEG}, {MAX_CASTER_DEG}] deg (got {caster})"
             ));
         }
+        let st = &self.steering;
+        if !(0.0..=1.0).contains(&st.power_assist_at_speed) {
+            e.push(format!(
+                "steering.powerAssistAtSpeed must be in [0, 1] (got {})",
+                st.power_assist_at_speed
+            ));
+        }
+        if !(st.power_assist_fade_start >= 0.0
+            && st.power_assist_fade_end >= st.power_assist_fade_start
+            && st.power_assist_fade_end <= MAX_COLUMN_DAMPING_SPEED)
+        {
+            e.push(format!(
+                "steering.powerAssistFadeStart and powerAssistFadeEnd must satisfy 0 ≤ start ≤ end ≤ {MAX_COLUMN_DAMPING_SPEED} m/s (got {} and {})",
+                st.power_assist_fade_start, st.power_assist_fade_end
+            ));
+        }
         let onset = self.steering.power_assist_onset;
         if !(0.0..=MAX_POWER_ASSIST_ONSET).contains(&onset) {
             e.push(format!(
                 "steering.powerAssistOnset must be in [0, {MAX_POWER_ASSIST_ONSET}] N·m (got {onset})"
+            ));
+        }
+        let cds = self.steering.column_damping_speed;
+        if !(0.0..=MAX_COLUMN_DAMPING_SPEED).contains(&cds) {
+            e.push(format!(
+                "steering.columnDampingSpeed must be in [0, {MAX_COLUMN_DAMPING_SPEED}] m/s (got {cds})"
             ));
         }
         let atc = self.steering.align_torque_compliance_deg;
@@ -837,6 +886,10 @@ impl VehicleDefinition {
         for (name, v) in [
             ("columnFriction", self.steering.column_friction),
             ("columnDamping", self.steering.column_damping),
+            (
+                "columnDampingAtSpeed",
+                self.steering.column_damping_at_speed,
+            ),
         ] {
             if !(v >= 0.0) {
                 e.push(format!(
@@ -962,7 +1015,40 @@ impl VehicleDefinition {
     /// the constant fraction `(1 − a)·Tm`, bit for bit as before.
     #[inline]
     pub fn hand_wheel_torque(&self, kingpin_torque: f64) -> f64 {
-        let a = self.steering.power_assist;
+        self.hand_wheel_torque_with(kingpin_torque, self.steering.power_assist)
+    }
+
+    /// The assist fraction at road speed `speed`, m/s (ADR-0034):
+    /// `power_assist` below the fade's start, `power_assist_at_speed` above
+    /// its end, linear between; `power_assist` at every speed when the fade
+    /// is off.
+    pub fn power_assist_at(&self, speed: f64) -> f64 {
+        let st = &self.steering;
+        if !(st.power_assist_fade_end > 0.0) {
+            return st.power_assist;
+        }
+        let v = m::abs(speed);
+        let span = st.power_assist_fade_end - st.power_assist_fade_start;
+        let u = if v >= st.power_assist_fade_end {
+            1.0
+        } else if v <= st.power_assist_fade_start || !(span > 0.0) {
+            0.0
+        } else {
+            (v - st.power_assist_fade_start) / span
+        };
+        st.power_assist + u * (st.power_assist_at_speed - st.power_assist)
+    }
+
+    /// [`Self::hand_wheel_torque`] at road speed `speed`, m/s, with the
+    /// speed-sensitive assist (ADR-0034); bit for bit the same when it is
+    /// off.
+    #[inline]
+    pub fn hand_wheel_torque_at(&self, kingpin_torque: f64, speed: f64) -> f64 {
+        self.hand_wheel_torque_with(kingpin_torque, self.power_assist_at(speed))
+    }
+
+    #[inline]
+    fn hand_wheel_torque_with(&self, kingpin_torque: f64, a: f64) -> f64 {
         let manual = -kingpin_torque / self.steering.ratio;
         let onset = self.steering.power_assist_onset;
         if !(onset > 0.0) {
@@ -988,6 +1074,19 @@ impl VehicleDefinition {
             -parts[3] / ratio,
             hand + kingpin / ratio,
         ]
+    }
+
+    /// Column damping for the device at road speed `speed` (m/s), N·m per
+    /// rad/s of hand-wheel rate (ADR-0033): `column_damping` at rest,
+    /// linear to `column_damping_at_speed` at `column_damping_speed` and
+    /// held there; constant when that speed is zero.
+    pub fn column_damping_at(&self, speed: f64) -> f64 {
+        let st = &self.steering;
+        if !(st.column_damping_speed > 0.0) {
+            return st.column_damping;
+        }
+        let u = m::min(m::abs(speed) / st.column_damping_speed, 1.0);
+        st.column_damping + u * (st.column_damping_at_speed - st.column_damping)
     }
 
     /// Which axles are driven, front then rear.

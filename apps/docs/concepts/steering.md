@@ -49,6 +49,13 @@ Well below the onset the hand feels the whole manual torque; well above
 it, `1 − a` of it plus a constant `a × powerAssistOnset`. The torque rises
 with load everywhere, so the wheel never goes lighter as you turn in.
 
+`steering.powerAssistAtSpeed`, `powerAssistFadeStart` and
+`powerAssistFadeEnd` make the assist speed-sensitive: the assist fraction
+goes linearly from `powerAssist` at the fade's start to
+`powerAssistAtSpeed` at its end (m/s). The wheel is then light when parking
+and heavier at speed, as with most electric systems
+([ADR-0034](https://github.com/CS-Software-LLC/skidpad/blob/main/docs/adr/0034-speed-sensitive-power-assist.md)).
+
 ## Self-centring from the axis angles
 
 The kingpin axis leans inboard at the top (kingpin inclination,
@@ -76,6 +83,12 @@ friction (`columnFriction`) and damping (`columnDamping`) are definition
 values the input package maps onto a wheel's own friction and damper
 effects, where the device's firmware applies them at its own rate.
 
+`columnDampingAtSpeed` and `columnDampingSpeed` make the damping rise with
+speed, as electric power steering's active damping does: linear from
+`columnDamping` at rest to `columnDampingAtSpeed` at `columnDampingSpeed`
+(m/s), then held. The core reports the current value as `ColumnDamping`
+([ADR-0033](https://github.com/CS-Software-LLC/skidpad/blob/main/docs/adr/0033-speed-sensitive-column-damping.md)).
+
 ## Torque channels for force feedback
 
 The core substeps at the definition's rate (1 kHz by default), while a host
@@ -93,6 +106,12 @@ radius), `SteerTorqueLift` (the axis angles above) and `SteerTorqueAssist`
 (what the power assist removed, opposite in sign to the rest while it
 helps). The sandbox's wheel panel graphs them with the torque requested of
 the wheel and the torque actually sent.
+
+`SteeringTorqueSlice0` … `SteeringTorqueSlice7` cut the host step into eight
+equal slices of time, oldest first, for a sink that plays the torque out
+faster than the host rate. `LogitechWebHidSink`'s `playoutRate` replays each
+step's slices over the next step with linear interpolation, one step behind
+([ADR-0032](https://github.com/CS-Software-LLC/skidpad/blob/main/docs/adr/0032-sub-frame-torque-playout.md)).
 
 ## Jacking
 

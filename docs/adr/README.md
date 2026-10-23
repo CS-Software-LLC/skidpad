@@ -38,3 +38,6 @@ Rejected.
 | [0029](0029-power-assist-boost-curve.md)               | Power assist boost curve                                                | Proposed                  |
 | [0030](0030-steering-lift-self-centring.md)            | Self-centring from the steering axis lift                               | Proposed                  |
 | [0031](0031-force-feedback-torque-channels.md)         | Force-feedback torque channels: the step mean and the breakdown         | Proposed                  |
+| [0032](0032-sub-frame-torque-playout.md)               | Sub-frame steering torque for force-feedback playout                    | Proposed                  |
+| [0033](0033-speed-sensitive-column-damping.md)         | Speed-sensitive column damping                                          | Proposed                  |
+| [0034](0034-speed-sensitive-power-assist.md)           | Speed-sensitive power assist                                            | Proposed                  |

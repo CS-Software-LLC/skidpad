@@ -20,7 +20,7 @@
  * wheel's gamepad collection stays with the Gamepad API.
  */
 import type { FfbFrame, FfbSink } from "./ffb.js";
-import { FfbScaler, type FfbScalerOptions } from "./ffb.js";
+import { FfbScaler, TorquePlayout, type FfbScalerOptions } from "./ffb.js";
 
 /** The parts of WebHID this module uses; typed locally to avoid a lib dependency. */
 export interface HidDeviceLike {
@@ -80,7 +80,20 @@ export interface LogitechWheelModel {
   protocol: LogitechProtocol;
   /** Torque at full output, N·m (approximate; belt and gear wheels 2 to 3). */
   peakTorque: number;
+  /** Widest rotation the wheel can be set to, degrees lock to lock (default 900). */
+  maxRotationDeg?: number;
+  /** A direct-drive base: no belt or gear lag, so it can take a fast slew. */
+  directDrive?: boolean;
 }
+
+/**
+ * Scaler settings for a direct-drive base (polish item 2): zero to full
+ * output in 20 ms and 3 ms smoothing, against 0.2 s and 10 ms for gear and
+ * belt wheels. Simucube leaves its slew limit off by default; the runaway
+ * guard and `maxOutput` stay as the safety layer. [VERIFY] on the G PRO
+ * before it becomes the default.
+ */
+export const DIRECT_DRIVE_SCALER = { slewRate: 50, smoothing: 0.003 } as const;
 
 /**
  * Wheels known by USB product id, with the protocol the Linux drivers use
@@ -101,9 +114,23 @@ export const LOGITECH_WHEELS: readonly LogitechWheelModel[] = [
   { productId: 0xca03, name: "MOMO Racing", protocol: "classic", peakTorque: 2 },
   { productId: 0xc262, name: "G920", protocol: "hidpp", peakTorque: 2.5 },
   { productId: 0xc26e, name: "G923 (Xbox / PC)", protocol: "hidpp", peakTorque: 2.5 },
-  { productId: 0xc272, name: "G PRO (Xbox / PC)", protocol: "hidpp", peakTorque: 11 },
+  {
+    productId: 0xc272,
+    name: "G PRO (Xbox / PC)",
+    protocol: "hidpp",
+    peakTorque: 11,
+    maxRotationDeg: 1080,
+    directDrive: true,
+  },
   // [VERIFY] not in the Linux drivers.
-  { productId: 0xc268, name: "G PRO (PlayStation / PC)", protocol: "hidpp", peakTorque: 11 },
+  {
+    productId: 0xc268,
+    name: "G PRO (PlayStation / PC)",
+    protocol: "hidpp",
+    peakTorque: 11,
+    maxRotationDeg: 1080,
+    directDrive: true,
+  },
 ];
 
 /** The known wheel with this product id, if any. */
@@ -136,6 +163,15 @@ export interface LogitechSinkOptions extends FfbScalerOptions {
   log?: (line: string) => void;
   /** Lowest interval between output reports, s (the device's rate). */
   minInterval?: number;
+  /**
+   * Play each host step's torque slices (`FfbFrame.samples`) out at this
+   * rate, Hz, one host step behind with linear interpolation, instead of
+   * one level per host step (ADR-0032). 0 (the default) is off. A report
+   * still in flight when the next is due is skipped, so the real rate is
+   * what the device answers at [VERIFY on the G PRO; try 250 to 500].
+   * Overrides `minInterval` while it runs.
+   */
+  playoutRate?: number;
   /**
    * Largest fraction of the device's peak torque ever sent, 0 … 1 (default
    * 0.4: about 4.4 N·m on a G PRO). Every level is multiplied by it before
@@ -342,6 +378,67 @@ export function columnEffects(
     saturation: limit,
   };
 }
+/** One constant-force run of the damper measurement. */
+export interface DamperRun {
+  /** Constant torque applied, N·m. */
+  torque: number;
+  /** Terminal hand-wheel speed it reached, rad/s. */
+  speed: number;
+}
+
+export interface DamperFit {
+  /** Damping the firmware applied, N·m per rad/s. */
+  damping: number;
+  /** Torque lost to friction (the rim's own and the firmware's), N·m. */
+  friction: number;
+  /**
+   * The wheel speed at which a damper coefficient of 1 gives the device's
+   * peak torque, rad/s: the sink's `damperRate`.
+   */
+  damperRate: number;
+  /**
+   * How well the runs agree with one damping line through the friction,
+   * |residual| over torque, worst run (0 is exact).
+   */
+  spread: number;
+}
+
+/**
+ * Fit the firmware's damper from constant-force runs at a known damper
+ * coefficient (polish item 4): at terminal speed `T = c·ω + f`, so two or
+ * more runs give the damping `c` and the friction `f` by least squares, and
+ * the coefficient's scale follows as `damperRate = coefficient · peak / c`.
+ * Undefined when the speeds do not grow with the torque.
+ */
+export function fitDamper(
+  runs: readonly DamperRun[],
+  coefficient: number,
+  peakTorque: number,
+): DamperFit | undefined {
+  const pts = runs.filter((r) => Number.isFinite(r.speed) && Math.abs(r.speed) > 1e-3);
+  if (pts.length < 2) return undefined;
+  const n = pts.length;
+  const xs = pts.map((r) => Math.abs(r.speed));
+  const ys = pts.map((r) => Math.abs(r.torque));
+  const mx = xs.reduce((a, b) => a + b, 0) / n;
+  const my = ys.reduce((a, b) => a + b, 0) / n;
+  let sxy = 0;
+  let sxx = 0;
+  for (let i = 0; i < n; i++) {
+    sxy += (xs[i]! - mx) * (ys[i]! - my);
+    sxx += (xs[i]! - mx) ** 2;
+  }
+  if (!(sxx > 0)) return undefined;
+  const damping = sxy / sxx;
+  if (!(damping > 0)) return undefined;
+  const friction = Math.max(0, my - damping * mx);
+  let spread = 0;
+  for (let i = 0; i < n; i++) {
+    spread = Math.max(spread, Math.abs(ys[i]! - (damping * xs[i]! + friction)) / ys[i]!);
+  }
+  return { damping, friction, damperRate: (coefficient * peakTorque) / damping, spread };
+}
+
 function conditionParams(
   slot: number,
   type: number,
@@ -397,13 +494,23 @@ export class LogitechWebHidSink implements FfbSink {
   private watchdogTimer: ReturnType<typeof setInterval> | undefined;
   private readonly watchdogSeconds: number;
   private readonly minInterval: number;
-  private readonly rotationDeg: number;
+  /** Playout rate, Hz (0 off); see the option. */
+  playoutRate: number;
+  private readonly playout = new TorquePlayout();
+  private playoutTimer: ReturnType<typeof setInterval> | undefined;
+  private playoutHz = 0;
+  private lastTick = 0;
+  private sending = false;
+  /** Per-report lines in the log; off while the playout runs, which would flood it. */
+  private reportLines = true;
+  private measuring = false;
+  private rotationDeg: number;
   private readonly updateMode: "modify" | "recreate";
   private readonly log: (line: string) => void;
   private readonly lines: string[] = [];
   private readonly onReport = (e: HidInputReportEventLike): void => {
     const data = new Uint8Array(e.data.buffer, e.data.byteOffset, e.data.byteLength);
-    this.record(`<- id ${e.reportId.toString(16)} ${hex(data)}`);
+    if (this.reportLines) this.record(`<- id ${e.reportId.toString(16)} ${hex(data)}`);
     if (e.reportId === HIDPP_SHORT || e.reportId === HIDPP_LONG || e.reportId === HIDPP_VERY_LONG) {
       this.resolveReply(data);
     }
@@ -443,6 +550,7 @@ export class LogitechWebHidSink implements FfbSink {
     this.rotationDeg = options.rotationDeg ?? 900;
     this.updateMode = options.updateMode ?? "modify";
     this.minInterval = options.minInterval ?? 1 / 120;
+    this.playoutRate = Math.max(0, options.playoutRate ?? 0);
     this.log = options.log ?? (() => {});
     this.columnScale = options.columnScale ?? 1;
     this.damperRate = options.damperRate ?? 10;
@@ -641,7 +749,7 @@ export class LogitechWebHidSink implements FfbSink {
 
   private async send(reportId: number, data: Uint8Array): Promise<void> {
     if (!this.device) return;
-    this.record(`-> id ${reportId.toString(16)} ${hex(data)}`);
+    if (this.reportLines) this.record(`-> id ${reportId.toString(16)} ${hex(data)}`);
     await this.device.sendReport(reportId, data);
   }
 
@@ -727,10 +835,8 @@ export class LogitechWebHidSink implements FfbSink {
         ? `centring spring set to zero (slot ${centring.params[0] ?? "?"})`
         : "could not zero the centring spring; the wheel will stay stiff",
     );
-    await this.hidpp(this.featureIndex, FF_SET_APERTURE, [
-      this.rotationDeg >> 8,
-      this.rotationDeg & 0xff,
-    ]);
+    const aperture = Math.round(Math.max(40, Math.min(this.maxRotationDeg, this.rotationDeg)));
+    await this.hidpp(this.featureIndex, FF_SET_APERTURE, [aperture >> 8, aperture & 0xff]);
     // Gain, then boost: full gain, no boost, as the Linux driver sends.
     await this.hidpp(this.featureIndex, FF_SET_GLOBAL_GAINS, [0xff, 0xff, 0, 0]);
     this.slot = await this.download(constantParams(0, 0));
@@ -755,7 +861,7 @@ export class LogitechWebHidSink implements FfbSink {
 
   private async setupClassic(): Promise<undefined> {
     await this.send(CLASSIC_REPORT_ID, new Uint8Array([CLASSIC_AUTOCENTER_OFF, 0, 0, 0, 0, 0, 0]));
-    const range = Math.max(40, Math.min(900, Math.round(this.rotationDeg)));
+    const range = Math.max(40, Math.min(this.maxRotationDeg, Math.round(this.rotationDeg)));
     await this.send(
       CLASSIC_REPORT_ID,
       new Uint8Array([CLASSIC_EXTENDED, CLASSIC_SET_RANGE, range & 0xff, range >> 8, 0, 0, 0]),
@@ -766,7 +872,13 @@ export class LogitechWebHidSink implements FfbSink {
   // --- frames -------------------------------------------------------------------
 
   async update(frame: FfbFrame, dt: number): Promise<void> {
-    if (!this.ready) return;
+    // The damper measurement owns the force while it runs.
+    if (!this.ready || this.measuring) return;
+    if (this.playoutRate > 0 && frame.samples && frame.samples.length > 0) {
+      await this.updatePlayout(frame, dt);
+      return;
+    }
+    this.stopPlayout();
     const wasTripped = this.scaler.tripped;
     const level = this.scaler.scale(frame.torque, dt, frame.wheelAngle);
     if (!wasTripped && this.scaler.tripped) {
@@ -785,6 +897,91 @@ export class LogitechWebHidSink implements FfbSink {
       this.record(`   send failed: ${String(e)}`);
     }
     await this.sendColumn(frame);
+  }
+
+  /**
+   * Playout mode: the host step only feeds the runaway guard and queues
+   * the slices; a timer shapes and sends the interpolated torque.
+   */
+  private async updatePlayout(frame: FfbFrame, dt: number): Promise<void> {
+    const wasTripped = this.scaler.tripped;
+    this.scaler.watch(dt, frame.wheelAngle);
+    if (!wasTripped && this.scaler.tripped) {
+      this.record(`   runaway guard: ${this.scaler.tripped}; force off until re-armed`);
+    }
+    const now = performance.now() / 1000;
+    this.lastUpdate = now;
+    this.playout.push(frame.samples!, dt, now);
+    if (this.playoutHz !== this.playoutRate) this.startPlayout();
+    await this.sendColumn(frame);
+  }
+
+  private startPlayout(): void {
+    this.stopPlayout();
+    this.playoutHz = this.playoutRate;
+    this.lastTick = performance.now() / 1000;
+    this.reportLines = false;
+    this.record(`   playout at ${this.playoutHz} Hz; per-report log lines paused`);
+    this.playoutTimer = setInterval(() => this.tick(), 1000 / this.playoutHz);
+  }
+
+  private stopPlayout(): void {
+    if (this.playoutTimer === undefined) return;
+    clearInterval(this.playoutTimer);
+    this.playoutTimer = undefined;
+    this.playoutHz = 0;
+    this.playout.reset();
+    this.reportLines = true;
+  }
+
+  /** One playout report: skipped while the last is in flight or updates stopped. */
+  private tick(): void {
+    const now = performance.now() / 1000;
+    const dt = now - this.lastTick;
+    this.lastTick = now;
+    if (this.sending || now - this.lastUpdate > this.watchdogSeconds) return;
+    const level = this.scaler.shape(this.playout.at(now), dt);
+    this.lastSent = now;
+    this.lastLevel = level;
+    this.sending = true;
+    this.sendLevel(level)
+      .catch((e: unknown) => this.record(`   send failed: ${String(e)}`))
+      .finally(() => {
+        this.sending = false;
+      });
+  }
+
+  /**
+   * Set the wheel's rotation, degrees lock to lock, clamped to what the
+   * device allows (polish item 3: match the car's lock, so the wheel's
+   * bump stop is the rack's). The wheel's axis then spans the new range
+   * [VERIFY on hardware], so the input's rotation must follow it.
+   * Returns the rotation set.
+   */
+  async setRotation(deg: number): Promise<number> {
+    const r = Math.round(Math.max(40, Math.min(this.maxRotationDeg, deg)));
+    this.rotationDeg = r;
+    if (!this.ready) return r;
+    if (this.protocol === "classic") {
+      await this.send(
+        CLASSIC_REPORT_ID,
+        new Uint8Array([CLASSIC_EXTENDED, CLASSIC_SET_RANGE, r & 0xff, r >> 8, 0, 0, 0]),
+      );
+    } else if (this.featureIndex !== 0) {
+      await this.hidpp(this.featureIndex, FF_SET_APERTURE, [r >> 8, r & 0xff]);
+    }
+    this.record(`   rotation set to ${r}°`);
+    return r;
+  }
+
+  /** Widest rotation the attached wheel takes, degrees (900 when unknown). */
+  get maxRotationDeg(): number {
+    return this.model?.maxRotationDeg ?? 900;
+  }
+
+  /** Whether the attached wheel is a direct-drive base. */
+  get directDrive(): boolean {
+    return this.model?.directDrive ?? false;
   }
 
   /**
@@ -812,11 +1009,14 @@ export class LogitechWebHidSink implements FfbSink {
       maxOutput: this.maxOutputValue,
     });
     const q = (x: number): number => Math.round(x * 0x7fff);
+    // The damper in steps of about 5 %: with speed-sensitive damping
+    // (ADR-0033) it moves every frame, and each change costs reports.
+    const qd = q(c.damper) === 0 ? 0 : Math.round(Math.log(c.damper) / Math.log(1.05));
     // Both off is one state whatever the saturation, as set-up leaves them.
     const key =
       q(c.friction) === 0 && q(c.damper) === 0
         ? COLUMN_OFF
-        : `${q(c.friction)} ${q(c.damper)} ${q(c.saturation)}`;
+        : `${q(c.friction)} ${qd} ${q(c.saturation)}`;
     if (key === this.lastColumn) return;
     this.lastColumn = key;
     this.record(
@@ -884,6 +1084,113 @@ export class LogitechWebHidSink implements FfbSink {
   }
 
   /**
+   * Measure the firmware damper's units (polish item 4). With the hands
+   * off, the damper at `coefficient` and friction off, a constant torque
+   * spins the rim to its terminal speed, read from `readAngleDeg` (the
+   * hand-wheel angle, degrees, positive right); this repeats at each of
+   * `torques` (N·m, alternating direction), then `fitDamper` gives the
+   * damping and `damperRate`. Each run stops early near the end stop or if
+   * the rim runs faster than `maxSpeed`. The force is zeroed after; the
+   * next `update()` restores the column effects. With two torques the
+   * second run also shows whether changing a playing constant force works
+   * in this `updateMode` [VERIFY]: if it does not, the speeds do not grow
+   * and the fit fails.
+   */
+  async measureDamper(
+    readAngleDeg: () => number,
+    o: {
+      torques?: readonly number[];
+      coefficient?: number;
+      settle?: number;
+      window?: number;
+      maxAngleDeg?: number;
+      maxSpeed?: number;
+    } = {},
+  ): Promise<{ runs: DamperRun[]; fit: DamperFit | undefined }> {
+    const torques = o.torques ?? [0.3, 0.5, 0.7];
+    const coefficient = o.coefficient ?? 0.4;
+    const settle = o.settle ?? 0.6;
+    const window = o.window ?? 0.4;
+    const maxAngle = o.maxAngleDeg ?? 0.5 * this.rotationDeg - 60;
+    const maxSpeed = o.maxSpeed ?? 15;
+    const runs: DamperRun[] = [];
+    if (!this.ready || this.protocol === "classic" || this.featureIndex === 0) {
+      return { runs, fit: undefined };
+    }
+    this.stopPlayout();
+    const sleep = (s: number) => new Promise((r) => setTimeout(r, s * 1000));
+    const now = () => performance.now() / 1000;
+    this.record(`   measuring the damper at coefficient ${coefficient}`);
+    this.measuring = true;
+    try {
+      this.frictionSlot = await this.setCondition(this.frictionSlot, FF_EFFECT_FRICTION, 0, 0);
+      this.damperSlot = await this.setCondition(
+        this.damperSlot,
+        FF_EFFECT_DAMPER,
+        coefficient,
+        this.maxOutputValue,
+      );
+      this.lastColumn = undefined;
+      for (const [i, torque] of torques.entries()) {
+        const sign = i % 2 === 0 ? 1 : -1;
+        const level = (sign * torque) / Math.max(this.peakTorque * this.maxOutputValue, 1e-6);
+        this.lastUpdate = now();
+        this.lastLevel = level;
+        await this.sendLevel(Math.max(-1, Math.min(1, level)));
+        const t0 = now();
+        const samples: Array<[number, number]> = [];
+        let stopped = false;
+        while (now() - t0 < settle + window) {
+          await sleep(0.01);
+          this.lastUpdate = now();
+          const a = readAngleDeg();
+          const t = now();
+          const last = samples.at(-1);
+          const rate = last ? ((a - last[1]) * Math.PI) / 180 / Math.max(t - last[0], 1e-3) : 0;
+          if (Math.abs(a) > maxAngle || Math.abs(rate) > maxSpeed) {
+            stopped = true;
+            break;
+          }
+          if (t - t0 >= settle) samples.push([t, a]);
+        }
+        await this.sendLevel(0);
+        this.lastLevel = 0;
+        // The window's mean speed, and its two halves to check it settled.
+        const speedOf = (p: Array<[number, number]>): number =>
+          p.length < 2
+            ? NaN
+            : ((p.at(-1)![1] - p[0]![1]) * Math.PI) / 180 / Math.max(p.at(-1)![0] - p[0]![0], 1e-3);
+        const half = Math.floor(samples.length / 2);
+        const speed = speedOf(samples);
+        const early = speedOf(samples.slice(0, half + 1));
+        const late = speedOf(samples.slice(half));
+        const steady = Math.abs(late - early) <= 0.05 * Math.abs(speed);
+        if (!stopped && samples.length >= 4 && steady) {
+          runs.push({ torque: sign * torque, speed });
+          this.record(
+            `   run ${i + 1}: ${torque.toFixed(2)} N·m -> ${((Math.abs(speed) * 180) / Math.PI).toFixed(0)}°/s`,
+          );
+        } else {
+          const why = stopped ? "stopped at the angle or speed limit" : "speed still changing";
+          this.record(`   run ${i + 1}: ${torque.toFixed(2)} N·m, ${why}; not used`);
+        }
+        // Back toward centre before the next run, which goes the other way.
+        await sleep(0.3);
+      }
+    } finally {
+      this.measuring = false;
+      await this.zero();
+    }
+    const fit = fitDamper(runs, coefficient, this.peakTorque);
+    this.record(
+      fit
+        ? `   damper: ${fit.damping.toFixed(3)} N·m·s/rad, friction ${fit.friction.toFixed(2)} N·m, damperRate ${fit.damperRate.toFixed(1)} rad/s (spread ${(100 * fit.spread).toFixed(0)} %)`
+        : "   damper: no fit; the speed did not grow with the torque (try the other update mode)",
+    );
+    return { runs, fit };
+  }
+
+  /**
    * Send a short, gentle pulse for the setup panel's "test" button. A
    * positive level should turn the wheel right; if it turns left, set the
    * scaler's `invert`.
@@ -900,6 +1207,7 @@ export class LogitechWebHidSink implements FfbSink {
   }
 
   async stop(): Promise<void> {
+    this.stopPlayout();
     if (!this.device?.opened) return;
     this.lastSent = -Infinity;
     this.lastLevel = 0;
