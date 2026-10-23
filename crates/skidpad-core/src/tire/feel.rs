@@ -117,6 +117,13 @@ pub struct FeelTireParams {
     /// Rolling speed at which the low-speed damping has faded to zero, m/s
     /// (ADR-0010).
     pub low_speed_damping_fade: f64,
+    /// Vertical stiffness of the tire, N/m (ADR-0028). Used only on an axle
+    /// with unsprung mass, where the tire is a spring between the wheel and
+    /// the road.
+    pub vertical_stiffness: f64,
+    /// Vertical damping of the tire, N·s/m (ADR-0028). Used only on an axle
+    /// with unsprung mass.
+    pub vertical_damping: f64,
 }
 
 impl Default for FeelTireParams {
@@ -144,6 +151,8 @@ impl Default for FeelTireParams {
             low_speed_floor: 0.5,
             low_speed_damping: 0.7,
             low_speed_damping_fade: 2.0,
+            vertical_stiffness: 250000.0,
+            vertical_damping: 500.0,
         }
     }
 }
@@ -333,6 +342,7 @@ impl FeelTireParams {
             ("relaxationLengthLat", self.relaxation_length_lat),
             ("lowSpeedFloor", self.low_speed_floor),
             ("lowSpeedDampingFade", self.low_speed_damping_fade),
+            ("verticalStiffness", self.vertical_stiffness),
         ];
         for (name, v) in positive {
             if !(v > 0.0) || !v.is_finite() {
@@ -390,6 +400,7 @@ impl FeelTireParams {
             ("pneumaticTrail", self.pneumatic_trail),
             ("rollingResistance", self.rolling_resistance),
             ("lowSpeedDamping", self.low_speed_damping),
+            ("verticalDamping", self.vertical_damping),
         ] {
             if !(v >= 0.0) || !v.is_finite() {
                 errors.push(format!(

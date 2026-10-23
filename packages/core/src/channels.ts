@@ -163,6 +163,10 @@ export const CHANNEL_NAMES = [
   "ComplianceSteer_FR",
   "ComplianceSteer_RL",
   "ComplianceSteer_RR",
+  "TireDeflection_FL",
+  "TireDeflection_FR",
+  "TireDeflection_RL",
+  "TireDeflection_RR",
 ] as const;
 
 /** A telemetry channel name; `World.read` checks it at compile time. */

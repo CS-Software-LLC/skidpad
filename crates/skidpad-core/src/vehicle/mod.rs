@@ -34,12 +34,13 @@ impl VehicleModel {
         }
     }
 
-    /// Number of snapshot values of a model kind; the snapshot of each
-    /// kind has its own fixed length.
-    pub fn state_len_of(kind: VehicleModelKind) -> usize {
+    /// Number of snapshot values of a model kind for a definition; the
+    /// snapshot of each kind has its own length, and a four-wheel vehicle
+    /// with unsprung mass appends its wheels' travel (ADR-0028).
+    pub fn state_len_of(kind: VehicleModelKind, def: &VehicleDefinition) -> usize {
         match kind {
             VehicleModelKind::SingleTrack => bicycle::STATE_LEN,
-            VehicleModelKind::FourWheel => four_wheel::STATE_LEN,
+            VehicleModelKind::FourWheel => four_wheel::state_len(def),
         }
     }
 

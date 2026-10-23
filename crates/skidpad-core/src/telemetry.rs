@@ -217,6 +217,13 @@ channels! {
     COMPLIANCE_STEER_FR => ("ComplianceSteer_FR", "rad"),
     COMPLIANCE_STEER_RL => ("ComplianceSteer_RL", "rad"),
     COMPLIANCE_STEER_RR => ("ComplianceSteer_RR", "rad"),
+    // Tire deflection of a wheel with unsprung mass (ADR-0028), m:
+    // positive pressed in, negative the gap to the ground once the wheel is
+    // off it. Zero for the massless strut.
+    TIRE_DEFLECTION_FL => ("TireDeflection_FL", "m"),
+    TIRE_DEFLECTION_FR => ("TireDeflection_FR", "m"),
+    TIRE_DEFLECTION_RL => ("TireDeflection_RL", "m"),
+    TIRE_DEFLECTION_RR => ("TireDeflection_RR", "m"),
 }
 
 /// Index of the first channel in each per-wheel group; the four wheels follow
@@ -243,6 +250,7 @@ pub const WHEEL_GROUPS: &[usize] = &[
     PEAK_SLIP_FL,
     TOE_FL,
     COMPLIANCE_STEER_FL,
+    TIRE_DEFLECTION_FL,
 ];
 
 /// Number of `f64` slots in one vehicle's telemetry record.
@@ -275,7 +283,7 @@ mod tests {
         assert_eq!(CHANNELS[WHEEL_LOCKED_R].name, "WheelLocked_R");
         assert_eq!(CHANNELS[SPIN_ANGLE_RR].name, "SpinAngle_RR");
         assert_eq!(CHANNELS[ENGINE_RPM].name, "EngineRpm");
-        assert_eq!(STRIDE, COMPLIANCE_STEER_RR + 1);
+        assert_eq!(STRIDE, TIRE_DEFLECTION_RR + 1);
         for &g in WHEEL_GROUPS {
             let base = CHANNELS[g].name.trim_end_matches("_FL");
             for (k, side) in ["_FL", "_FR", "_RL", "_RR"].iter().enumerate() {

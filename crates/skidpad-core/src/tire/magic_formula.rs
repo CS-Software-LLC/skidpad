@@ -16,7 +16,9 @@
 //! `PECP*`, `QDTP*`, `QCRP*`, `QBRP*`, `QDRP*`), the extended camber stiffness
 //! terms of MF 6.x (`PKY5`–`PKY7`, `PVY*` beyond 4), inflation pressure (`PPX*`,
 //! `PPY*`, `PPZ*`, `PPMX*`), contact-patch and belt dynamics (`[CONTACT_PATCH]`,
-//! `[STRUCTURAL]`), and vertical stiffness (`[VERTICAL]` beyond `FZ0`).
+//! `[STRUCTURAL]`), and the `[VERTICAL]` section beyond `FZ0`,
+//! `VERTICAL_STIFFNESS` and `VERTICAL_DAMPING` (used only with unsprung mass,
+//! ADR-0028).
 //!
 //! Sign convention is ISO 8855 (ADR-0007), the same as `.tir` files.
 
@@ -68,6 +70,12 @@ mf_params! {
         unloaded_radius: "UNLOADED_RADIUS" = 0.31,
         /// Nominal load `Fz0`, N (`FNOMIN` in PAC2002 and MF-Tyre files).
         fz0: "FZ0" = 4000.0,
+        /// Vertical stiffness, N/m. Used only on an axle with unsprung mass
+        /// (ADR-0028).
+        vertical_stiffness: "VERTICAL_STIFFNESS" = 250000.0,
+        /// Vertical damping, N·s/m. Used only on an axle with unsprung mass
+        /// (ADR-0028).
+        vertical_damping: "VERTICAL_DAMPING" = 500.0,
         /// Reference speed `V0` for the rolling resistance speed terms, m/s.
         longvl: "LONGVL" = 16.7,
         // Scaling factors
@@ -430,12 +438,19 @@ impl MagicFormulaParams {
             ("relaxationLengthLat", self.relaxation_length_lat),
             ("lowSpeedFloor", self.low_speed_floor),
             ("lowSpeedDampingFade", self.low_speed_damping_fade),
+            ("verticalStiffness", self.vertical_stiffness),
         ] {
             if !(v > 0.0) || !v.is_finite() {
                 errors.push(format!(
                     "{prefix}.{name} must be a positive number (got {v})"
                 ));
             }
+        }
+        if !(self.vertical_damping >= 0.0) || !self.vertical_damping.is_finite() {
+            errors.push(format!(
+                "{prefix}.verticalDamping must be zero or positive (got {})",
+                self.vertical_damping
+            ));
         }
         if !(self.low_speed_damping >= 0.0) || !self.low_speed_damping.is_finite() {
             errors.push(format!(

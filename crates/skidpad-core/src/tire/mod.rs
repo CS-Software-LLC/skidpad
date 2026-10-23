@@ -134,6 +134,16 @@ impl TireModel {
         }
     }
 
+    /// Vertical stiffness and damping of the tire, `(N/m, N·s/m)`. Used only
+    /// on an axle with unsprung mass (ADR-0028).
+    #[inline]
+    pub fn vertical_rates(&self) -> (f64, f64) {
+        match self {
+            TireModel::Feel(p) => (p.vertical_stiffness, p.vertical_damping),
+            TireModel::MagicFormula(p) => (p.vertical_stiffness, p.vertical_damping),
+        }
+    }
+
     /// Rolling speed at which the low-speed damping has faded to zero, m/s
     /// (ADR-0010).
     #[inline]

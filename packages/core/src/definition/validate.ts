@@ -172,6 +172,8 @@ function validateTire(errors: string[], warnings: string[], path: string, tire: 
       positive(errors, `${path}.${k}`, t[k]);
     }
     nonNegative(errors, `${path}.lowSpeedDamping`, t.lowSpeedDamping);
+    positive(errors, `${path}.verticalStiffness`, t.verticalStiffness);
+    nonNegative(errors, `${path}.verticalDamping`, t.verticalDamping);
     for (const k of ["falloffLong", "falloffLat"]) {
       const v = t[k];
       if (v !== undefined && (!isNum(v) || v <= 0 || v > 1)) {
@@ -222,10 +224,12 @@ function validateTire(errors: string[], warnings: string[], path: string, tire: 
       "relaxationLengthLat",
       "lowSpeedFloor",
       "lowSpeedDampingFade",
+      "verticalStiffness",
     ]) {
       positive(errors, `${path}.${k}`, t[k]);
     }
     nonNegative(errors, `${path}.lowSpeedDamping`, t.lowSpeedDamping);
+    nonNegative(errors, `${path}.verticalDamping`, t.verticalDamping);
     const pky1 = t.pky1;
     if (isNum(pky1) && pky1 > 0) {
       errors.push(
@@ -532,6 +536,12 @@ export function validateDefinition(def: unknown): ValidationResult {
             nonNegative(errors, `${path}.suspension.reboundDamping`, s.reboundDamping);
             nonNegative(errors, `${path}.suspension.antiRollStiffness`, s.antiRollStiffness);
             nonNegative(errors, `${path}.suspension.bumpStopStiffness`, s.bumpStopStiffness);
+            nonNegative(errors, `${path}.suspension.unsprungMass`, s.unsprungMass);
+            if (isNum(s.unsprungMass) && s.unsprungMass > 0 && s.kind === "solid") {
+              errors.push(
+                `${path}.suspension.unsprungMass is not yet supported on a solid axle (got ${s.unsprungMass}); use 0`,
+              );
+            }
             if (s.kind !== undefined && s.kind !== "independent" && s.kind !== "solid") {
               errors.push(
                 `${path}.suspension.kind must be "independent" or "solid" (got "${String(s.kind)}")`,
@@ -569,6 +579,12 @@ export function validateDefinition(def: unknown): ValidationResult {
             ) {
               const share = i === 0 ? (wb - cgf) / wb : cgf / wb;
               const staticLoad = 0.5 * mass * 9.80665 * share;
+              const mu = s.unsprungMass;
+              if (isNum(mu) && mu > 0 && !(mu * 9.80665 < staticLoad)) {
+                errors.push(
+                  `axles[${i}].suspension.unsprungMass (${mu} kg) must weigh less than the wheel's static load (${staticLoad.toFixed(0)} N)`,
+                );
+              }
               const compression = staticLoad / s.springRate;
               if (compression > s.travelBump) {
                 warnings.push(
