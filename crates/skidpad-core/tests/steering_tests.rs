@@ -484,3 +484,52 @@ fn the_mean_steering_torque_is_the_mean_over_the_substeps() {
         assert_eq!(rec[t::STEERING_TORQUE_MEAN], sum / n as f64, "step {step}");
     }
 }
+
+#[test]
+fn the_torque_slices_are_the_step_in_eight_parts() {
+    // As above: rebuild each slice from one-substep steps. 20 substeps
+    // fall in slice ⌊8j/20⌋; with fewer substeps than slices, an empty
+    // slice repeats the one before.
+    let def = every_torque_source(VehicleModelKind::FourWheel);
+    let rate = def.simulation.substep_rate_hz;
+    for n in [20usize, 8, 5, 1] {
+        let dt = n as f64 / rate;
+        let mut coarse = World::new(1);
+        coarse.add_vehicle(def.clone()).unwrap();
+        let mut fine = World::new(1);
+        fine.add_vehicle(def.clone()).unwrap();
+        let input = VehicleInput {
+            steer: 0.3,
+            throttle: 0.5,
+            ..VehicleInput::default()
+        };
+        coarse.set_input(0, input).unwrap();
+        fine.set_input(0, input).unwrap();
+        for _ in 0..30 {
+            coarse.step(dt);
+            let mut sums = [0.0; 8];
+            let mut counts = [0usize; 8];
+            for j in 0..n {
+                fine.step(dt / n as f64);
+                let k = j * 8 / n;
+                sums[k] += fine.telemetry_of(0)[t::STEERING_TORQUE];
+                counts[k] += 1;
+            }
+            let rec = coarse.telemetry_of(0);
+            let mut prev = f64::NAN;
+            for k in 0..8 {
+                let want = if counts[k] > 0 {
+                    sums[k] / counts[k] as f64
+                } else {
+                    prev
+                };
+                assert_eq!(rec[t::STEERING_TORQUE_SLICE_0 + k], want, "n {n} slice {k}");
+                prev = want;
+            }
+            // The last slice ends on the last substep's value when it holds one.
+            if n == 8 || n == 1 {
+                assert_eq!(rec[t::STEERING_TORQUE_SLICE_7], rec[t::STEERING_TORQUE]);
+            }
+        }
+    }
+}

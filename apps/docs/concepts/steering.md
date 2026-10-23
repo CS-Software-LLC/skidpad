@@ -94,6 +94,12 @@ radius), `SteerTorqueLift` (the axis angles above) and `SteerTorqueAssist`
 helps). The sandbox's wheel panel graphs them with the torque requested of
 the wheel and the torque actually sent.
 
+`SteeringTorqueSlice0` … `SteeringTorqueSlice7` cut the host step into eight
+equal slices of time, oldest first, for a sink that plays the torque out
+faster than the host rate. `LogitechWebHidSink`'s `playoutRate` replays each
+step's slices over the next step with linear interpolation, one step behind
+([ADR-0032](https://github.com/CS-Software-LLC/skidpad/blob/main/docs/adr/0032-sub-frame-torque-playout.md)).
+
 ## Jacking
 
 With caster and kingpin inclination, steering moves the wheels up and down

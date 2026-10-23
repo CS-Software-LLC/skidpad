@@ -162,6 +162,25 @@ describe("WheelInput", () => {
     expect(f.gear).toBe(0);
   });
 
+  it("follows a rotation set on the device, and reaches a wider lock at the end stop", async () => {
+    const { WheelInput } = await import("../src/index.js");
+    // The kart: 62.5° of lock each way on a wheel set to 125°.
+    const w = new WheelInput({ steeringLockDeg: 62.5 });
+    w.rotationDeg = 125;
+    w.match(pads(1, -1, -1));
+    let f = w.map()!;
+    expect(w.status.wheelAngleDeg).toBeCloseTo(62.5);
+    expect(f.steer).toBeCloseTo(1);
+    // The crossover's 493° on a 900° wheel: full steer at the wheel's 450°.
+    w.steeringLockDeg = 493;
+    w.rotationDeg = 900;
+    w.match(pads(1, -1, -1));
+    f = w.map()!;
+    expect(f.steer).toBeCloseTo(1);
+    w.match(pads(0.5, -1, -1));
+    expect(w.map()!.steer).toBeCloseTo(w.status.wheelAngleDeg / 450);
+  });
+
   it("shifts on the paddle's rising edge only", async () => {
     const { WheelInput } = await import("../src/index.js");
     const w = new WheelInput();
@@ -406,6 +425,36 @@ describe("force feedback", () => {
       columnDamping: 0.05,
     });
     expect(f.torque).toBe(1.5);
+    expect(f.samples).toHaveLength(8);
+  });
+
+  it("plays a step's slices out one step behind, continuously", async () => {
+    const { TorquePlayout } = await import("../src/index.js");
+    const p = new TorquePlayout();
+    p.push([1, 2, 3, 4], 0.04, 0);
+    // From the previous step's last value (0) to this step's last.
+    expect(p.at(0)).toBe(0);
+    expect(p.at(0.01)).toBeCloseTo(1);
+    expect(p.at(0.015)).toBeCloseTo(1.5);
+    expect(p.at(0.04)).toBeCloseTo(4);
+    expect(p.at(1)).toBe(4);
+    p.push([4, 2, 2, 0], 0.04, 0.04);
+    expect(p.at(0.04)).toBe(4);
+    expect(p.at(0.06)).toBeCloseTo(2);
+  });
+
+  it("keeps the runaway guard on the host step when the sink shapes on its own timer", async () => {
+    const { FfbScaler } = await import("../src/index.js");
+    const s = new FfbScaler({ maxTorque: 10, smoothing: 0, slewRate: Infinity });
+    let angle = 0.2;
+    for (let i = 0; i < 20 && !s.tripped; i++) {
+      // Four shaped samples per host step, the guard once.
+      for (let k = 0; k < 4; k++) s.shape(10, 1 / 240);
+      angle += 20 / 60;
+      s.watch(1 / 60, angle);
+    }
+    expect(s.tripped).toBeDefined();
+    expect(s.shape(10, 1 / 240)).toBe(0);
   });
 
   it("defaults to half gain, limits the output and its rate of change", async () => {
@@ -579,6 +628,91 @@ describe("force feedback", () => {
     expect(device.opened).toBe(false);
     // HID++ 2.0 commands never use the short report, which a G PRO refuses.
     expect(sent.some((s) => s.id === 0x10)).toBe(false);
+  });
+
+  /** A fake HID++ wheel that answers like the one above. */
+  const fakeWheel = (productId: number) => {
+    const sent: Array<{ id: number; data: number[] }> = [];
+    let listener: ((e: { reportId: number; data: DataView }) => void) | undefined;
+    const device = {
+      opened: false,
+      vendorId: 0x046d,
+      productId,
+      productName: "Racing Wheel",
+      async open() {
+        this.opened = true;
+      },
+      async close() {
+        this.opened = false;
+      },
+      async sendReport(id: number, data: Uint8Array) {
+        const bytes = Array.from(data);
+        sent.push({ id, data: bytes });
+        const reply = new Uint8Array(19);
+        reply[0] = 0xff;
+        reply[1] = bytes[1]!;
+        reply[2] = bytes[2]!;
+        if (bytes[1] === 0 && bytes[2]! >> 4 === 0) reply[3] = 3;
+        else if (bytes[1] === 3 && bytes[2]! >> 4 === 2)
+          reply[3] = sent.filter((s) => s.data[1] === 3 && s.data[2]! >> 4 === 2).length;
+        queueMicrotask(() => listener?.({ reportId: 0x11, data: new DataView(reply.buffer) }));
+      },
+      addEventListener(_t: "inputreport", l: typeof listener) {
+        listener = l;
+      },
+      removeEventListener() {
+        listener = undefined;
+      },
+    };
+    return { device, sent };
+  };
+  const constantLevel = (d: number[]) => -((((d[9]! << 8) | d[10]!) << 16) >> 16) / 0x7fff;
+
+  it("plays the torque slices out on its own timer and matches the rotation", async () => {
+    const { LogitechWebHidSink } = await import("../src/index.js");
+    const { device, sent } = fakeWheel(0xc272);
+    const lines: string[] = [];
+    const sink = new LogitechWebHidSink({
+      log: (l) => lines.push(l),
+      gain: 1,
+      maxOutput: 1,
+      smoothing: 0,
+      slewRate: Infinity,
+      playoutRate: 500,
+      rotationDeg: 1500,
+    });
+    await sink.attach(device);
+    expect(sink.directDrive).toBe(true);
+    expect(sink.maxRotationDeg).toBe(1080);
+    // The set-up aperture is clamped to what the G PRO turns.
+    const aperture = sent.find((s) => s.data[1] === 3 && s.data[2]! >> 4 === 6)!;
+    expect((aperture.data[3]! << 8) | aperture.data[4]!).toBe(1080);
+    const before = sent.length;
+    // Steps of a rising torque, 11 N·m full scale.
+    for (let k = 0; k < 6; k++) {
+      const samples = Array.from({ length: 8 }, (_, i) => (k * 8 + i) * 0.05);
+      await sink.update({ torque: samples[7]!, damping: 0, friction: 0, samples }, 1 / 60);
+      await new Promise((r) => setTimeout(r, 1000 / 60));
+    }
+    await sink.stop();
+    const levels = sent
+      .slice(before)
+      .filter((s) => s.id === 0x11 && s.data[2]! >> 4 === 2 && s.data[4] === 0)
+      .map((s) => constantLevel(s.data));
+    // Many more reports than host steps, rising, never past the last slice.
+    expect(levels.length).toBeGreaterThan(12);
+    for (let i = 1; i < levels.length; i++) {
+      expect(levels[i]!).toBeGreaterThanOrEqual(levels[i - 1]! - 1e-3);
+    }
+    expect(levels.at(-1)!).toBeLessThanOrEqual((47 * 0.05) / 11 + 1e-3);
+    expect(lines.some((l) => l.includes("playout at 500 Hz"))).toBe(true);
+    // Matching the car: the kart's 125°, then a lock wider than the wheel.
+    expect(await sink.setRotation(125)).toBe(125);
+    const set = sent.at(-1)!;
+    expect(set.data[2]! >> 4).toBe(6);
+    expect((set.data[3]! << 8) | set.data[4]!).toBe(125);
+    expect(await sink.setRotation(2000)).toBe(1080);
+    await sink.disconnect();
   });
 
   it("maps column friction and damping to effect coefficients within maxOutput", async () => {
