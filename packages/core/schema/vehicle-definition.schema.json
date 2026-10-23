@@ -159,6 +159,20 @@
           "maximum": 30,
           "default": 0,
           "description": "Aligning-torque compliance steer (ADR-0027): the steering system's compliance with the hand wheel held, degrees of road-wheel steer per kN·m of the steered axle's total kingpin torque. Both steered wheels turn in the direction the kingpin torque pushes them."
+        },
+        "kingpinInclinationDeg": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 25,
+          "default": 0,
+          "description": "Kingpin inclination, degrees, top of the axis inboard (ADR-0030). With casterDeg it sets how far the corner rises as the wheel steers; the wheel's load pushes back through that lift, the self-centring that returns a parked car's wheel. Both 0 add nothing."
+        },
+        "casterDeg": {
+          "type": "number",
+          "minimum": -10,
+          "maximum": 20,
+          "default": 0,
+          "description": "Caster angle, degrees, top of the axis rearward (ADR-0030); the axis tilt for the steering lift only, the trail on the ground stays mechanicalTrail."
         }
       },
       "additionalProperties": false

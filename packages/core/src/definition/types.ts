@@ -277,6 +277,18 @@ export interface SteeringDefinition {
    * Zero or positive; default 0.
    */
   alignTorqueComplianceDeg: number;
+  /**
+   * Kingpin inclination, degrees, top of the axis inboard (ADR-0030). With
+   * `casterDeg` it sets how far the corner rises as the wheel steers; the
+   * wheel's load pushes back through that lift, the self-centring that
+   * returns a parked car's wheel. Both 0 (the default) add nothing. 0 … 25.
+   */
+  kingpinInclinationDeg: number;
+  /**
+   * Caster angle, degrees, top of the axis rearward (ADR-0030); the axis tilt
+   * for the steering lift only, the trail stays `mechanicalTrail`. −10 … 20.
+   */
+  casterDeg: number;
 }
 
 export interface BrakesDefinition {

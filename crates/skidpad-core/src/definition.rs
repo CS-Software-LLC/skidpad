@@ -5,6 +5,7 @@
 
 use crate::assists::AssistsDef;
 use crate::drivetrain::DrivetrainDef;
+use crate::geom::Vec3;
 use crate::kinematics::KinematicsDef;
 use crate::tire::TireModel;
 use skidpad_math as m;
@@ -331,6 +332,11 @@ pub const MAX_ALIGN_TORQUE_COMPLIANCE_DEG: f64 = 30.0;
 /// Bound on `powerAssistOnset`, N·m at the hand wheel: a heavy truck's
 /// manual torque at the limit is about this (ADR-0029).
 pub const MAX_POWER_ASSIST_ONSET: f64 = 20.0;
+/// Bounds on the steering axis angles, degrees (ADR-0030). Road cars run
+/// about 10 to 15 of inclination and 3 to 8 of caster; a kart runs more.
+pub const MAX_KINGPIN_INCLINATION_DEG: f64 = 25.0;
+pub const MIN_CASTER_DEG: f64 = -10.0;
+pub const MAX_CASTER_DEG: f64 = 20.0;
 
 impl Default for AxleDef {
     fn default() -> Self {
@@ -475,6 +481,16 @@ pub struct SteeringDef {
     /// turn by it in the direction the kingpin torque pushes them. Zero or
     /// positive; default 0.
     pub align_torque_compliance_deg: f64,
+    /// Kingpin inclination, degrees, top of the axis inboard (ADR-0030).
+    /// With `caster_deg` it sets how far the corner rises as the wheel steers,
+    /// and the wheel's load pushes back toward centre through that lift: the
+    /// self-centring that returns a parked car's wheel. Both zero (the
+    /// default) leave the kingpin torque as it was. 0 … 25.
+    pub kingpin_inclination_deg: f64,
+    /// Caster angle, degrees, top of the axis rearward (ADR-0030). Sets the
+    /// axis tilt for the steering lift only; the caster trail on the ground
+    /// stays `mechanical_trail`. −10 … 20.
+    pub caster_deg: f64,
 }
 
 impl Default for SteeringDef {
@@ -492,6 +508,8 @@ impl Default for SteeringDef {
             column_damping: 0.05,
             jacking_rate: 0.0,
             align_torque_compliance_deg: 0.0,
+            kingpin_inclination_deg: 0.0,
+            caster_deg: 0.0,
         }
     }
 }
@@ -792,6 +810,18 @@ impl VehicleDefinition {
                 e.push(format!("steering.{name} must be within ±0.5 m (got {v})"));
             }
         }
+        let kpi = self.steering.kingpin_inclination_deg;
+        if !(0.0..=MAX_KINGPIN_INCLINATION_DEG).contains(&kpi) {
+            e.push(format!(
+                "steering.kingpinInclinationDeg must be in [0, {MAX_KINGPIN_INCLINATION_DEG}] deg (got {kpi})"
+            ));
+        }
+        let caster = self.steering.caster_deg;
+        if !(MIN_CASTER_DEG..=MAX_CASTER_DEG).contains(&caster) {
+            e.push(format!(
+                "steering.casterDeg must be in [{MIN_CASTER_DEG}, {MAX_CASTER_DEG}] deg (got {caster})"
+            ));
+        }
         let onset = self.steering.power_assist_onset;
         if !(0.0..=MAX_POWER_ASSIST_ONSET).contains(&onset) {
             e.push(format!(
@@ -879,6 +909,47 @@ impl VehicleDefinition {
     pub fn kingpin_torque(&self, mz: f64, fy: f64, fx: f64, side: f64) -> f64 {
         let st = &self.steering;
         mz - st.mechanical_trail * fy - side * st.scrub_radius * fx
+    }
+
+    /// Kingpin torque from the wheel's vertical load as it steers (ADR-0030),
+    /// N·m about +z like [`Self::kingpin_torque`], for a wheel on `side`
+    /// (+1 left) carrying `fz` at road-wheel angle `steer` (rad, from its
+    /// straight-ahead position), of unloaded radius `radius`.
+    ///
+    /// Exact rigid-wheel geometry [DERIVED]: the wheel turns about the
+    /// kingpin axis, which meets the ground `mechanical_trail` ahead of the
+    /// contact and `scrub_radius` inboard of it, tilted inboard by the
+    /// inclination and rearward by the caster. The lowest point of the
+    /// turned wheel is `h(δ) = C_z − R·√(1 − a_z²)` above the ground, with
+    /// `C` the wheel centre and `a` the axle direction after the rotation;
+    /// the ground holds it at zero, so the corner rises by `−h`, and virtual
+    /// work gives the torque `T = Fz · dh/dδ`. Inclination lowers `h` either
+    /// way, a centring torque that grows with steer; caster lowers the
+    /// inner wheel and raises the outer, opposite torques that cancel at
+    /// equal loads. Zero when both angles are zero.
+    pub fn kingpin_lift_torque(&self, fz: f64, steer: f64, side: f64, radius: f64) -> f64 {
+        let st = &self.steering;
+        if (st.kingpin_inclination_deg == 0.0 && st.caster_deg == 0.0) || !(fz > 0.0) {
+            return 0.0;
+        }
+        // Work as a left wheel, y outboard; a right wheel is its mirror,
+        // where steer and torque about z both change sign.
+        let s = if side < 0.0 { -1.0 } else { 1.0 };
+        let d = s * steer;
+        let tl = m::tan(m::deg_to_rad(st.kingpin_inclination_deg));
+        let tc = m::tan(m::deg_to_rad(st.caster_deg));
+        let n = m::sqrt(1.0 + tl * tl + tc * tc);
+        let u = Vec3::new(-tc / n, -tl / n, 1.0 / n);
+        let p0 = Vec3::new(st.mechanical_trail, -st.scrub_radius, 0.0);
+        let c = Vec3::new(0.0, 0.0, radius) - p0;
+        let a = Vec3::new(0.0, 1.0, 0.0);
+        let (sd, cd) = (m::sin(d), m::cos(d));
+        // d/dδ of Rodrigues' v cos δ + (u × v) sin δ + u (u·v)(1 − cos δ).
+        let drot = |v: Vec3| v * (-sd) + u.cross(v) * cd + u * (u.dot(v) * sd);
+        let az = a.z * cd + u.cross(a).z * sd + u.z * (u.dot(a) * (1.0 - cd));
+        let root = m::sqrt(m::max(1.0 - az * az, 1e-12));
+        let dh = drot(c).z + radius * az * drot(a).z / root;
+        s * fz * dh
     }
 
     /// Hand-wheel torque in the sign of the steer input (positive turns

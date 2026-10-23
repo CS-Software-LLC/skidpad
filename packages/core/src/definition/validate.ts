@@ -657,6 +657,14 @@ export function validateDefinition(def: unknown): ValidationResult {
       errors.push(`steering.${k} must be within ±0.5 m (got ${String(v)})`);
     }
   }
+  const kpi = s.kingpinInclinationDeg;
+  if (kpi !== undefined && (!isNum(kpi) || kpi < 0 || kpi > 25)) {
+    errors.push(`steering.kingpinInclinationDeg must be in [0, 25] deg (got ${String(kpi)})`);
+  }
+  const caster = s.casterDeg;
+  if (caster !== undefined && (!isNum(caster) || caster < -10 || caster > 20)) {
+    errors.push(`steering.casterDeg must be in [-10, 20] deg (got ${String(caster)})`);
+  }
   const onset = s.powerAssistOnset;
   if (onset !== undefined && (!isNum(onset) || onset < 0 || onset > 20)) {
     errors.push(`steering.powerAssistOnset must be in [0, 20] N·m (got ${String(onset)})`);

@@ -1303,10 +1303,16 @@ impl FourWheelVehicle {
         let mut kingpin = 0.0;
         for i in 0..WHEEL_COUNT {
             if self.def.axles[i / 2].steered {
-                let o = &self.wheels[i].out;
+                let w = &self.wheels[i];
+                let g = &self.geometry[i];
                 kingpin += self
                     .def
-                    .kingpin_torque(o.mz, o.fy, o.fx, self.geometry[i].side);
+                    .kingpin_torque(w.out.mz, w.out.fy, w.out.fx, g.side);
+                // The load through the steering lift (ADR-0030), from the
+                // knuckle's own angle: toe is where the axis sits straight.
+                kingpin +=
+                    self.def
+                        .kingpin_lift_torque(w.load, w.steer - self.toe(i), g.side, g.radius);
             }
         }
         self.steering_torque = self.def.hand_wheel_torque(kingpin);

@@ -49,6 +49,26 @@ Well below the onset the hand feels the whole manual torque; well above
 it, `1 − a` of it plus a constant `a × powerAssistOnset`. The torque rises
 with load everywhere, so the wheel never goes lighter as you turn in.
 
+## Self-centring from the axis angles
+
+The kingpin axis leans inboard at the top (kingpin inclination,
+`steering.kingpinInclinationDeg`) and usually rearward (caster,
+`steering.casterDeg`). Turning a wheel about a leaning axis swings it
+downward, which lifts that corner of the car, so the car's weight pushes
+the wheel back toward straight ahead
+([ADR-0030](https://github.com/CS-Software-LLC/skidpad/blob/main/docs/adr/0030-steering-lift-self-centring.md)).
+That is what returns the wheel of a parked or slow car, where the tires
+make almost no aligning torque. The core finds the lift from the exact
+geometry of the turned wheel and adds `load × dh/dδ` to each kingpin.
+
+Inclination lifts both wheels whichever way you steer, a centring torque
+that grows with the angle. Caster, and inclination combined with the
+caster trail, lower the inner wheel and raise the outer: equal and opposite
+torques that cancel when both wheels carry the same load. In a corner the
+outer wheel is heavier and that part pushes slightly away from centre, a
+few hundredths of a N·m at the hand on the hatchback. Both angles at zero
+(the default) leave the torque as it was.
+
 ## What the device adds
 
 The hand wheel is the input, so the core does not simulate the column. Its

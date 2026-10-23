@@ -130,6 +130,9 @@ helps. Parameters are per tire unless noted.
   trail fades at the limit (more caster).
 - Lower `steering.powerAssist`; it removes that fraction of the rack torque
   at the hand wheel.
+- No return to centre at parking speeds: set `steering.kingpinInclinationDeg`
+  (10 to 15 on a road car) and `steering.casterDeg` (3 to 7). The car's
+  weight then turns the wheel back as the steering lifts it.
 - Vague or floaty on centre with assist: set `steering.powerAssistOnset`
   (N·m, about 1 for a passenger car). The assist then stays out of the way
   below that much manual torque, so the small aligning torque near centre
