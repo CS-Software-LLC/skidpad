@@ -17,7 +17,7 @@ use skidpad_core::telemetry as t;
 use skidpad_core::tire::tir;
 use skidpad_core::validation::understeer::{self, UndersteerConfig};
 use skidpad_core::validation::{timestep_sweep, TimestepSweepConfig};
-use skidpad_core::vehicle::{FourWheelVehicle, HostMode, FL, FR, RR};
+use skidpad_core::vehicle::{FourWheelVehicle, HostMode, FL, FR, RL, RR};
 use skidpad_core::world::{HOST_CONTACT_STRIDE, HOST_IN_BODY_LEN, HOST_IN_STRIDE, HOST_OUT_STRIDE};
 use skidpad_core::{VehicleDefinition, VehicleInput, VehicleModel, World, GRAVITY};
 use skidpad_math as m;
@@ -576,45 +576,171 @@ fn the_level_of_detail_round_trip_keeps_working() {
 /// was stepped against the reduced mass of its wheel and the body's corner,
 /// the wheels hopped off the ground at 250 Hz and the gradient moved by
 /// 0.8 deg/g. Either change alone passes this test; with both removed it
-/// fails.
+/// fails. The kart's and the pickup's solid rear beams are held to the same.
 #[test]
-fn a_light_body_in_roll_is_stable_at_250_hz() {
-    let d: VehicleDefinition = serde_json::from_str(include_str!(
-        "../../../packages/presets/src/vehicles/open-wheeler.json"
-    ))
-    .unwrap();
-    assert!(d.has_unsprung_mass());
-    let gradient = |rate: f64| {
-        let mut d = d.clone();
-        d.simulation.substep_rate_hz = rate;
-        understeer::run(
-            &d,
-            &UndersteerConfig {
-                radius: 40.0,
-                speeds: vec![4.0, 8.0, 12.0],
-                settle_time: 8.0,
-                measure_time: 1.0,
-                host_dt: 1.0 / 60.0,
-            },
-        )
-        .unwrap()
-        .gradient_deg_per_g
-    };
-    let (coarse, fine) = (gradient(250.0), gradient(1000.0));
+fn light_bodies_and_beams_are_stable_at_250_hz() {
+    let presets = [
+        include_str!("../../../packages/presets/src/vehicles/open-wheeler.json"),
+        // Solid rear axles: a 6 kg-a-wheel beam and a 78 kg-a-wheel one.
+        include_str!("../../../packages/presets/src/vehicles/kart.json"),
+        include_str!("../../../packages/presets/src/vehicles/pickup-4x4.json"),
+    ];
+    for json in presets {
+        let d: VehicleDefinition = serde_json::from_str(json).unwrap();
+        assert!(d.has_unsprung_mass());
+        let gradient = |rate: f64| {
+            let mut d = d.clone();
+            d.simulation.substep_rate_hz = rate;
+            understeer::run(
+                &d,
+                &UndersteerConfig {
+                    radius: 40.0,
+                    speeds: vec![4.0, 8.0, 12.0],
+                    settle_time: 8.0,
+                    measure_time: 1.0,
+                    host_dt: 1.0 / 60.0,
+                },
+            )
+            .unwrap()
+            .gradient_deg_per_g
+        };
+        let (coarse, fine) = (gradient(250.0), gradient(1000.0));
+        assert!(
+            m::abs(coarse - fine) < 0.01,
+            "{}: {coarse} deg/g at 250 Hz vs {fine} at 1 kHz",
+            d.name
+        );
+    }
+}
+
+// --- solid axles -------------------------------------------------------------------
+
+/// The two-mass car on solid axles, each beam's roll inertia `fraction` of
+/// its mass at the wheels, `2 m_u (t/2)²`.
+fn beam_car(fraction: f64) -> VehicleDefinition {
+    let mut d = two_mass_car();
+    for i in 0..2 {
+        let t = d.axle_track(i);
+        let s = &mut d.axles[i].suspension;
+        s.kind = SuspensionKind::Solid;
+        s.beam_roll_inertia = fraction * 2.0 * s.unsprung_mass * 0.25 * t * t;
+    }
+    d.validate().unwrap();
+    d
+}
+
+/// A solid axle's beam heaves as its two wheels' mass whatever its roll
+/// inertia, so the beam car's heave is the same two-mass quarter car,
+/// within the 2 % of the drop set for the independent wheels.
+#[test]
+fn beam_heave_follows_the_two_mass_quarter_car() {
+    let d = beam_car(0.6);
+    let q = two_mass(&d);
+    let mut car = FourWheelVehicle::new(d);
+    for _ in 0..200 {
+        car.substep(DT, &VehicleInput::default());
+    }
+    let rest = car.pos.z;
+    let drop = 0.005;
+    car.pos.z -= drop;
+    let exact = two_mass_free(&q, -drop, -drop, DT, 3000);
+    let (mut worst_s, mut worst_u) = (0.0, 0.0);
+    for (zs_th, zu_th) in exact {
+        car.substep(DT, &VehicleInput::default());
+        worst_s = m::max(worst_s, m::abs(car.pos.z - rest - zs_th));
+        worst_u = m::max(worst_u, m::abs(wheel_z(&car, rest) - zu_th));
+    }
     assert!(
-        m::abs(coarse - fine) < 0.01,
-        "{coarse} deg/g at 250 Hz vs {fine} at 1 kHz"
+        worst_s < 0.02 * drop,
+        "body off the quarter car by {worst_s} m"
     );
+    assert!(
+        worst_u < 0.02 * drop,
+        "beams off the quarter car by {worst_u} m"
+    );
+}
+
+/// With the body held (its roll inertia scaled up a thousandfold), a beam
+/// released 5 mm up at one end and 5 mm down at the other rings in roll as
+/// a single damped oscillator: inertia `I_a`, stiffness and damping
+/// `(k_s + k_t + 2 k_bar) t²/2` and `(c_s + c_t) t²/2` about its centre.
+/// The beam's own inertia sets the frequency: 0.6 of the lumped value
+/// rings 1/√0.6 faster than the wheel hop. The end travel follows the
+/// closed form within 3 % of the release over 0.5 s at 1 kHz.
+#[test]
+fn beam_roll_rings_at_its_own_frequency() {
+    for fraction in [1.0, 0.6] {
+        let mut d = beam_car(fraction);
+        d.chassis.roll_inertia *= 1000.0;
+        let s = d.axles[1].suspension.clone();
+        assert_eq!(s.bump_damping, s.rebound_damping);
+        let t = d.axle_track(1);
+        let (kt, ct) = d.axles[1].tire.vertical_rates();
+        let ia = d.unsprung_roll_inertia(1);
+        let w2 = (s.spring_rate + kt + 2.0 * s.anti_roll_stiffness) * 0.5 * t * t / ia;
+        let w = m::sqrt(w2);
+        let zeta = (s.bump_damping + ct) * 0.5 * t * t / ia / (2.0 * w);
+        let wd = w * m::sqrt(1.0 - zeta * zeta);
+        let mut car = FourWheelVehicle::new(d);
+        for _ in 0..200 {
+            car.substep(DT, &VehicleInput::default());
+        }
+        let x0 = 0.005;
+        car.wheels[RL].hub_travel = x0;
+        car.wheels[RR].hub_travel = -x0;
+        let mut worst = 0.0;
+        for k in 1..=500 {
+            car.substep(DT, &VehicleInput::default());
+            let time = k as f64 * DT;
+            let exact = x0
+                * m::exp(-zeta * w * time)
+                * (m::cos(wd * time) + zeta / m::sqrt(1.0 - zeta * zeta) * m::sin(wd * time));
+            let got = 0.5 * (car.wheels[RL].hub_travel - car.wheels[RR].hub_travel);
+            worst = m::max(worst, m::abs(got - exact));
+        }
+        assert!(
+            worst < 0.03 * x0,
+            "inertia fraction {fraction}: beam roll off by {worst} m ({:.2} Hz)",
+            w / (2.0 * m::PI)
+        );
+    }
+}
+
+/// Unsprung mass on solid axles keeps the ride height and the massless
+/// static loads, as on independent ones.
+#[test]
+fn a_beam_car_rests_at_ride_height() {
+    let mut massless = beam_car(0.6);
+    for a in massless.axles.iter_mut() {
+        a.suspension.unsprung_mass = 0.0;
+        a.suspension.beam_roll_inertia = 0.0;
+    }
+    let massless = FourWheelVehicle::new(massless);
+    let d = beam_car(0.6);
+    let h = d.chassis.cg_height;
+    let mut car = FourWheelVehicle::new(d);
+    for _ in 0..2000 {
+        car.substep(DT, &VehicleInput::default());
+    }
+    assert!(m::abs(car.pos.z - h) < 1e-9, "ride height {}", car.pos.z);
+    for i in 0..4 {
+        let (got, want) = (car.wheels[i].load, massless.wheels[i].load);
+        assert!(m::abs(got - want) < 1e-6, "wheel {i}: load {got} vs {want}");
+    }
 }
 
 // --- definitions and import ------------------------------------------------------------
 
 #[test]
-fn validation_rejects_solid_axles_and_impossible_masses() {
+fn validation_rejects_impossible_masses_and_misplaced_beams() {
     let mut d = default_with_unsprung();
-    d.axles[1].suspension.kind = SuspensionKind::Solid;
+    d.axles[1].suspension.beam_roll_inertia = 5.0;
     let e = d.validate().unwrap_err().join("\n");
-    assert!(e.contains("solid axle"), "{e}");
+    assert!(e.contains("beamRollInertia applies only"), "{e}");
+    d.axles[1].suspension.kind = SuspensionKind::Solid;
+    assert!(d.validate().is_ok());
+    d.axles[1].suspension.beam_roll_inertia = -1.0;
+    assert!(d.validate().is_err());
 
     let mut d = default_with_unsprung();
     d.axles[0].suspension.unsprung_mass = 400.0;

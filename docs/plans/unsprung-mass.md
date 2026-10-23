@@ -29,7 +29,7 @@ stable.
    moved and why, including telemetry traces on the sandbox circuit with
    and without the option, since the hop mode adds real ripple to
    `TireLoad_*` and `LatAccel` on rough surfaces.
-3. **Solid axles (third PR).** A beam axle with unsprung mass is one body
+3. **Solid axles (done in the third PR, with the beam's own roll inertia).** A beam axle with unsprung mass is one body
    with heave and roll, carrying both wheels, not two independent hubs.
    Needs its own ADR section, an exact-answer test (beam heave and beam roll
    against their two-degree-of-freedom answers), then the kart and pickup

@@ -39,4 +39,15 @@ describe("unsprung mass validation (ADR-0028)", () => {
     expect(errors).toHaveLength(1);
     expect(coreErrors(d)).toContain(errors[0]!);
   });
+
+  it("takes a beam's roll inertia on a solid axle only, like the core", () => {
+    const d = withUnsprung(40);
+    d.axles[1]!.suspension.beamRollInertia = 20;
+    const errors = validateDefinition(d).errors.filter((e) => e.includes("beamRollInertia"));
+    expect(errors).toHaveLength(1);
+    expect(coreErrors(d)).toContain(errors[0]!);
+    d.axles[1]!.suspension.kind = "solid";
+    expect(validateDefinition(d).errors).toEqual([]);
+    expect(coreErrors(d)).toBe("");
+  });
 });

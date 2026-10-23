@@ -182,9 +182,16 @@ pub struct SuspensionDef {
     /// share of the links that move with them (ADR-0028). Zero (the default)
     /// keeps the massless raycast strut of ADR-0009. Above zero the wheel
     /// gets its own vertical motion on the tire's vertical spring, so it can
-    /// hop. Independent suspension only; part of `chassis.mass`, not added
-    /// to it. Four-wheel model only.
+    /// hop. On a solid axle the beam carries both wheels' mass. Part of
+    /// `chassis.mass`, not added to it. Four-wheel model only.
     pub unsprung_mass: f64,
+    /// Roll inertia of a solid axle's beam with its wheels, kg·m², about
+    /// its own centre (ADR-0028). Zero (the default) puts the axle's whole
+    /// unsprung mass at the wheels, `2 m_u (t/2)²`; a housing and
+    /// differential near the middle make it smaller, which raises the
+    /// beam's roll (tramp) frequency above its hop. Solid axles with
+    /// unsprung mass only.
+    pub beam_roll_inertia: f64,
 }
 
 /// How the two wheels of an axle are held (ADR-0016).
@@ -227,6 +234,7 @@ impl SuspensionDef {
             anti_drive: 0.0,
             kinematics: None,
             unsprung_mass: 0.0,
+            beam_roll_inertia: 0.0,
         }
     }
 
@@ -245,6 +253,7 @@ impl SuspensionDef {
             anti_drive: 0.0,
             kinematics: None,
             unsprung_mass: 0.0,
+            beam_roll_inertia: 0.0,
         }
     }
 
@@ -266,6 +275,7 @@ impl SuspensionDef {
             ("antiRollStiffness", self.anti_roll_stiffness),
             ("bumpStopStiffness", self.bump_stop_stiffness),
             ("unsprungMass", self.unsprung_mass),
+            ("beamRollInertia", self.beam_roll_inertia),
         ] {
             if !(v >= 0.0) || !v.is_finite() {
                 errors.push(format!(
@@ -273,10 +283,12 @@ impl SuspensionDef {
                 ));
             }
         }
-        if self.unsprung_mass > 0.0 && self.kind == SuspensionKind::Solid {
+        if self.beam_roll_inertia > 0.0
+            && !(self.kind == SuspensionKind::Solid && self.unsprung_mass > 0.0)
+        {
             errors.push(format!(
-                "{prefix}.unsprungMass is not yet supported on a solid axle (got {}); use 0",
-                self.unsprung_mass
+                "{prefix}.beamRollInertia applies only to a solid axle with unsprungMass (got {}); use 0",
+                self.beam_roll_inertia
             ));
         }
         if !self.roll_center_height.is_finite()
@@ -701,8 +713,7 @@ impl VehicleDefinition {
             let (mut roll, mut pitch) = (0.0, 0.0);
             for (i, a) in self.axles.iter().enumerate() {
                 let mu = a.suspension.unsprung_mass;
-                let y = 0.5 * self.axle_track(i);
-                roll += 2.0 * mu * y * y;
+                roll += self.unsprung_roll_inertia(i);
                 pitch += 2.0 * mu * x[i] * x[i];
             }
             if roll > 0.0 && !(roll <= 0.9 * c.roll_inertia) {
@@ -890,6 +901,19 @@ impl VehicleDefinition {
 
     /// Static vertical load on one wheel of axle `axle` (0 front, 1 rear) on
     /// level ground, N.
+    /// Roll inertia of axle `axle`'s unsprung mass about the body's roll
+    /// axis through the axle's centre, kg·m² (ADR-0028): the wheels at the
+    /// track, or a solid axle's beam inertia when it is set.
+    pub fn unsprung_roll_inertia(&self, axle: usize) -> f64 {
+        let s = &self.axles[axle].suspension;
+        if s.kind == SuspensionKind::Solid && s.beam_roll_inertia > 0.0 {
+            s.beam_roll_inertia
+        } else {
+            let y = 0.5 * self.axle_track(axle);
+            2.0 * s.unsprung_mass * y * y
+        }
+    }
+
     /// Whether any axle carries unsprung mass (ADR-0028).
     pub fn has_unsprung_mass(&self) -> bool {
         self.axles.iter().any(|a| a.suspension.unsprung_mass > 0.0)

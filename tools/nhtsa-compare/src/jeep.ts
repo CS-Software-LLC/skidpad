@@ -125,6 +125,10 @@ export function jeepCherokee(t: Tunable = ESTIMATED): PartialVehicleDefinition {
     relaxationLengthLat: 0.45,
     relaxationLengthLong: 0.3,
     rollingResistance: 0.013,
+    // ESTIMATE: a P225/75R15 light-truck radial at 33 psi; no measured
+    // vertical rate for the Wrangler RT/S is public.
+    verticalStiffness: 230000,
+    verticalDamping: 600,
   };
   return {
     formatVersion: 1,
@@ -172,6 +176,12 @@ export function jeepCherokee(t: Tunable = ESTIMATED): PartialVehicleDefinition {
           rollCenterHeight: 0.4,
           antiBrake: 0,
           antiDrive: 0,
+          // ESTIMATE (ADR-0028): a Dana 30 beam of about 57 kg with two
+          // 23 kg wheels and tires and 10 kg of brakes and hubs per side,
+          // 62 kg a wheel. Its roll inertia is 0.6 of that mass at the
+          // wheels, since the differential sits near the middle.
+          unsprungMass: 62,
+          beamRollInertia: 0.6 * 2 * 62 * (TRACK_FRONT / 2) ** 2,
         },
       },
       {
@@ -198,6 +208,11 @@ export function jeepCherokee(t: Tunable = ESTIMATED): PartialVehicleDefinition {
           rollCenterHeight: 0.4,
           antiBrake: 0,
           antiDrive: 0,
+          // ESTIMATE (ADR-0028): a Dana 35 beam of about 70 kg, two 23 kg
+          // wheels and tires, 7 kg drums and about half of each leaf pack,
+          // 73 kg a wheel; roll inertia 0.6 of that mass at the wheels.
+          unsprungMass: 73,
+          beamRollInertia: 0.6 * 2 * 73 * (TRACK_REAR / 2) ** 2,
         },
       },
     ],

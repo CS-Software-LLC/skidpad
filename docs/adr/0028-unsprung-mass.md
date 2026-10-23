@@ -1,4 +1,4 @@
-# ADR-0028: Unsprung mass as an option on independent axles
+# ADR-0028: Unsprung mass as an option on each axle
 
 - Status: Proposed
 - Date: 2026-10-23
@@ -77,11 +77,27 @@ rate (8 values) after the massless layout. The format version stays 6: the
 massless layout is unchanged, every existing snapshot restores, and the
 length check already refuses a snapshot taken with the other setting.
 
-**Not covered.** Solid axles are rejected by validation with unsprung mass
-for now; a beam needs one body with heave and roll, not two hubs, and is the
-next step. The single-track model ignores the option, as it ignores the
-suspension. The contact plane is still one per wheel per host step, so
-features shorter than one host step's travel are still smoothed.
+**Solid axles carry a beam.** On a solid axle the two wheels' mass is one
+beam, `m_a = 2 m_u`, that heaves and rolls. Its roll inertia about its own
+centre is `suspension.beamRollInertia`. The default of zero puts the mass at
+the wheels, `2 m_u (t/2)²`; a housing and differential near the middle make
+it smaller, so the beam rolls (axle tramp) faster than it hops. The state is
+still each wheel's travel and rate: in those coordinates the beam's mass
+matrix is `m_a/4 [[1, 1], [1, 1]] + I_a/t² [[1, −1], [−1, 1]]`, which is
+`m_u` on the diagonal when the mass sits at the wheels. The two ends are
+stepped together with the same linearly implicit update, the anti-roll bar
+coupling them inside the step. The body's sprung matrix subtracts
+`Σ Jᵢᵀ M_u,ij Jⱼ` over the beam's two ends, and each end's corner force is
+`Σⱼ M_u,ij Jⱼ q̈`. The wheels stand square to the line through the two hubs
+(ADR-0016 used the line through the contacts), so the beam's own roll
+cambers both wheels. The snapshot layout does not change, and validation
+keeps a tenth of the body's roll inertia after the beam's.
+
+**Not covered.** The single-track model ignores the option, as it ignores
+the suspension. The contact plane is still one per wheel per host step, so
+features shorter than one host step's travel are still smoothed. A beam's
+springs still act at the wheels (ADR-0016), so a build with inboard springs
+carries them at their roll-equivalent rate, as the Jeep comparison does.
 
 ## Alternatives considered
 
