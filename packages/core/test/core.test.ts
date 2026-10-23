@@ -289,6 +289,26 @@ describe("scenarios", () => {
     expect(r.accelTime).not.toBeNull();
     expect(r.brakingDistance).toBeGreaterThan(30);
   });
+
+  it("reads the scenario name wherever it sits in the request", () => {
+    const config = { speeds: [8] };
+    const first = sp.runScenario({ scenario: "understeerGradient", definition: {}, config });
+    const last = sp.runScenario({ definition: {}, config, scenario: "understeerGradient" });
+    expect(last).toEqual(first);
+  });
+
+  it("rejects requests without a known scenario or a valid definition", () => {
+    const run = (request: unknown) => () =>
+      sp.runScenario(request as Parameters<typeof sp.runScenario>[0]);
+    expect(run({ definition: {} })).toThrow(
+      /scenario request is not valid: missing field `scenario`/,
+    );
+    expect(run({ scenario: "skidpad", definition: {} })).toThrow(/unknown variant `skidpad`/);
+    expect(run({ scenario: "straightLine" })).toThrow(/missing field `definition`/);
+    expect(run({ scenario: "straightLine", definition: { chassis: { mass: "heavy" } } })).toThrow(
+      /scenario request is not valid: invalid type/,
+    );
+  });
 });
 
 describe("waveforms", () => {
