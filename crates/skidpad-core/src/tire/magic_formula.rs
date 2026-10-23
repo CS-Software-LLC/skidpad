@@ -14,7 +14,7 @@
 //!
 //! Ignored, with a warning on import: turn slip (`PPY*`, `PDXP*`, `PKYP*`,
 //! `PECP*`, `QDTP*`, `QCRP*`, `QBRP*`, `QDRP*`), the extended camber stiffness
-//! terms of MF 6.x (`PKY4`–`PKY7`, `PVY*` beyond 4), inflation pressure (`PPX*`,
+//! terms of MF 6.x (`PKY5`–`PKY7`, `PVY*` beyond 4), inflation pressure (`PPX*`,
 //! `PPY*`, `PPZ*`, `PPMX*`), contact-patch and belt dynamics (`[CONTACT_PATCH]`,
 //! `[STRUCTURAL]`), and the `[VERTICAL]` section beyond `FZ0`,
 //! `VERTICAL_STIFFNESS` and `VERTICAL_DAMPING` (used only with unsprung mass,
@@ -137,6 +137,9 @@ mf_params! {
         pky1: "PKY1" = -18.0,
         pky2: "PKY2" = 2.0,
         pky3: "PKY3" = 0.0,
+        /// Curvature of `Kyα` against load (MF 6.x; 2 in MF 5.2, where it
+        /// is not a parameter).
+        pky4: "PKY4" = 2.0,
         phy1: "PHY1" = 0.0,
         phy2: "PHY2" = 0.0,
         phy3: "PHY3" = 0.0,
@@ -240,14 +243,15 @@ impl MagicFormulaParams {
         m::abs(self.kya(fz, 0.0))
     }
 
-    /// `Kyα` with camber (eq. 4.E25). `F'z0 = λFz0·Fz0` carries the
-    /// nominal-load scale once; it is not applied again.
+    /// `Kyα` with camber (eq. 4.E25, with MF 6.x's `PKY4` in place of the 2).
+    /// `F'z0 = λFz0·Fz0` carries the nominal-load scale once; it is not
+    /// applied again.
     #[inline]
     fn kya(&self, fz: f64, gamma: f64) -> f64 {
         let f0 = self.fz0_prime();
         self.pky1
             * f0
-            * m::sin(2.0 * m::atan(fz / (self.pky2 * f0)))
+            * m::sin(self.pky4 * m::atan(fz / (self.pky2 * f0)))
             * (1.0 - self.pky3 * m::abs(gamma))
             * self.lky
     }
@@ -260,7 +264,10 @@ impl MagicFormulaParams {
         let f0 = self.fz0_prime();
         let dfz = self.dfz(fz);
         let kappa = i.slip_ratio;
-        let alpha = i.slip_angle;
+        // Pacejka's lateral slip `α* = tan α` (eq. 4.E3); every lateral
+        // equation below takes `α*`. The angle itself only enters through
+        // `cos α` in the aligning moment.
+        let alpha = m::tan(i.slip_angle);
         let gamma = i.camber;
         let gamma_y = gamma * self.lgay;
         let gamma_z = gamma * self.lgaz;
@@ -356,16 +363,16 @@ impl MagicFormulaParams {
             * r0
             * lmuy;
 
-        // Equivalent slip angles for combined slip (eq. 4.E77, 4.E78).
+        // Equivalent slips for combined slip (eq. 4.E77, 4.E78), in the
+        // `α*` form of the 3rd edition: `αt` is already a tangent, so it
+        // adds in quadrature with `(Kxκ / Kyα) κ` directly.
         let ratio = kxk / if m::abs(kya) > 1e-9 { kya } else { 1e-9 };
-        let ta = m::tan(alpha_t);
         let alpha_t_eq = m::copysign(
-            m::atan(m::sqrt(ta * ta + ratio * ratio * kappa * kappa)),
+            m::sqrt(alpha_t * alpha_t + ratio * ratio * kappa * kappa),
             alpha_t,
         );
-        let tr = m::tan(alpha_r);
         let alpha_r_eq = m::copysign(
-            m::atan(m::sqrt(tr * tr + ratio * ratio * kappa * kappa)),
+            m::sqrt(alpha_r * alpha_r + ratio * ratio * kappa * kappa),
             alpha_r,
         );
 
@@ -377,7 +384,7 @@ impl MagicFormulaParams {
                         * m::atan(bt * ct * alpha_t_eq)),
             1.0,
         );
-        let cos_alpha = m::cos(alpha);
+        let cos_alpha = m::cos(i.slip_angle);
         let trail = magic_cos(bt, ct, dt, et, alpha_t_eq) * cos_alpha;
         let mzr = dr * m::cos(m::atan(br * alpha_r_eq)) * cos_alpha;
         let s = r0
