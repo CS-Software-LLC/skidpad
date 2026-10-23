@@ -669,6 +669,7 @@ impl BicycleVehicle {
             .fill(self.steering_torque);
         rec[t::STEER_TORQUE_MZ..t::STEER_TORQUE_MZ + 5].copy_from_slice(&self.steering_parts);
         rec[t::RACK_FORCE] = self.rack_force;
+        rec[t::COLUMN_DAMPING] = self.def.column_damping_at(self.speed());
         rec[t::DRAG_FORCE] = self.drag_force;
         rec[t::WHEEL_SPEED_F] = f.omega;
         rec[t::WHEEL_SPEED_R] = r.omega;

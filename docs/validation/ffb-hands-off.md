@@ -76,3 +76,47 @@ Real hands-off behaviour depends on the two [VERIFY] numbers, so the first
 on-wheel check is simply letting go at 100 km/h. The test suite asserts the
 cases that hold today: every preset parked, the hatchback, crossover and
 open-wheeler at 30 km/h, and the zero-damping check.
+
+## With speed-sensitive damping
+
+ADR-0033 lets the column damping rise with speed. The hatchback,
+sports car, crossover, pickup and open-wheeler presets now go to four
+times their parking damping by 20 m/s. The same matrix with those
+presets:
+
+Today's scaler, column ×1:
+
+| Preset       | 0 km/h  | 30 km/h | 100 km/h |
+| ------------ | ------- | ------- | -------- |
+| hatchbackFwd | settled | settled | moving   |
+| sportsRwd    | settled | growing | growing  |
+| kart         | settled | growing | growing  |
+| pickup4x4    | settled | growing | settled  |
+| crossoverEv  | settled | settled | growing  |
+| openWheeler  | settled | settled | growing  |
+
+Direct-drive scaler, column ×1:
+
+| Preset       | 0 km/h  | 30 km/h | 100 km/h |
+| ------------ | ------- | ------- | -------- |
+| hatchbackFwd | settled | settled | settled  |
+| sportsRwd    | settled | settled | settled  |
+| kart         | settled | moving  | growing  |
+| pickup4x4    | settled | growing | settled  |
+| crossoverEv  | settled | settled | growing  |
+| openWheeler  | settled | settled | settled  |
+
+- Speed damping on its own does not fix today's settings. The 0.2 s slew
+  limit's delay dominates, so the direct-drive slew and smoothing are part
+  of the fix.
+- Together they settle the hatchback, sports car and open-wheeler at
+  100 km/h, and the tests assert that, plus that the same release grows
+  without the rise with speed. The crossover at 100 km/h and the pickup at
+  30 km/h are still marginal. The verdicts there change with small changes
+  of the inputs (a 2 % growth threshold over 4 s), so they are not tuned
+  further before the rim inertia and the damper units are measured on the
+  wheel.
+- 140 km/h still grows on most cars at four times the damping.
+- The kart, with no assist, a 2.5:1 ratio and no speed damping, needs
+  about 0.6 N·m·s/rad at speed to settle in the harness. It is left alone:
+  nobody lets go of a kart's wheel.

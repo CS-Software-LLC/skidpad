@@ -11,7 +11,8 @@
       "Drivetrain [ILLUSTRATIVE]: a 2.0 l turbocharged four (peak 300 N·m, 180 kW at 6500 rpm) through a six-speed sequential gearbox with a 4.0 final drive and a clutch-pack rear limited-slip differential.",
       "Steering geometry [ILLUSTRATIVE]: 8° of caster (about 30 mm of trail), zero scrub radius, no assist, a quick 10:1 ratio.",
       "Travel curves [ILLUSTRATIVE] (ADR-0026): roll-centre height falling with bump and camber gain at rates scaled from the curves derived for Project Chrono's BMW E90 from its hardpoints (MacPherson front: roll centre −2.9 mm per mm of bump, camber about −20°/m; double wishbone: −1.6 mm per mm; docs/validation/chrono-bmw-e90.md), eased for this car's lower roll centres. No toe curves: road cars are set up for near-zero bump steer, and the E90 comparison found toe follows force more than travel.",
-      "Unsprung mass and tire vertical rates [ILLUSTRATIVE] (ADR-0028): wheel, tire, brake, hub and about half of each link per corner, typical of the class, with the tire about ten times as stiff as the suspension spring so the wheel hops at 10–15 Hz (Gillespie, Fundamentals of Vehicle Dynamics, ch. 5)."
+      "Unsprung mass and tire vertical rates [ILLUSTRATIVE] (ADR-0028): wheel, tire, brake, hub and about half of each link per corner, typical of the class, with the tire about ten times as stiff as the suspension spring so the wheel hops at 10–15 Hz (Gillespie, Fundamentals of Vehicle Dynamics, ch. 5).",
+      "Speed-sensitive column damping [ILLUSTRATIVE] (ADR-0033): four times the parking damping by 20 m/s, as an electric assist's active damping rises with speed; picked with the hands-off harness (docs/validation/ffb-hands-off.md), so a released wheel settles at 100 km/h. [VERIFY] on a wheel."
     ],
     "notes": "Not a specific car. No handbrake, so the handbrake standstill cases are skipped. The downforce reaches the tires through the springs, so the car sits lower at speed and the stiff springs matter. ABS, traction control and stability control are on at the core's default settings, which the real class does not have: at low speed, before the wings work, full throttle in the lower gears overwhelms the rear slicks. Turn them off in `assists` for an unassisted car."
   },
@@ -123,6 +124,8 @@
     "powerAssist": 0,
     "columnFriction": 0.2,
     "columnDamping": 0.03,
+    "columnDampingAtSpeed": 0.12,
+    "columnDampingSpeed": 20,
     "jackingRate": 0
   },
   "brakes": {

@@ -51,9 +51,11 @@ export function ffbFrameFromTelemetry(
   steering: { columnFriction: number; columnDamping: number },
   wheelAngleDeg?: number,
 ): FfbFrame {
+  // The core's speed-sensitive damping (ADR-0033), when it reports it.
+  const damping = read("ColumnDamping");
   return {
     torque: read("SteeringTorqueMean"),
-    damping: steering.columnDamping,
+    damping: Number.isFinite(damping) ? damping : steering.columnDamping,
     friction: steering.columnFriction,
     wheelAngle: wheelAngleDeg === undefined ? undefined : (wheelAngleDeg * Math.PI) / 180,
     samples: TORQUE_SLICES.map(read),

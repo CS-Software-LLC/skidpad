@@ -252,6 +252,9 @@ channels! {
     STEERING_TORQUE_SLICE_5 => ("SteeringTorqueSlice5", "N*m"),
     STEERING_TORQUE_SLICE_6 => ("SteeringTorqueSlice6", "N*m"),
     STEERING_TORQUE_SLICE_7 => ("SteeringTorqueSlice7", "N*m"),
+    // The column damping for the force-feedback device at the current
+    // speed (ADR-0033), N·m per rad/s of hand-wheel rate.
+    COLUMN_DAMPING => ("ColumnDamping", "N*m*s/rad"),
 }
 
 /// Number of `SteeringTorqueSlice*` channels.
@@ -314,7 +317,7 @@ mod tests {
         assert_eq!(CHANNELS[WHEEL_LOCKED_R].name, "WheelLocked_R");
         assert_eq!(CHANNELS[SPIN_ANGLE_RR].name, "SpinAngle_RR");
         assert_eq!(CHANNELS[ENGINE_RPM].name, "EngineRpm");
-        assert_eq!(STRIDE, STEERING_TORQUE_SLICE_7 + 1);
+        assert_eq!(STRIDE, COLUMN_DAMPING + 1);
         assert_eq!(
             STEERING_TORQUE_SLICE_7,
             STEERING_TORQUE_SLICE_0 + STEERING_TORQUE_SLICES - 1

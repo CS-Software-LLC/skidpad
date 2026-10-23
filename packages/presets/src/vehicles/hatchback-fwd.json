@@ -11,7 +11,8 @@
       "Steering geometry [ILLUSTRATIVE]: 5–6° caster giving about 25 mm of mechanical trail, a small positive scrub radius and an electric assist removing roughly 60 % of the rack torque at the hand wheel, typical of a modern front-drive hatchback.",
       "Roll centres [ILLUSTRATIVE]: a MacPherson front near 80 mm and a torsion-beam rear near 120 mm above ground (Milliken & Milliken, Race Car Vehicle Dynamics, ch. 17); aero lift coefficients of a modern hatchback are small and positive (Hucho, Aerodynamics of Road Vehicles, ch. 4), with the drag centred a little above the centre of mass.",
       "Travel curves [ILLUSTRATIVE] (ADR-0026): roll-centre height falling with bump and camber gain at rates scaled from the curves derived for Project Chrono's BMW E90 from its hardpoints (MacPherson front: roll centre −2.9 mm per mm of bump, camber about −20°/m; double wishbone: −1.6 mm per mm; docs/validation/chrono-bmw-e90.md), eased for this car's lower roll centres. No toe curves: road cars are set up for near-zero bump steer, and the E90 comparison found toe follows force more than travel.",
-      "Unsprung mass and tire vertical rates [ILLUSTRATIVE] (ADR-0028): wheel, tire, brake, hub and about half of each link per corner, typical of the class, with the tire about ten times as stiff as the suspension spring so the wheel hops at 10–15 Hz (Gillespie, Fundamentals of Vehicle Dynamics, ch. 5)."
+      "Unsprung mass and tire vertical rates [ILLUSTRATIVE] (ADR-0028): wheel, tire, brake, hub and about half of each link per corner, typical of the class, with the tire about ten times as stiff as the suspension spring so the wheel hops at 10–15 Hz (Gillespie, Fundamentals of Vehicle Dynamics, ch. 5).",
+      "Speed-sensitive column damping [ILLUSTRATIVE] (ADR-0033): four times the parking damping by 20 m/s, as an electric assist's active damping rises with speed; picked with the hands-off harness (docs/validation/ffb-hands-off.md), so a released wheel settles at 100 km/h. [VERIFY] on a wheel."
     ],
     "notes": "Not a specific production model. Values are class-representative."
   },
@@ -123,6 +124,8 @@
     "powerAssistOnset": 1,
     "columnFriction": 0.25,
     "columnDamping": 0.04,
+    "columnDampingAtSpeed": 0.16,
+    "columnDampingSpeed": 20,
     "jackingRate": 0,
     "kingpinInclinationDeg": 13,
     "casterDeg": 5

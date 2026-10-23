@@ -677,6 +677,11 @@ export function validateDefinition(def: unknown): ValidationResult {
   }
   nonNegative(errors, "steering.columnFriction", s.columnFriction);
   nonNegative(errors, "steering.columnDamping", s.columnDamping);
+  nonNegative(errors, "steering.columnDampingAtSpeed", s.columnDampingAtSpeed);
+  const cds = s.columnDampingSpeed;
+  if (cds !== undefined && (!isNum(cds) || cds < 0 || cds > 100)) {
+    errors.push(`steering.columnDampingSpeed must be in [0, 100] m/s (got ${String(cds)})`);
+  }
   nonNegative(errors, "brakes.handbrakeTorque", d.brakes?.handbrakeTorque);
   validateDrivetrain(errors, warnings, d.drivetrain);
   const as = d.assists;
