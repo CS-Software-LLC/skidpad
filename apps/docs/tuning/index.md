@@ -130,6 +130,10 @@ helps. Parameters are per tire unless noted.
   trail fades at the limit (more caster).
 - Lower `steering.powerAssist`; it removes that fraction of the rack torque
   at the hand wheel.
+- Vague or floaty on centre with assist: set `steering.powerAssistOnset`
+  (N·m, about 1 for a passenger car). The assist then stays out of the way
+  below that much manual torque, so the small aligning torque near centre
+  reaches the hand in full, and comes in as the load builds.
 - Reduce `steering.ratio` for more road-wheel angle per hand-wheel degree.
 
 ## Steering tugs under power or over bumps

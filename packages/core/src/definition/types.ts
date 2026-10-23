@@ -251,8 +251,20 @@ export interface SteeringDefinition {
   scrubRadius: number;
   /** Knuckle arm the rack pulls on, m; `RackForce` is the kingpin torque over it. */
   steeringArm: number;
-  /** Fraction of the rack torque the power assist removes at the hand wheel, 0 … 1. */
+  /**
+   * Fraction of the rack torque the power assist removes at the hand wheel,
+   * 0 … 1; with `powerAssistOnset` set, the fraction it tends to at large
+   * torque.
+   */
   powerAssist: number;
+  /**
+   * Boost curve (ADR-0029): the manual hand-wheel torque, N·m, around which
+   * the assist comes in. Well below it the wheel carries the full manual
+   * torque (no assist on centre); well above it, `1 − powerAssist` of it
+   * plus `powerAssist × powerAssistOnset`. 0 (the default) is the constant
+   * fraction. 0 … 20.
+   */
+  powerAssistOnset: number;
   /** Column friction for the force-feedback device, N·m (not simulated). */
   columnFriction: number;
   /** Column damping for the force-feedback device, N·m per rad/s. */

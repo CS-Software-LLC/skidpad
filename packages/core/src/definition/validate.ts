@@ -657,6 +657,10 @@ export function validateDefinition(def: unknown): ValidationResult {
       errors.push(`steering.${k} must be within ±0.5 m (got ${String(v)})`);
     }
   }
+  const onset = s.powerAssistOnset;
+  if (onset !== undefined && (!isNum(onset) || onset < 0 || onset > 20)) {
+    errors.push(`steering.powerAssistOnset must be in [0, 20] N·m (got ${String(onset)})`);
+  }
   const atc = s.alignTorqueComplianceDeg;
   if (atc !== undefined && (!isNum(atc) || atc < 0 || atc > 30)) {
     errors.push(

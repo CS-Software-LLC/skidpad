@@ -125,7 +125,14 @@
           "minimum": 0,
           "maximum": 1,
           "default": 0,
-          "description": "Fraction of the rack torque the assist removes at the hand wheel"
+          "description": "Fraction of the rack torque the assist removes at the hand wheel; with powerAssistOnset set, the fraction it tends to at large torque"
+        },
+        "powerAssistOnset": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 20,
+          "default": 0,
+          "description": "Boost curve (ADR-0029): manual hand-wheel torque, N·m, around which the assist comes in. Well below it the wheel carries the full manual torque (no assist on centre); well above it, (1 − powerAssist) of it plus powerAssist × powerAssistOnset. 0 is the constant fraction."
         },
         "columnFriction": {
           "type": "number",

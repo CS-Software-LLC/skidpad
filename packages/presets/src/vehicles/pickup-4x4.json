@@ -120,6 +120,7 @@
     "scrubRadius": 0.02,
     "steeringArm": 0.14,
     "powerAssist": 0.7,
+    "powerAssistOnset": 1,
     "columnFriction": 0.4,
     "columnDamping": 0.06,
     "jackingRate": 0

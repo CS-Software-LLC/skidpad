@@ -26,10 +26,28 @@ moment on that axis:
 
 The kingpin torques of both front wheels add up on the rack. Divided by the
 knuckle arm they are the **rack force** (`RackForce`); through the steering
-ratio, less the power assist fraction, they are the hand-wheel torque
+ratio, less the power assist, they are the hand-wheel torque
 (`SteeringTorque`), reported in the sign of the steer input: turning right,
 the tires push back with a negative torque, and a force-feedback wheel is
 driven with that value directly.
+
+## Power assist
+
+`steering.powerAssist` is the share of the torque the assist takes away. On
+its own it is a constant share, which also takes most of the small torque
+near centre, where the driver feels the road. A real assist valve barely
+opens there. `steering.powerAssistOnset` (N·m of manual hand-wheel torque)
+gives the assist that boost curve
+([ADR-0029](https://github.com/CS-Software-LLC/skidpad/blob/main/docs/adr/0029-power-assist-boost-curve.md)):
+with manual torque `Tm` and `a = powerAssist`,
+
+```text
+SteeringTorque = (1 − a)·Tm + a·Tm / √(1 + (Tm / powerAssistOnset)²)
+```
+
+Well below the onset the hand feels the whole manual torque; well above
+it, `1 − a` of it plus a constant `a × powerAssistOnset`. The torque rises
+with load everywhere, so the wheel never goes lighter as you turn in.
 
 ## What the device adds
 
