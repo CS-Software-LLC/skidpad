@@ -1327,7 +1327,7 @@ impl FourWheelVehicle {
                 parts[3] += lift;
             }
         }
-        self.steering_torque = self.def.hand_wheel_torque(kingpin);
+        self.steering_torque = self.def.hand_wheel_torque_at(kingpin, self.speed());
         self.steering_parts = self
             .def
             .steering_parts(parts, kingpin, self.steering_torque);

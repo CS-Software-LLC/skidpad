@@ -49,6 +49,13 @@ Well below the onset the hand feels the whole manual torque; well above
 it, `1 − a` of it plus a constant `a × powerAssistOnset`. The torque rises
 with load everywhere, so the wheel never goes lighter as you turn in.
 
+`steering.powerAssistAtSpeed`, `powerAssistFadeStart` and
+`powerAssistFadeEnd` make the assist speed-sensitive: the assist fraction
+goes linearly from `powerAssist` at the fade's start to
+`powerAssistAtSpeed` at its end (m/s). The wheel is then light when parking
+and heavier at speed, as with most electric systems
+([ADR-0034](https://github.com/CS-Software-LLC/skidpad/blob/main/docs/adr/0034-speed-sensitive-power-assist.md)).
+
 ## Self-centring from the axis angles
 
 The kingpin axis leans inboard at the top (kingpin inclination,

@@ -265,6 +265,18 @@ export interface SteeringDefinition {
    * fraction. 0 … 20.
    */
   powerAssistOnset: number;
+  /**
+   * Speed-sensitive assist (ADR-0034): the assist fraction at and above
+   * `powerAssistFadeEnd`, in place of `powerAssist`. 0 … 1.
+   */
+  powerAssistAtSpeed: number;
+  /** Road speed, m/s, where the assist starts fading toward `powerAssistAtSpeed`. */
+  powerAssistFadeStart: number;
+  /**
+   * Road speed, m/s, where the assist reaches `powerAssistAtSpeed`; 0 (the
+   * default) keeps the assist the same at every speed. start ≤ end ≤ 100.
+   */
+  powerAssistFadeEnd: number;
   /** Column friction for the force-feedback device, N·m (not simulated). */
   columnFriction: number;
   /**

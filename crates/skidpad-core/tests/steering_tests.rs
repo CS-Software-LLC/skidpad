@@ -566,3 +566,73 @@ fn column_damping_rises_with_speed_when_asked() {
     bad.steering.column_damping_at_speed = -0.1;
     assert!(bad.validate().is_err());
 }
+
+#[test]
+fn the_assist_fades_with_speed_when_asked() {
+    // ADR-0034: power_assist below the fade, power_assist_at_speed above it.
+    let mut d = VehicleDefinition::default();
+    d.steering.ratio = 14.0;
+    d.steering.power_assist = 0.6;
+    // Off: the same assist at every speed, bit for bit the old torque.
+    for v in [0.0, 10.0, 50.0] {
+        assert_eq!(d.power_assist_at(v), 0.6);
+        assert_eq!(d.hand_wheel_torque_at(-28.0, v), d.hand_wheel_torque(-28.0));
+    }
+    d.steering.power_assist_at_speed = 0.3;
+    d.steering.power_assist_fade_start = 5.0;
+    d.steering.power_assist_fade_end = 25.0;
+    assert_eq!(d.power_assist_at(0.0), 0.6);
+    assert_eq!(d.power_assist_at(5.0), 0.6);
+    assert!((d.power_assist_at(15.0) - 0.45).abs() < 1e-15);
+    assert!((d.power_assist_at(-20.0) - 0.375).abs() < 1e-15);
+    assert_eq!(d.power_assist_at(25.0), 0.3);
+    assert_eq!(d.power_assist_at(60.0), 0.3);
+    // The constant fraction at 25 m/s: (1 − 0.3) of the manual 2 N·m.
+    assert!((d.hand_wheel_torque_at(-28.0, 25.0) - 0.7 * 2.0).abs() < 1e-12);
+    // A start equal to the end is a step.
+    d.steering.power_assist_fade_start = 25.0;
+    assert_eq!(d.power_assist_at(24.9), 0.6);
+    assert_eq!(d.power_assist_at(25.0), 0.3);
+    let mut bad = d.clone();
+    bad.steering.power_assist_fade_start = 30.0;
+    assert!(bad.validate().is_err());
+    bad.steering.power_assist_fade_start = 5.0;
+    bad.steering.power_assist_at_speed = 1.5;
+    assert!(bad.validate().is_err());
+}
+
+#[test]
+fn a_fading_assist_weighs_the_wheel_up_at_speed_only() {
+    let torque = |fade: bool, speed_input: VehicleInput, seconds: f64| {
+        let mut d = every_torque_source(VehicleModelKind::FourWheel);
+        if fade {
+            d.steering.power_assist_at_speed = 0.2;
+            d.steering.power_assist_fade_start = 5.0;
+            d.steering.power_assist_fade_end = 25.0;
+        }
+        let mut w = World::new(1);
+        w.add_vehicle(d).unwrap();
+        settle(&mut w, speed_input, seconds);
+        let rec = w.telemetry_of(0);
+        (
+            rec[t::STEERING_TORQUE],
+            rec[t::SPEED],
+            w.state_hash(0).unwrap(),
+        )
+    };
+    let (with, v, h1) = torque(true, cornering(), 8.0);
+    let (without, _, h0) = torque(false, cornering(), 8.0);
+    assert!(v > 10.0, "{v}");
+    assert!(
+        with < without - 0.05,
+        "with {with} vs without {without} at {v} m/s"
+    );
+    // The assist acts at the hand wheel only: the car's motion is unchanged.
+    assert_eq!(h1, h0);
+    // Parked, below the fade, the same torque.
+    let parked = VehicleInput {
+        steer: 0.5,
+        ..VehicleInput::default()
+    };
+    assert_eq!(torque(true, parked, 2.0).0, torque(false, parked, 2.0).0);
+}
