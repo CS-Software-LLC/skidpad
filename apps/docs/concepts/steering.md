@@ -76,6 +76,12 @@ friction (`columnFriction`) and damping (`columnDamping`) are definition
 values the input package maps onto a wheel's own friction and damper
 effects, where the device's firmware applies them at its own rate.
 
+`columnDampingAtSpeed` and `columnDampingSpeed` make the damping rise with
+speed, as electric power steering's active damping does: linear from
+`columnDamping` at rest to `columnDampingAtSpeed` at `columnDampingSpeed`
+(m/s), then held. The core reports the current value as `ColumnDamping`
+([ADR-0033](https://github.com/CS-Software-LLC/skidpad/blob/main/docs/adr/0033-speed-sensitive-column-damping.md)).
+
 ## Torque channels for force feedback
 
 The core substeps at the definition's rate (1 kHz by default), while a host

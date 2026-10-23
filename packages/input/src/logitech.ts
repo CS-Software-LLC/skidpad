@@ -946,11 +946,14 @@ export class LogitechWebHidSink implements FfbSink {
       maxOutput: this.maxOutputValue,
     });
     const q = (x: number): number => Math.round(x * 0x7fff);
+    // The damper in steps of about 5 %: with speed-sensitive damping
+    // (ADR-0033) it moves every frame, and each change costs reports.
+    const qd = q(c.damper) === 0 ? 0 : Math.round(Math.log(c.damper) / Math.log(1.05));
     // Both off is one state whatever the saturation, as set-up leaves them.
     const key =
       q(c.friction) === 0 && q(c.damper) === 0
         ? COLUMN_OFF
-        : `${q(c.friction)} ${q(c.damper)} ${q(c.saturation)}`;
+        : `${q(c.friction)} ${qd} ${q(c.saturation)}`;
     if (key === this.lastColumn) return;
     this.lastColumn = key;
     this.record(

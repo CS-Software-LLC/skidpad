@@ -267,8 +267,22 @@ export interface SteeringDefinition {
   powerAssistOnset: number;
   /** Column friction for the force-feedback device, N·m (not simulated). */
   columnFriction: number;
-  /** Column damping for the force-feedback device, N·m per rad/s. */
+  /**
+   * Column damping for the force-feedback device, N·m per rad/s; with
+   * `columnDampingSpeed` set, the damping at standstill.
+   */
   columnDamping: number;
+  /**
+   * Speed-sensitive damping (ADR-0033): the column damping reached at
+   * `columnDampingSpeed` and held above it, N·m per rad/s, as an electric
+   * assist's active damping rises with speed. Zero or positive.
+   */
+  columnDampingAtSpeed: number;
+  /**
+   * Road speed at which `columnDampingAtSpeed` is reached, m/s, linear
+   * below it. 0 (the default) keeps the damping at `columnDamping`. 0 … 100.
+   */
+  columnDampingSpeed: number;
   /** Front contact travel along its ray per radian of steer, m/rad: inner down, outer up. */
   jackingRate: number;
   /**

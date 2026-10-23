@@ -144,7 +144,20 @@
           "type": "number",
           "minimum": 0,
           "default": 0.05,
-          "description": "Column damping for the force-feedback device, N·m per rad/s"
+          "description": "Column damping for the force-feedback device, N·m per rad/s; with columnDampingSpeed set, the damping at standstill"
+        },
+        "columnDampingAtSpeed": {
+          "type": "number",
+          "minimum": 0,
+          "default": 0,
+          "description": "Speed-sensitive damping (ADR-0033): the column damping reached at columnDampingSpeed and held above it, N·m per rad/s"
+        },
+        "columnDampingSpeed": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100,
+          "default": 0,
+          "description": "Road speed at which columnDampingAtSpeed is reached, m/s, linear below it; 0 keeps the damping constant at columnDamping"
         },
         "jackingRate": {
           "type": "number",

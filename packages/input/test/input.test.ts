@@ -426,6 +426,14 @@ describe("force feedback", () => {
     });
     expect(f.torque).toBe(1.5);
     expect(f.samples).toHaveLength(8);
+    // The column damping comes from the core when it reports it (ADR-0033).
+    expect(f.damping).toBe(0.05);
+    channels.ColumnDamping = 0.12;
+    const g = ffbFrameFromTelemetry((c) => channels[c] ?? NaN, {
+      columnFriction: 0.2,
+      columnDamping: 0.05,
+    });
+    expect(g.damping).toBe(0.12);
   });
 
   it("plays a step's slices out one step behind, continuously", async () => {
@@ -597,10 +605,14 @@ describe("force feedback", () => {
     expect(word(column[0]!.data, 17)).toBe(Math.round((0.3 / 11) * 0x7fff)); // right coefficient
     expect(word(column[0]!.data, 9)).toBe(0x7fff); // saturation = maxOutput
     expect(word(column[1]!.data, 11)).toBe(Math.round(((0.05 * 10) / 11) * 0x7fff));
-    // Unchanged values are not sent again.
+    // Unchanged values are not sent again, nor a damping 2 % off.
     const again = sent.length;
     await sink.update({ torque: 5.5, damping: 0.05, friction: 0.3 }, 1);
+    await sink.update({ torque: 5.5, damping: 0.051, friction: 0.3 }, 1);
     expect(sent.slice(again).some((s) => s.id === 0x12)).toBe(false);
+    // A damping 20 % up is.
+    await sink.update({ torque: 5.5, damping: 0.06, friction: 0.3 }, 1);
+    expect(sent.slice(again).some((s) => s.id === 0x12)).toBe(true);
     // With no further updates the watchdog zeroes the force.
     await new Promise((r) => setTimeout(r, 300));
     expect(lines.some((l) => l.includes("watchdog"))).toBe(true);

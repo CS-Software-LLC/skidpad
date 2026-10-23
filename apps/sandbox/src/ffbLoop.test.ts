@@ -7,6 +7,7 @@
  */
 import { beforeAll, describe, expect, it } from "vitest";
 import { init, type Skidpad } from "@skidpad/core";
+import { DIRECT_DRIVE_SCALER } from "@skidpad/input";
 import { preset, presetIds } from "@skidpad/presets";
 import { halfCyclePeaks, releaseVerdict, releaseWheel } from "./ffbLoop.js";
 
@@ -42,6 +43,23 @@ describe("hands-off force feedback", () => {
     }
   });
 
+  it("settles the road cars at 100 km/h with the speed-sensitive damping and a direct-drive slew", () => {
+    // ADR-0033: the presets' damping rises to four times the parking value
+    // by 20 m/s. With today's slow slew the delay still wins (see the
+    // report), so this pairs it with the direct-drive scaler.
+    const scaler = DIRECT_DRIVE_SCALER;
+    for (const id of ["hatchbackFwd", "sportsRwd", "openWheeler"] as const) {
+      const def = preset(id);
+      expect(def.steering?.columnDampingSpeed, id).toBeGreaterThan(0);
+      const tr = releaseWheel(sp, def, { speed: 100 / 3.6, releaseAngle: deg(30), scaler });
+      expect(releaseVerdict(tr), id).toBe("settled");
+      // Without the rise with speed the same release swings wider each time.
+      const flat = { ...def, steering: { ...def.steering, columnDampingSpeed: 0 } };
+      const without = releaseWheel(sp, flat, { speed: 100 / 3.6, releaseAngle: deg(30), scaler });
+      expect(releaseVerdict(without), id).toBe("growing");
+    }
+  });
+
   it("catches the oscillation when the column damping and friction are taken away", () => {
     // The harness's own check: without the firmware's damper the parked
     // wheel's swing grows through the 60 Hz loop.
@@ -55,13 +73,9 @@ describe.runIf(process.env.FFB_REPORT)("hands-off report", () => {
     const scalers = {
       today: { scaler: {} },
       "slew 50, smoothing 3 ms": { scaler: { slewRate: 50, smoothing: 0.003 } },
-      "slew 50, smoothing 3 ms, playout": {
-        scaler: { slewRate: 50, smoothing: 0.003 },
-        playout: true,
-      },
     };
     for (const [label, variant] of Object.entries(scalers)) {
-      for (const columnScale of [1, 2, 4]) {
+      for (const columnScale of [1, 2]) {
         const rows = presetIds.map((id) => {
           const cells = [0, 30, 100].map((kmh) =>
             releaseVerdict(

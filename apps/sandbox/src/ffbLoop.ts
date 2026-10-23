@@ -103,7 +103,7 @@ export function releaseWheel(
   const scaler = new FfbScaler({ maxTorque: o.fullScale ?? 11 * 0.4, ...o.scaler });
   const inertia = o.inertia ?? 0.03;
   const col = o.columnScale ?? 1;
-  const damping = scaler.gain * col * def.steering.columnDamping;
+  let damping = scaler.gain * col * def.steering.columnDamping;
   const friction = scaler.gain * col * def.steering.columnFriction;
   const endStop = o.endStop ?? (540 * Math.PI) / 180;
   let angle = o.releaseAngle ?? Math.PI / 2;
@@ -121,6 +121,8 @@ export function releaseWheel(
     });
     world.step(hostDt);
     const frame = ffbFrameFromTelemetry(read, def.steering, (angle * 180) / Math.PI);
+    // The firmware damper follows the car's (speed-sensitive) column damping.
+    damping = scaler.gain * col * frame.damping;
     if (o.playout) {
       scaler.watch(hostDt, frame.wheelAngle);
       playout.push(frame.samples!, hostDt, k * hostDt);

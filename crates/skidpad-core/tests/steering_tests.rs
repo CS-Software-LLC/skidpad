@@ -533,3 +533,36 @@ fn the_torque_slices_are_the_step_in_eight_parts() {
         }
     }
 }
+
+#[test]
+fn column_damping_rises_with_speed_when_asked() {
+    let mut d = VehicleDefinition::default();
+    // Off by default: constant at every speed.
+    assert_eq!(d.column_damping_at(0.0), d.steering.column_damping);
+    assert_eq!(d.column_damping_at(40.0), d.steering.column_damping);
+    d.steering.column_damping = 0.04;
+    d.steering.column_damping_at_speed = 0.16;
+    d.steering.column_damping_speed = 20.0;
+    assert_eq!(d.column_damping_at(0.0), 0.04);
+    assert!((d.column_damping_at(5.0) - 0.07).abs() < 1e-15);
+    assert!((d.column_damping_at(-10.0) - 0.10).abs() < 1e-15);
+    assert_eq!(d.column_damping_at(20.0), 0.16);
+    assert_eq!(d.column_damping_at(60.0), 0.16);
+    // Reported at the car's speed, on both models.
+    for model in [VehicleModelKind::FourWheel, VehicleModelKind::SingleTrack] {
+        let mut dm = d.clone();
+        dm.simulation.model = model;
+        let mut w = World::new(1);
+        w.add_vehicle(dm.clone()).unwrap();
+        settle(&mut w, cornering(), 3.0);
+        let rec = w.telemetry_of(0);
+        assert_eq!(rec[t::COLUMN_DAMPING], dm.column_damping_at(rec[t::SPEED]));
+        assert!(rec[t::COLUMN_DAMPING] > 0.04, "{model:?}");
+    }
+    let mut bad = d.clone();
+    bad.steering.column_damping_speed = -1.0;
+    assert!(bad.validate().is_err());
+    bad.steering.column_damping_speed = 10.0;
+    bad.steering.column_damping_at_speed = -0.1;
+    assert!(bad.validate().is_err());
+}
