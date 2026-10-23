@@ -68,6 +68,10 @@ export function WheelPanel({ sim }: { sim: Sim }) {
   const [smoothingMs, setSmoothingMs] = useState(10);
   const [matchRotation, setMatchRotation] = useState(false);
   const [rotationNote, setRotationNote] = useState("");
+  // Polish item 4: the firmware damper's units, measured on this wheel and
+  // remembered per browser.
+  const [damperRate, setDamperRate] = useState(() => loadDamperRate() ?? 10);
+  const [measuring, setMeasuring] = useState(false);
   const [log, setLog] = useState<string[]>([]);
   const [assists, setAssists] = useState(() => currentAssists(sim));
   const sink = useRef<LogitechWebHidSink | null>(null);
@@ -197,6 +201,7 @@ export function WheelPanel({ sim }: { sim: Sim }) {
         slewRate,
         smoothing: smoothingMs / 1000,
         playoutRate: playout ? playoutRate : 0,
+        damperRate,
       });
       // Keep the sink even when the force path fails, so its diagnostics
       // log stays on screen.
@@ -218,8 +223,43 @@ export function WheelPanel({ sim }: { sim: Sim }) {
       sink.current.scaler.slewRate = slewRate;
       sink.current.scaler.smoothing = smoothingMs / 1000;
       sink.current.playoutRate = playout ? playoutRate : 0;
+      sink.current.damperRate = damperRate;
     }
-  }, [gain, invert, maxOutput, columnScale, slewRate, smoothingMs, playout, playoutRate]);
+  }, [
+    gain,
+    invert,
+    maxOutput,
+    columnScale,
+    slewRate,
+    smoothingMs,
+    playout,
+    playoutRate,
+    damperRate,
+  ]);
+
+  const measureDamping = async () => {
+    const s = sink.current;
+    if (!s?.ready) return;
+    setMeasuring(true);
+    setMessage("Measuring damping: hands off the wheel; it will turn slowly each way three times.");
+    try {
+      const { fit } = await s.measureDamper(() => sim.wheel.status.wheelAngleDeg);
+      if (fit) {
+        setDamperRate(fit.damperRate);
+        saveDamperRate(fit.damperRate);
+        setMessage(
+          `Damping measured: damperRate ${fit.damperRate.toFixed(1)} rad/s ` +
+            `(firmware friction ${fit.friction.toFixed(2)} N·m, runs within ${(100 * fit.spread).toFixed(0)} %). Saved.`,
+        );
+      } else {
+        setMessage(
+          "Damping: no usable runs (see the log). Try the other update mode, or a wider rotation.",
+        );
+      }
+    } finally {
+      setMeasuring(false);
+    }
+  };
 
   const rumble = () => {
     const s = new GamepadRumbleSink(() => {
@@ -296,6 +336,13 @@ export function WheelPanel({ sim }: { sim: Sim }) {
             <button onClick={rumble}>Use gamepad rumble</button>
             <button onClick={() => void sink.current?.pulse()} disabled={!sink.current}>
               Test pulse
+            </button>
+            <button
+              onClick={() => void measureDamping()}
+              disabled={!sink.current || measuring}
+              title="Hands off: spins the wheel slowly with the damper on to find its units"
+            >
+              {measuring ? "Measuring…" : "Measure damping"}
             </button>
             <button onClick={disconnect}>Off</button>
           </div>
@@ -496,4 +543,24 @@ function currentAssists(sim: Sim): Record<(typeof ASSISTS)[number][0], boolean> 
     stabilityControl: a.stabilityControl.enabled,
     steeringAssist: a.steeringAssist.enabled,
   };
+}
+
+const DAMPER_KEY = "skidpad.damperRate";
+
+/** The damperRate measured on this browser's wheel, if any. */
+function loadDamperRate(): number | undefined {
+  try {
+    const v = Number(globalThis.localStorage?.getItem(DAMPER_KEY));
+    return v > 0 ? v : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function saveDamperRate(v: number): void {
+  try {
+    globalThis.localStorage?.setItem(DAMPER_KEY, String(v));
+  } catch {
+    // Storage blocked: the value lasts for this page only.
+  }
 }

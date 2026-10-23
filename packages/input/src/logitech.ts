@@ -378,6 +378,67 @@ export function columnEffects(
     saturation: limit,
   };
 }
+/** One constant-force run of the damper measurement. */
+export interface DamperRun {
+  /** Constant torque applied, N·m. */
+  torque: number;
+  /** Terminal hand-wheel speed it reached, rad/s. */
+  speed: number;
+}
+
+export interface DamperFit {
+  /** Damping the firmware applied, N·m per rad/s. */
+  damping: number;
+  /** Torque lost to friction (the rim's own and the firmware's), N·m. */
+  friction: number;
+  /**
+   * The wheel speed at which a damper coefficient of 1 gives the device's
+   * peak torque, rad/s: the sink's `damperRate`.
+   */
+  damperRate: number;
+  /**
+   * How well the runs agree with one damping line through the friction,
+   * |residual| over torque, worst run (0 is exact).
+   */
+  spread: number;
+}
+
+/**
+ * Fit the firmware's damper from constant-force runs at a known damper
+ * coefficient (polish item 4): at terminal speed `T = c·ω + f`, so two or
+ * more runs give the damping `c` and the friction `f` by least squares, and
+ * the coefficient's scale follows as `damperRate = coefficient · peak / c`.
+ * Undefined when the speeds do not grow with the torque.
+ */
+export function fitDamper(
+  runs: readonly DamperRun[],
+  coefficient: number,
+  peakTorque: number,
+): DamperFit | undefined {
+  const pts = runs.filter((r) => Number.isFinite(r.speed) && Math.abs(r.speed) > 1e-3);
+  if (pts.length < 2) return undefined;
+  const n = pts.length;
+  const xs = pts.map((r) => Math.abs(r.speed));
+  const ys = pts.map((r) => Math.abs(r.torque));
+  const mx = xs.reduce((a, b) => a + b, 0) / n;
+  const my = ys.reduce((a, b) => a + b, 0) / n;
+  let sxy = 0;
+  let sxx = 0;
+  for (let i = 0; i < n; i++) {
+    sxy += (xs[i]! - mx) * (ys[i]! - my);
+    sxx += (xs[i]! - mx) ** 2;
+  }
+  if (!(sxx > 0)) return undefined;
+  const damping = sxy / sxx;
+  if (!(damping > 0)) return undefined;
+  const friction = Math.max(0, my - damping * mx);
+  let spread = 0;
+  for (let i = 0; i < n; i++) {
+    spread = Math.max(spread, Math.abs(ys[i]! - (damping * xs[i]! + friction)) / ys[i]!);
+  }
+  return { damping, friction, damperRate: (coefficient * peakTorque) / damping, spread };
+}
+
 function conditionParams(
   slot: number,
   type: number,
@@ -442,6 +503,7 @@ export class LogitechWebHidSink implements FfbSink {
   private sending = false;
   /** Per-report lines in the log; off while the playout runs, which would flood it. */
   private reportLines = true;
+  private measuring = false;
   private rotationDeg: number;
   private readonly updateMode: "modify" | "recreate";
   private readonly log: (line: string) => void;
@@ -810,7 +872,8 @@ export class LogitechWebHidSink implements FfbSink {
   // --- frames -------------------------------------------------------------------
 
   async update(frame: FfbFrame, dt: number): Promise<void> {
-    if (!this.ready) return;
+    // The damper measurement owns the force while it runs.
+    if (!this.ready || this.measuring) return;
     if (this.playoutRate > 0 && frame.samples && frame.samples.length > 0) {
       await this.updatePlayout(frame, dt);
       return;
@@ -1018,6 +1081,113 @@ export class LogitechWebHidSink implements FfbSink {
       }
       this.slot = await this.download(constantParams(0, device));
     }
+  }
+
+  /**
+   * Measure the firmware damper's units (polish item 4). With the hands
+   * off, the damper at `coefficient` and friction off, a constant torque
+   * spins the rim to its terminal speed, read from `readAngleDeg` (the
+   * hand-wheel angle, degrees, positive right); this repeats at each of
+   * `torques` (N·m, alternating direction), then `fitDamper` gives the
+   * damping and `damperRate`. Each run stops early near the end stop or if
+   * the rim runs faster than `maxSpeed`. The force is zeroed after; the
+   * next `update()` restores the column effects. With two torques the
+   * second run also shows whether changing a playing constant force works
+   * in this `updateMode` [VERIFY]: if it does not, the speeds do not grow
+   * and the fit fails.
+   */
+  async measureDamper(
+    readAngleDeg: () => number,
+    o: {
+      torques?: readonly number[];
+      coefficient?: number;
+      settle?: number;
+      window?: number;
+      maxAngleDeg?: number;
+      maxSpeed?: number;
+    } = {},
+  ): Promise<{ runs: DamperRun[]; fit: DamperFit | undefined }> {
+    const torques = o.torques ?? [0.3, 0.5, 0.7];
+    const coefficient = o.coefficient ?? 0.4;
+    const settle = o.settle ?? 0.6;
+    const window = o.window ?? 0.4;
+    const maxAngle = o.maxAngleDeg ?? 0.5 * this.rotationDeg - 60;
+    const maxSpeed = o.maxSpeed ?? 15;
+    const runs: DamperRun[] = [];
+    if (!this.ready || this.protocol === "classic" || this.featureIndex === 0) {
+      return { runs, fit: undefined };
+    }
+    this.stopPlayout();
+    const sleep = (s: number) => new Promise((r) => setTimeout(r, s * 1000));
+    const now = () => performance.now() / 1000;
+    this.record(`   measuring the damper at coefficient ${coefficient}`);
+    this.measuring = true;
+    try {
+      this.frictionSlot = await this.setCondition(this.frictionSlot, FF_EFFECT_FRICTION, 0, 0);
+      this.damperSlot = await this.setCondition(
+        this.damperSlot,
+        FF_EFFECT_DAMPER,
+        coefficient,
+        this.maxOutputValue,
+      );
+      this.lastColumn = undefined;
+      for (const [i, torque] of torques.entries()) {
+        const sign = i % 2 === 0 ? 1 : -1;
+        const level = (sign * torque) / Math.max(this.peakTorque * this.maxOutputValue, 1e-6);
+        this.lastUpdate = now();
+        this.lastLevel = level;
+        await this.sendLevel(Math.max(-1, Math.min(1, level)));
+        const t0 = now();
+        const samples: Array<[number, number]> = [];
+        let stopped = false;
+        while (now() - t0 < settle + window) {
+          await sleep(0.01);
+          this.lastUpdate = now();
+          const a = readAngleDeg();
+          const t = now();
+          const last = samples.at(-1);
+          const rate = last ? ((a - last[1]) * Math.PI) / 180 / Math.max(t - last[0], 1e-3) : 0;
+          if (Math.abs(a) > maxAngle || Math.abs(rate) > maxSpeed) {
+            stopped = true;
+            break;
+          }
+          if (t - t0 >= settle) samples.push([t, a]);
+        }
+        await this.sendLevel(0);
+        this.lastLevel = 0;
+        // The window's mean speed, and its two halves to check it settled.
+        const speedOf = (p: Array<[number, number]>): number =>
+          p.length < 2
+            ? NaN
+            : ((p.at(-1)![1] - p[0]![1]) * Math.PI) / 180 / Math.max(p.at(-1)![0] - p[0]![0], 1e-3);
+        const half = Math.floor(samples.length / 2);
+        const speed = speedOf(samples);
+        const early = speedOf(samples.slice(0, half + 1));
+        const late = speedOf(samples.slice(half));
+        const steady = Math.abs(late - early) <= 0.05 * Math.abs(speed);
+        if (!stopped && samples.length >= 4 && steady) {
+          runs.push({ torque: sign * torque, speed });
+          this.record(
+            `   run ${i + 1}: ${torque.toFixed(2)} N·m -> ${((Math.abs(speed) * 180) / Math.PI).toFixed(0)}°/s`,
+          );
+        } else {
+          const why = stopped ? "stopped at the angle or speed limit" : "speed still changing";
+          this.record(`   run ${i + 1}: ${torque.toFixed(2)} N·m, ${why}; not used`);
+        }
+        // Back toward centre before the next run, which goes the other way.
+        await sleep(0.3);
+      }
+    } finally {
+      this.measuring = false;
+      await this.zero();
+    }
+    const fit = fitDamper(runs, coefficient, this.peakTorque);
+    this.record(
+      fit
+        ? `   damper: ${fit.damping.toFixed(3)} N·m·s/rad, friction ${fit.friction.toFixed(2)} N·m, damperRate ${fit.damperRate.toFixed(1)} rad/s (spread ${(100 * fit.spread).toFixed(0)} %)`
+        : "   damper: no fit; the speed did not grow with the torque (try the other update mode)",
+    );
+    return { runs, fit };
   }
 
   /**

@@ -727,6 +727,66 @@ describe("force feedback", () => {
     await sink.disconnect();
   });
 
+  it("fits the firmware damper from constant-force runs", async () => {
+    const { fitDamper } = await import("../src/index.js");
+    // c = 0.2 N·m·s/rad and 0.1 N·m of friction: T = 0.2·ω + 0.1.
+    const runs = [0.4, 0.8, 1.2].map((t, i) => ({
+      torque: i % 2 ? -t : t,
+      speed: (i % 2 ? -1 : 1) * ((t - 0.1) / 0.2),
+    }));
+    const fit = fitDamper(runs, 0.2, 11)!;
+    expect(fit.damping).toBeCloseTo(0.2);
+    expect(fit.friction).toBeCloseTo(0.1);
+    expect(fit.damperRate).toBeCloseTo((0.2 * 11) / 0.2);
+    expect(fit.spread).toBeLessThan(1e-9);
+    // Speeds that do not grow with the torque (a force that never changed).
+    expect(
+      fitDamper(
+        [
+          { torque: 0.4, speed: 2 },
+          { torque: 0.8, speed: 2 },
+        ],
+        0.2,
+        11,
+      ),
+    ).toBe(undefined);
+  });
+
+  it("measures the damper on a simulated rim", async () => {
+    const { LogitechWebHidSink } = await import("../src/index.js");
+    const { device, sent } = fakeWheel(0xc272);
+    const sink = new LogitechWebHidSink({ maxOutput: 0.4 });
+    await sink.attach(device);
+    // The rim: inertia 0.03 kg·m², 0.05 N·m of friction, and a firmware
+    // whose coefficient of 1 gives the 11 N·m peak at 25 rad/s.
+    const word = (d: number[], i: number) => (((d[i]! << 8) | d[i + 1]!) << 16) >> 16;
+    let angle = 0;
+    let rate = 0;
+    let t = performance.now() / 1000;
+    const read = () => {
+      const now = performance.now() / 1000;
+      const constant = [...sent].reverse().find((r) => r.data[2]! >> 4 === 2 && r.data[4] === 0);
+      const damper = [...sent].reverse().find((r) => r.data[2]! >> 4 === 2 && r.data[4] === 0x07);
+      const torque = constant ? (-word(constant.data, 9) / 0x7fff) * 11 : 0;
+      const c = damper ? ((word(damper.data, 11) / 0x7fff) * 11) / 25 : 0;
+      for (; t < now; t += 1e-4) {
+        let v = rate + (1e-4 * (torque - c * rate)) / 0.03;
+        const stick = (1e-4 * 0.05) / 0.03;
+        v = Math.abs(v) <= stick ? 0 : v - Math.sign(v) * stick;
+        rate = v;
+        angle += 1e-4 * rate;
+      }
+      return (angle * 180) / Math.PI;
+    };
+    const { runs, fit } = await sink.measureDamper(read);
+    expect(runs).toHaveLength(3);
+    expect(fit).toBeDefined();
+    expect(fit!.damperRate).toBeGreaterThan(25 * 0.9);
+    expect(fit!.damperRate).toBeLessThan(25 * 1.1);
+    expect(fit!.friction).toBeLessThan(0.15);
+    await sink.disconnect();
+  }, 15_000);
+
   it("maps column friction and damping to effect coefficients within maxOutput", async () => {
     const { columnEffects } = await import("../src/index.js");
     const o = { gain: 0.5, columnScale: 2, damperRate: 10, peakTorque: 11, maxOutput: 0.4 };
