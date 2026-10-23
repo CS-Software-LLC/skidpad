@@ -10,7 +10,8 @@
       "Drivetrain [ILLUSTRATIVE]: a 1.6 l naturally aspirated four (peak 172 N·m, 100 kW at 6000 rpm), five-speed ratios and a 4.1 final drive typical of the class; open front differential.",
       "Steering geometry [ILLUSTRATIVE]: 5–6° caster giving about 25 mm of mechanical trail, a small positive scrub radius and an electric assist removing roughly 60 % of the rack torque at the hand wheel, typical of a modern front-drive hatchback.",
       "Roll centres [ILLUSTRATIVE]: a MacPherson front near 80 mm and a torsion-beam rear near 120 mm above ground (Milliken & Milliken, Race Car Vehicle Dynamics, ch. 17); aero lift coefficients of a modern hatchback are small and positive (Hucho, Aerodynamics of Road Vehicles, ch. 4), with the drag centred a little above the centre of mass.",
-      "Travel curves [ILLUSTRATIVE] (ADR-0026): roll-centre height falling with bump and camber gain at rates scaled from the curves derived for Project Chrono's BMW E90 from its hardpoints (MacPherson front: roll centre −2.9 mm per mm of bump, camber about −20°/m; double wishbone: −1.6 mm per mm; docs/validation/chrono-bmw-e90.md), eased for this car's lower roll centres. No toe curves: road cars are set up for near-zero bump steer, and the E90 comparison found toe follows force more than travel."
+      "Travel curves [ILLUSTRATIVE] (ADR-0026): roll-centre height falling with bump and camber gain at rates scaled from the curves derived for Project Chrono's BMW E90 from its hardpoints (MacPherson front: roll centre −2.9 mm per mm of bump, camber about −20°/m; double wishbone: −1.6 mm per mm; docs/validation/chrono-bmw-e90.md), eased for this car's lower roll centres. No toe curves: road cars are set up for near-zero bump steer, and the E90 comparison found toe follows force more than travel.",
+      "Unsprung mass and tire vertical rates [ILLUSTRATIVE] (ADR-0028): wheel, tire, brake, hub and about half of each link per corner, typical of the class, with the tire about ten times as stiff as the suspension spring so the wheel hops at 10–15 Hz (Gillespie, Fundamentals of Vehicle Dynamics, ch. 5)."
     ],
     "notes": "Not a specific production model. Values are class-representative."
   },
@@ -36,7 +37,9 @@
         "corneringStiffness": 17,
         "longitudinalStiffness": 20,
         "stiffnessPeakLoad": 4200,
-        "relaxationLengthLat": 0.4
+        "relaxationLengthLat": 0.4,
+        "verticalStiffness": 220000,
+        "verticalDamping": 500
       },
       "wheelInertia": 1.6,
       "driven": true,
@@ -64,7 +67,8 @@
             [0, 0],
             [0.09, -1.8]
           ]
-        }
+        },
+        "unsprungMass": 35
       }
     },
     {
@@ -78,13 +82,15 @@
         "corneringStiffness": 17,
         "longitudinalStiffness": 20,
         "stiffnessPeakLoad": 4200,
-        "relaxationLengthLat": 0.4
+        "relaxationLengthLat": 0.4,
+        "verticalStiffness": 220000,
+        "verticalDamping": 500
       },
       "wheelInertia": 1.2,
       "driven": false,
       "steered": false,
       "maxBrakeTorque": 1400,
-      "staticCamberDeg": -1.0,
+      "staticCamberDeg": -1,
       "suspension": {
         "springRate": 20000,
         "bumpDamping": 1800,
@@ -101,21 +107,22 @@
             [0, 0],
             [0.1, -0.05]
           ]
-        }
+        },
+        "unsprungMass": 30
       }
     }
   ],
   "steering": {
     "maxWheelAngleDeg": 36,
     "ratio": 15.5,
-    "ackermann": 1.0,
+    "ackermann": 1,
     "mechanicalTrail": 0.025,
     "scrubRadius": 0.005,
     "steeringArm": 0.13,
     "powerAssist": 0.6,
     "columnFriction": 0.25,
     "columnDamping": 0.04,
-    "jackingRate": 0.0
+    "jackingRate": 0
   },
   "brakes": {
     "handbrakeTorque": 1200

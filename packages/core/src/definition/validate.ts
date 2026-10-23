@@ -595,6 +595,31 @@ export function validateDefinition(def: unknown): ValidationResult {
           }
         }
       });
+      // Along up the body rolls and pitches with the wheels' share of the
+      // inertias taken out (ADR-0028); keep a tenth of each.
+      if (d.axles.length === 2 && isNum(c.wheelbase) && isNum(c.cgToFrontAxle)) {
+        const x = [c.cgToFrontAxle, c.wheelbase - c.cgToFrontAxle];
+        let roll = 0;
+        let pitch = 0;
+        d.axles.forEach((a, i) => {
+          const mu = a?.suspension?.unsprungMass;
+          if (!isNum(mu) || !(mu > 0)) return;
+          const track = isNum(a?.trackWidth) && a.trackWidth > 0 ? a.trackWidth : c.trackWidth;
+          const y = isNum(track) ? 0.5 * track : 0;
+          roll += 2 * mu * y * y;
+          pitch += 2 * mu * x[i]! * x[i]!;
+        });
+        if (roll > 0 && isNum(c.rollInertia) && !(roll <= 0.9 * c.rollInertia)) {
+          errors.push(
+            `the wheels' unsprungMass at the track (${roll.toFixed(1)} kg·m²) must leave at least a tenth of chassis.rollInertia (${c.rollInertia} kg·m²) to the body`,
+          );
+        }
+        if (pitch > 0 && isNum(c.pitchInertia) && !(pitch <= 0.9 * c.pitchInertia)) {
+          errors.push(
+            `the wheels' unsprungMass at the axles (${pitch.toFixed(1)} kg·m²) must leave at least a tenth of chassis.pitchInertia (${c.pitchInertia} kg·m²) to the body`,
+          );
+        }
+      }
       if (d.axles.length === 2 && d.axles.every((a) => a?.driven === false)) {
         errors.push("at least one axle must be driven");
       }

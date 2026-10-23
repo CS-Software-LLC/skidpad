@@ -10,7 +10,8 @@
       "Aero [ILLUSTRATIVE]: lift coefficients of −1.2 front and −1.8 rear on a 1.0 m² frontal area with a drag coefficient of 0.9, giving about 4.6 kN of downforce at 180 km/h, in the range published for winged junior formula cars (Katz, Race Car Aerodynamics, ch. 7); the drag acts at the wing heights, above the centre of mass.",
       "Drivetrain [ILLUSTRATIVE]: a 2.0 l turbocharged four (peak 300 N·m, 180 kW at 6500 rpm) through a six-speed sequential gearbox with a 4.0 final drive and a clutch-pack rear limited-slip differential.",
       "Steering geometry [ILLUSTRATIVE]: 8° of caster (about 30 mm of trail), zero scrub radius, no assist, a quick 10:1 ratio.",
-      "Travel curves [ILLUSTRATIVE] (ADR-0026): roll-centre height falling with bump and camber gain at rates scaled from the curves derived for Project Chrono's BMW E90 from its hardpoints (MacPherson front: roll centre −2.9 mm per mm of bump, camber about −20°/m; double wishbone: −1.6 mm per mm; docs/validation/chrono-bmw-e90.md), eased for this car's lower roll centres. No toe curves: road cars are set up for near-zero bump steer, and the E90 comparison found toe follows force more than travel."
+      "Travel curves [ILLUSTRATIVE] (ADR-0026): roll-centre height falling with bump and camber gain at rates scaled from the curves derived for Project Chrono's BMW E90 from its hardpoints (MacPherson front: roll centre −2.9 mm per mm of bump, camber about −20°/m; double wishbone: −1.6 mm per mm; docs/validation/chrono-bmw-e90.md), eased for this car's lower roll centres. No toe curves: road cars are set up for near-zero bump steer, and the E90 comparison found toe follows force more than travel.",
+      "Unsprung mass and tire vertical rates [ILLUSTRATIVE] (ADR-0028): wheel, tire, brake, hub and about half of each link per corner, typical of the class, with the tire about ten times as stiff as the suspension spring so the wheel hops at 10–15 Hz (Gillespie, Fundamentals of Vehicle Dynamics, ch. 5)."
     ],
     "notes": "Not a specific car. No handbrake, so the handbrake standstill cases are skipped. The downforce reaches the tires through the springs, so the car sits lower at speed and the stiff springs matter. ABS, traction control and stability control are on at the core's default settings, which the real class does not have: at low speed, before the wings work, full throttle in the lower gears overwhelms the rear slicks. Turn them off in `assists` for an unassisted car."
   },
@@ -32,14 +33,16 @@
         "nominalLoad": 1500,
         "peakFriction": 1.6,
         "loadSensitivity": 0.12,
-        "peakSlipAngleDeg": 6.0,
+        "peakSlipAngleDeg": 6,
         "peakSlipRatio": 0.1,
         "corneringStiffness": 22,
         "longitudinalStiffness": 26,
         "stiffnessPeakLoad": 2600,
         "relaxationLengthLat": 0.2,
         "relaxationLengthLong": 0.15,
-        "rollingResistance": 0.01
+        "rollingResistance": 0.01,
+        "verticalStiffness": 250000,
+        "verticalDamping": 400
       },
       "wheelInertia": 0.6,
       "driven": false,
@@ -62,7 +65,8 @@
             [0, 0],
             [0.035, -0.035]
           ]
-        }
+        },
+        "unsprungMass": 22
       }
     },
     {
@@ -72,14 +76,16 @@
         "nominalLoad": 1800,
         "peakFriction": 1.75,
         "loadSensitivity": 0.12,
-        "peakSlipAngleDeg": 6.0,
+        "peakSlipAngleDeg": 6,
         "peakSlipRatio": 0.1,
         "corneringStiffness": 30,
         "longitudinalStiffness": 27,
         "stiffnessPeakLoad": 3200,
         "relaxationLengthLat": 0.2,
         "relaxationLengthLong": 0.15,
-        "rollingResistance": 0.01
+        "rollingResistance": 0.01,
+        "verticalStiffness": 260000,
+        "verticalDamping": 400
       },
       "wheelInertia": 0.9,
       "driven": true,
@@ -102,7 +108,8 @@
             [0, 0],
             [0.04, -0.04]
           ]
-        }
+        },
+        "unsprungMass": 25
       }
     }
   ],
@@ -111,19 +118,19 @@
     "ratio": 10,
     "ackermann": 0.6,
     "mechanicalTrail": 0.03,
-    "scrubRadius": 0.0,
+    "scrubRadius": 0,
     "steeringArm": 0.09,
-    "powerAssist": 0.0,
+    "powerAssist": 0,
     "columnFriction": 0.2,
     "columnDamping": 0.03,
-    "jackingRate": 0.0
+    "jackingRate": 0
   },
   "brakes": {
     "handbrakeTorque": 0
   },
   "aero": {
     "dragCoefficient": 0.9,
-    "frontalArea": 1.0,
+    "frontalArea": 1,
     "airDensity": 1.225,
     "liftCoefficientFront": -1.2,
     "liftCoefficientRear": -1.8,
@@ -153,9 +160,9 @@
       "idleTorqueMax": 60
     },
     "transmission": {
-      "gears": [2.9, 2.1, 1.65, 1.35, 1.15, 1.0],
-      "reverse": 3.0,
-      "finalDrive": 4.0,
+      "gears": [2.9, 2.1, 1.65, 1.35, 1.15, 1],
+      "reverse": 3,
+      "finalDrive": 4,
       "mode": "automatic",
       "shiftTime": 0.05,
       "shiftHold": 0.3,
@@ -175,7 +182,7 @@
       "kind": "lsd",
       "preload": 40,
       "biasDrive": 2.5,
-      "biasCoast": 2.0
+      "biasCoast": 2
     },
     "center": {
       "kind": "open",
@@ -188,7 +195,7 @@
       "slipTarget": 0.12,
       "slipRelease": 0.3,
       "floor": 0.15,
-      "minSpeed": 2.0
+      "minSpeed": 2
     },
     "tractionControl": {
       "enabled": true,
@@ -199,12 +206,12 @@
       "enabled": true,
       "gain": 1500,
       "deadBand": 0.05,
-      "throttleCut": 1.0,
-      "minSpeed": 3.0
+      "throttleCut": 1,
+      "minSpeed": 3
     },
     "steeringAssist": {
       "enabled": false,
-      "latAccelLimit": 9.0
+      "latAccelLimit": 9
     }
   }
 }

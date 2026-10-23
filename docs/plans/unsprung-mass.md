@@ -21,7 +21,8 @@ stable.
    TypeScript types, validation and schema, and the exact-answer tests in
    `tests/unsprung_tests.rs` with results in `docs/validation/analytic.md`.
    Presets, goldens and determinism hashes do not move.
-2. **Presets on (second PR).** Give the hatchback, sports car, crossover and
+2. **Presets on (done in the second PR, with a core fix for light bodies in
+   roll; see `docs/validation/unsprung-presets.md`).** Give the hatchback, sports car, crossover and
    open-wheeler typical unsprung masses and tire rates on both axles, and
    the kart and pickup on their independent front axles. Regenerate the
    goldens, the README tables and the determinism hashes. Write up what

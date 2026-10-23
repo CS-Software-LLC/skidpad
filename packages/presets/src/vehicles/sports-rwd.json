@@ -10,7 +10,8 @@
       "Drivetrain [ILLUSTRATIVE]: a 3.5 l naturally aspirated six (peak 405 N·m at 5000 rpm, about 250 kW at 7000 rpm), six-speed ratios with a 3.6 final drive and a mild clutch-pack LSD at the low end of the class's drive bias range (Milliken & Milliken, Race Car Vehicle Dynamics, ch. 20).",
       "Steering geometry [ILLUSTRATIVE]: 7° caster (about 30 mm of trail), 12 mm scrub radius and a light assist, for the heavier, more communicative steering of a sports car.",
       "Roll centres [ILLUSTRATIVE]: double-wishbone front near 50 mm and multilink rear near 100 mm (Milliken & Milliken ch. 17); a small rear spoiler leaves a touch of rear downforce and near-zero front lift (Hucho ch. 4).",
-      "Travel curves [ILLUSTRATIVE] (ADR-0026): roll-centre height falling with bump and camber gain at rates scaled from the curves derived for Project Chrono's BMW E90 from its hardpoints (MacPherson front: roll centre −2.9 mm per mm of bump, camber about −20°/m; double wishbone: −1.6 mm per mm; docs/validation/chrono-bmw-e90.md), eased for this car's lower roll centres. No toe curves: road cars are set up for near-zero bump steer, and the E90 comparison found toe follows force more than travel."
+      "Travel curves [ILLUSTRATIVE] (ADR-0026): roll-centre height falling with bump and camber gain at rates scaled from the curves derived for Project Chrono's BMW E90 from its hardpoints (MacPherson front: roll centre −2.9 mm per mm of bump, camber about −20°/m; double wishbone: −1.6 mm per mm; docs/validation/chrono-bmw-e90.md), eased for this car's lower roll centres. No toe curves: road cars are set up for near-zero bump steer, and the E90 comparison found toe follows force more than travel.",
+      "Unsprung mass and tire vertical rates [ILLUSTRATIVE] (ADR-0028): wheel, tire, brake, hub and about half of each link per corner, typical of the class, with the tire about ten times as stiff as the suspension spring so the wheel hops at 10–15 Hz (Gillespie, Fundamentals of Vehicle Dynamics, ch. 5)."
     ],
     "notes": "Not a specific production model. The rear differential is a clutch-pack limited slip (preload 20 N·m, 1.6:1 drive, 1.2:1 coast). ABS, traction control and stability control are on at the core's default settings; turn them off in `assists` for an unassisted car."
   },
@@ -36,13 +37,15 @@
         "corneringStiffness": 20,
         "longitudinalStiffness": 24,
         "stiffnessPeakLoad": 5200,
-        "relaxationLengthLat": 0.3
+        "relaxationLengthLat": 0.3,
+        "verticalStiffness": 280000,
+        "verticalDamping": 600
       },
       "wheelInertia": 1.8,
       "driven": false,
       "steered": true,
       "maxBrakeTorque": 4200,
-      "staticCamberDeg": -1.0,
+      "staticCamberDeg": -1,
       "suspension": {
         "springRate": 38000,
         "bumpDamping": 3200,
@@ -64,7 +67,8 @@
             [0, 0],
             [0.07, -1.05]
           ]
-        }
+        },
+        "unsprungMass": 40
       }
     },
     {
@@ -78,7 +82,9 @@
         "corneringStiffness": 26,
         "longitudinalStiffness": 25,
         "stiffnessPeakLoad": 5600,
-        "relaxationLengthLat": 0.3
+        "relaxationLengthLat": 0.3,
+        "verticalStiffness": 280000,
+        "verticalDamping": 600
       },
       "wheelInertia": 2.6,
       "driven": true,
@@ -102,32 +108,33 @@
             [0.08, -0.12]
           ],
           "camberDeg": [
-            [-0.1, 1.0],
+            [-0.1, 1],
             [0, 0],
             [0.08, -0.8]
           ]
-        }
+        },
+        "unsprungMass": 42
       }
     }
   ],
   "steering": {
     "maxWheelAngleDeg": 32,
     "ratio": 13,
-    "ackermann": 1.0,
+    "ackermann": 1,
     "mechanicalTrail": 0.03,
     "scrubRadius": 0.012,
     "steeringArm": 0.12,
     "powerAssist": 0.4,
     "columnFriction": 0.3,
     "columnDamping": 0.05,
-    "jackingRate": 0.0
+    "jackingRate": 0
   },
   "brakes": {
     "handbrakeTorque": 1500
   },
   "aero": {
     "dragCoefficient": 0.3,
-    "frontalArea": 2.0,
+    "frontalArea": 2,
     "airDensity": 1.225,
     "liftCoefficientFront": 0.03,
     "liftCoefficientRear": -0.02,
@@ -193,7 +200,7 @@
       "slipTarget": 0.12,
       "slipRelease": 0.3,
       "floor": 0.15,
-      "minSpeed": 2.0
+      "minSpeed": 2
     },
     "tractionControl": {
       "enabled": true,
@@ -204,12 +211,12 @@
       "enabled": true,
       "gain": 1500,
       "deadBand": 0.05,
-      "throttleCut": 1.0,
-      "minSpeed": 3.0
+      "throttleCut": 1,
+      "minSpeed": 3
     },
     "steeringAssist": {
       "enabled": false,
-      "latAccelLimit": 9.0
+      "latAccelLimit": 9
     }
   }
 }

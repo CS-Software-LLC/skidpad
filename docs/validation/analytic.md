@@ -96,14 +96,15 @@ equal springs and dampers), with 40 kg wheels on 250 kN/m tires damped at
 
 | Check                                                         | Theory                                                            | Tolerance               | Worst result                               |
 | ------------------------------------------------------------- | ----------------------------------------------------------------- | ----------------------- | ------------------------------------------ |
-| Free response from a 5 mm drop of body and wheels, 3 s, 1 kHz | The two-mass quarter car, integrated with RK4 at 10 µs            | 2 % of the drop         | body 0.60 %, wheels 1.19 %                 |
-| Four-post rig, 0.5 to 25 Hz: body and total tire load         | `Z_s/Y` and `(K_t + iωC_t)(Y − Z_u)/Y` of the quarter car         | 3 %, 3°                 | 0.90 %, 2.37° (4 kHz; see below)           |
+| Free response from a 5 mm drop of body and wheels, 3 s, 1 kHz | The two-mass quarter car, integrated with RK4 at 10 µs            | 2 % of the drop         | body 0.72 %, wheels 1.25 %                 |
+| Four-post rig, 0.5 to 25 Hz: body and total tire load         | `Z_s/Y` and `(K_t + iωC_t)(Y − Z_u)/Y` of the quarter car         | 3 %, 3°                 | 1.08 %, 2.37° (4 kHz; see below)           |
 | Heave energy balance, 1 kHz                                   | Energy lost equals suspension and tire damper work                | 0.5 % of initial energy | **3.7 %, missed** (see below)              |
-| Convergence, 500 Hz to 2 kHz against 16 kHz, hop excited      | Both masses stepped at first order                                | order 0.85 to 1.15      | 1.02 to 1.04 (body), 1.04 to 1.10 (wheels) |
+| Convergence, 500 Hz to 2 kHz against 16 kHz, hop excited      | Both masses stepped at first order                                | order 0.85 to 1.15      | 1.00 to 1.01 (body), 1.03 to 1.08 (wheels) |
 | Static settle, default car with 40 kg wheels                  | Same ride height and wheel loads as the massless strut            | 1e-9 m, 1e-6 N          | pass                                       |
-| 1 kg wheel on a 2.5 MN/m tire against the massless strut      | The massless strut                                                | 1 %                     | heave 0.44 %, step-steer yaw rate 0.13 %   |
+| 1 kg wheel on a 2.5 MN/m tire against the massless strut      | The massless strut                                                | 1 %                     | heave 0.67 %, step-steer yaw rate 0.13 %   |
 | External host, 3 s of steer and throttle at a 60 Hz host step | Impulse plus gravity on the whole mass equals the velocity change | 1e-9 m/s                | pass                                       |
 | Timestep grid corners, 250–2000 Hz × 30–240 Hz                | Same thresholds as the massless default car                       | 0.01 deg/g, 0.5 %       | 0.0007 deg/g, 0.17 %                       |
+| Open-wheeler preset on a 40 m skidpad, 250 Hz against 1 kHz   | The same car at its own substep rate                              | 0.01 deg/g              | pass                                       |
 | Snapshot, restore and continue                                | Bit-identical to the uninterrupted run                            | exact                   | pass                                       |
 
 **Two tolerances set before the run were missed, both by integration
@@ -136,3 +137,17 @@ the external-host check. Leaving the wheels' mass out of the corner forces
 (dividing by the whole mass instead of the sprung mass) fails the free
 response, the energy check, the static settle and the external-host check.
 Both mutations were reverted.
+
+**Light bodies in roll (added with the presets).** The first version gave
+each wheel only the body's heave, so in roll and pitch the wheels moved
+with the body without their own inertia, and each strut was stepped
+against the wheel's mass alone. The quarter-car checks above are pure
+heave and could not see it. Turning the option on in the presets did: the
+open-wheeler, whose wheels carry more than half of its 90 kg·m² roll
+inertia, hopped its wheels off the ground at 250 Hz and its understeer
+gradient moved from 0.64 to 1.44 deg/g, and the hatchback did not quite
+come to rest after its locked-wheel stop. Each wheel now takes its own
+corner's acceleration from the sprung body's heave, roll and pitch (the
+whole car's mass and inertias less the wheels' share), and each strut is
+stepped against the reduced mass of its wheel and that corner. Either
+change alone passes the skidpad check; with both removed it fails. The heave results above moved by at most a quarter of a percentage point.
