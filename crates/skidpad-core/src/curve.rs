@@ -23,6 +23,25 @@ pub fn magic_cos(b: f64, c: f64, d: f64, e: f64, x: f64) -> f64 {
     d * m::cos(c * m::atan(bx - e * (bx - m::atan(bx))))
 }
 
+/// The part of [`MagicCurve::from_feel`] that depends only on the falloff:
+/// the shape factor `C` and `tan(π / 2C)`. A tire's falloffs are fixed, so
+/// a vehicle works these out once instead of on every evaluation (two
+/// transcendental calls each).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct FeelCurveShape {
+    pub c: f64,
+    pub target: f64,
+}
+
+impl FeelCurveShape {
+    pub fn new(falloff: f64) -> Self {
+        let falloff = m::clamp(falloff, 0.05, 0.999);
+        let c = 2.0 - (2.0 / m::PI) * m::asin(falloff);
+        let target = m::tan(m::PI / (2.0 * c));
+        Self { c, target }
+    }
+}
+
 /// A fully specified curve with the slope at the origin available.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct MagicCurve {
@@ -46,13 +65,18 @@ impl MagicCurve {
     /// stiffness is too low for the peak to be reachable at `peak_x`, `E`
     /// becomes negative, which is allowed and simply moves the peak outward.
     pub fn from_feel(peak: f64, stiffness: f64, peak_x: f64, falloff: f64) -> Self {
+        Self::from_feel_shape(peak, stiffness, peak_x, FeelCurveShape::new(falloff))
+    }
+
+    /// [`Self::from_feel`] with the falloff's part worked out beforehand,
+    /// bit for bit the same.
+    #[inline]
+    pub fn from_feel_shape(peak: f64, stiffness: f64, peak_x: f64, shape: FeelCurveShape) -> Self {
+        let FeelCurveShape { c, target } = shape;
         let d = m::max(peak, 1e-9);
-        let falloff = m::clamp(falloff, 0.05, 0.999);
-        let c = 2.0 - (2.0 / m::PI) * m::asin(falloff);
         let b = m::max(stiffness, 1e-9) / (c * d);
         let bx = b * m::max(peak_x, 1e-9);
         let denom = bx - m::atan(bx);
-        let target = m::tan(m::PI / (2.0 * c));
         let e = if denom > 1e-12 {
             (bx - target) / denom
         } else {

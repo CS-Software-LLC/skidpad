@@ -10,7 +10,7 @@
 //! stiffness formula.
 
 use super::{TireInput, TireOutput};
-use crate::curve::MagicCurve;
+use crate::curve::{FeelCurveShape, MagicCurve};
 use skidpad_math as m;
 
 /// Floor on the theoretical-slip denominator `1 + κ`. A locked wheel has
@@ -157,6 +157,19 @@ impl Default for FeelTireParams {
     }
 }
 
+/// The constants of a feel tire that do not depend on its inputs
+/// ([`FeelTireParams::shape`]): five transcendental calls per evaluation
+/// that a vehicle makes once.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct FeelShape {
+    /// `sin(2·atan(Fz0 / Fz_peak))`, the stiffness shape at the nominal load.
+    at_nominal: f64,
+    long: FeelCurveShape,
+    lat: FeelCurveShape,
+    /// `tan` of the peak slip angle, the lateral normalisation.
+    tan_alpha_peak: f64,
+}
+
 impl FeelTireParams {
     /// Peak friction coefficient at a given load.
     #[inline]
@@ -169,27 +182,64 @@ impl FeelTireParams {
         )
     }
 
+    /// The load-independent constants of [`Self::eval`] and the stiffness
+    /// functions. A vehicle works these out once per definition; the plain
+    /// methods work them out on every call. Same results either way.
+    pub fn shape(&self) -> FeelShape {
+        let fz0 = m::max(self.nominal_load, 1.0);
+        let fzk = m::max(self.stiffness_peak_load, 1.0);
+        let alpha_peak = m::max(self.peak_slip_angle(), 1e-4);
+        FeelShape {
+            at_nominal: m::sin(2.0 * m::atan(fz0 / fzk)),
+            long: FeelCurveShape::new(self.falloff_long),
+            lat: FeelCurveShape::new(self.falloff_lat),
+            tan_alpha_peak: m::tan(m::min(alpha_peak, ALPHA_PEAK_MAX)),
+        }
+    }
+
     /// Stiffness shape factor: 1 at the nominal load, rising then saturating
     /// at `stiffness_peak_load`.
     #[inline]
-    fn stiffness_shape(&self, fz: f64) -> f64 {
+    fn stiffness_shape(&self, s: &FeelShape, fz: f64) -> f64 {
         let fz0 = m::max(self.nominal_load, 1.0);
         let fzk = m::max(self.stiffness_peak_load, 1.0);
-        let at_nominal = m::sin(2.0 * m::atan(fz0 / fzk));
-        if at_nominal <= 1e-9 {
+        if s.at_nominal <= 1e-9 {
             return fz / fz0;
         }
-        m::sin(2.0 * m::atan(fz / fzk)) / at_nominal
+        m::sin(2.0 * m::atan(fz / fzk)) / s.at_nominal
     }
 
     #[inline]
     pub fn longitudinal_stiffness(&self, fz: f64) -> f64 {
-        self.longitudinal_stiffness * self.nominal_load * self.stiffness_shape(fz)
+        self.longitudinal_stiffness_in(&self.shape(), fz)
     }
 
     #[inline]
     pub fn cornering_stiffness(&self, fz: f64) -> f64 {
-        self.cornering_stiffness * self.nominal_load * self.stiffness_shape(fz)
+        self.cornering_stiffness_in(&self.shape(), fz)
+    }
+
+    /// [`Self::longitudinal_stiffness`] with the constants from [`Self::shape`].
+    #[inline]
+    pub fn longitudinal_stiffness_in(&self, s: &FeelShape, fz: f64) -> f64 {
+        self.longitudinal_stiffness * self.nominal_load * self.stiffness_shape(s, fz)
+    }
+
+    /// [`Self::cornering_stiffness`] with the constants from [`Self::shape`].
+    #[inline]
+    pub fn cornering_stiffness_in(&self, s: &FeelShape, fz: f64) -> f64 {
+        self.cornering_stiffness * self.nominal_load * self.stiffness_shape(s, fz)
+    }
+
+    /// Both slip stiffnesses at load `fz`, `(Cκ, Cα)`, sharing the one
+    /// load shape between them.
+    #[inline]
+    pub fn slip_stiffness_in(&self, s: &FeelShape, fz: f64) -> (f64, f64) {
+        let shape = self.stiffness_shape(s, fz);
+        (
+            self.longitudinal_stiffness * self.nominal_load * shape,
+            self.cornering_stiffness * self.nominal_load * shape,
+        )
     }
 
     #[inline]
@@ -198,6 +248,17 @@ impl FeelTireParams {
     }
 
     pub fn eval(&self, i: &TireInput) -> TireOutput {
+        self.eval_in(&self.shape(), i)
+    }
+
+    /// [`Self::eval`] with the constants from [`Self::shape`].
+    pub fn eval_in(&self, shape: &FeelShape, i: &TireInput) -> TireOutput {
+        self.eval_with(shape, self.slip_stiffness_in(shape, i.fz), i)
+    }
+
+    /// [`Self::eval_in`] with the slip stiffnesses at `i.fz` from
+    /// [`Self::slip_stiffness_in`].
+    pub fn eval_with(&self, shape: &FeelShape, (kx, ky): (f64, f64), i: &TireInput) -> TireOutput {
         let fz = i.fz;
         if fz <= 0.0 {
             return TireOutput::default();
@@ -207,13 +268,11 @@ impl FeelTireParams {
         // peaks at a smaller slip, as a tire on ice does.
         let mu = self.friction_at_load(fz) * m::max(i.grip, 0.0);
         let peak = mu * fz;
-        let kx = self.longitudinal_stiffness(fz);
-        let ky = self.cornering_stiffness(fz);
         let kappa_peak = m::max(self.peak_slip_ratio, 1e-4);
         let alpha_peak = m::max(self.peak_slip_angle(), 1e-4);
 
-        let cx = MagicCurve::from_feel(peak, kx, kappa_peak, self.falloff_long);
-        let cy = MagicCurve::from_feel(peak, ky, alpha_peak, self.falloff_lat);
+        let cx = MagicCurve::from_feel_shape(peak, kx, kappa_peak, shape.long);
+        let cy = MagicCurve::from_feel_shape(peak, ky, alpha_peak, shape.lat);
 
         // Camber thrust enters as an equivalent slip-angle shift so that it is
         // subject to the same saturation as the slip-angle force.
@@ -246,7 +305,7 @@ impl FeelTireParams {
         let kp = m::min(kappa_peak, KAPPA_PEAK_MAX);
         let kappa_sign = if kappa < 0.0 { -1.0 } else { 1.0 };
         let sigma_x_peak = kp / (1.0 + dir * kappa_sign * kp);
-        let sigma_y_peak = m::tan(m::min(alpha_peak, ALPHA_PEAK_MAX));
+        let sigma_y_peak = shape.tan_alpha_peak;
         let sx = sigma_x / sigma_x_peak;
         let sy = sigma_y / sigma_y_peak;
         let s = m::hypot(sx, sy);

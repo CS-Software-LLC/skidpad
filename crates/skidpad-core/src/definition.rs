@@ -981,28 +981,28 @@ impl VehicleDefinition {
     /// inner wheel and raises the outer, opposite torques that cancel at
     /// equal loads. Zero when both angles are zero.
     pub fn kingpin_lift_torque(&self, fz: f64, steer: f64, side: f64, radius: f64) -> f64 {
-        let st = &self.steering;
-        if (st.kingpin_inclination_deg == 0.0 && st.caster_deg == 0.0) || !(fz > 0.0) {
-            return 0.0;
+        match self.kingpin_axis() {
+            Some(axis) => axis.lift_torque(fz, steer, side, radius),
+            None => 0.0,
         }
-        // Work as a left wheel, y outboard; a right wheel is its mirror,
-        // where steer and torque about z both change sign.
-        let s = if side < 0.0 { -1.0 } else { 1.0 };
-        let d = s * steer;
+    }
+
+    /// The steering axis for [`Self::kingpin_lift_torque`], or `None` when
+    /// it is vertical (no inclination and no caster) and the lift is zero.
+    /// A vehicle works it out once per definition and calls
+    /// [`KingpinAxis::lift_torque`] on every substep.
+    pub fn kingpin_axis(&self) -> Option<KingpinAxis> {
+        let st = &self.steering;
+        if st.kingpin_inclination_deg == 0.0 && st.caster_deg == 0.0 {
+            return None;
+        }
         let tl = m::tan(m::deg_to_rad(st.kingpin_inclination_deg));
         let tc = m::tan(m::deg_to_rad(st.caster_deg));
         let n = m::sqrt(1.0 + tl * tl + tc * tc);
-        let u = Vec3::new(-tc / n, -tl / n, 1.0 / n);
-        let p0 = Vec3::new(st.mechanical_trail, -st.scrub_radius, 0.0);
-        let c = Vec3::new(0.0, 0.0, radius) - p0;
-        let a = Vec3::new(0.0, 1.0, 0.0);
-        let (sd, cd) = (m::sin(d), m::cos(d));
-        // d/dδ of Rodrigues' v cos δ + (u × v) sin δ + u (u·v)(1 − cos δ).
-        let drot = |v: Vec3| v * (-sd) + u.cross(v) * cd + u * (u.dot(v) * sd);
-        let az = a.z * cd + u.cross(a).z * sd + u.z * (u.dot(a) * (1.0 - cd));
-        let root = m::sqrt(m::max(1.0 - az * az, 1e-12));
-        let dh = drot(c).z + radius * az * drot(a).z / root;
-        s * fz * dh
+        Some(KingpinAxis {
+            u: Vec3::new(-tc / n, -tl / n, 1.0 / n),
+            p0: Vec3::new(st.mechanical_trail, -st.scrub_radius, 0.0),
+        })
     }
 
     /// Hand-wheel torque in the sign of the steer input (positive turns
@@ -1147,5 +1147,37 @@ impl VehicleDefinition {
             c.cg_to_front_axle / c.wheelbase
         };
         0.5 * mg * share
+    }
+}
+
+/// A left wheel's steering axis ([`VehicleDefinition::kingpin_axis`]): its
+/// unit direction, tilted inboard by the inclination and rearward by the
+/// caster, and where it meets the ground relative to the contact.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct KingpinAxis {
+    u: Vec3,
+    p0: Vec3,
+}
+
+impl KingpinAxis {
+    /// [`VehicleDefinition::kingpin_lift_torque`] for this axis.
+    pub fn lift_torque(&self, fz: f64, steer: f64, side: f64, radius: f64) -> f64 {
+        if !(fz > 0.0) {
+            return 0.0;
+        }
+        let KingpinAxis { u, p0 } = *self;
+        // Work as a left wheel, y outboard; a right wheel is its mirror,
+        // where steer and torque about z both change sign.
+        let s = if side < 0.0 { -1.0 } else { 1.0 };
+        let d = s * steer;
+        let c = Vec3::new(0.0, 0.0, radius) - p0;
+        let a = Vec3::new(0.0, 1.0, 0.0);
+        let (sd, cd) = (m::sin(d), m::cos(d));
+        // d/dδ of Rodrigues' v cos δ + (u × v) sin δ + u (u·v)(1 − cos δ).
+        let drot = |v: Vec3| v * (-sd) + u.cross(v) * cd + u * (u.dot(v) * sd);
+        let az = a.z * cd + u.cross(a).z * sd + u.z * (u.dot(a) * (1.0 - cd));
+        let root = m::sqrt(m::max(1.0 - az * az, 1e-12));
+        let dh = drot(c).z + radius * az * drot(a).z / root;
+        s * fz * dh
     }
 }

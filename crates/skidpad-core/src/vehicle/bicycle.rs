@@ -11,6 +11,7 @@
 //! pose. Since milestone 2 this is the level-of-detail model; the four-wheel
 //! model in `four_wheel.rs` is the default.
 
+use super::Derived;
 use crate::assists::{self, AssistTelemetry, WheelObs};
 use crate::definition::VehicleDefinition;
 use crate::drivetrain::{Drivetrain, WheelDyn};
@@ -46,6 +47,8 @@ pub struct AxleState {
 #[derive(Clone, Debug, PartialEq)]
 pub struct BicycleVehicle {
     def: VehicleDefinition,
+    /// Constants of the definition, rebuilt whenever it changes.
+    derived: Derived,
     // Simulation state (everything in the snapshot).
     pub time: f64,
     pub x: f64,
@@ -108,6 +111,7 @@ impl BicycleVehicle {
         let drivetrain = Drivetrain::new(def.drivetrain.clone(), def.driven_axles(), 2);
         let mut v = Self {
             drivetrain,
+            derived: Derived::of(&def),
             def,
             time: 0.0,
             x: 0.0,
@@ -194,6 +198,7 @@ impl BicycleVehicle {
     pub fn set_definition(&mut self, def: VehicleDefinition) {
         self.drivetrain
             .set_definition(def.drivetrain.clone(), def.driven_axles());
+        self.derived = Derived::of(&def);
         self.def = def;
     }
 
@@ -361,6 +366,7 @@ impl BicycleVehicle {
             let surface = axle_surfaces[i];
             let axle_def = &self.def.axles[i];
             let tire = &axle_def.tire;
+            let shape = &self.derived.tires[i];
             let radius = tire.unloaded_radius();
             let floor = tire.low_speed_floor();
             let (sigma_x, sigma_y) = tire.relaxation_lengths();
@@ -402,7 +408,8 @@ impl BicycleVehicle {
             let (kappa, alpha) = kinematic_slip(wx, wy, st.omega, radius, floor);
             st.kinematic_ratio = kappa;
             st.kinematic_angle = alpha;
-            let (kappa_peak, tan_alpha_peak) = tire.static_slip_bounds();
+            let at = tire.at_load(shape, fz_tire);
+            let (kappa_peak, tan_alpha_peak) = tire.static_slip_bounds_in(shape);
             let slip_vx = st.omega * radius - wx;
             st.transient.update(
                 slip_vx,
@@ -414,22 +421,26 @@ impl BicycleVehicle {
                 m::max(kappa_peak, m::abs(kappa)),
                 m::max(tan_alpha_peak, m::abs(wy) / m::max(m::abs(wx), floor)),
             );
-            let mut one = tire.eval(&TireInput {
-                fz: fz_tire,
-                slip_ratio: st.transient.slip_ratio,
-                slip_angle: st.transient.slip_angle,
-                camber,
-                vx: wx,
-                grip: surface.grip,
-                rolling_resistance: surface.rolling_resistance,
-            });
+            let mut one = tire.eval_at(
+                shape,
+                &at,
+                &TireInput {
+                    fz: fz_tire,
+                    slip_ratio: st.transient.slip_ratio,
+                    slip_angle: st.transient.slip_angle,
+                    camber,
+                    vx: wx,
+                    grip: surface.grip,
+                    rolling_resistance: surface.rolling_resistance,
+                },
+            );
             // Low-speed damping on the contact slip velocities (ADR-0010),
             // per tire, faded out with rolling speed. The total, curve plus
             // damping, is bounded by what the curve allows: the peak while
             // the spring is below it, the sliding force once past it.
             let fade = low_speed_fade(wx, tire.low_speed_damping_fade());
             let (c_x, c_y) = if fade > 0.0 {
-                let (cx, cy) = tire.low_speed_damping_coefficients(fz_tire, dt);
+                let (cx, cy) = tire.low_speed_damping_coefficients_at(&at, dt);
                 (cx * fade, cy * fade)
             } else {
                 (0.0, 0.0)
@@ -482,8 +493,7 @@ impl BicycleVehicle {
             // stable. The stiffness is the slope at the origin, an upper
             // bound at large slip. Two wheels per axle.
             let gain = TireTransient::deflection_gain(wx, dt, sigma_x);
-            let dfx_domega =
-                2.0 * (tire.longitudinal_stiffness(fz_tire) * radius * gain + c_x * radius);
+            let dfx_domega = 2.0 * (at.longitudinal_stiffness() * radius * gain + c_x * radius);
             dyn_wheels[i] = WheelDyn {
                 omega: st.omega,
                 inertia: 2.0 * axle_def.wheel_inertia + dt * radius * dfx_domega,
@@ -616,8 +626,8 @@ impl BicycleVehicle {
         let kingpin = if self.def.axles[FRONT].steered {
             let (half, d) = (0.5 * self.axles[FRONT].load, self.steer_angle);
             let r = self.def.axles[FRONT].tire.unloaded_radius();
-            let lift_l = self.def.kingpin_lift_torque(half, d, 1.0, r);
-            let lift_r = self.def.kingpin_lift_torque(half, d, -1.0, r);
+            let lift_l = self.derived.kingpin_lift_torque(half, d, 1.0, r);
+            let lift_r = self.derived.kingpin_lift_torque(half, d, -1.0, r);
             parts = [
                 o.mz,
                 -self.def.steering.mechanical_trail * o.fy,
