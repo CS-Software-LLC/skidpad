@@ -341,6 +341,9 @@ pub struct FourWheelVehicle {
     pub steering_torque: f64,
     /// Force on the steering rack, N.
     pub rack_force: f64,
+    /// `steering_torque` split by source (ADR-0031), N·m at the hand wheel:
+    /// see [`VehicleDefinition::steering_parts`].
+    pub steering_parts: [f64; 5],
     /// What the assists did this substep (ADR-0013).
     pub assist_telemetry: AssistTelemetry,
     /// Aero lift at the front and rear axle this substep, N, positive up
@@ -400,6 +403,7 @@ impl FourWheelVehicle {
             drag_force: 0.0,
             steering_torque: 0.0,
             rack_force: 0.0,
+            steering_parts: [0.0; 5],
             assist_telemetry: AssistTelemetry::default(),
             aero_lift: [0.0, 0.0],
             axle_fy_prev: [0.0, 0.0],
@@ -530,6 +534,7 @@ impl FourWheelVehicle {
         self.drag_force = 0.0;
         self.steering_torque = 0.0;
         self.rack_force = 0.0;
+        self.steering_parts = [0.0; 5];
         self.steer_angle = 0.0;
         self.aero_lift = [0.0, 0.0];
         self.axle_fy_prev = [0.0, 0.0];
@@ -1301,6 +1306,7 @@ impl FourWheelVehicle {
         // mechanical trail and scrub radius, through the ratio and the assist
         // to the hand wheel, and over the knuckle arm to the rack.
         let mut kingpin = 0.0;
+        let mut parts = [0.0; 4];
         for i in 0..WHEEL_COUNT {
             if self.def.axles[i / 2].steered {
                 let w = &self.wheels[i];
@@ -1310,12 +1316,21 @@ impl FourWheelVehicle {
                     .kingpin_torque(w.out.mz, w.out.fy, w.out.fx, g.side);
                 // The load through the steering lift (ADR-0030), from the
                 // knuckle's own angle: toe is where the axis sits straight.
-                kingpin +=
+                let lift =
                     self.def
                         .kingpin_lift_torque(w.load, w.steer - self.toe(i), g.side, g.radius);
+                kingpin += lift;
+                let st = &self.def.steering;
+                parts[0] += w.out.mz;
+                parts[1] -= st.mechanical_trail * w.out.fy;
+                parts[2] -= g.side * st.scrub_radius * w.out.fx;
+                parts[3] += lift;
             }
         }
         self.steering_torque = self.def.hand_wheel_torque(kingpin);
+        self.steering_parts = self
+            .def
+            .steering_parts(parts, kingpin, self.steering_torque);
         self.rack_force = kingpin / self.def.steering.steering_arm;
         self.kingpin_prev = kingpin;
     }
@@ -1530,6 +1545,9 @@ impl FourWheelVehicle {
         rec[t::BRAKE] = input.brake;
         rec[t::HANDBRAKE] = input.handbrake;
         rec[t::STEERING_TORQUE] = self.steering_torque;
+        // The host step's mean is `World::step`'s; outside a step, the value.
+        rec[t::STEERING_TORQUE_MEAN] = self.steering_torque;
+        rec[t::STEER_TORQUE_MZ..t::STEER_TORQUE_MZ + 5].copy_from_slice(&self.steering_parts);
         rec[t::RACK_FORCE] = self.rack_force;
         rec[t::DRAG_FORCE] = self.drag_force;
 

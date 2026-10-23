@@ -224,6 +224,21 @@ channels! {
     TIRE_DEFLECTION_FR => ("TireDeflection_FR", "m"),
     TIRE_DEFLECTION_RL => ("TireDeflection_RL", "m"),
     TIRE_DEFLECTION_RR => ("TireDeflection_RR", "m"),
+    // Force feedback (ADR-0031). `SteeringTorque` is the last substep's;
+    // `SteeringTorqueMean` is its mean over the host step's substeps, the
+    // value to send to a wheel read once per host step, since it carries
+    // no alias of anything faster than half the host rate. The five
+    // `SteerTorque*` channels split the last substep's `SteeringTorque` by
+    // source at the hand wheel and sum to it: the tire's aligning moment,
+    // mechanical trail on the lateral force, scrub radius on the
+    // longitudinal force, steering lift (ADR-0030), and what the power
+    // assist took away (opposite in sign to the rest when it helps).
+    STEERING_TORQUE_MEAN => ("SteeringTorqueMean", "N*m"),
+    STEER_TORQUE_MZ => ("SteerTorqueMz", "N*m"),
+    STEER_TORQUE_TRAIL => ("SteerTorqueTrail", "N*m"),
+    STEER_TORQUE_SCRUB => ("SteerTorqueScrub", "N*m"),
+    STEER_TORQUE_LIFT => ("SteerTorqueLift", "N*m"),
+    STEER_TORQUE_ASSIST => ("SteerTorqueAssist", "N*m"),
 }
 
 /// Index of the first channel in each per-wheel group; the four wheels follow
@@ -283,7 +298,8 @@ mod tests {
         assert_eq!(CHANNELS[WHEEL_LOCKED_R].name, "WheelLocked_R");
         assert_eq!(CHANNELS[SPIN_ANGLE_RR].name, "SpinAngle_RR");
         assert_eq!(CHANNELS[ENGINE_RPM].name, "EngineRpm");
-        assert_eq!(STRIDE, TIRE_DEFLECTION_RR + 1);
+        assert_eq!(STRIDE, STEER_TORQUE_ASSIST + 1);
+        assert_eq!(STEER_TORQUE_ASSIST, STEER_TORQUE_MZ + 4);
         for &g in WHEEL_GROUPS {
             let base = CHANNELS[g].name.trim_end_matches("_FL");
             for (k, side) in ["_FL", "_FR", "_RL", "_RR"].iter().enumerate() {

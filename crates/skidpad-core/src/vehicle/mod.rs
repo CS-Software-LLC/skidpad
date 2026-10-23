@@ -196,6 +196,15 @@ impl VehicleModel {
         }
     }
 
+    /// Hand-wheel torque of the last substep, N·m (ADR-0012).
+    #[inline]
+    pub fn steering_torque(&self) -> f64 {
+        match self {
+            VehicleModel::SingleTrack(v) => v.steering_torque,
+            VehicleModel::FourWheel(v) => v.steering_torque,
+        }
+    }
+
     pub fn write_telemetry(&self, input: &VehicleInput, rec: &mut [f64]) {
         match self {
             VehicleModel::SingleTrack(v) => v.write_telemetry(input, rec),

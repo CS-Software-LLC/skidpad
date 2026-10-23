@@ -79,6 +79,9 @@ pub struct BicycleVehicle {
     pub steering_torque: f64,
     /// Force on the steering rack, N.
     pub rack_force: f64,
+    /// `steering_torque` split by source (ADR-0031), N·m at the hand wheel:
+    /// see [`VehicleDefinition::steering_parts`].
+    pub steering_parts: [f64; 5],
     /// What the assists did this substep (ADR-0013).
     pub assist_telemetry: AssistTelemetry,
     /// Aero lift at each axle, N, positive up (ADR-0015).
@@ -124,6 +127,7 @@ impl BicycleVehicle {
             drag_force: 0.0,
             steering_torque: 0.0,
             rack_force: 0.0,
+            steering_parts: [0.0; 5],
             assist_telemetry: AssistTelemetry::default(),
             aero_lift: [0.0, 0.0],
             surface_ids: [0; 4],
@@ -608,16 +612,26 @@ impl BicycleVehicle {
         let o = &self.axles[FRONT].out;
         // The steering lift (ADR-0030) of a left and right wheel sharing the
         // axle load: the caster terms cancel, the inclination terms add.
+        let mut parts = [0.0; 4];
         let kingpin = if self.def.axles[FRONT].steered {
             let (half, d) = (0.5 * self.axles[FRONT].load, self.steer_angle);
             let r = self.def.axles[FRONT].tire.unloaded_radius();
-            self.def.kingpin_torque(o.mz, o.fy, o.fx, 0.0)
-                + self.def.kingpin_lift_torque(half, d, 1.0, r)
-                + self.def.kingpin_lift_torque(half, d, -1.0, r)
+            let lift_l = self.def.kingpin_lift_torque(half, d, 1.0, r);
+            let lift_r = self.def.kingpin_lift_torque(half, d, -1.0, r);
+            parts = [
+                o.mz,
+                -self.def.steering.mechanical_trail * o.fy,
+                0.0,
+                lift_l + lift_r,
+            ];
+            self.def.kingpin_torque(o.mz, o.fy, o.fx, 0.0) + lift_l + lift_r
         } else {
             0.0
         };
         self.steering_torque = self.def.hand_wheel_torque(kingpin);
+        self.steering_parts = self
+            .def
+            .steering_parts(parts, kingpin, self.steering_torque);
         self.rack_force = kingpin / self.def.steering.steering_arm;
         self.kingpin_prev = kingpin;
         self.axle_fy_prev = axle_fy;
@@ -648,6 +662,9 @@ impl BicycleVehicle {
         rec[t::BRAKE] = input.brake;
         rec[t::HANDBRAKE] = input.handbrake;
         rec[t::STEERING_TORQUE] = self.steering_torque;
+        // The host step's mean is `World::step`'s; outside a step, the value.
+        rec[t::STEERING_TORQUE_MEAN] = self.steering_torque;
+        rec[t::STEER_TORQUE_MZ..t::STEER_TORQUE_MZ + 5].copy_from_slice(&self.steering_parts);
         rec[t::RACK_FORCE] = self.rack_force;
         rec[t::DRAG_FORCE] = self.drag_force;
         rec[t::WHEEL_SPEED_F] = f.omega;

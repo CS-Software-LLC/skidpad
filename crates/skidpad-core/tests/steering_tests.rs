@@ -391,3 +391,96 @@ fn kingpin_inclination_returns_the_wheel_at_parking_speed() {
     // negative torque in the input sign, larger than the tires give alone.
     assert!(with < without - 0.3, "with {with} vs without {without}");
 }
+
+/// A car with every source of steering torque switched on: trail, scrub,
+/// steering lift and a boost-curve assist (ADR-0031).
+fn every_torque_source(model: VehicleModelKind) -> VehicleDefinition {
+    let mut d = VehicleDefinition::default();
+    d.simulation.model = model;
+    d.steering.kingpin_inclination_deg = 12.0;
+    d.steering.caster_deg = 5.0;
+    d.steering.power_assist = 0.6;
+    d.steering.power_assist_onset = 1.5;
+    d
+}
+
+#[test]
+fn the_torque_breakdown_sums_to_the_steering_torque() {
+    for model in [VehicleModelKind::FourWheel, VehicleModelKind::SingleTrack] {
+        let mut w = World::new(1);
+        w.add_vehicle(every_torque_source(model)).unwrap();
+        settle(&mut w, cornering(), 6.0);
+        let rec = w.telemetry_of(0);
+        let parts = &rec[t::STEER_TORQUE_MZ..=t::STEER_TORQUE_ASSIST];
+        let sum: f64 = parts.iter().sum();
+        let total = rec[t::STEERING_TORQUE];
+        assert!(total.abs() > 0.2, "{model:?}: {total}");
+        assert!(
+            (sum - total).abs() < 1e-12 * (1.0 + total.abs()),
+            "{model:?}: parts {parts:?} sum {sum} vs {total}"
+        );
+        // Each share is its kingpin term through the ratio, in the input
+        // sign: the aligning moment from the tire channels.
+        let ratio = VehicleDefinition::default().steering.ratio;
+        let mz = rec[t::MZ_FL] + rec[t::MZ_FR];
+        assert!((parts[0] + mz / ratio).abs() < 1e-9, "{model:?}");
+        // Assisted and turning right: the tires push back left (negative),
+        // the assist takes some of that away (positive), and the lift
+        // centres (negative).
+        assert!(parts[4] > 0.0 && parts[3] < 0.0, "{model:?}: {parts:?}");
+        // The single-track lumped tire has no scrub moment.
+        if model == VehicleModelKind::SingleTrack {
+            assert_eq!(parts[2], 0.0);
+        }
+    }
+}
+
+#[test]
+fn a_manual_car_has_no_assist_share() {
+    let mut d = every_torque_source(VehicleModelKind::FourWheel);
+    d.steering.power_assist = 0.0;
+    let mut w = World::new(1);
+    w.add_vehicle(d).unwrap();
+    settle(&mut w, cornering(), 3.0);
+    assert_eq!(w.telemetry_of(0)[t::STEER_TORQUE_ASSIST], 0.0);
+}
+
+#[test]
+fn the_mean_steering_torque_is_the_mean_over_the_substeps() {
+    // One host step of n substeps is bit for bit n host steps of one
+    // substep each, so the mean can be rebuilt from the latter.
+    let def = every_torque_source(VehicleModelKind::FourWheel);
+    let rate = def.simulation.substep_rate_hz;
+    let n = 17;
+    let dt = n as f64 / rate;
+    let mut coarse = World::new(1);
+    coarse.add_vehicle(def.clone()).unwrap();
+    let mut fine = World::new(1);
+    fine.add_vehicle(def).unwrap();
+    let input = VehicleInput {
+        steer: 0.3,
+        throttle: 0.5,
+        ..VehicleInput::default()
+    };
+    coarse.set_input(0, input).unwrap();
+    fine.set_input(0, input).unwrap();
+    for step in 0..120 {
+        coarse.step(dt);
+        let mut sum = 0.0;
+        for _ in 0..n {
+            fine.step(dt / n as f64);
+            sum += fine.telemetry_of(0)[t::STEERING_TORQUE];
+            // A one-substep step's mean is its only value.
+            assert_eq!(
+                fine.telemetry_of(0)[t::STEERING_TORQUE_MEAN],
+                fine.telemetry_of(0)[t::STEERING_TORQUE]
+            );
+        }
+        let rec = coarse.telemetry_of(0);
+        assert_eq!(
+            rec[t::STEERING_TORQUE],
+            fine.telemetry_of(0)[t::STEERING_TORQUE]
+        );
+        assert_eq!(rec[t::STEERING_TORQUE_MEAN], sum / n as f64, "step {step}");
+    }
+}

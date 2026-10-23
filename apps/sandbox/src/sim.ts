@@ -44,6 +44,7 @@ import {
 } from "./circuit/geometry.js";
 import { CIRCUIT } from "./circuit/layout.js";
 import { LapTimer, type TimerState } from "./circuit/timing.js";
+import { FfbTrace } from "./ffbTrace.js";
 import { clearBest, loadBest, saveBest } from "./circuit/store.js";
 
 export const HOST_DT = 1 / 60;
@@ -151,6 +152,10 @@ export class Sim {
   readonly touch = new TouchInput();
   /** Force-feedback output, when the user connected a device. */
   ffbSink: FfbSink | undefined;
+  /** The last ten seconds of force feedback, for the setup panel's graph. */
+  readonly ffbTrace = new FfbTrace();
+  /** Peak requested rim torque over the last completed lap, N·m. */
+  ffbLapPeak: number | undefined;
   /** Which device produced the last frame, for the HUD. */
   inputSource: "touch" | "wheel" | "gamepad" | "keyboard" = "keyboard";
   /** Synthesised engine and tire-slip sound; off until the user enables it. */
@@ -487,6 +492,11 @@ export class Sim {
     const r = timer.step(p.x, -p.y, c.x, -c.y, s, this.allWheelsOff());
     const rec = this.ghostRecorder!;
     if (timer.isRunning || r.completed) rec.sample(HOST_DT);
+    const scaler = this.ffbSink?.scaler;
+    if (r.completed && scaler) {
+      this.ffbLapPeak = scaler.peak;
+      scaler.peak = 0;
+    }
     if (r.completed?.valid && timer.state.best === r.completed) {
       const ghost = rec.finish();
       ghost.meta = { preset: this.presetId, time: r.completed.time };
@@ -682,6 +692,8 @@ export class Sim {
         ),
         this.stepsThisFrame * HOST_DT,
       );
+      // The scaler runs before the sink's first await, so it is current.
+      if (this.ffbSink.scaler) this.ffbTrace.push(this.ffbSink.scaler, this.readChannel);
     }
     this.alpha = Math.min(1, Math.max(0, this.accumulator / HOST_DT));
     this.audio.update(dt, this.readChannel, this.definition);
