@@ -130,6 +130,9 @@ helps. Parameters are per tire unless noted.
   trail fades at the limit (more caster).
 - Lower `steering.powerAssist`; it removes that fraction of the rack torque
   at the hand wheel.
+- Light enough to park but too light on the motorway: set
+  `steering.powerAssistAtSpeed` below `powerAssist`, with
+  `powerAssistFadeStart` and `powerAssistFadeEnd` (m/s) where it fades.
 - The wheel swings back and forth when let go at speed: set
   `steering.columnDampingAtSpeed` (a few times `columnDamping`) and
   `steering.columnDampingSpeed` (m/s, about 20). The damping then rises

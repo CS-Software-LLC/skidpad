@@ -665,6 +665,17 @@ export function validateDefinition(def: unknown): ValidationResult {
   if (caster !== undefined && (!isNum(caster) || caster < -10 || caster > 20)) {
     errors.push(`steering.casterDeg must be in [-10, 20] deg (got ${String(caster)})`);
   }
+  const pas = s.powerAssistAtSpeed;
+  if (pas !== undefined && (!isNum(pas) || pas < 0 || pas > 1)) {
+    errors.push(`steering.powerAssistAtSpeed must be in [0, 1] (got ${String(pas)})`);
+  }
+  const fs = s.powerAssistFadeStart ?? 0;
+  const fe = s.powerAssistFadeEnd ?? 0;
+  if (!isNum(fs) || !isNum(fe) || fs < 0 || fe < fs || fe > 100) {
+    errors.push(
+      `steering.powerAssistFadeStart and powerAssistFadeEnd must satisfy 0 ≤ start ≤ end ≤ 100 m/s (got ${String(fs)} and ${String(fe)})`,
+    );
+  }
   const onset = s.powerAssistOnset;
   if (onset !== undefined && (!isNum(onset) || onset < 0 || onset > 20)) {
     errors.push(`steering.powerAssistOnset must be in [0, 20] N·m (got ${String(onset)})`);

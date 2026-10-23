@@ -134,6 +134,27 @@
           "default": 0,
           "description": "Boost curve (ADR-0029): manual hand-wheel torque, N·m, around which the assist comes in. Well below it the wheel carries the full manual torque (no assist on centre); well above it, (1 − powerAssist) of it plus powerAssist × powerAssistOnset. 0 is the constant fraction."
         },
+        "powerAssistAtSpeed": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "default": 0,
+          "description": "Speed-sensitive assist (ADR-0034): the assist fraction at and above powerAssistFadeEnd, in place of powerAssist"
+        },
+        "powerAssistFadeStart": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100,
+          "default": 0,
+          "description": "Road speed, m/s, where the assist starts fading from powerAssist toward powerAssistAtSpeed"
+        },
+        "powerAssistFadeEnd": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100,
+          "default": 0,
+          "description": "Road speed, m/s, where the assist reaches powerAssistAtSpeed; 0 keeps the assist the same at every speed"
+        },
         "columnFriction": {
           "type": "number",
           "minimum": 0,
