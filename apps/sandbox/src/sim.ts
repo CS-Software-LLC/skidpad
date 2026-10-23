@@ -168,9 +168,10 @@ export class Sim {
    * Speed-sensitive steering for keyboards, as the core's steering assist
    * (ADR-0013): the road-wheel angle is capped so that the lateral
    * acceleration a steady turn would need stays near the tire limit. Set on
-   * the definition, so it is deterministic and recorded in replays.
+   * the definition, so it is deterministic and recorded in replays. Off by
+   * default; the assists panel turns it on.
    */
-  speedSensitiveSteering = true;
+  speedSensitiveSteering = false;
   /** Lateral acceleration the steering limit aims for, m/s². */
   steeringLimitAccel = 9.0;
   definition!: VehicleDefinition;
