@@ -606,8 +606,14 @@ impl BicycleVehicle {
         // Kingpin torque of the lumped front tire (ADR-0012): the scrub terms
         // of a left and right wheel cancel, so the side is zero.
         let o = &self.axles[FRONT].out;
+        // The steering lift (ADR-0030) of a left and right wheel sharing the
+        // axle load: the caster terms cancel, the inclination terms add.
         let kingpin = if self.def.axles[FRONT].steered {
+            let (half, d) = (0.5 * self.axles[FRONT].load, self.steer_angle);
+            let r = self.def.axles[FRONT].tire.unloaded_radius();
             self.def.kingpin_torque(o.mz, o.fy, o.fx, 0.0)
+                + self.def.kingpin_lift_torque(half, d, 1.0, r)
+                + self.def.kingpin_lift_torque(half, d, -1.0, r)
         } else {
             0.0
         };

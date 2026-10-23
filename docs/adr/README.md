@@ -36,3 +36,4 @@ Rejected.
 | [0027](0027-compliance-steer.md)                       | Compliance steer under kingpin torque and lateral force                 | Proposed                  |
 | [0028](0028-unsprung-mass.md)                          | Unsprung mass as an option on independent axles                         | Proposed                  |
 | [0029](0029-power-assist-boost-curve.md)               | Power assist boost curve                                                | Proposed                  |
+| [0030](0030-steering-lift-self-centring.md)            | Self-centring from the steering axis lift                               | Proposed                  |

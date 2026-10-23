@@ -133,7 +133,9 @@
     "powerAssistOnset": 1,
     "columnFriction": 0.3,
     "columnDamping": 0.05,
-    "jackingRate": 0
+    "jackingRate": 0,
+    "kingpinInclinationDeg": 13,
+    "casterDeg": 5
   },
   "brakes": {
     "handbrakeTorque": 2200

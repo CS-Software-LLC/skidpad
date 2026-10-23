@@ -7,6 +7,7 @@ use skidpad_core::drivetrain::DifferentialKind;
 use skidpad_core::telemetry as t;
 use skidpad_core::vehicle::{FourWheelVehicle, FL, FR, RL, RR};
 use skidpad_core::{VehicleDefinition, VehicleInput, World};
+use skidpad_math as m;
 
 fn settle(w: &mut World, input: VehicleInput, seconds: f64) {
     w.set_input(0, input).unwrap();
@@ -261,4 +262,132 @@ fn bad_steering_geometry_is_rejected() {
     assert!(d.validate().is_err());
     d.steering.power_assist_onset = 25.0;
     assert!(d.validate().is_err());
+}
+
+/// Height of the lowest rim point of a wheel turned by `delta` about the
+/// kingpin axis, found by sampling the rim: an independent check on the
+/// closed form in `kingpin_lift_torque` (left wheel, y outboard).
+fn lowest_rim_point(d: &VehicleDefinition, delta: f64, radius: f64) -> f64 {
+    let st = &d.steering;
+    let (tl, tc) = (
+        m::tan(m::deg_to_rad(st.kingpin_inclination_deg)),
+        m::tan(m::deg_to_rad(st.caster_deg)),
+    );
+    let n = m::sqrt(1.0 + tl * tl + tc * tc);
+    let u = [-tc / n, -tl / n, 1.0 / n];
+    let p0 = [st.mechanical_trail, -st.scrub_radius, 0.0];
+    let rot = |v: [f64; 3]| {
+        let (s, c) = (m::sin(delta), m::cos(delta));
+        let ud = u[0] * v[0] + u[1] * v[1] + u[2] * v[2];
+        let x = [
+            u[1] * v[2] - u[2] * v[1],
+            u[2] * v[0] - u[0] * v[2],
+            u[0] * v[1] - u[1] * v[0],
+        ];
+        [0, 1, 2].map(|k| v[k] * c + x[k] * s + u[k] * ud * (1.0 - c))
+    };
+    let mut lowest = f64::INFINITY;
+    for k in 0..200_000 {
+        let th = std::f64::consts::TAU * k as f64 / 200_000.0;
+        // Rim point in the wheel plane (x forward, z up), relative to the axis.
+        let p = [
+            radius * m::sin(th) - p0[0],
+            -p0[1],
+            radius - radius * m::cos(th),
+        ];
+        lowest = lowest.min(rot(p)[2]);
+    }
+    lowest
+}
+
+#[test]
+fn kingpin_lift_torque_matches_the_sampled_rim_geometry() {
+    // ADR-0030: T = Fz · dh/dδ, with h the lowest point of the turned wheel.
+    let mut d = VehicleDefinition::default();
+    d.steering.kingpin_inclination_deg = 13.0;
+    d.steering.caster_deg = 6.0;
+    d.steering.scrub_radius = 0.01;
+    d.steering.mechanical_trail = 0.025;
+    let (r, fz) = (0.31, 4000.0);
+    for delta in [-0.3, -0.1, 0.05, 0.2, 0.4] {
+        let e = 2e-3;
+        let dh =
+            (lowest_rim_point(&d, delta + e, r) - lowest_rim_point(&d, delta - e, r)) / (2.0 * e);
+        let t = d.kingpin_lift_torque(fz, delta, 1.0, r);
+        assert!(
+            (t - fz * dh).abs() < 0.02 * (fz * dh).abs() + 0.05,
+            "δ {delta}: closed form {t} vs sampled {}",
+            fz * dh
+        );
+    }
+}
+
+#[test]
+fn kingpin_inclination_centres_and_caster_cancels_between_the_wheels() {
+    let mut d = VehicleDefinition::default();
+    let (r, fz) = (0.31, 4000.0);
+    // No angles: nothing, exactly.
+    assert_eq!(d.kingpin_lift_torque(fz, 0.2, 1.0, r), 0.0);
+    // Inclination alone, with no trail (trail with inclination tilts the
+    // lift like caster does): zero straight ahead, against the steer either
+    // way and on either side, the same on both wheels.
+    d.steering.kingpin_inclination_deg = 12.0;
+    d.steering.scrub_radius = 0.01;
+    d.steering.mechanical_trail = 0.0;
+    assert!(d.kingpin_lift_torque(fz, 0.0, 1.0, r).abs() < 1e-9);
+    for side in [1.0, -1.0] {
+        let left_turn = d.kingpin_lift_torque(fz, 0.1, side, r);
+        let right_turn = d.kingpin_lift_torque(fz, -0.1, side, r);
+        assert!(
+            left_turn < 0.0 && right_turn > 0.0,
+            "side {side}: {left_turn} {right_turn}"
+        );
+        assert!((left_turn + right_turn).abs() < 1e-9);
+    }
+    let pair = d.kingpin_lift_torque(fz, 0.1, 1.0, r) + d.kingpin_lift_torque(fz, 0.1, -1.0, r);
+    // About 2·Fz·e·sin λ·sin δ with e the axis offset at the hub, s + R tan λ
+    // (the small-angle lift of the wheel centre), to within the camber term.
+    let e = 0.01 + r * m::tan(m::deg_to_rad(12.0));
+    let approx = -2.0 * fz * e * m::sin(m::deg_to_rad(12.0)) * m::sin(0.1);
+    assert!(
+        (pair - approx).abs() < 0.25 * approx.abs(),
+        "{pair} vs {approx}"
+    );
+    // Caster alone: equal and opposite on the two wheels at equal loads, a
+    // pull toward the lighter side when they differ.
+    d.steering.kingpin_inclination_deg = 0.0;
+    d.steering.caster_deg = 6.0;
+    let l = d.kingpin_lift_torque(fz, 0.0, 1.0, r);
+    let rr = d.kingpin_lift_torque(fz, 0.0, -1.0, r);
+    // About Fz·s·sin ν per wheel with only the scrub radius as the offset.
+    let approx = fz * 0.01 * m::sin(m::deg_to_rad(6.0));
+    assert!(
+        (l.abs() - approx).abs() < 0.1 * approx && (l + rr).abs() < 1e-9,
+        "{l} {rr}"
+    );
+}
+
+#[test]
+fn kingpin_inclination_returns_the_wheel_at_parking_speed() {
+    let torque = |kpi: f64| {
+        let mut d = VehicleDefinition::default();
+        d.steering.kingpin_inclination_deg = kpi;
+        d.steering.caster_deg = 5.0;
+        let mut w = World::new(1);
+        w.add_vehicle(d).unwrap();
+        settle(
+            &mut w,
+            VehicleInput {
+                steer: 0.5,
+                ..VehicleInput::default()
+            },
+            3.0,
+        );
+        w.telemetry_of(0)[t::STEERING_TORQUE]
+    };
+    let without = torque(0.0);
+    let with = torque(13.0);
+    // Parked with the wheel turned right, the load pushes it back left: a
+    // negative torque in the input sign, larger than the tires give alone.
+    assert!(with < without - 0.3, "with {with} vs without {without}");
 }
