@@ -239,7 +239,23 @@ channels! {
     STEER_TORQUE_SCRUB => ("SteerTorqueScrub", "N*m"),
     STEER_TORQUE_LIFT => ("SteerTorqueLift", "N*m"),
     STEER_TORQUE_ASSIST => ("SteerTorqueAssist", "N*m"),
+    // The host step's `SteeringTorque` in eight equal slices of time
+    // (ADR-0032), oldest first: each slice's substep mean, or with fewer
+    // than eight substeps the substep the slice falls in. A force-feedback
+    // sink plays them out between host steps, one step behind, at eight
+    // times the host rate.
+    STEERING_TORQUE_SLICE_0 => ("SteeringTorqueSlice0", "N*m"),
+    STEERING_TORQUE_SLICE_1 => ("SteeringTorqueSlice1", "N*m"),
+    STEERING_TORQUE_SLICE_2 => ("SteeringTorqueSlice2", "N*m"),
+    STEERING_TORQUE_SLICE_3 => ("SteeringTorqueSlice3", "N*m"),
+    STEERING_TORQUE_SLICE_4 => ("SteeringTorqueSlice4", "N*m"),
+    STEERING_TORQUE_SLICE_5 => ("SteeringTorqueSlice5", "N*m"),
+    STEERING_TORQUE_SLICE_6 => ("SteeringTorqueSlice6", "N*m"),
+    STEERING_TORQUE_SLICE_7 => ("SteeringTorqueSlice7", "N*m"),
 }
+
+/// Number of `SteeringTorqueSlice*` channels.
+pub const STEERING_TORQUE_SLICES: usize = 8;
 
 /// Index of the first channel in each per-wheel group; the four wheels follow
 /// in order FL, FR, RL, RR.
@@ -298,7 +314,11 @@ mod tests {
         assert_eq!(CHANNELS[WHEEL_LOCKED_R].name, "WheelLocked_R");
         assert_eq!(CHANNELS[SPIN_ANGLE_RR].name, "SpinAngle_RR");
         assert_eq!(CHANNELS[ENGINE_RPM].name, "EngineRpm");
-        assert_eq!(STRIDE, STEER_TORQUE_ASSIST + 1);
+        assert_eq!(STRIDE, STEERING_TORQUE_SLICE_7 + 1);
+        assert_eq!(
+            STEERING_TORQUE_SLICE_7,
+            STEERING_TORQUE_SLICE_0 + STEERING_TORQUE_SLICES - 1
+        );
         assert_eq!(STEER_TORQUE_ASSIST, STEER_TORQUE_MZ + 4);
         for &g in WHEEL_GROUPS {
             let base = CHANNELS[g].name.trim_end_matches("_FL");

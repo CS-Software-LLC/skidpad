@@ -7,6 +7,7 @@ import { useEffect, useRef, useState } from "react";
 import {
   AxisCalibrator,
   AxisFinder,
+  DIRECT_DRIVE_SCALER,
   GamepadRumbleSink,
   LogitechWebHidSink,
   builtinProfiles,
@@ -58,6 +59,15 @@ export function WheelPanel({ sim }: { sim: Sim }) {
   // Multiplier on the car's column friction and damping, which the wheel's
   // firmware applies; they resist motion, so raising it is safe.
   const [columnScale, setColumnScale] = useState(1);
+  // Polish items 1B, 2 and 3, off until tried on a wheel: playing the
+  // core's torque slices out between frames, a direct-drive slew and
+  // smoothing, and setting the wheel's rotation to the car's lock.
+  const [playout, setPlayout] = useState(false);
+  const [playoutRate, setPlayoutRate] = useState(500);
+  const [slewRate, setSlewRate] = useState(5);
+  const [smoothingMs, setSmoothingMs] = useState(10);
+  const [matchRotation, setMatchRotation] = useState(false);
+  const [rotationNote, setRotationNote] = useState("");
   const [log, setLog] = useState<string[]>([]);
   const [assists, setAssists] = useState(() => currentAssists(sim));
   const sink = useRef<LogitechWebHidSink | null>(null);
@@ -84,6 +94,36 @@ export function WheelPanel({ sim }: { sim: Sim }) {
     }, 100);
     return () => clearInterval(id);
   }, [sim]);
+
+  // Keep the wheel's rotation on the car's lock (checked at 2 Hz, so a car
+  // change follows), or hand it back to the profile.
+  useEffect(() => {
+    const id = setInterval(() => {
+      const s = sink.current;
+      if (!s?.connected) return;
+      if (!matchRotation) {
+        if (sim.wheel.rotationDeg !== undefined) {
+          const profile = sim.wheel.status.profile?.rotationDeg ?? 900;
+          sim.wheel.rotationDeg = undefined;
+          void s.setRotation(profile);
+          setRotationNote("");
+        }
+        return;
+      }
+      const st = sim.definition.steering;
+      const car = 2 * st.ratio * st.maxWheelAngleDeg;
+      const want = Math.round(Math.min(car, s.maxRotationDeg));
+      if (sim.wheel.rotationDeg === want) return;
+      sim.wheel.rotationDeg = want;
+      void s.setRotation(want);
+      setRotationNote(
+        car > s.maxRotationDeg + 0.5
+          ? `car lock ${Math.round(car)}° is wider than the wheel's ${s.maxRotationDeg}°: steering scaled to reach it`
+          : `wheel set to the car's ${want}°`,
+      );
+    }, 500);
+    return () => clearInterval(id);
+  }, [sim, matchRotation]);
 
   // Assigning a control: watch every axis of both devices for about three
   // seconds, take the one that moved most, and record its end stops.
@@ -154,6 +194,9 @@ export function WheelPanel({ sim }: { sim: Sim }) {
         invert,
         maxOutput,
         columnScale,
+        slewRate,
+        smoothing: smoothingMs / 1000,
+        playoutRate: playout ? playoutRate : 0,
       });
       // Keep the sink even when the force path fails, so its diagnostics
       // log stays on screen.
@@ -172,8 +215,11 @@ export function WheelPanel({ sim }: { sim: Sim }) {
       sink.current.scaler.invert = invert;
       sink.current.maxOutput = maxOutput;
       sink.current.columnScale = columnScale;
+      sink.current.scaler.slewRate = slewRate;
+      sink.current.scaler.smoothing = smoothingMs / 1000;
+      sink.current.playoutRate = playout ? playoutRate : 0;
     }
-  }, [gain, invert, maxOutput, columnScale]);
+  }, [gain, invert, maxOutput, columnScale, slewRate, smoothingMs, playout, playoutRate]);
 
   const rumble = () => {
     const s = new GamepadRumbleSink(() => {
@@ -310,6 +356,77 @@ export function WheelPanel({ sim }: { sim: Sim }) {
               <FfbGraph trace={sim.ffbTrace} />
             </div>
           )}
+          <div className="row">
+            <label title="Play the core's 1 kHz torque out between frames, one frame behind, instead of one value per 60 Hz frame">
+              <input
+                type="checkbox"
+                checked={playout}
+                onChange={(e) => setPlayout(e.target.checked)}
+              />
+              Sub-frame playout
+              <select
+                value={playoutRate}
+                onChange={(e) => setPlayoutRate(Number(e.target.value))}
+                disabled={!playout}
+              >
+                {[250, 360, 500].map((hz) => (
+                  <option key={hz} value={hz}>
+                    {hz} Hz
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label title="Fastest change of the output, full scale per second">
+              Slew
+              <input
+                type="range"
+                min={5}
+                max={100}
+                step={5}
+                value={slewRate}
+                onChange={(e) => setSlewRate(Number(e.target.value))}
+              />
+              {slewRate}/s
+            </label>
+            <label title="First-order smoothing time constant">
+              Smoothing
+              <input
+                type="range"
+                min={0}
+                max={20}
+                step={1}
+                value={smoothingMs}
+                onChange={(e) => setSmoothingMs(Number(e.target.value))}
+              />
+              {smoothingMs} ms
+            </label>
+            <button
+              title="Slew and smoothing for a direct-drive base such as the G PRO"
+              onClick={() => {
+                setSlewRate(DIRECT_DRIVE_SCALER.slewRate);
+                setSmoothingMs(DIRECT_DRIVE_SCALER.smoothing * 1000);
+              }}
+            >
+              Direct drive
+            </button>
+            <button
+              onClick={() => {
+                setSlewRate(5);
+                setSmoothingMs(10);
+              }}
+            >
+              Gear / belt
+            </button>
+            <label title="Set the wheel's rotation to the car's lock, so the wheel's end stop is the car's">
+              <input
+                type="checkbox"
+                checked={matchRotation}
+                onChange={(e) => setMatchRotation(e.target.checked)}
+              />
+              Match rotation to car
+            </label>
+            {rotationNote && <span className="small">{rotationNote}</span>}
+          </div>
           {status.tripped && (
             <div className="row message">
               Force feedback stopped: {status.tripped}. Check the sign with Test pulse (it should

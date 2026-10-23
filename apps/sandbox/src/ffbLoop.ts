@@ -12,7 +12,12 @@
  * Coulomb term, angles positive right like the steer input.
  */
 import type { PartialVehicleDefinition, Skidpad } from "@skidpad/core";
-import { FfbScaler, ffbFrameFromTelemetry, type FfbScalerOptions } from "@skidpad/input";
+import {
+  FfbScaler,
+  TorquePlayout,
+  ffbFrameFromTelemetry,
+  type FfbScalerOptions,
+} from "@skidpad/input";
 
 export interface ReleaseOptions {
   /** Car speed when the wheel is let go, m/s (held with the throttle). */
@@ -37,6 +42,11 @@ export interface ReleaseOptions {
    * a stiff spring past them, as the firmware's bump stop.
    */
   endStop?: number;
+  /**
+   * Play the step's torque slices out at the rim's 1 kHz, one step behind
+   * (ADR-0032), instead of holding one value per step.
+   */
+  playout?: boolean;
   /** Scaler options over the defaults (gain, smoothing, slew). */
   scaler?: FfbScalerOptions;
 }
@@ -99,6 +109,7 @@ export function releaseWheel(
   let angle = o.releaseAngle ?? Math.PI / 2;
   let rate = 0;
   let motor = 0;
+  const playout = new TorquePlayout();
   const trace: ReleaseTrace = { time: [], angle: [], rate: [], yawRate: [] };
   const read = (c: string) => world.read(car, c as "Speed");
   const substeps = Math.max(1, Math.round(hostDt / RIM_DT));
@@ -110,11 +121,20 @@ export function releaseWheel(
     });
     world.step(hostDt);
     const frame = ffbFrameFromTelemetry(read, def.steering, (angle * 180) / Math.PI);
-    scaler.scale(frame.torque, hostDt, frame.wheelAngle);
-    motor = scaler.sent;
-    // The rim between host steps, the motor held.
+    if (o.playout) {
+      scaler.watch(hostDt, frame.wheelAngle);
+      playout.push(frame.samples!, hostDt, k * hostDt);
+    } else {
+      scaler.scale(frame.torque, hostDt, frame.wheelAngle);
+      motor = scaler.sent;
+    }
+    // The rim between host steps, the motor held or played out.
     const h = hostDt / substeps;
     for (let s = 0; s < substeps; s++) {
+      if (o.playout) {
+        scaler.shape(playout.at(k * hostDt + s * h), h);
+        motor = scaler.sent;
+      }
       // Past the end stop, a stiff damped spring.
       const over = Math.abs(angle) - endStop;
       const stop =

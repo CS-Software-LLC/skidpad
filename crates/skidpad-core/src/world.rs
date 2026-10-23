@@ -421,10 +421,19 @@ impl World {
             let input = VehicleInput::from_slice(slot);
             let n = m::max(m::round(dt * v.effective_rate_hz()), 1.0) as usize;
             let sub_dt = dt / n as f64;
+            // The steering torque's mean over the step and over each of its
+            // slices (ADR-0031, ADR-0032).
+            const S: usize = telemetry::STEERING_TORQUE_SLICES;
             let mut torque_sum = 0.0;
-            for _ in 0..n {
+            let mut slice_sum = [0.0; S];
+            let mut slice_n = [0u32; S];
+            for j in 0..n {
                 v.model.substep_on(sub_dt, &input, &self.surfaces);
-                torque_sum += v.model.steering_torque();
+                let torque = v.model.steering_torque();
+                torque_sum += torque;
+                let k = j * S / n;
+                slice_sum[k] += torque;
+                slice_n[k] += 1;
             }
             if let Some(f) = v.model.as_four_wheel() {
                 let out = &mut self.host_out[i * HOST_OUT_STRIDE..(i + 1) * HOST_OUT_STRIDE];
@@ -433,6 +442,15 @@ impl World {
             let rec = &mut self.telemetry[i * telemetry::STRIDE..(i + 1) * telemetry::STRIDE];
             v.model.write_telemetry(&input, rec);
             rec[telemetry::STEERING_TORQUE_MEAN] = torque_sum / n as f64;
+            // Slice 0 always holds the first substep; an empty slice (fewer
+            // substeps than slices) repeats the one before it.
+            for k in 0..S {
+                rec[telemetry::STEERING_TORQUE_SLICE_0 + k] = if slice_n[k] > 0 {
+                    slice_sum[k] / slice_n[k] as f64
+                } else {
+                    rec[telemetry::STEERING_TORQUE_SLICE_0 + k - 1]
+                };
+            }
         }
         self.step_count += 1;
     }

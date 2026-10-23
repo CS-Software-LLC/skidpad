@@ -173,6 +173,14 @@ export const CHANNEL_NAMES = [
   "SteerTorqueScrub",
   "SteerTorqueLift",
   "SteerTorqueAssist",
+  "SteeringTorqueSlice0",
+  "SteeringTorqueSlice1",
+  "SteeringTorqueSlice2",
+  "SteeringTorqueSlice3",
+  "SteeringTorqueSlice4",
+  "SteeringTorqueSlice5",
+  "SteeringTorqueSlice6",
+  "SteeringTorqueSlice7",
 ] as const;
 
 /** A telemetry channel name; `World.read` checks it at compile time. */

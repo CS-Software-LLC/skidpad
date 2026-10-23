@@ -53,10 +53,14 @@ describe("hands-off force feedback", () => {
 describe.runIf(process.env.FFB_REPORT)("hands-off report", () => {
   it("prints the release matrix", () => {
     const scalers = {
-      today: {},
-      "slew 50, smoothing 3 ms": { slewRate: 50, smoothing: 0.003 },
+      today: { scaler: {} },
+      "slew 50, smoothing 3 ms": { scaler: { slewRate: 50, smoothing: 0.003 } },
+      "slew 50, smoothing 3 ms, playout": {
+        scaler: { slewRate: 50, smoothing: 0.003 },
+        playout: true,
+      },
     };
-    for (const [label, scaler] of Object.entries(scalers)) {
+    for (const [label, variant] of Object.entries(scalers)) {
       for (const columnScale of [1, 2, 4]) {
         const rows = presetIds.map((id) => {
           const cells = [0, 30, 100].map((kmh) =>
@@ -65,7 +69,7 @@ describe.runIf(process.env.FFB_REPORT)("hands-off report", () => {
                 speed: kmh / 3.6,
                 releaseAngle: deg(kmh === 100 ? 30 : 90),
                 columnScale,
-                scaler,
+                ...variant,
               }),
             ),
           );
