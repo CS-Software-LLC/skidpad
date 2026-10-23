@@ -500,6 +500,24 @@ describe("force feedback", () => {
     // Half of full output to the right is a negative HID++ level on a G PRO.
     const level = (((last.data[9]! << 8) | last.data[10]!) << 16) >> 16;
     expect(level).toBeCloseTo(-0x7fff / 2, -2);
+    // The car's column friction and damping go to the friction (slot 4) and
+    // damper (slot 3) effects, over the 11 N·m peak, capped by maxOutput.
+    const before = sent.length;
+    await sink.update({ torque: 5.5, damping: 0.05, friction: 0.3 }, 1);
+    const column = sent.slice(before).filter((s) => s.id === 0x12);
+    expect(column.map((s) => [s.data[3], s.data[4]])).toEqual([
+      [4, 0x08],
+      [3, 0x07],
+    ]);
+    const word = (d: number[], i: number) => (d[i]! << 8) | d[i + 1]!;
+    expect(word(column[0]!.data, 11)).toBe(Math.round((0.3 / 11) * 0x7fff)); // left coefficient
+    expect(word(column[0]!.data, 17)).toBe(Math.round((0.3 / 11) * 0x7fff)); // right coefficient
+    expect(word(column[0]!.data, 9)).toBe(0x7fff); // saturation = maxOutput
+    expect(word(column[1]!.data, 11)).toBe(Math.round(((0.05 * 10) / 11) * 0x7fff));
+    // Unchanged values are not sent again.
+    const again = sent.length;
+    await sink.update({ torque: 5.5, damping: 0.05, friction: 0.3 }, 1);
+    expect(sent.slice(again).some((s) => s.id === 0x12)).toBe(false);
     // With no further updates the watchdog zeroes the force.
     await new Promise((r) => setTimeout(r, 300));
     expect(lines.some((l) => l.includes("watchdog"))).toBe(true);
@@ -527,6 +545,19 @@ describe("force feedback", () => {
     expect(device.opened).toBe(false);
     // HID++ 2.0 commands never use the short report, which a G PRO refuses.
     expect(sent.some((s) => s.id === 0x10)).toBe(false);
+  });
+
+  it("maps column friction and damping to effect coefficients within maxOutput", async () => {
+    const { columnEffects } = await import("../src/index.js");
+    const o = { gain: 0.5, columnScale: 2, damperRate: 10, peakTorque: 11, maxOutput: 0.4 };
+    const c = columnEffects(0.3, 0.05, o);
+    expect(c.friction).toBeCloseTo(0.3 / 11);
+    expect(c.damper).toBeCloseTo((0.05 * 10) / 11);
+    expect(c.saturation).toBe(0.4);
+    // Never above maxOutput, never negative (a negative damper drives the wheel).
+    expect(columnEffects(100, 100, o)).toEqual({ friction: 0.4, damper: 0.4, saturation: 0.4 });
+    expect(columnEffects(-1, -1, o)).toEqual({ friction: 0, damper: 0, saturation: 0.4 });
+    expect(columnEffects(0.3, 0.05, { ...o, gain: 0 }).friction).toBe(0);
   });
 
   it("picks the wheel interface that declares HID++ reports", async () => {

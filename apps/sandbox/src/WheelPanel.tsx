@@ -52,6 +52,9 @@ export function WheelPanel({ sim }: { sim: Sim }) {
   const [gain, setGain] = useState(0.5);
   const [maxOutput, setMaxOutput] = useState(0.4);
   const [invert, setInvert] = useState(false);
+  // Multiplier on the car's column friction and damping, which the wheel's
+  // firmware applies; they resist motion, so raising it is safe.
+  const [columnScale, setColumnScale] = useState(1);
   const [log, setLog] = useState<string[]>([]);
   const [assists, setAssists] = useState(() => currentAssists(sim));
   const sink = useRef<LogitechWebHidSink | null>(null);
@@ -145,6 +148,7 @@ export function WheelPanel({ sim }: { sim: Sim }) {
         gain,
         invert,
         maxOutput,
+        columnScale,
       });
       // Keep the sink even when the force path fails, so its diagnostics
       // log stays on screen.
@@ -162,8 +166,9 @@ export function WheelPanel({ sim }: { sim: Sim }) {
       sink.current.scaler.gain = gain;
       sink.current.scaler.invert = invert;
       sink.current.maxOutput = maxOutput;
+      sink.current.columnScale = columnScale;
     }
-  }, [gain, invert, maxOutput]);
+  }, [gain, invert, maxOutput, columnScale]);
 
   const rumble = () => {
     const s = new GamepadRumbleSink(() => {
@@ -268,6 +273,18 @@ export function WheelPanel({ sim }: { sim: Sim }) {
               />
               {(100 * maxOutput).toFixed(0)}%
               {sink.current ? ` (${(sink.current.peakTorque * maxOutput).toFixed(1)} N·m)` : ""}
+            </label>
+            <label title="Multiplier on the car's steering column friction and damping">
+              Column feel
+              <input
+                type="range"
+                min={0}
+                max={4}
+                step={0.25}
+                value={columnScale}
+                onChange={(e) => setColumnScale(Number(e.target.value))}
+              />
+              {columnScale.toFixed(2)}×
             </label>
             <label>
               <input

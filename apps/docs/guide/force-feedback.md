@@ -163,9 +163,18 @@ positive constant force turns the wheel left, so the sink flips it; on a
 G923 or G920 check it with the test pulse.
 
 Column friction and damping are definition values (`steering.columnFriction`,
-`steering.columnDamping`) meant for the device's own friction and damper
-effects; the HID++ sink downloads those effects but does not yet scale them
-[VERIFY].
+N·m, and `steering.columnDamping`, N·m per rad/s, at the hand wheel). The
+HID++ sink sends them to the wheel's own friction and damper effects, where
+the firmware applies them far faster than the host steps, which a damper
+needs to stay stable. They are what makes the wheel feel settled around the
+centre, where the tires' aligning torque is small. Each is multiplied by
+`gain` and by `columnScale` (default 1; the sandbox's **Column feel**
+slider), divided by the wheel's peak torque and capped at `maxOutput`. The
+damper's coefficient also needs the hand-wheel rate at which the firmware
+gives full output, `damperRate` (default 10 rad/s), which no public source
+documents [VERIFY]: raise it for less damping. Both effects only resist
+motion, so they stay on when the runaway guard or the watchdog cuts the
+constant force. The classic protocol does not send them yet.
 
 ## Other makers
 

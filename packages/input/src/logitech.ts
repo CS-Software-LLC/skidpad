@@ -147,6 +147,19 @@ export interface LogitechSinkOptions extends FfbScalerOptions {
    * 0.25), so a paused host or a hidden tab cannot leave a force playing.
    */
   watchdog?: number;
+  /**
+   * Multiplier on the definition's column friction and damping before they
+   * go to the wheel's friction and damper effects (default 1). They are
+   * scaled by `gain` too, so the column keeps its share of the torque.
+   */
+  columnScale?: number;
+  /**
+   * Hand-wheel rate at which a damper coefficient of 1 gives the device's
+   * full output, rad/s (default 10) [VERIFY]. The firmware's velocity unit
+   * is not documented; a larger value gives less damping for the same
+   * definition.
+   */
+  damperRate?: number;
 }
 
 // --- HID++ 2.0 constants -----------------------------------------------------
@@ -195,6 +208,8 @@ const FF_STATE_PLAY = 0x02;
 /** Parameter bytes of a constant-force and of a condition effect. */
 const FF_CONSTANT_PARAMS = 14;
 const FF_CONDITION_PARAMS = 18;
+/** Friction and damper both at zero, as set-up downloads them. */
+const COLUMN_OFF = "off";
 
 /** A HID++ reply: its parameter bytes, or the error code it carried. */
 interface HidppReply {
@@ -283,11 +298,58 @@ function constantParams(slot: number, level: number): number[] {
  * Parameters of a condition effect (spring, damper, friction): slot, type,
  * duration, delay, then left saturation, left coefficient, deadband, centre,
  * right coefficient, right saturation. Saturations are 15-bit, the
- * coefficient a signed 16-bit fraction of full output.
+ * coefficient a signed 16-bit fraction of full output. The saturation caps
+ * the effect's force, so it defaults to full output for a non-zero
+ * coefficient and zero otherwise.
  */
-function conditionParams(slot: number, type: number, coefficient: number): number[] {
+
+/**
+ * Coefficients of the wheel's friction and damper effects, as fractions of
+ * the device's peak torque, and the saturation that caps both.
+ */
+export interface ColumnEffects {
+  friction: number;
+  damper: number;
+  saturation: number;
+}
+
+/**
+ * The column's friction (N·m) and damping (N·m per rad/s) at the hand wheel
+ * as condition-effect coefficients: each scaled by `gain × columnScale`,
+ * over the device's peak torque, the damping through `damperRate` (the
+ * hand-wheel rate of full damper output per unit coefficient). Both are
+ * clamped to `0 … maxOutput`, and the saturation is `maxOutput`, so the
+ * firmware never pushes harder than the sink's own limit. Negative inputs
+ * give zero: a negative damper would push the wheel along, not resist it.
+ */
+export function columnEffects(
+  friction: number,
+  damping: number,
+  o: {
+    gain: number;
+    columnScale: number;
+    damperRate: number;
+    peakTorque: number;
+    maxOutput: number;
+  },
+): ColumnEffects {
+  const limit = clamp01(o.maxOutput);
+  const k = (Math.max(0, o.gain) * Math.max(0, o.columnScale)) / Math.max(o.peakTorque, 1e-6);
+  const fit = (x: number): number => (Number.isFinite(x) ? Math.max(0, Math.min(limit, x)) : 0);
+  return {
+    friction: fit(k * friction),
+    damper: fit(k * damping * Math.max(0, o.damperRate)),
+    saturation: limit,
+  };
+}
+function conditionParams(
+  slot: number,
+  type: number,
+  coefficient: number,
+  saturationLevel = coefficient === 0 ? 0 : 1,
+): number[] {
   const c = Math.round(Math.max(-1, Math.min(1, coefficient)) * 0x7fff) & 0xffff;
-  const saturation = coefficient === 0 ? 0 : 0x7fff;
+  const saturation = Math.round(clamp01(saturationLevel) * 0x7fff);
   const p = new Array<number>(FF_CONDITION_PARAMS).fill(0);
   p[0] = slot;
   p[1] = type;
@@ -318,6 +380,13 @@ export class LogitechWebHidSink implements FfbSink {
   private slot: number | undefined;
   private damperSlot: number | undefined;
   private frictionSlot: number | undefined;
+  /** Friction and damper coefficients last sent, as quantised report bytes. */
+  private lastColumn: string | undefined;
+  private classicColumnNoted = false;
+  /** Multiplier on the definition's column friction and damping. */
+  columnScale: number;
+  /** Hand-wheel rate of full damper output per unit coefficient, rad/s [VERIFY]. */
+  damperRate: number;
   private pending: HidppWaiter[] = [];
   /** Output report ids the attached interface declares, when known. */
   private reportIds: Set<number> | undefined;
@@ -375,6 +444,8 @@ export class LogitechWebHidSink implements FfbSink {
     this.updateMode = options.updateMode ?? "modify";
     this.minInterval = options.minInterval ?? 1 / 120;
     this.log = options.log ?? (() => {});
+    this.columnScale = options.columnScale ?? 1;
+    this.damperRate = options.damperRate ?? 10;
   }
 
   /**
@@ -492,6 +563,7 @@ export class LogitechWebHidSink implements FfbSink {
     this.readyValue = false;
     this.featureIndex = 0;
     this.slot = this.damperSlot = this.frictionSlot = undefined;
+    this.lastColumn = undefined;
     this.reportIds = outputReportIds(device);
     if (!device.opened) await device.open();
     device.addEventListener("inputreport", this.onReport);
@@ -664,6 +736,7 @@ export class LogitechWebHidSink implements FfbSink {
     this.slot = await this.download(constantParams(0, 0));
     this.damperSlot = await this.download(conditionParams(0, FF_EFFECT_DAMPER, 0));
     this.frictionSlot = await this.download(conditionParams(0, FF_EFFECT_FRICTION, 0));
+    this.lastColumn = COLUMN_OFF;
     return this.slot === undefined ? "the wheel did not accept a constant-force effect" : undefined;
   }
 
@@ -711,9 +784,76 @@ export class LogitechWebHidSink implements FfbSink {
     } catch (e) {
       this.record(`   send failed: ${String(e)}`);
     }
-    // Damping and friction scale with the definition's column values.
-    void frame.damping;
-    void frame.friction;
+    await this.sendColumn(frame);
+  }
+
+  /**
+   * The column's friction and damping, on the wheel's own friction and
+   * damper effects: the firmware applies them at its own rate, far above
+   * the host's, which a damper needs to stay stable. They resist motion
+   * and never drive it, so they stay on when the runaway guard or the
+   * watchdog cuts the constant force. Sent only when a coefficient
+   * changes (the gain, `maxOutput`, `columnScale` or the car).
+   */
+  private async sendColumn(frame: FfbFrame): Promise<void> {
+    if (this.protocol === "classic") {
+      if (!this.classicColumnNoted && (frame.friction > 0 || frame.damping > 0)) {
+        this.classicColumnNoted = true;
+        this.record("   column friction and damping are not sent over the classic protocol yet");
+      }
+      return;
+    }
+    if (this.featureIndex === 0) return;
+    const c = columnEffects(frame.friction, frame.damping, {
+      gain: this.scaler.gain,
+      columnScale: this.columnScale,
+      damperRate: this.damperRate,
+      peakTorque: this.peakTorque,
+      maxOutput: this.maxOutputValue,
+    });
+    const q = (x: number): number => Math.round(x * 0x7fff);
+    // Both off is one state whatever the saturation, as set-up leaves them.
+    const key =
+      q(c.friction) === 0 && q(c.damper) === 0
+        ? COLUMN_OFF
+        : `${q(c.friction)} ${q(c.damper)} ${q(c.saturation)}`;
+    if (key === this.lastColumn) return;
+    this.lastColumn = key;
+    this.record(
+      `   column: friction ${(c.friction * this.peakTorque).toFixed(2)} N·m, ` +
+        `damper ${c.damper.toFixed(3)} of full output at ${this.damperRate} rad/s`,
+    );
+    this.frictionSlot = await this.setCondition(
+      this.frictionSlot,
+      FF_EFFECT_FRICTION,
+      c.friction,
+      c.saturation,
+    );
+    this.damperSlot = await this.setCondition(
+      this.damperSlot,
+      FF_EFFECT_DAMPER,
+      c.damper,
+      c.saturation,
+    );
+  }
+
+  /** Change a condition effect in place, or re-create it; its slot. */
+  private async setCondition(
+    slot: number | undefined,
+    type: number,
+    coefficient: number,
+    saturation: number,
+  ): Promise<number | undefined> {
+    if (this.updateMode === "modify" && slot !== undefined) {
+      await this.hidpp(
+        this.featureIndex,
+        FF_DOWNLOAD_EFFECT,
+        conditionParams(slot, type, coefficient, saturation),
+      );
+      return slot;
+    }
+    if (slot !== undefined) await this.hidpp(this.featureIndex, FF_DESTROY_EFFECT, [slot]);
+    return this.download(conditionParams(0, type, coefficient, saturation));
   }
 
   /** Send a level in −1 … 1 of the allowed output (positive turns right). */
