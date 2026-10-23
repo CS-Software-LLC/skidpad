@@ -10,7 +10,8 @@
       "Drivetrain [ILLUSTRATIVE]: a 3.5 l V6 (peak 520 N·m at 3000 rpm, 220 kW at 5600 rpm) through a six-speed automatic with a 3.7 final drive, open axle differentials and a centre differential sending 40 % forward, as on a full-time 4WD system.",
       "Steering geometry [ILLUSTRATIVE]: 4° of caster (about 25 mm of trail), a 20 mm scrub radius and strong hydraulic assist; aero after Hucho, Aerodynamics of Road Vehicles, ch. 4: a tall bluff body with mild lift and the drag centred well above the centre of mass.",
       "Travel curves [ILLUSTRATIVE] (ADR-0026): roll-centre height falling with bump and camber gain at rates scaled from the curves derived for Project Chrono's BMW E90 from its hardpoints (MacPherson front: roll centre −2.9 mm per mm of bump, camber about −20°/m; double wishbone: −1.6 mm per mm; docs/validation/chrono-bmw-e90.md), eased for this car's lower roll centres. No toe curves: road cars are set up for near-zero bump steer, and the E90 comparison found toe follows force more than travel.",
-      "Unsprung mass and tire vertical rates [ILLUSTRATIVE] (ADR-0028): wheel, tire, brake, hub and about half of each link per corner, typical of the class, with the tire about ten times as stiff as the suspension spring so the wheel hops at 10–15 Hz (Gillespie, Fundamentals of Vehicle Dynamics, ch. 5). The solid rear axle stays massless until beam axles support unsprung mass."
+      "Unsprung mass and tire vertical rates [ILLUSTRATIVE] (ADR-0028): wheel, tire, brake, hub and about half of each link per corner, typical of the class, with the tire about ten times as stiff as the suspension spring so the wheel hops at 10–15 Hz (Gillespie, Fundamentals of Vehicle Dynamics, ch. 5).",
+      "The leaf-sprung live rear axle [ILLUSTRATIVE] (ADR-0028): about 155 kg of housing, differential, shafts, drums, wheels and tires, 78 kg per wheel; its roll inertia of 65 kg·m² is about 0.58 of that mass at the wheels, since the differential sits in the middle."
     ],
     "notes": "Not a specific production model. The rear axle is a solid beam (suspension.kind \"solid\", ADR-0016) with a high roll centre, so most of its lateral load transfer goes through the links and the body rolls less than the soft springs alone would allow."
   },
@@ -87,7 +88,9 @@
         "stiffnessPeakLoad": 8000,
         "relaxationLengthLat": 0.45,
         "relaxationLengthLong": 0.3,
-        "rollingResistance": 0.013
+        "rollingResistance": 0.013,
+        "verticalStiffness": 320000,
+        "verticalDamping": 700
       },
       "wheelInertia": 3.4,
       "driven": true,
@@ -103,7 +106,9 @@
         "travelDroop": 0.14,
         "antiRollStiffness": 4000,
         "bumpStopStiffness": 400000,
-        "rollCenterHeight": 0.4
+        "rollCenterHeight": 0.4,
+        "unsprungMass": 78,
+        "beamRollInertia": 65
       }
     }
   ],

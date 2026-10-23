@@ -1024,7 +1024,13 @@
           "type": "number",
           "minimum": 0,
           "default": 0,
-          "description": "kg per wheel (ADR-0028): wheel, tire, brake, hub and the share of the links that move with them, part of chassis.mass. Zero keeps the massless strut; above zero each wheel rides on the tire's vertical spring and can hop. Independent axles only"
+          "description": "kg per wheel (ADR-0028): wheel, tire, brake, hub and the share of the links that move with them, part of chassis.mass. Zero keeps the massless strut; above zero each wheel rides on the tire's vertical spring and can hop. On a solid axle the beam carries both wheels' mass"
+        },
+        "beamRollInertia": {
+          "type": "number",
+          "minimum": 0,
+          "default": 0,
+          "description": "kg·m² (ADR-0028): roll inertia of a solid axle's beam with its wheels about its own centre. Zero puts the axle's unsprung mass at the wheels; smaller values make the beam's roll (tramp) faster than its hop. Solid axles with unsprung mass only"
         }
       },
       "additionalProperties": false,

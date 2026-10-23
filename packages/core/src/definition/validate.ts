@@ -537,9 +537,14 @@ export function validateDefinition(def: unknown): ValidationResult {
             nonNegative(errors, `${path}.suspension.antiRollStiffness`, s.antiRollStiffness);
             nonNegative(errors, `${path}.suspension.bumpStopStiffness`, s.bumpStopStiffness);
             nonNegative(errors, `${path}.suspension.unsprungMass`, s.unsprungMass);
-            if (isNum(s.unsprungMass) && s.unsprungMass > 0 && s.kind === "solid") {
+            nonNegative(errors, `${path}.suspension.beamRollInertia`, s.beamRollInertia);
+            if (
+              isNum(s.beamRollInertia) &&
+              s.beamRollInertia > 0 &&
+              !(s.kind === "solid" && isNum(s.unsprungMass) && s.unsprungMass > 0)
+            ) {
               errors.push(
-                `${path}.suspension.unsprungMass is not yet supported on a solid axle (got ${s.unsprungMass}); use 0`,
+                `${path}.suspension.beamRollInertia applies only to a solid axle with unsprungMass (got ${s.beamRollInertia}); use 0`,
               );
             }
             if (s.kind !== undefined && s.kind !== "independent" && s.kind !== "solid") {
@@ -606,7 +611,9 @@ export function validateDefinition(def: unknown): ValidationResult {
           if (!isNum(mu) || !(mu > 0)) return;
           const track = isNum(a?.trackWidth) && a.trackWidth > 0 ? a.trackWidth : c.trackWidth;
           const y = isNum(track) ? 0.5 * track : 0;
-          roll += 2 * mu * y * y;
+          const beam = a?.suspension?.beamRollInertia;
+          roll +=
+            a?.suspension?.kind === "solid" && isNum(beam) && beam > 0 ? beam : 2 * mu * y * y;
           pitch += 2 * mu * x[i]! * x[i]!;
         });
         if (roll > 0 && isNum(c.rollInertia) && !(roll <= 0.9 * c.rollInertia)) {

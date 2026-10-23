@@ -57,8 +57,8 @@ grid.
 - **The pickup and the kart understeer less.** Only their independent fronts
   gained tire compliance; their solid rears still have rigid tires. The
   front's share of roll stiffness falls, so less load transfer happens at
-  the front. This should partly come back when solid axles take unsprung
-  mass in the next change.
+  the front. The solid-axle change that followed gave their rears beams with mass; see
+  the README tables for the current numbers.
 - **The kart no longer spins on snow** in the locked-wheel stop (it brakes on
   its rear axle only, a marginal case). It stops in 120 m instead of
   spinning to a halt in 113 m. It still spins on ice.
@@ -90,3 +90,25 @@ every ripple of the mesh straight into the load, and the tire's own
 compliance now filters it.
 
 ![Front-left tire load over 6 s of the circuit, with and without unsprung mass](img/unsprung-circuit-tire-load.svg)
+
+## Solid rears (the following change)
+
+Once solid axles could carry a beam with mass (ADR-0028), the kart and the
+pickup got their rears:
+
+- **Kart:** a 6 kg-a-wheel live axle with a roll inertia of 2.5 kg·m²,
+  about 0.55 of its mass at the wheels.
+- **Pickup:** a 78 kg-a-wheel live axle with 65 kg·m², about 0.58 of its
+  mass at the wheels.
+
+With tire compliance at both ends again, the front's share of roll
+stiffness comes back:
+
+| Preset | Understeer gradient: massless / fronts only / both | Step-steer roll |
+| ------ | -------------------------------------------------- | --------------- |
+| Kart   | −0.21 / −0.27 / −0.16 deg/g                        | 0.05° → 0.08°   |
+| Pickup | 0.94 / 0.86 / 0.93 deg/g                           | 1.48° → 1.86°   |
+
+The kart spins in the locked-wheel stop on snow again, as it did without
+unsprung mass. The four cars with independent rears are unchanged bit for
+bit.

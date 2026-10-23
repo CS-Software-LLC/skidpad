@@ -174,7 +174,9 @@ fn jacking_unloads_the_inner_rear_wheel_and_is_absent_at_zero_rate() {
     let flat = loads(0.0);
     let jacked = loads(kart.steering.jacking_rate);
     // Left turn: inner = left. Jacking loads the inner front and unloads the
-    // inner rear, diagonally.
+    // inner rear, diagonally. The tires' vertical compliance (ADR-0028),
+    // in series with the kart's stiff frame, takes some of the rear's
+    // share.
     assert!(
         jacked[0] > flat[0] + 30.0,
         "inner front {} vs {}",
@@ -188,13 +190,13 @@ fn jacking_unloads_the_inner_rear_wheel_and_is_absent_at_zero_rate() {
         flat[1]
     );
     assert!(
-        jacked[2] < flat[2] - 60.0,
+        jacked[2] < flat[2] - 40.0,
         "inner rear {} vs {}",
         jacked[2],
         flat[2]
     );
     assert!(
-        jacked[3] > flat[3] + 60.0,
+        jacked[3] > flat[3] + 40.0,
         "outer rear {} vs {}",
         jacked[3],
         flat[3]

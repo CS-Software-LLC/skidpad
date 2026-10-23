@@ -172,10 +172,18 @@ export interface SuspensionDefinition {
    * Unsprung mass per wheel, kg (ADR-0028): wheel, tire, brake, hub and the
    * share of the links that move with them, part of `chassis.mass`. Zero
    * (the default) keeps the massless strut; above zero each wheel rides on
-   * the tire's vertical spring and can hop. Independent axles only;
-   * four-wheel model only.
+   * the tire's vertical spring and can hop. On a solid axle the beam
+   * carries both wheels' mass. Four-wheel model only.
    */
   unsprungMass?: number;
+  /**
+   * Roll inertia of a solid axle's beam with its wheels, kg·m², about its
+   * own centre (ADR-0028). Zero (the default) puts the axle's unsprung mass
+   * at the wheels, `2 m_u (t/2)²`; a housing and differential near the
+   * middle make it smaller and the beam's roll (tramp) faster than its
+   * hop. Solid axles with unsprung mass only.
+   */
+  beamRollInertia?: number;
 }
 
 /**

@@ -49,14 +49,14 @@ pub const FR: usize = 1;
 pub const RL: usize = 2;
 pub const RR: usize = 3;
 
-/// Who integrates the chassis pose.
 /// The body along its up axis as the sprung mass (ADR-0028): heave, roll
 /// and pitch with the wheels' share of the mass and inertias taken out.
 #[derive(Clone, Copy, Debug, Default)]
 struct SprungBody {
     /// `Jᵢ`: (heave, roll rate, pitch rate) to corner `i`'s rate along up.
     jacobian: [[f64; 3]; WHEEL_COUNT],
-    /// Inverse of the sprung mass matrix `M − Σ m_u Jᵢᵀ Jᵢ`.
+    /// Inverse of the sprung mass matrix `M − Σ Jᵢᵀ M_u,ij Jⱼ`, summed over
+    /// each axle's two wheels.
     inv: [[f64; 3]; 3],
     /// Each corner's acceleration along up from the forces before the
     /// wheels' own, gravity left out.
@@ -71,7 +71,7 @@ impl SprungBody {
         mass: f64,
         roll_inertia: f64,
         pitch_inertia: f64,
-        geometry: &[WheelGeometry; WHEEL_COUNT],
+        axle_mass: &[[[f64; 2]; 2]; 2],
         wheels: &[WheelState; WHEEL_COUNT],
         pos: Vec3,
         orient: Quat,
@@ -83,14 +83,23 @@ impl SprungBody {
             [0.0, roll_inertia, 0.0],
             [0.0, 0.0, pitch_inertia],
         ];
-        for i in 0..WHEEL_COUNT {
-            let r = orient.inverse_rotate(wheels[i].hub - pos);
-            let j = [1.0, r.y, -r.x];
-            b.jacobian[i] = j;
-            let mu = geometry[i].unsprung_mass;
-            for (row, jr) in mm.iter_mut().zip(j) {
-                for (e, jc) in row.iter_mut().zip(j) {
-                    *e -= mu * jr * jc;
+        for (j, w) in b.jacobian.iter_mut().zip(wheels) {
+            let r = orient.inverse_rotate(w.hub - pos);
+            *j = [1.0, r.y, -r.x];
+        }
+        for (axle, ma) in axle_mass.iter().enumerate() {
+            for (a, row_m) in ma.iter().enumerate() {
+                for (c, &mab) in row_m.iter().enumerate() {
+                    if mab == 0.0 {
+                        continue;
+                    }
+                    let ja = b.jacobian[2 * axle + a];
+                    let jb = b.jacobian[2 * axle + c];
+                    for (row, jr) in mm.iter_mut().zip(ja) {
+                        for (e, jc) in row.iter_mut().zip(jb) {
+                            *e -= mab * jr * jc;
+                        }
+                    }
                 }
             }
         }
@@ -102,6 +111,12 @@ impl SprungBody {
             b.corner_inv_mass[i] = dot3(j, b.solve(j));
         }
         b
+    }
+
+    /// `Jᵢ M_s⁻¹ Jⱼᵀ`: how a force along up at corner `j` accelerates
+    /// corner `i`.
+    fn coupling(&self, i: usize, j: usize) -> f64 {
+        dot3(self.jacobian[i], self.solve(self.jacobian[j]))
     }
 
     /// `M_s⁻¹ v`.
@@ -144,6 +159,7 @@ fn inverse3(a: &[[f64; 3]; 3]) -> [[f64; 3]; 3] {
     ]
 }
 
+/// Who integrates the chassis pose.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub enum HostMode {
     /// The built-in minimal host: flat ground at z = 0, pose integrated here.
@@ -936,10 +952,18 @@ impl FourWheelVehicle {
         // lateral axis (pointing left) is that line while both wheels touch.
         let mut beam_lat = [None; 2];
         for (axle, beam) in beam_lat.iter_mut().enumerate() {
-            if self.def.axles[axle].suspension.kind == SuspensionKind::Solid {
+            let s = &self.def.axles[axle].suspension;
+            if s.kind == SuspensionKind::Solid {
                 let l = &self.wheels[2 * axle];
                 let r = &self.wheels[2 * axle + 1];
-                if l.in_contact && r.in_contact {
+                if s.unsprung_mass > 0.0 {
+                    // A beam with mass (ADR-0028) is the line through its
+                    // hubs, touching the ground or not.
+                    let d = l.hub - r.hub;
+                    if d.length() > 1e-6 {
+                        *beam = Some(d.normalized());
+                    }
+                } else if l.in_contact && r.in_contact {
                     let d = l.contact_point - r.contact_point;
                     if d.length() > 1e-6 {
                         *beam = Some(d.normalized());
@@ -1188,7 +1212,8 @@ impl FourWheelVehicle {
         // rides on its own spring. Along up, the body heaves, rolls and
         // pitches as the sprung mass: its mass and inertias less the wheels'
         // share, `M_s = M − Σ m_u Jᵢᵀ Jᵢ` with `Jᵢ = (1, yᵢ, −xᵢ)` taking
-        // (heave, roll rate, pitch rate) to corner `i`'s rate along up. Each
+        // (heave, roll rate, pitch rate) to corner `i`'s rate along up (a
+        // solid axle's beam couples its two wheels: `Σ Jᵢᵀ M_u,ij Jⱼ`). Each
         // wheel pushes on its corner with the force that gives it the
         // corner's own acceleration along up, `m_u Jᵢ q̈`, so the integration
         // below and an external host keep the whole car's mass, inertias and
@@ -1203,20 +1228,26 @@ impl FourWheelVehicle {
                 c.yaw_inertia * self.omega.z,
             );
             let net = orient.inverse_rotate(torque) - self.omega.cross(iw);
+            let axle_mass = [self.axle_unsprung_mass(0), self.axle_unsprung_mass(1)];
             sprung = SprungBody::new(
                 mass,
                 c.roll_inertia,
                 c.pitch_inertia,
-                &self.geometry,
+                &axle_mass,
                 &self.wheels,
                 self.pos,
                 orient,
                 [force.dot(up), net.x, net.y],
             );
             for i in 0..WHEEL_COUNT {
-                let mu = self.geometry[i].unsprung_mass;
-                if mu > 0.0 {
-                    let f = up * (mu * sprung.corner_accel[i]);
+                let ma = axle_mass[i / 2][i % 2];
+                let (own, other) = (ma[i % 2], ma[1 - i % 2]);
+                if own > 0.0 {
+                    let mut fu = own * sprung.corner_accel[i];
+                    if other != 0.0 {
+                        fu += other * sprung.corner_accel[i ^ 1];
+                    }
+                    let f = up * fu;
                     force = force + f;
                     torque = torque + (self.wheels[i].hub - self.pos).cross(f);
                 }
@@ -1295,7 +1326,16 @@ impl FourWheelVehicle {
     /// between corners stays explicit.
     fn step_hubs(&mut self, dt: f64, up: Vec3, sprung: &SprungBody) -> [f64; 3] {
         let mut impulse = [0.0; 3];
+        for axle in 0..2 {
+            let s = &self.def.axles[axle].suspension;
+            if s.kind == SuspensionKind::Solid && s.unsprung_mass > 0.0 {
+                self.step_beam(axle, dt, up, sprung, &mut impulse);
+            }
+        }
         for i in 0..WHEEL_COUNT {
+            if self.def.axles[i / 2].suspension.kind == SuspensionKind::Solid {
+                continue;
+            }
             let g = self.geometry[i];
             let mu = g.unsprung_mass;
             if !(mu > 0.0) {
@@ -1335,6 +1375,117 @@ impl FourWheelVehicle {
             }
         }
         sprung.solve(impulse)
+    }
+
+    /// The unsprung mass matrix of axle `axle` on its two wheels' travel,
+    /// kg (ADR-0028): `m_u` on the diagonal for independent wheels; for a
+    /// solid axle's beam of mass `m_a = 2 m_u` and roll inertia `I_a` over
+    /// track `t`, `m_a/4 [[1, 1], [1, 1]] + I_a/t² [[1, −1], [−1, 1]]`, the
+    /// beam's heave and roll in the wheels' coordinates.
+    fn axle_unsprung_mass(&self, axle: usize) -> [[f64; 2]; 2] {
+        let s = &self.def.axles[axle].suspension;
+        let mu = s.unsprung_mass;
+        if !(mu > 0.0) {
+            return [[0.0; 2]; 2];
+        }
+        if s.kind != SuspensionKind::Solid {
+            return [[mu, 0.0], [0.0, mu]];
+        }
+        let t = self.def.axle_track(axle);
+        let heave = 0.5 * mu;
+        let roll = self.def.unsprung_roll_inertia(axle) / (t * t);
+        [[heave + roll, heave - roll], [heave - roll, heave + roll]]
+    }
+
+    /// Step a solid axle's beam (ADR-0028): both wheels' travel together,
+    /// with the beam's mass matrix, as the linearly implicit step of
+    /// [`Self::step_hubs`] in two coordinates. The anti-roll bar couples
+    /// the two ends inside the step, and the body's response to each end's
+    /// strut force at both ends enters through `J M_s⁻¹ Jᵀ`.
+    fn step_beam(
+        &mut self,
+        axle: usize,
+        dt: f64,
+        up: Vec3,
+        sprung: &SprungBody,
+        impulse: &mut [f64; 3],
+    ) {
+        let ma = self.axle_unsprung_mass(axle);
+        let s = &self.def.axles[axle].suspension;
+        let ids = [2 * axle, 2 * axle + 1];
+        let mut rhs = [0.0; 2];
+        let mut k = [[0.0; 2]; 2];
+        let mut c = [0.0; 2];
+        let mut tire = [0.0; 2];
+        for (a, &i) in ids.iter().enumerate() {
+            let g = self.geometry[i];
+            let w = &self.wheels[i];
+            let n_up = if w.in_contact && w.tire_force > 0.0 {
+                self.contacts[i].normal.dot(up)
+            } else {
+                0.0
+            };
+            rhs[a] = w.tire_force * n_up
+                - w.susp_force
+                - ma[a][0] * sprung.corner_accel[ids[0]]
+                - ma[a][1] * sprung.corner_accel[ids[1]];
+            let stop = if w.travel > s.travel_bump || w.travel < -s.travel_droop {
+                s.bump_stop_stiffness
+            } else {
+                0.0
+            };
+            k[a][a] = s.spring_rate + s.anti_roll_stiffness + stop;
+            k[a][1 - a] = -s.anti_roll_stiffness;
+            c[a] = if w.travel_rate > 0.0 {
+                s.bump_damping
+            } else {
+                s.rebound_damping
+            };
+            tire[a] = dt * g.tire_damping * n_up + dt * dt * g.tire_rate * n_up;
+        }
+        // The strut's impulse change per unit rate change: `dt (C + dt K)`.
+        let mut strut = [[0.0; 2]; 2];
+        for a in 0..2 {
+            for b in 0..2 {
+                strut[a][b] = dt * dt * k[a][b] + if a == b { dt * c[a] } else { 0.0 };
+            }
+        }
+        // `M B`, with `B = J M_s⁻¹ Jᵀ` on the axle's two corners.
+        let mut bm = [[0.0; 2]; 2];
+        for a in 0..2 {
+            for b in 0..2 {
+                bm[a][b] = sprung.coupling(ids[a], ids[b]);
+            }
+        }
+        // `A = M + (I + M B) dt (C + dt K) + dt (C_t + dt K_t)`.
+        let mut a_mat = [[0.0; 2]; 2];
+        for a in 0..2 {
+            for b in 0..2 {
+                let mut strut_ab = 0.0;
+                for m in 0..2 {
+                    let reduced =
+                        if a == m { 1.0 } else { 0.0 } + ma[a][0] * bm[0][m] + ma[a][1] * bm[1][m];
+                    strut_ab += reduced * strut[m][b];
+                }
+                a_mat[a][b] = ma[a][b] + strut_ab + if a == b { tire[a] } else { 0.0 };
+            }
+        }
+        let det = a_mat[0][0] * a_mat[1][1] - a_mat[0][1] * a_mat[1][0];
+        let d_rate = [
+            dt * (a_mat[1][1] * rhs[0] - a_mat[0][1] * rhs[1]) / det,
+            dt * (a_mat[0][0] * rhs[1] - a_mat[1][0] * rhs[0]) / det,
+        ];
+        for (a, &i) in ids.iter().enumerate() {
+            let w = &mut self.wheels[i];
+            w.hub_rate += d_rate[a];
+            w.hub_travel += dt * w.hub_rate;
+            // The strut's impulse change over the step.
+            let d_impulse = strut[a][0] * d_rate[0] + strut[a][1] * d_rate[1];
+            let j = sprung.jacobian[i];
+            for (acc, jr) in impulse.iter_mut().zip(j) {
+                *acc += jr * d_impulse;
+            }
+        }
     }
 
     /// Write the telemetry record for the current state.

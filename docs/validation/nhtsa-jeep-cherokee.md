@@ -516,3 +516,41 @@ pnpm --filter @skidpad/nhtsa-compare test                 # the regression guard
 The digitised traces are committed. To regenerate them from the paper:
 `python3 -I tools/nhtsa-compare/digitise/digitise.py jeep_valid.pdf tools/nhtsa-compare/reference/jeep_cherokee`
 (needs `pdfplumber`).
+
+## Unsprung mass on the beams
+
+2026-10-23. ADR-0028 now lets a solid axle carry unsprung mass as a beam with
+its own heave and roll. The Jeep's two beams get estimated masses and the
+tires an estimated vertical rate, all marked ESTIMATE in `jeep.ts`:
+
+- **Front (Dana 30):** 62 kg a wheel.
+- **Rear (Dana 35, with half of each leaf pack):** 73 kg a wheel.
+- **Beam roll inertia:** 0.6 of each axle's mass at the wheels.
+- **Tire:** 230 kN/m and 600 N·s/m.
+
+NHTSA's inertial database gives no unsprung masses. Nothing else about the
+builds changed, and the fits were rerun as before.
+
+| Build                     | Fitted front bar       | Within tolerance, before | Within tolerance, after |
+| ------------------------- | ---------------------- | ------------------------ | ----------------------- |
+| Estimated                 | 20.0 kN/m (not fitted) | 4 of 17, 5 of 12 traces  | 4 of 17, 4 of 12 traces |
+| Fitted, ratio             | 27.1 → 41.3 kN/m       | 15 of 17, 12 of 12       | 14 of 17, 12 of 12      |
+| Fitted, compliance        | 27.0 → 41.2 kN/m       | 16 of 17, 12 of 12       | 16 of 17, 12 of 12      |
+| Fitted, core's compliance | 27.0 → 41.2 kN/m       | 17 of 17, 12 of 12       | 17 of 17, 12 of 12      |
+
+- **The tires' vertical rate adds roll.** It sits in series with the
+  springs, so the estimated build's roll gradient rises from 4.6 to
+  5.7 deg/g, against the 3.6 measured. The fits match the measured
+  gradient again with a front bar of about 41 kN/m instead of 27 kN/m.
+  That bar is now the stand-in for everything stiff in roll that the build
+  estimates: the springs' spacing, the tire rate and the roll centres.
+  41 kN/m at the wheel is high for an XJ's front bar. A measured tire
+  vertical rate, or the bar's diameter, would show which estimate is off.
+- **The fitted builds hardly move otherwise.** The ratio fit's peak
+  lateral acceleration in the fast lane change goes from 14.7 % to 16.0 %
+  over the measured value, just outside its 15 %. It joins the yaw rate and
+  roll of the same run on the known-gap list, for the same reason
+  (finding 1). The compliance fits are unchanged within a percent, and the
+  core's compliance still predicts every metric and trace.
+- **The estimated build loses the 12 m/s lane change's roll trace** (24 %
+  to 35 % of the measured range), for the same reason as the roll gradient.
