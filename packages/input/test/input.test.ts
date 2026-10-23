@@ -374,6 +374,40 @@ describe("force feedback", () => {
     expect(smooth.scale(10, 0.01)).toBeCloseTo(0.1);
   });
 
+  it("reports the requested and sent torque, the clip flag and the peak", async () => {
+    const { FfbScaler } = await import("../src/index.js");
+    const s = new FfbScaler({
+      maxTorque: 4,
+      smoothing: 0,
+      gain: 0.5,
+      slewRate: Infinity,
+      invert: true,
+    });
+    s.scale(6, 1 / 60);
+    expect(s.requested).toBe(3);
+    expect(s.sent).toBeCloseTo(3);
+    expect(s.lastClipped).toBe(false);
+    s.scale(-12, 1 / 60);
+    expect(s.requested).toBe(-6);
+    // Clipped at the device's full scale, in the sign of the request.
+    expect(s.sent).toBeCloseTo(-4);
+    expect(s.lastClipped).toBe(true);
+    expect(s.peak).toBe(6);
+    s.resetStats();
+    expect(s.peak).toBe(0);
+    expect(s.clipFraction).toBe(0);
+  });
+
+  it("drives the wheel from the step's mean torque, not the last substep's", async () => {
+    const { ffbFrameFromTelemetry } = await import("../src/index.js");
+    const channels: Record<string, number> = { SteeringTorque: 3, SteeringTorqueMean: 1.5 };
+    const f = ffbFrameFromTelemetry((c) => channels[c] ?? NaN, {
+      columnFriction: 0.2,
+      columnDamping: 0.05,
+    });
+    expect(f.torque).toBe(1.5);
+  });
+
   it("defaults to half gain, limits the output and its rate of change", async () => {
     const { FfbScaler } = await import("../src/index.js");
     const s = new FfbScaler({ maxTorque: 10, smoothing: 0 });

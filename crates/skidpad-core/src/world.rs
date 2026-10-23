@@ -421,8 +421,10 @@ impl World {
             let input = VehicleInput::from_slice(slot);
             let n = m::max(m::round(dt * v.effective_rate_hz()), 1.0) as usize;
             let sub_dt = dt / n as f64;
+            let mut torque_sum = 0.0;
             for _ in 0..n {
                 v.model.substep_on(sub_dt, &input, &self.surfaces);
+                torque_sum += v.model.steering_torque();
             }
             if let Some(f) = v.model.as_four_wheel() {
                 let out = &mut self.host_out[i * HOST_OUT_STRIDE..(i + 1) * HOST_OUT_STRIDE];
@@ -430,6 +432,7 @@ impl World {
             }
             let rec = &mut self.telemetry[i * telemetry::STRIDE..(i + 1) * telemetry::STRIDE];
             v.model.write_telemetry(&input, rec);
+            rec[telemetry::STEERING_TORQUE_MEAN] = torque_sum / n as f64;
         }
         self.step_count += 1;
     }

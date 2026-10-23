@@ -972,6 +972,24 @@ impl VehicleDefinition {
         (1.0 - a) * manual + a * manual / m::sqrt(1.0 + x * x)
     }
 
+    /// The hand-wheel torque split by source (ADR-0031), N·m in the sign of
+    /// the steer input: the aligning moment, the mechanical trail, the scrub
+    /// radius and the steering lift, each through the ratio as
+    /// [`Self::hand_wheel_torque`] would carry it without assist, then the
+    /// torque the assist took away (`hand` less the manual torque). From the
+    /// kingpin-torque `parts` in that order, about +z, summing to `kingpin`.
+    /// The five sum to `hand` up to rounding.
+    pub fn steering_parts(&self, parts: [f64; 4], kingpin: f64, hand: f64) -> [f64; 5] {
+        let ratio = self.steering.ratio;
+        [
+            -parts[0] / ratio,
+            -parts[1] / ratio,
+            -parts[2] / ratio,
+            -parts[3] / ratio,
+            hand + kingpin / ratio,
+        ]
+    }
+
     /// Which axles are driven, front then rear.
     pub fn driven_axles(&self) -> [bool; 2] {
         [

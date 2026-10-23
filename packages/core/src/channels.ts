@@ -167,6 +167,12 @@ export const CHANNEL_NAMES = [
   "TireDeflection_FR",
   "TireDeflection_RL",
   "TireDeflection_RR",
+  "SteeringTorqueMean",
+  "SteerTorqueMz",
+  "SteerTorqueTrail",
+  "SteerTorqueScrub",
+  "SteerTorqueLift",
+  "SteerTorqueAssist",
 ] as const;
 
 /** A telemetry channel name; `World.read` checks it at compile time. */

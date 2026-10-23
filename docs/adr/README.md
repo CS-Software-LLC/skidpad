@@ -37,3 +37,4 @@ Rejected.
 | [0028](0028-unsprung-mass.md)                          | Unsprung mass as an option on independent axles                         | Proposed                  |
 | [0029](0029-power-assist-boost-curve.md)               | Power assist boost curve                                                | Proposed                  |
 | [0030](0030-steering-lift-self-centring.md)            | Self-centring from the steering axis lift                               | Proposed                  |
+| [0031](0031-force-feedback-torque-channels.md)         | Force-feedback torque channels: the step mean and the breakdown         | Proposed                  |

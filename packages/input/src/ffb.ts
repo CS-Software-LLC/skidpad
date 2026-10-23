@@ -27,20 +27,27 @@ export interface FfbSink {
   readonly connected: boolean;
   /** Torque the device reaches at full output, N·m (a guess for rumble). */
   readonly maxTorque: number;
+  /** The sink's scaler, for the setup panel's graph and statistics. */
+  readonly scaler?: FfbScaler;
   /** Deliver a frame; `dt` is the host step. May be asynchronous. */
   update(frame: FfbFrame, dt: number): void | Promise<void>;
   /** Zero the output and release the device. */
   stop(): void | Promise<void>;
 }
 
-/** Read the frame from the core's telemetry and the definition. */
+/**
+ * Read the frame from the core's telemetry and the definition. The torque
+ * is `SteeringTorqueMean`, the mean over the host step's substeps (ADR-0031):
+ * the last substep's `SteeringTorque` sampled once per host step aliases
+ * anything faster than half the host rate into random steps.
+ */
 export function ffbFrameFromTelemetry(
   read: (channel: string) => number,
   steering: { columnFriction: number; columnDamping: number },
   wheelAngleDeg?: number,
 ): FfbFrame {
   return {
-    torque: read("SteeringTorque"),
+    torque: read("SteeringTorqueMean"),
     damping: steering.columnDamping,
     friction: steering.columnFriction,
     wheelAngle: wheelAngleDeg === undefined ? undefined : (wheelAngleDeg * Math.PI) / 180,
@@ -93,6 +100,12 @@ export class FfbScaler {
   runawayTime: number;
   /** Last normalised output. */
   output = 0;
+  /** Last requested torque at the rim, gain × car torque, N·m (before clipping). */
+  requested = 0;
+  /** Whether the last request was past the limit. */
+  lastClipped = false;
+  /** Largest |requested| since the last `resetStats()`, N·m. */
+  peak = 0;
   private clipped = 0;
   private frames = 0;
   private lastAngle: number | undefined;
@@ -127,11 +140,14 @@ export class FfbScaler {
    * positive right) feeds the runaway guard.
    */
   scale(torque: number, dt: number, wheelAngle?: number): number {
-    const raw = (this.gain * torque) / Math.max(this.maxTorque, 1e-6);
+    this.requested = this.gain * torque;
+    this.peak = Math.max(this.peak, Math.abs(this.requested));
+    const raw = this.requested / Math.max(this.maxTorque, 1e-6);
     const limit = Math.max(0, Math.min(1, this.limit));
     const target = Math.max(-limit, Math.min(limit, raw)) * (this.invert ? -1 : 1);
     this.frames++;
-    if (Math.abs(raw) > limit) this.clipped++;
+    this.lastClipped = Math.abs(raw) > limit;
+    if (this.lastClipped) this.clipped++;
     this.watchRunaway(dt, wheelAngle);
     if (this.trippedReason !== undefined) {
       this.output = 0;
@@ -173,14 +189,24 @@ export class FfbScaler {
     }
   }
 
+  /**
+   * Torque the output asks of the device, N·m in the sign of the request
+   * (the output with `invert` undone, times `maxTorque`).
+   */
+  get sent(): number {
+    return this.output * (this.invert ? -1 : 1) * this.maxTorque;
+  }
+
   /** Fraction of frames that hit the device's limit since the last reset. */
   get clipFraction(): number {
     return this.frames > 0 ? this.clipped / this.frames : 0;
   }
 
+  /** Clear the clip fraction and the peak (the sandbox does it each lap). */
   resetStats(): void {
     this.clipped = 0;
     this.frames = 0;
+    this.peak = 0;
   }
 }
 
@@ -207,7 +233,7 @@ export class GamepadRumbleSink implements FfbSink {
   readonly name = "gamepad rumble";
   readonly maxTorque = 6;
   // Rumble cannot move anything, so full gain and no rate limit.
-  private readonly scaler = new FfbScaler({
+  readonly scaler = new FfbScaler({
     maxTorque: 6,
     smoothing: 0.05,
     gain: 1,

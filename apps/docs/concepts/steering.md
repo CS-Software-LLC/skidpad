@@ -76,6 +76,24 @@ friction (`columnFriction`) and damping (`columnDamping`) are definition
 values the input package maps onto a wheel's own friction and damper
 effects, where the device's firmware applies them at its own rate.
 
+## Torque channels for force feedback
+
+The core substeps at the definition's rate (1 kHz by default), while a host
+reads telemetry once per host step. `SteeringTorque` is the last substep's
+value; `SteeringTorqueMean` is its mean over the host step's substeps, and is
+what the input package sends to a wheel. Sampling the last substep once a
+frame turns anything faster than half the frame rate (kerbs, wheel hop, tire
+vibration) into random steps; the mean filters it first
+([ADR-0031](https://github.com/CS-Software-LLC/skidpad/blob/main/docs/adr/0031-force-feedback-torque-channels.md)).
+
+Five channels split `SteeringTorque` by source, already through the ratio and
+in the same sign, so they add up to it: `SteerTorqueMz` (the tires' aligning
+moment), `SteerTorqueTrail` (mechanical trail), `SteerTorqueScrub` (scrub
+radius), `SteerTorqueLift` (the axis angles above) and `SteerTorqueAssist`
+(what the power assist removed, opposite in sign to the rest while it
+helps). The sandbox's wheel panel graphs them with the torque requested of
+the wheel and the torque actually sent.
+
 ## Jacking
 
 With caster and kingpin inclination, steering moves the wheels up and down

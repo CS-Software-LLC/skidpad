@@ -17,6 +17,7 @@ import {
   type LogitechProtocol,
   type WheelProfile,
 } from "@skidpad/input";
+import { FfbGraph } from "./FfbGraph.js";
 import type { Sim } from "./sim.js";
 
 type Control = "steer" | "throttle" | "brake" | "clutch";
@@ -36,6 +37,8 @@ interface Status {
   angle: number;
   ffb: string;
   clip: number;
+  peak: number;
+  lapPeak: number | undefined;
   tripped: string | undefined;
   torque: number;
 }
@@ -71,7 +74,9 @@ export function WheelPanel({ sim }: { sim: Sim }) {
         pedals: w.pedals?.id ?? (w.wheel ? "on the wheel base" : "none"),
         angle: w.wheelAngleDeg,
         ffb: s ? `${s.name}${s.connected ? "" : " (not connected)"}` : "off",
-        clip: sink.current?.scaler.clipFraction ?? 0,
+        clip: s?.scaler?.clipFraction ?? 0,
+        peak: s?.scaler?.peak ?? 0,
+        lapPeak: sim.ffbLapPeak,
         tripped: sink.current?.scaler.tripped,
         torque: sim.world.read(sim.vehicle, "SteeringTorque"),
       });
@@ -295,9 +300,16 @@ export function WheelPanel({ sim }: { sim: Sim }) {
               invert
             </label>
             <span>
-              {status.ffb} · clipping {(100 * status.clip).toFixed(0)}%
+              {status.ffb} · clipping {(100 * status.clip).toFixed(0)}% · peak{" "}
+              {status.peak.toFixed(1)} N·m
+              {status.lapPeak !== undefined && ` (last lap ${status.lapPeak.toFixed(1)})`}
             </span>
           </div>
+          {sim.ffbSink?.scaler && (
+            <div className="row">
+              <FfbGraph trace={sim.ffbTrace} />
+            </div>
+          )}
           {status.tripped && (
             <div className="row message">
               Force feedback stopped: {status.tripped}. Check the sign with Test pulse (it should
