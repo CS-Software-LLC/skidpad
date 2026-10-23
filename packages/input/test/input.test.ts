@@ -71,7 +71,12 @@ describe("KeyboardInput", () => {
 
 describe("GamepadInput", () => {
   it("maps the standard layout", () => {
-    const g = new GamepadInput({ deadzone: 0.1, steerExponent: 1, steerSensitivity: 1, steerRate: Infinity });
+    const g = new GamepadInput({
+      deadzone: 0.1,
+      steerExponent: 1,
+      steerSensitivity: 1,
+      steerRate: Infinity,
+    });
     const buttons = Array.from({ length: 8 }, () => ({ value: 0, pressed: false }));
     buttons[7] = { value: 0.8, pressed: true };
     buttons[0] = { value: 1, pressed: true };
@@ -326,7 +331,12 @@ describe("gears", () => {
       configurable: true,
     });
     try {
-      const g = new GamepadInput({ deadzone: 0, steerExponent: 1, steerSensitivity: 1, steerRate: Infinity });
+      const g = new GamepadInput({
+        deadzone: 0,
+        steerExponent: 1,
+        steerSensitivity: 1,
+        steerRate: Infinity,
+      });
       expect(g.poll()?.steer).toBeCloseTo(-0.6);
       expect(g.lastPad).toBe(gamepad);
     } finally {
