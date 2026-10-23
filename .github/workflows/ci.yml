@@ -58,6 +58,15 @@ jobs:
         run: pnpm validate
       - name: Node benchmark
         run: pnpm bench
+      # The regression gate: this pull request's core against the base
+      # branch's committed prebuilt core, back to back on this runner.
+      - name: Benchmark against the base branch
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          git fetch --no-tags --depth=1 origin "+refs/heads/$BASE_REF:refs/remotes/origin/$BASE_REF"
+          pnpm bench:compare --base "origin/$BASE_REF"
       - name: Build apps (sandbox, docs, bench)
         run: pnpm build:apps
       - name: Upload WASM artifact
