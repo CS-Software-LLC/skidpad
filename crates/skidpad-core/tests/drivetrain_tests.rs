@@ -808,10 +808,16 @@ fn full_throttle_shifts_at_the_same_speeds_as_before() {
         ),
     ];
     for (model, speeds) in before {
-        let changes = gear_changes(hatchback(model), throttle(1.0), 3000);
+        // The pinned speeds predate the preset's unsprung mass (ADR-0028),
+        // which moves them by about 2 mm/s; compare like with like.
+        let mut d = hatchback(model);
+        for a in d.axles.iter_mut() {
+            a.suspension.unsprung_mass = 0.0;
+        }
+        let changes = gear_changes(d.clone(), throttle(1.0), 3000);
         assert_eq!(
             changes,
-            gear_changes(fixed_schedule(hatchback(model)), throttle(1.0), 3000),
+            gear_changes(fixed_schedule(d), throttle(1.0), 3000),
             "{model:?}"
         );
         let gears: Vec<i32> = changes.iter().map(|c| c.1).collect();

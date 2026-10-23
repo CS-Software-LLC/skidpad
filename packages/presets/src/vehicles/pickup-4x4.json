@@ -9,7 +9,8 @@
       "Suspension rates for ~1.3 Hz front and ~1.5 Hz rear ride frequencies unladen (Gillespie, Fundamentals of Vehicle Dynamics, ch. 5); a leaf-sprung solid rear axle has its roll centre near the spring-seat height, about 0.4 m, and the independent front near 0.1 m (Milliken & Milliken, Race Car Vehicle Dynamics, ch. 17).",
       "Drivetrain [ILLUSTRATIVE]: a 3.5 l V6 (peak 520 N·m at 3000 rpm, 220 kW at 5600 rpm) through a six-speed automatic with a 3.7 final drive, open axle differentials and a centre differential sending 40 % forward, as on a full-time 4WD system.",
       "Steering geometry [ILLUSTRATIVE]: 4° of caster (about 25 mm of trail), a 20 mm scrub radius and strong hydraulic assist; aero after Hucho, Aerodynamics of Road Vehicles, ch. 4: a tall bluff body with mild lift and the drag centred well above the centre of mass.",
-      "Travel curves [ILLUSTRATIVE] (ADR-0026): roll-centre height falling with bump and camber gain at rates scaled from the curves derived for Project Chrono's BMW E90 from its hardpoints (MacPherson front: roll centre −2.9 mm per mm of bump, camber about −20°/m; double wishbone: −1.6 mm per mm; docs/validation/chrono-bmw-e90.md), eased for this car's lower roll centres. No toe curves: road cars are set up for near-zero bump steer, and the E90 comparison found toe follows force more than travel."
+      "Travel curves [ILLUSTRATIVE] (ADR-0026): roll-centre height falling with bump and camber gain at rates scaled from the curves derived for Project Chrono's BMW E90 from its hardpoints (MacPherson front: roll centre −2.9 mm per mm of bump, camber about −20°/m; double wishbone: −1.6 mm per mm; docs/validation/chrono-bmw-e90.md), eased for this car's lower roll centres. No toe curves: road cars are set up for near-zero bump steer, and the E90 comparison found toe follows force more than travel.",
+      "Unsprung mass and tire vertical rates [ILLUSTRATIVE] (ADR-0028): wheel, tire, brake, hub and about half of each link per corner, typical of the class, with the tire about ten times as stiff as the suspension spring so the wheel hops at 10–15 Hz (Gillespie, Fundamentals of Vehicle Dynamics, ch. 5). The solid rear axle stays massless until beam axles support unsprung mass."
     ],
     "notes": "Not a specific production model. The rear axle is a solid beam (suspension.kind \"solid\", ADR-0016) with a high roll centre, so most of its lateral load transfer goes through the links and the body rolls less than the soft springs alone would allow."
   },
@@ -31,20 +32,22 @@
         "nominalLoad": 6500,
         "peakFriction": 0.85,
         "loadSensitivity": 0.1,
-        "peakSlipAngleDeg": 8.0,
+        "peakSlipAngleDeg": 8,
         "peakSlipRatio": 0.13,
         "corneringStiffness": 15,
         "longitudinalStiffness": 18,
         "stiffnessPeakLoad": 8000,
         "relaxationLengthLat": 0.45,
         "relaxationLengthLong": 0.3,
-        "rollingResistance": 0.013
+        "rollingResistance": 0.013,
+        "verticalStiffness": 320000,
+        "verticalDamping": 700
       },
       "wheelInertia": 3.2,
       "driven": true,
       "steered": true,
       "maxBrakeTorque": 7000,
-      "staticCamberDeg": 0.0,
+      "staticCamberDeg": 0,
       "suspension": {
         "kind": "independent",
         "springRate": 44000,
@@ -64,9 +67,10 @@
           "camberDeg": [
             [-0.12, 1.2],
             [0, 0],
-            [0.1, -1.0]
+            [0.1, -1]
           ]
-        }
+        },
+        "unsprungMass": 60
       }
     },
     {
@@ -76,7 +80,7 @@
         "nominalLoad": 6500,
         "peakFriction": 0.85,
         "loadSensitivity": 0.1,
-        "peakSlipAngleDeg": 8.0,
+        "peakSlipAngleDeg": 8,
         "peakSlipRatio": 0.13,
         "corneringStiffness": 15,
         "longitudinalStiffness": 18,
@@ -89,7 +93,7 @@
       "driven": true,
       "steered": false,
       "maxBrakeTorque": 4500,
-      "staticCamberDeg": 0.0,
+      "staticCamberDeg": 0,
       "suspension": {
         "kind": "solid",
         "springRate": 48000,
@@ -106,14 +110,14 @@
   "steering": {
     "maxWheelAngleDeg": 33,
     "ratio": 17,
-    "ackermann": 1.0,
+    "ackermann": 1,
     "mechanicalTrail": 0.025,
     "scrubRadius": 0.02,
     "steeringArm": 0.14,
     "powerAssist": 0.7,
     "columnFriction": 0.4,
     "columnDamping": 0.06,
-    "jackingRate": 0.0
+    "jackingRate": 0
   },
   "brakes": {
     "handbrakeTorque": 2800
@@ -150,7 +154,7 @@
       "idleTorqueMax": 120
     },
     "transmission": {
-      "gears": [4.0, 2.5, 1.65, 1.2, 1.0, 0.78],
+      "gears": [4, 2.5, 1.65, 1.2, 1, 0.78],
       "reverse": 3.4,
       "finalDrive": 3.7,
       "mode": "automatic",

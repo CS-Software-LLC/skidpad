@@ -15,6 +15,7 @@ use skidpad_core::geom::Vec3;
 use skidpad_core::snapshot::{SnapshotError, Snapshottable};
 use skidpad_core::telemetry as t;
 use skidpad_core::tire::tir;
+use skidpad_core::validation::understeer::{self, UndersteerConfig};
 use skidpad_core::validation::{timestep_sweep, TimestepSweepConfig};
 use skidpad_core::vehicle::{FourWheelVehicle, HostMode, FL, FR, RR};
 use skidpad_core::world::{HOST_CONTACT_STRIDE, HOST_IN_BODY_LEN, HOST_IN_STRIDE, HOST_OUT_STRIDE};
@@ -364,11 +365,16 @@ fn external_host_impulse_equals_builtin_velocity_change() {
         throttle: 0.8,
         ..Default::default()
     };
-    builtin.set_input(0, input).unwrap();
-    external.set_input(0, input).unwrap();
     let dt = 1.0 / 60.0;
     let mass = d.chassis.mass;
     for k in 0..180 {
+        // The first step is at rest with no input; the throttle's pitch
+        // would otherwise heave the body frame, as the sprung mass's centre
+        // is not the whole car's.
+        if k == 1 {
+            builtin.set_input(0, input).unwrap();
+            external.set_input(0, input).unwrap();
+        }
         let (pos, orient, vel, angvel) = {
             let c = builtin.vehicle(0).unwrap().model.as_four_wheel().unwrap();
             (c.pos, c.orient, c.vel, c.orient.rotate(c.omega))
@@ -409,8 +415,7 @@ fn external_host_impulse_equals_builtin_velocity_change() {
             "dv {dv:?} vs {predicted:?}"
         );
         if k == 0 {
-            // At rest, before the input has moved anything vertically, the
-            // impulse holds up the whole car.
+            // At rest the impulse holds up the whole car.
             assert!(m::abs(out[2] - mass * GRAVITY * dt) < 1e-3 * mass * GRAVITY * dt);
         }
     }
@@ -562,6 +567,46 @@ fn the_level_of_detail_round_trip_keeps_working() {
     let _ = VehicleModel::new(d);
 }
 
+// --- light corners -------------------------------------------------------------
+
+/// A light body in roll (the open-wheeler preset: 90 kg·m², of which the
+/// wheels carry more than half) drives the same steady skidpad at the
+/// slowest supported substep as at its own 1 kHz. Before each wheel took
+/// its corner's own acceleration in roll and pitch, and before each strut
+/// was stepped against the reduced mass of its wheel and the body's corner,
+/// the wheels hopped off the ground at 250 Hz and the gradient moved by
+/// 0.8 deg/g. Either change alone passes this test; with both removed it
+/// fails.
+#[test]
+fn a_light_body_in_roll_is_stable_at_250_hz() {
+    let d: VehicleDefinition = serde_json::from_str(include_str!(
+        "../../../packages/presets/src/vehicles/open-wheeler.json"
+    ))
+    .unwrap();
+    assert!(d.has_unsprung_mass());
+    let gradient = |rate: f64| {
+        let mut d = d.clone();
+        d.simulation.substep_rate_hz = rate;
+        understeer::run(
+            &d,
+            &UndersteerConfig {
+                radius: 40.0,
+                speeds: vec![4.0, 8.0, 12.0],
+                settle_time: 8.0,
+                measure_time: 1.0,
+                host_dt: 1.0 / 60.0,
+            },
+        )
+        .unwrap()
+        .gradient_deg_per_g
+    };
+    let (coarse, fine) = (gradient(250.0), gradient(1000.0));
+    assert!(
+        m::abs(coarse - fine) < 0.01,
+        "{coarse} deg/g at 250 Hz vs {fine} at 1 kHz"
+    );
+}
+
 // --- definitions and import ------------------------------------------------------------
 
 #[test]
@@ -579,6 +624,11 @@ fn validation_rejects_solid_axles_and_impossible_masses() {
     let mut d = default_with_unsprung();
     d.axles[0].suspension.unsprung_mass = -1.0;
     assert!(d.validate().is_err());
+
+    let mut d = default_with_unsprung();
+    d.chassis.roll_inertia = 60.0;
+    let e = d.validate().unwrap_err().join("\n");
+    assert!(e.contains("rollInertia"), "{e}");
 }
 
 #[test]

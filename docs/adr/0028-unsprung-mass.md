@@ -47,24 +47,30 @@ without the option. The ray is longer by the static tire deflection, so the
 tire can unload fully before the contact is lost; hosts cast that longer ray.
 
 **The body keeps the whole car's equations.** The wheels move with the body
-except along its up axis. The body receives the strut forces along up, the
-rest of a tilted contact's normal force through the links, the tire's plane
-forces as before, and at each corner `m_u (F·u) / m_s` along up: the force
-that gives the wheel the body's own acceleration along up. With it, the body
-accelerates along up as the sprung mass and across up as the whole car, the
-integration keeps the total mass and full gravity, and at rest the corners
-carry exactly the massless strut's loads (also in pitch, where the wheels'
-weight would otherwise sit at the axles instead of the centre of mass).
-External hosts therefore need no change: they keep the total mass, apply
-full gravity, and receive an impulse that at rest equals the massless one.
+except along its up axis. Along up, the body heaves, rolls and pitches as
+the sprung mass: the whole car's mass and inertias less the wheels' share,
+`M_s = M − Σ m_u Jᵢᵀ Jᵢ`, where `Jᵢ = (1, yᵢ, −xᵢ)` takes (heave, roll rate,
+pitch rate) to wheel `i`'s rate along up. The body receives the strut forces
+along up, the rest of a tilted contact's normal force through the links, the
+tire's plane forces as before, and at each wheel `m_u Jᵢ q̈` along up, with
+`q̈ = M_s⁻¹ Q` from the forces and moments before the wheels' own: the force
+that gives the wheel its corner's acceleration. With it, the body moves
+along up as the sprung mass and across up as the whole car, the integration
+keeps the total mass, inertias and full gravity, and at rest the corners
+carry exactly the massless strut's loads. External hosts therefore need no
+change: they keep the total mass, apply full gravity, and receive an
+impulse that at rest equals the massless one. Validation keeps at least a
+tenth of the roll and pitch inertias for the body.
 
-**The wheel is stepped with a linearly implicit (backward) Euler update.**
-Its own tire, spring, anti-roll bar and stop rates and both dampers enter
-implicitly; its coupling to the body and to the other wheel of the axle
-stays explicit, since the body's modes are an order of magnitude slower.
-Backward Euler is L-stable, so the hop stays bounded at every supported
-rate, whatever the stiffness, and through lift-off and stop contact. The
-cost is numerical damping of the hop of about `ω·dt / 2`.
+**The wheel is stepped with a linearly implicit Euler update.** Its tire,
+spring, anti-roll bar and stop rates and both dampers enter implicitly, the
+strut's against the reduced mass of the wheel and the body at that corner
+(`1/m_u + Jᵢ M_s⁻¹ Jᵢᵀ`), and the strut force's change over the step goes
+back to the body as an impulse. The coupling between corners stays
+explicit. The hop stays bounded at every supported rate, through lift-off
+and stop contact, and so do light bodies whose wheels carry much of the
+roll inertia. The cost is numerical damping of the hop of about
+`ω·dt / 2`.
 
 **Snapshots.** A vehicle with unsprung mass appends each wheel's travel and
 rate (8 values) after the massless layout. The format version stays 6: the
@@ -91,6 +97,13 @@ features shorter than one host step's travel are still smoothed.
 - **Anisotropic body mass (sprung along up, total across).** Equivalent in
   translation to the corner forces chosen, but applied at the centre of mass
   it leaves a pitch moment at rest whenever the axles carry different loads.
+- **Heave only.** The first version gave each wheel the body's heave alone
+  and stepped each strut against the wheel's mass alone. In roll and pitch
+  the wheels then moved with the body without their own inertia, and with
+  the option on in the presets the open-wheeler (whose wheels carry more
+  than half of its roll inertia) hopped its wheels at 250 Hz. Fixed before
+  the presets turned the option on; `docs/validation/analytic.md` has the
+  numbers.
 
 ## Consequences
 

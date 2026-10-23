@@ -695,6 +695,28 @@ impl VehicleDefinition {
                     c.mass
                 ));
             }
+            // Along up the body rolls and pitches with the wheels' share of
+            // the inertias taken out (ADR-0028); keep a tenth of each.
+            let x = [c.cg_to_front_axle, c.wheelbase - c.cg_to_front_axle];
+            let (mut roll, mut pitch) = (0.0, 0.0);
+            for (i, a) in self.axles.iter().enumerate() {
+                let mu = a.suspension.unsprung_mass;
+                let y = 0.5 * self.axle_track(i);
+                roll += 2.0 * mu * y * y;
+                pitch += 2.0 * mu * x[i] * x[i];
+            }
+            if roll > 0.0 && !(roll <= 0.9 * c.roll_inertia) {
+                e.push(format!(
+                    "the wheels' unsprungMass at the track ({roll:.1} kg·m²) must leave at least a tenth of chassis.rollInertia ({} kg·m²) to the body",
+                    c.roll_inertia
+                ));
+            }
+            if pitch > 0.0 && !(pitch <= 0.9 * c.pitch_inertia) {
+                e.push(format!(
+                    "the wheels' unsprungMass at the axles ({pitch:.1} kg·m²) must leave at least a tenth of chassis.pitchInertia ({} kg·m²) to the body",
+                    c.pitch_inertia
+                ));
+            }
             for (i, a) in self.axles.iter().enumerate() {
                 let mu = a.suspension.unsprung_mass;
                 if mu > 0.0 && !(mu * crate::GRAVITY < self.static_wheel_load(i)) {

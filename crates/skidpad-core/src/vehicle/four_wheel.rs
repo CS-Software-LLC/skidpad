@@ -50,6 +50,100 @@ pub const RL: usize = 2;
 pub const RR: usize = 3;
 
 /// Who integrates the chassis pose.
+/// The body along its up axis as the sprung mass (ADR-0028): heave, roll
+/// and pitch with the wheels' share of the mass and inertias taken out.
+#[derive(Clone, Copy, Debug, Default)]
+struct SprungBody {
+    /// `Jᵢ`: (heave, roll rate, pitch rate) to corner `i`'s rate along up.
+    jacobian: [[f64; 3]; WHEEL_COUNT],
+    /// Inverse of the sprung mass matrix `M − Σ m_u Jᵢᵀ Jᵢ`.
+    inv: [[f64; 3]; 3],
+    /// Each corner's acceleration along up from the forces before the
+    /// wheels' own, gravity left out.
+    corner_accel: [f64; WHEEL_COUNT],
+    /// `Jᵢ M_s⁻¹ Jᵢᵀ`: the body's inverse mass at corner `i`.
+    corner_inv_mass: [f64; WHEEL_COUNT],
+}
+
+impl SprungBody {
+    #[allow(clippy::too_many_arguments)]
+    fn new(
+        mass: f64,
+        roll_inertia: f64,
+        pitch_inertia: f64,
+        geometry: &[WheelGeometry; WHEEL_COUNT],
+        wheels: &[WheelState; WHEEL_COUNT],
+        pos: Vec3,
+        orient: Quat,
+        load: [f64; 3],
+    ) -> Self {
+        let mut b = SprungBody::default();
+        let mut mm = [
+            [mass, 0.0, 0.0],
+            [0.0, roll_inertia, 0.0],
+            [0.0, 0.0, pitch_inertia],
+        ];
+        for i in 0..WHEEL_COUNT {
+            let r = orient.inverse_rotate(wheels[i].hub - pos);
+            let j = [1.0, r.y, -r.x];
+            b.jacobian[i] = j;
+            let mu = geometry[i].unsprung_mass;
+            for (row, jr) in mm.iter_mut().zip(j) {
+                for (e, jc) in row.iter_mut().zip(j) {
+                    *e -= mu * jr * jc;
+                }
+            }
+        }
+        b.inv = inverse3(&mm);
+        let q = b.solve(load);
+        for i in 0..WHEEL_COUNT {
+            let j = b.jacobian[i];
+            b.corner_accel[i] = dot3(j, q);
+            b.corner_inv_mass[i] = dot3(j, b.solve(j));
+        }
+        b
+    }
+
+    /// `M_s⁻¹ v`.
+    fn solve(&self, v: [f64; 3]) -> [f64; 3] {
+        [
+            dot3(self.inv[0], v),
+            dot3(self.inv[1], v),
+            dot3(self.inv[2], v),
+        ]
+    }
+}
+
+fn dot3(a: [f64; 3], b: [f64; 3]) -> f64 {
+    a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
+}
+
+/// Inverse of a 3×3 matrix by its adjugate.
+fn inverse3(a: &[[f64; 3]; 3]) -> [[f64; 3]; 3] {
+    let c00 = a[1][1] * a[2][2] - a[1][2] * a[2][1];
+    let c01 = a[1][2] * a[2][0] - a[1][0] * a[2][2];
+    let c02 = a[1][0] * a[2][1] - a[1][1] * a[2][0];
+    let det = a[0][0] * c00 + a[0][1] * c01 + a[0][2] * c02;
+    let d = 1.0 / det;
+    [
+        [
+            c00 * d,
+            (a[0][2] * a[2][1] - a[0][1] * a[2][2]) * d,
+            (a[0][1] * a[1][2] - a[0][2] * a[1][1]) * d,
+        ],
+        [
+            c01 * d,
+            (a[0][0] * a[2][2] - a[0][2] * a[2][0]) * d,
+            (a[0][2] * a[1][0] - a[0][0] * a[1][2]) * d,
+        ],
+        [
+            c02 * d,
+            (a[0][1] * a[2][0] - a[0][0] * a[2][1]) * d,
+            (a[0][0] * a[1][1] - a[0][1] * a[1][0]) * d,
+        ],
+    ]
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub enum HostMode {
     /// The built-in minimal host: flat ground at z = 0, pose integrated here.
@@ -1091,23 +1185,40 @@ impl FourWheelVehicle {
 
         // --- unsprung mass (ADR-0028) -----------------------------------------
         // The wheels move with the body except along its up axis, where each
-        // rides on its own spring, so the body's equations stay those of the
-        // whole car if each wheel also pushes on its corner with the force
-        // that gives it the body's acceleration along up, `m_u (F·u) / m_s`:
-        // along up the body then accelerates as the sprung mass and across
-        // it as the whole car, the integration below and an external host
-        // keep the total mass and full gravity, and at rest the corners
-        // carry the wheels' weight back to the massless strut's loads.
+        // rides on its own spring. Along up, the body heaves, rolls and
+        // pitches as the sprung mass: its mass and inertias less the wheels'
+        // share, `M_s = M − Σ m_u Jᵢᵀ Jᵢ` with `Jᵢ = (1, yᵢ, −xᵢ)` taking
+        // (heave, roll rate, pitch rate) to corner `i`'s rate along up. Each
+        // wheel pushes on its corner with the force that gives it the
+        // corner's own acceleration along up, `m_u Jᵢ q̈`, so the integration
+        // below and an external host keep the whole car's mass, inertias and
+        // gravity, and at rest the corners carry the massless strut's loads.
         let unsprung: f64 = self.geometry.iter().map(|g| g.unsprung_mass).sum();
-        let mut sprung_up_accel = 0.0;
+        let mut sprung = SprungBody::default();
         if unsprung > 0.0 {
-            sprung_up_accel = force.dot(up) / (mass - unsprung);
+            let c = &self.def.chassis;
+            let iw = Vec3::new(
+                c.roll_inertia * self.omega.x,
+                c.pitch_inertia * self.omega.y,
+                c.yaw_inertia * self.omega.z,
+            );
+            let net = orient.inverse_rotate(torque) - self.omega.cross(iw);
+            sprung = SprungBody::new(
+                mass,
+                c.roll_inertia,
+                c.pitch_inertia,
+                &self.geometry,
+                &self.wheels,
+                self.pos,
+                orient,
+                [force.dot(up), net.x, net.y],
+            );
             for i in 0..WHEEL_COUNT {
                 let mu = self.geometry[i].unsprung_mass;
                 if mu > 0.0 {
-                    let f = up * (mu * sprung_up_accel);
+                    let f = up * (mu * sprung.corner_accel[i]);
                     force = force + f;
-                    torque = torque + (self.wheels[i].contact_point - self.pos).cross(f);
+                    torque = torque + (self.wheels[i].hub - self.pos).cross(f);
                 }
             }
         }
@@ -1138,7 +1249,16 @@ impl FourWheelVehicle {
             );
 
         if unsprung > 0.0 {
-            self.step_hubs(dt, up, sprung_up_accel);
+            // The strut forces' change over the step, as the whole car's
+            // impulse so an external host sees it too.
+            let (roll_inertia, pitch_inertia) = (c.roll_inertia, c.pitch_inertia);
+            let dq = self.step_hubs(dt, up, &sprung);
+            let dw = Vec3::new(dq[1], dq[2], 0.0);
+            self.vel = self.vel + up * dq[0];
+            self.omega = self.omega + dw;
+            self.impulse = self.impulse + up * (mass * dq[0]);
+            self.angular_impulse = self.angular_impulse
+                + orient.rotate(Vec3::new(roll_inertia * dw.x, pitch_inertia * dw.y, 0.0));
         }
 
         // --- pose integration (the minimal host, or the proxy's own copy) -----
@@ -1164,14 +1284,17 @@ impl FourWheelVehicle {
     }
 
     /// Step each wheel with unsprung mass along its strut (ADR-0028). Its
-    /// travel accelerates as `(F_t n·u − F_s) / m_u` less the body's own
-    /// acceleration along up, `sprung_up_accel` (gravity cancels). A
-    /// linearly implicit Euler step takes the tire, spring, bar and stop
-    /// rates and both dampers on the wheel's own coordinate, so the
-    /// wheel-hop mode is stable at any substep; the coupling to the body and
-    /// to the other wheel of the axle stays explicit, as the body's own
-    /// modes are an order of magnitude slower.
-    fn step_hubs(&mut self, dt: f64, up: Vec3, sprung_up_accel: f64) {
+    /// travel accelerates as `(F_t n·u − F_s) / m_u` less its corner's own
+    /// acceleration along up (gravity cancels). A linearly implicit Euler
+    /// step takes the tire, spring, bar and stop rates and both dampers on
+    /// the wheel's own coordinate, the strut's against the reduced mass of
+    /// the wheel and the sprung body at that corner, so the wheel-hop mode
+    /// and the body's light corners in roll are stable at any substep; the
+    /// strut force's change over the step goes back to the body, whose
+    /// (heave, roll rate, pitch rate) change is returned. The coupling
+    /// between corners stays explicit.
+    fn step_hubs(&mut self, dt: f64, up: Vec3, sprung: &SprungBody) -> [f64; 3] {
+        let mut impulse = [0.0; 3];
         for i in 0..WHEEL_COUNT {
             let g = self.geometry[i];
             let mu = g.unsprung_mass;
@@ -1185,21 +1308,33 @@ impl FourWheelVehicle {
             } else {
                 0.0
             };
-            let accel = (w.tire_force * n_up - w.susp_force) / mu - sprung_up_accel;
+            let accel = (w.tire_force * n_up - w.susp_force) / mu - sprung.corner_accel[i];
             let stop = if w.travel > s.travel_bump || w.travel < -s.travel_droop {
                 s.bump_stop_stiffness
             } else {
                 0.0
             };
-            let k = s.spring_rate + s.anti_roll_stiffness + stop + g.tire_rate * n_up;
+            let k = s.spring_rate + s.anti_roll_stiffness + stop;
             let c = if w.travel_rate > 0.0 {
                 s.bump_damping
             } else {
                 s.rebound_damping
-            } + g.tire_damping * n_up;
-            w.hub_rate += dt * accel / (1.0 + dt * c / mu + dt * dt * k / mu);
+            };
+            // Inverse reduced mass of the strut: the wheel's and the body's at
+            // this corner.
+            let inv = 1.0 / mu + sprung.corner_inv_mass[i];
+            let damp = dt * (c * inv + g.tire_damping * n_up / mu);
+            let stiff = dt * dt * (k * inv + g.tire_rate * n_up / mu);
+            let d_rate = dt * accel / (1.0 + damp + stiff);
+            w.hub_rate += d_rate;
             w.hub_travel += dt * w.hub_rate;
+            let d_force = (c + dt * k) * d_rate * dt;
+            let j = sprung.jacobian[i];
+            for (a, jr) in impulse.iter_mut().zip(j) {
+                *a += jr * d_force;
+            }
         }
+        sprung.solve(impulse)
     }
 
     /// Write the telemetry record for the current state.
