@@ -202,7 +202,22 @@ export interface GamepadOptions {
   /** Toggle reverse (default 3, the top face button); `-1` for none. */
   reverseButton?: number;
   deadzone?: number;
+  /** Response curve on the stick (default 2; 1 is linear). */
   steerExponent?: number;
+  /**
+   * Fraction of full lock that full stick asks for (default 0.75). A thumb
+   * stick travels a few millimetres for what a wheel does in 900°, so full
+   * lock from the stick is rarely wanted at speed. Changeable live through
+   * {@link GamepadInput.steerSensitivity}.
+   */
+  steerSensitivity?: number;
+  /**
+   * Fastest the steering output moves, in full-lock fractions per second
+   * (default 5, so centre to full lock takes 0.2 s at sensitivity 1).
+   * Stops a flicked stick snapping the front wheels across in one frame.
+   * `Infinity` turns it off.
+   */
+  steerRate?: number;
   /** The gear state to shift; share one between devices. */
   gears?: GearSelector;
   /**
@@ -221,7 +236,7 @@ export interface GamepadOptions {
  */
 export class GamepadInput {
   private readonly opts: Required<
-    Omit<GamepadOptions, "throttleAxis" | "brakeAxis" | "gears" | "pick">
+    Omit<GamepadOptions, "throttleAxis" | "brakeAxis" | "gears" | "pick" | "steerSensitivity">
   > &
     Pick<GamepadOptions, "throttleAxis" | "brakeAxis">;
   private readonly pick: (pad: Gamepad) => boolean;
@@ -230,6 +245,9 @@ export class GamepadInput {
   readonly gears: GearSelector;
   /** The pad the last `poll()` read, for pointing a rumble sink at it. */
   lastPad: Gamepad | undefined;
+  /** Fraction of full lock at full stick, 0…1; safe to change while driving. */
+  steerSensitivity: number;
+  private steer = 0;
 
   constructor(options: GamepadOptions = {}) {
     this.gears = options.gears ?? new GearSelector();
@@ -245,20 +263,29 @@ export class GamepadInput {
       shiftDownButton: options.shiftDownButton ?? 4,
       reverseButton: options.reverseButton ?? 3,
       deadzone: options.deadzone ?? 0.08,
-      steerExponent: options.steerExponent ?? 1.5,
+      steerExponent: options.steerExponent ?? 2,
+      steerRate: options.steerRate ?? 5,
     };
+    this.steerSensitivity = options.steerSensitivity ?? 0.75;
   }
 
   /**
-   * Map a raw gamepad snapshot to a frame. Shifts are taken on the press of
-   * a button, so call it once per frame; it needs no browser, for testing.
+   * Map a raw gamepad snapshot to a frame `dt` seconds after the last one.
+   * Shifts are taken on the press of a button and steering is rate limited,
+   * so call it once per frame; it needs no browser, for testing.
    */
   map(
     axes: ArrayLike<number>,
     buttons: ArrayLike<{ value: number; pressed: boolean }>,
+    dt = 1 / 60,
   ): InputFrame {
     const raw = axes[this.opts.steerAxis] ?? 0;
-    const steer = responseCurve(applyDeadzone(raw, this.opts.deadzone), this.opts.steerExponent);
+    const target =
+      clamp(this.steerSensitivity, 0, 1) *
+      responseCurve(applyDeadzone(raw, this.opts.deadzone), this.opts.steerExponent);
+    const step = this.opts.steerRate * dt;
+    this.steer += clamp(target - this.steer, -step, step);
+    const steer = this.steer;
     const axisValue = (i: number | undefined): number | undefined =>
       i === undefined ? undefined : clamp(((axes[i] ?? -1) + 1) / 2, 0, 1);
     const throttle =
@@ -289,16 +316,16 @@ export class GamepadInput {
   /**
    * Poll the first connected pad `pick` accepts (by default the first with
    * the standard mapping), or return undefined when none. The pad read is
-   * left in {@link lastPad}.
+   * left in {@link lastPad}. `dt` is the time since the last poll.
    */
-  poll(): InputFrame | undefined {
+  poll(dt = 1 / 60): InputFrame | undefined {
     const nav = globalThis.navigator as Navigator | undefined;
     this.lastPad = undefined;
     if (!nav || typeof nav.getGamepads !== "function") return undefined;
     for (const p of nav.getGamepads()) {
       if (p && p.connected && this.pick(p)) {
         this.lastPad = p;
-        return this.map(p.axes, p.buttons);
+        return this.map(p.axes, p.buttons, dt);
       }
     }
     return undefined;

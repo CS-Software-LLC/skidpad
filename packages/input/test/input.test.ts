@@ -71,7 +71,7 @@ describe("KeyboardInput", () => {
 
 describe("GamepadInput", () => {
   it("maps the standard layout", () => {
-    const g = new GamepadInput({ deadzone: 0.1, steerExponent: 1 });
+    const g = new GamepadInput({ deadzone: 0.1, steerExponent: 1, steerSensitivity: 1, steerRate: Infinity });
     const buttons = Array.from({ length: 8 }, () => ({ value: 0, pressed: false }));
     buttons[7] = { value: 0.8, pressed: true };
     buttons[0] = { value: 1, pressed: true };
@@ -80,6 +80,18 @@ describe("GamepadInput", () => {
     expect(f.throttle).toBeCloseTo(0.8);
     expect(f.brake).toBe(0);
     expect(f.handbrake).toBe(1);
+  });
+
+  it("softens the stick by default: curve, 75 % lock, rate limit", () => {
+    const g = new GamepadInput({ deadzone: 0 });
+    // Full stick ramps at 5 lock/s toward 0.75 and holds there.
+    expect(g.map([1], [], 0.1).steer).toBeCloseTo(0.5);
+    expect(g.map([1], [], 0.1).steer).toBeCloseTo(0.75);
+    expect(g.map([1], [], 0.1).steer).toBeCloseTo(0.75);
+    // Half stick on the square curve asks for a quarter of 75 %.
+    expect(g.map([0.5], [], 1).steer).toBeCloseTo(0.1875);
+    g.steerSensitivity = 1;
+    expect(g.map([-1], [], 1).steer).toBeCloseTo(-1);
   });
 
   it("supports pedal axes in the −1…1 convention", () => {
@@ -314,7 +326,7 @@ describe("gears", () => {
       configurable: true,
     });
     try {
-      const g = new GamepadInput({ deadzone: 0, steerExponent: 1 });
+      const g = new GamepadInput({ deadzone: 0, steerExponent: 1, steerSensitivity: 1, steerRate: Infinity });
       expect(g.poll()?.steer).toBeCloseTo(-0.6);
       expect(g.lastPad).toBe(gamepad);
     } finally {

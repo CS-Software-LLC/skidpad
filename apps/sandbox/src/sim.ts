@@ -721,7 +721,7 @@ export class Sim {
       if (keys.gear !== 0 && wheel.gear === 0) wheel.gear = keys.gear;
       return wheel;
     }
-    const pad = this.gamepad.poll();
+    const pad = this.gamepad.poll(HOST_DT);
     const padActive =
       pad !== undefined &&
       (pad.steer !== 0 || pad.throttle !== 0 || pad.brake !== 0 || pad.handbrake !== 0);

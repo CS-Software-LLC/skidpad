@@ -50,10 +50,16 @@ interface HudState {
 const WHEEL_NAMES = ["FL", "FR", "RL", "RR"] as const;
 const SOUND_KEY = "skidpad.sandbox.sound";
 const VOLUME_KEY = "skidpad.sandbox.volume";
+const PAD_STEER_KEY = "skidpad.sandbox.padSteer";
 
 function readStoredVolume(): number {
   const v = Number(localStorage.getItem(VOLUME_KEY));
   return Number.isFinite(v) && localStorage.getItem(VOLUME_KEY) !== null ? v : 0.5;
+}
+
+function readStoredPadSteer(): number {
+  const v = Number(localStorage.getItem(PAD_STEER_KEY));
+  return Number.isFinite(v) && localStorage.getItem(PAD_STEER_KEY) !== null ? v : 0.75;
 }
 
 export function App() {
@@ -68,6 +74,7 @@ export function App() {
   const [recording, setRecording] = useState(false);
   const [sound, setSound] = useState(false);
   const [volume, setVolume] = useState(() => readStoredVolume());
+  const [padSteer, setPadSteer] = useState(() => readStoredPadSteer());
   const [surface, setSurface] = useState<SurfaceId>("asphaltDry");
   // Counts definition changes (preset switches, tuning edits) so the parts
   // of the tree that read `sim.definition` at render pick them up.
@@ -133,6 +140,11 @@ export function App() {
     if (sim) sim.audio.volume = volume;
     localStorage.setItem(VOLUME_KEY, String(volume));
   }, [sim, volume]);
+
+  useEffect(() => {
+    if (sim) sim.gamepad.steerSensitivity = padSteer;
+    localStorage.setItem(PAD_STEER_KEY, String(padSteer));
+  }, [sim, padSteer]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -307,6 +319,18 @@ export function App() {
               value={volume}
               onChange={(e) => setVolume(Number(e.target.value))}
             />
+          </label>
+          <label className="volume" title="Fraction of full lock that full stick gives">
+            Pad steering
+            <input
+              type="range"
+              min={0.3}
+              max={1}
+              step={0.05}
+              value={padSteer}
+              onChange={(e) => setPadSteer(Number(e.target.value))}
+            />
+            {Math.round(padSteer * 100)}%
           </label>
           <button
             onClick={async () => {
