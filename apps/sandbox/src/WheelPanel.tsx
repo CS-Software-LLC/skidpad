@@ -44,7 +44,17 @@ interface Status {
   torque: number;
 }
 
-export function WheelPanel({ sim }: { sim: Sim }) {
+export function WheelPanel({
+  sim,
+  revision,
+  onAssistChanged,
+}: {
+  sim: Sim;
+  /** Bumped on every definition change (preset switch, tuning edit). */
+  revision: number;
+  /** Called after an assist toggle, which changes the definition too. */
+  onAssistChanged: () => void;
+}) {
   const [open, setOpen] = useState(false);
   const [status, setStatus] = useState<Status | null>(null);
   const [assigning, setAssigning] = useState<Control | null>(null);
@@ -75,6 +85,12 @@ export function WheelPanel({ sim }: { sim: Sim }) {
   const [log, setLog] = useState<string[]>([]);
   const [assists, setAssists] = useState(() => currentAssists(sim));
   const sink = useRef<LogitechWebHidSink | null>(null);
+
+  // Each preset ships its own assists, so re-read them whenever the
+  // definition changes rather than only on mount.
+  useEffect(() => {
+    setAssists(currentAssists(sim));
+  }, [sim, revision]);
 
   // Live status at 10 Hz.
   useEffect(() => {
@@ -517,6 +533,7 @@ export function WheelPanel({ sim }: { sim: Sim }) {
                   onChange={(e) => {
                     sim.setAssist(key, e.target.checked);
                     setAssists(currentAssists(sim));
+                    onAssistChanged();
                   }}
                 />
                 {label}
