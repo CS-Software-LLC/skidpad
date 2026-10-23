@@ -1,5 +1,31 @@
 # @skidpad/presets
 
+## 0.9.0
+
+### Minor Changes
+
+- 4387e31: - physics: power assist boost curve (ADR-0029). `steering.powerAssistOnset` (N·m of manual hand-wheel torque, default 0) makes the assist stay out of the way on centre and come in as the load builds: `SteeringTorque = (1 − a)·Tm + a·Tm / √(1 + (Tm/T₀)²)`. The torque always rises with load. Zero keeps the constant fraction bit for bit. Only `SteeringTorque` changes; the hand-wheel torque does not feed the physics.
+  - presets: the assisted presets (hatchback, sports, crossover, pickup) set `powerAssistOnset: 1`, which roughly doubles their on-centre steering torque at 0.04 g.
+- 0c81cc1: - physics: self-centring from the steering axis lift (ADR-0030). `steering.kingpinInclinationDeg` and `steering.casterDeg` (default 0) tilt the kingpin axis; each steered wheel adds `Fz · dh/dδ` to its kingpin torque, from the exact height of the turned wheel's lowest point. This gives the return to centre a parked or slow car has. It enters `SteeringTorque`, `RackForce` and the kingpin torque behind compliance steer. Zero angles run bit for bit as before. The presets' scripted-drive hashes change because the state holds the kingpin torque; their motion does not (none of them uses compliance steer).
+  - presets: the hatchback, crossover, pickup and sports car get typical inclination and caster angles.
+- 0f666ac: - physics: the presets now carry unsprung mass (ADR-0028) on their independent axles, with tire vertical rates and damping; the kart's and the pickup's solid rears stay massless for now. Body roll in the step steer grows by 20 to 45 % (the tires now have vertical compliance), the pickup's understeer gradient falls from 0.94 to 0.86 deg/g and the kart's from −0.21 to −0.27, and the kart no longer spins in the locked-wheel stop on snow. Golden results, README tables and determinism laps are regenerated; see `docs/validation/unsprung-presets.md`.
+  - physics: with unsprung mass on, each wheel now takes its corner's acceleration from the body's heave, roll and pitch (the sprung inertias), and each strut is stepped against the reduced mass of its wheel and that corner. This fixes wheels hopping at a 250 Hz substep on light bodies such as the open-wheeler. Validation rejects unsprung mass that leaves the body less than a tenth of its roll or pitch inertia.
+- 1fdebfa: - physics: solid axles take unsprung mass (ADR-0028). The two wheels' mass becomes one beam that heaves and rolls, with an optional `suspension.beamRollInertia` (kg·m², default: the mass at the wheels) that sets its roll (tramp) frequency apart from its hop. A beam with mass stands its wheels square to the line through its hubs. Validation takes the beam's roll inertia into the body's tenth.
+  - physics: the kart and pickup presets' solid rears now carry beams with mass. The pickup's understeer gradient returns to 0.93 deg/g (0.86 with only the front massive) and the kart's to −0.16; step-steer roll grows on both. The kart spins in the locked-wheel stop on snow again. The other four presets are unchanged.
+
+### Patch Changes
+
+- Updated dependencies [e678655]
+- Updated dependencies [ad29b23]
+- Updated dependencies [9f63e1b]
+- Updated dependencies [e0a1f6d]
+- Updated dependencies [4387e31]
+- Updated dependencies [0c81cc1]
+- Updated dependencies [0f666ac]
+- Updated dependencies [1fdebfa]
+- Updated dependencies [22a18a0]
+  - @skidpad/core@0.9.0
+
 ## 0.8.0
 
 ### Minor Changes
