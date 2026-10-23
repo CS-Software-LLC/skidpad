@@ -128,6 +128,28 @@ fn arb_def_with_curves() -> impl Strategy<Value = VehicleDefinition> {
         })
 }
 
+/// A random vehicle with random unsprung mass on both axles (ADR-0028):
+/// 2 % to 12 % of a corner's share of the mass, on a tire of 100 to
+/// 600 kN/m. Every axle of `arb_def` is independent.
+fn arb_def_with_unsprung() -> impl Strategy<Value = VehicleDefinition> {
+    (
+        arb_def(),
+        [0.02f64..0.12, 0.02f64..0.12],
+        [100_000.0f64..600_000.0, 100_000.0f64..600_000.0],
+        [0.0f64..1000.0, 0.0f64..1000.0],
+    )
+        .prop_map(|(mut d, share, kt, ct)| {
+            for i in 0..2 {
+                d.axles[i].suspension.unsprung_mass = share[i] * 0.25 * d.chassis.mass;
+                if let TireModel::Feel(p) = &mut d.axles[i].tire {
+                    p.vertical_stiffness = kt[i];
+                    p.vertical_damping = ct[i];
+                }
+            }
+            d
+        })
+}
+
 proptest! {
     #![proptest_config(ProptestConfig::with_cases(64))]
 
@@ -267,6 +289,41 @@ proptest! {
                 prop_assert!(w.load.is_finite() && w.load <= 20.0 * weight, "load {}", w.load);
                 prop_assert!(w.geometric_load.is_finite() && w.geometric_load.abs() <= 20.0 * weight);
                 prop_assert!(w.pitch_load.is_finite() && w.pitch_load.abs() <= 20.0 * weight);
+                prop_assert!(w.out.fx.is_finite() && w.out.fy.is_finite() && w.out.mz.is_finite());
+            }
+        }
+    }
+
+    #[test]
+    fn rapid_full_lock_with_unsprung_mass_stays_finite(
+        d in arb_def_with_unsprung(),
+        speed in 5.0f64..40.0,
+        period_ms in 20u32..200,
+        brake_on in prop::collection::vec(any::<bool>(), 8..40),
+    ) {
+        prop_assert!(d.validate().is_ok(), "{:?}", d.validate());
+        let mut car = FourWheelVehicle::new(d.clone());
+        car.set_speed(speed);
+        let dt = 1.0 / d.simulation.substep_rate_hz;
+        let steps = ((period_ms as f64) * 1e-3 / dt).max(1.0) as usize;
+        for (i, &brake) in brake_on.iter().enumerate() {
+            let input = VehicleInput {
+                steer: if i % 2 == 0 { 1.0 } else { -1.0 },
+                throttle: if brake { 0.0 } else { 1.0 },
+                brake: if brake { 1.0 } else { 0.0 },
+                handbrake: 0.0,
+                ..VehicleInput::default()
+            };
+            for _ in 0..steps {
+                car.substep(dt, &input);
+            }
+            prop_assert!(car.vel.is_finite() && car.omega.is_finite() && car.pos.is_finite());
+            prop_assert!(car.speed() < 120.0, "speed {}", car.speed());
+            prop_assert!(car.omega.length() < 30.0, "angular velocity {:?}", car.omega);
+            for w in &car.wheels {
+                prop_assert!(w.hub_travel.is_finite() && w.hub_travel.abs() < 1.0, "travel {}", w.hub_travel);
+                prop_assert!(w.hub_rate.is_finite() && w.hub_rate.abs() < 50.0, "rate {}", w.hub_rate);
+                prop_assert!(w.omega.is_finite() && w.omega.abs() < 2000.0);
                 prop_assert!(w.out.fx.is_finite() && w.out.fy.is_finite() && w.out.mz.is_finite());
             }
         }

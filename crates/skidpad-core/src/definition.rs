@@ -178,6 +178,13 @@ pub struct SuspensionDef {
     /// height. Four-wheel model only.
     #[cfg_attr(feature = "serde", serde(skip_serializing_if = "Option::is_none"))]
     pub kinematics: Option<KinematicsDef>,
+    /// Unsprung mass per wheel, kg: the wheel, tire, brake, hub and the
+    /// share of the links that move with them (ADR-0028). Zero (the default)
+    /// keeps the massless raycast strut of ADR-0009. Above zero the wheel
+    /// gets its own vertical motion on the tire's vertical spring, so it can
+    /// hop. Independent suspension only; part of `chassis.mass`, not added
+    /// to it. Four-wheel model only.
+    pub unsprung_mass: f64,
 }
 
 /// How the two wheels of an axle are held (ADR-0016).
@@ -219,6 +226,7 @@ impl SuspensionDef {
             anti_brake: 0.0,
             anti_drive: 0.0,
             kinematics: None,
+            unsprung_mass: 0.0,
         }
     }
 
@@ -236,6 +244,7 @@ impl SuspensionDef {
             anti_brake: 0.0,
             anti_drive: 0.0,
             kinematics: None,
+            unsprung_mass: 0.0,
         }
     }
 
@@ -256,12 +265,19 @@ impl SuspensionDef {
             ("reboundDamping", self.rebound_damping),
             ("antiRollStiffness", self.anti_roll_stiffness),
             ("bumpStopStiffness", self.bump_stop_stiffness),
+            ("unsprungMass", self.unsprung_mass),
         ] {
             if !(v >= 0.0) || !v.is_finite() {
                 errors.push(format!(
                     "{prefix}.{name} must be zero or positive (got {v})"
                 ));
             }
+        }
+        if self.unsprung_mass > 0.0 && self.kind == SuspensionKind::Solid {
+            errors.push(format!(
+                "{prefix}.unsprungMass is not yet supported on a solid axle (got {}); use 0",
+                self.unsprung_mass
+            ));
         }
         if !self.roll_center_height.is_finite()
             || m::abs(self.roll_center_height) > MAX_ROLL_CENTER_HEIGHT
@@ -667,6 +683,28 @@ impl VehicleDefinition {
                 &mut e,
             );
         }
+        if self.axles.len() == 2 && c.mass > 0.0 && c.wheelbase > 0.0 {
+            let unsprung: f64 = self
+                .axles
+                .iter()
+                .map(|a| 2.0 * a.suspension.unsprung_mass)
+                .sum();
+            if unsprung > 0.0 && !(unsprung < 0.5 * c.mass) {
+                e.push(format!(
+                    "the four wheels' unsprungMass ({unsprung} kg) must be below half of chassis.mass ({} kg)",
+                    c.mass
+                ));
+            }
+            for (i, a) in self.axles.iter().enumerate() {
+                let mu = a.suspension.unsprung_mass;
+                if mu > 0.0 && !(mu * crate::GRAVITY < self.static_wheel_load(i)) {
+                    e.push(format!(
+                        "axles[{i}].suspension.unsprungMass ({mu} kg) must weigh less than the wheel's static load ({:.0} N)",
+                        self.static_wheel_load(i)
+                    ));
+                }
+            }
+        }
         if !self.axles.iter().any(|a| a.driven) {
             e.push(String::from("at least one axle must be driven"));
         }
@@ -830,6 +868,11 @@ impl VehicleDefinition {
 
     /// Static vertical load on one wheel of axle `axle` (0 front, 1 rear) on
     /// level ground, N.
+    /// Whether any axle carries unsprung mass (ADR-0028).
+    pub fn has_unsprung_mass(&self) -> bool {
+        self.axles.iter().any(|a| a.suspension.unsprung_mass > 0.0)
+    }
+
     pub fn static_wheel_load(&self, axle: usize) -> f64 {
         let c = &self.chassis;
         let mg = c.mass * crate::GRAVITY;

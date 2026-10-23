@@ -353,3 +353,120 @@ pub fn convergence_order(h1: f64, e1: f64, h2: f64, e2: f64, h_ref: f64) -> f64 
     }
     0.5 * (lo + hi)
 }
+
+/// `d` with unsprung mass `mu` kg on every wheel and a tire of vertical
+/// stiffness `kt` N/m and damping `ct` N·s/m (ADR-0028).
+pub fn with_unsprung(mut d: VehicleDefinition, mu: f64, kt: f64, ct: f64) -> VehicleDefinition {
+    for a in d.axles.iter_mut() {
+        a.suspension.unsprung_mass = mu;
+        match &mut a.tire {
+            skidpad_core::tire::TireModel::Feel(p) => {
+                p.vertical_stiffness = kt;
+                p.vertical_damping = ct;
+            }
+            skidpad_core::tire::TireModel::MagicFormula(p) => {
+                p.vertical_stiffness = kt;
+                p.vertical_damping = ct;
+            }
+        }
+    }
+    let errors = d.validate();
+    assert!(errors.is_ok(), "{errors:?}");
+    d
+}
+
+/// The textbook car made symmetric front to rear (centre of mass at mid
+/// wheelbase, equal springs and dampers), so that with equal wheels on
+/// every corner its heave is exactly the two-mass quarter car times four,
+/// with 40 kg wheels on 250 kN/m tires damped at 500 N·s/m.
+pub fn two_mass_car() -> VehicleDefinition {
+    let mut d = textbook_car();
+    d.chassis.cg_to_front_axle = 0.5 * d.chassis.wheelbase;
+    let front = d.axles[0].suspension.clone();
+    let s = &mut d.axles[1].suspension;
+    s.spring_rate = front.spring_rate;
+    s.bump_damping = front.bump_damping;
+    s.rebound_damping = front.rebound_damping;
+    with_unsprung(d, 40.0, 250_000.0, 500.0)
+}
+
+/// The heave rates of a two-mass car: sprung mass, the four wheels' mass,
+/// springs, dampers, tire springs and tire dampers, each summed over the
+/// four corners.
+pub struct TwoMass {
+    pub ms: f64,
+    pub mu: f64,
+    pub ks: f64,
+    pub cs: f64,
+    pub kt: f64,
+    pub ct: f64,
+}
+
+pub fn two_mass(d: &VehicleDefinition) -> TwoMass {
+    let (ks, cs) = heave_rates(d);
+    let mu: f64 = d
+        .axles
+        .iter()
+        .map(|a| 2.0 * a.suspension.unsprung_mass)
+        .sum();
+    let (kt, ct) = d.axles.iter().fold((0.0, 0.0), |(k, c), a| {
+        let (ka, ca) = a.tire.vertical_rates();
+        (k + 2.0 * ka, c + 2.0 * ca)
+    });
+    TwoMass {
+        ms: d.chassis.mass - mu,
+        mu,
+        ks,
+        cs,
+        kt,
+        ct,
+    }
+}
+
+/// Steady response of the two-mass quarter car to road height `Y` at `hz`
+/// (Gillespie ch. 5): body `Z_s/Y`, wheel `Z_u/Y`, and tire force
+/// `(K_t + iωC_t)(Y − Z_u)` per metre of road.
+pub fn two_mass_response(q: &TwoMass, hz: f64) -> (Cx, Cx, Cx) {
+    let w = m::TAU * hz;
+    let s = Cx::new(q.ks, w * q.cs);
+    let t = Cx::new(q.kt, w * q.ct);
+    let a = vec![
+        vec![
+            s.add(Cx::new(-q.ms * w * w, 0.0)),
+            s.mul(Cx::new(-1.0, 0.0)),
+        ],
+        vec![
+            s.mul(Cx::new(-1.0, 0.0)),
+            s.add(t).add(Cx::new(-q.mu * w * w, 0.0)),
+        ],
+    ];
+    let x = solve(a, vec![Cx::new(0.0, 0.0), t]);
+    let force = t.mul(Cx::new(1.0, 0.0).sub(x[1]));
+    (x[0], x[1], force)
+}
+
+/// Free response of the two-mass quarter car from rest at body and wheel
+/// offsets `zs0`, `zu0`, integrated with RK4 at 10 µs and sampled every
+/// `dt` for `n` samples: `(z_s, z_u)` after each `dt`.
+pub fn two_mass_free(q: &TwoMass, zs0: f64, zu0: f64, dt: f64, n: usize) -> Vec<(f64, f64)> {
+    let f = |x: [f64; 4]| -> [f64; 4] {
+        let [zs, vs, zu, vu] = x;
+        let fs = q.ks * (zs - zu) + q.cs * (vs - vu);
+        [vs, -fs / q.ms, vu, (fs - q.kt * zu - q.ct * vu) / q.mu]
+    };
+    let sub = 100usize;
+    let h = dt / sub as f64;
+    let mut x = [zs0, 0.0, zu0, 0.0];
+    let mut out = Vec::with_capacity(n);
+    for _ in 0..n {
+        for _ in 0..sub {
+            let k1 = f(x);
+            let k2 = f([0, 1, 2, 3].map(|i| x[i] + 0.5 * h * k1[i]));
+            let k3 = f([0, 1, 2, 3].map(|i| x[i] + 0.5 * h * k2[i]));
+            let k4 = f([0, 1, 2, 3].map(|i| x[i] + h * k3[i]));
+            x = [0, 1, 2, 3].map(|i| x[i] + h / 6.0 * (k1[i] + 2.0 * k2[i] + 2.0 * k3[i] + k4[i]));
+        }
+        out.push((x[0], x[2]));
+    }
+    out
+}

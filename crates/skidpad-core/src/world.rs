@@ -559,8 +559,8 @@ impl World {
                 matches!(&v.model, VehicleModel::FourWheel(f) if f.host_mode == HostMode::External);
             // Only a well-formed snapshot of the other model switches it, so
             // a bad one leaves the vehicle as it was.
-            if count != VehicleModel::state_len_of(current)
-                && count == VehicleModel::state_len_of(other)
+            if count != VehicleModel::state_len_of(current, &v.authored)
+                && count == VehicleModel::state_len_of(other, &v.authored)
                 && !external
                 && &bytes[0..4] == crate::snapshot::MAGIC
                 && bytes[4..8] == crate::snapshot::VERSION.to_le_bytes()
