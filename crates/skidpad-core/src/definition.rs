@@ -328,6 +328,9 @@ pub const MAX_LATERAL_COMPLIANCE_STEER_DEG: f64 = 2.0;
 /// Bound on `alignTorqueComplianceDeg`, deg/kN·m: a compliant
 /// recirculating-ball system is near 10 (ADR-0027).
 pub const MAX_ALIGN_TORQUE_COMPLIANCE_DEG: f64 = 30.0;
+/// Bound on `powerAssistOnset`, N·m at the hand wheel: a heavy truck's
+/// manual torque at the limit is about this (ADR-0029).
+pub const MAX_POWER_ASSIST_ONSET: f64 = 20.0;
 
 impl Default for AxleDef {
     fn default() -> Self {
@@ -446,8 +449,16 @@ pub struct SteeringDef {
     /// over this arm.
     pub steering_arm: f64,
     /// Fraction of the rack torque the power assist removes at the hand
-    /// wheel, 0 (manual) … 1.
+    /// wheel, 0 (manual) … 1; with `power_assist_onset` set, the fraction it
+    /// tends to at large torque.
     pub power_assist: f64,
+    /// Boost curve (ADR-0029): the manual hand-wheel torque, N·m, around
+    /// which the assist comes in. Well below it the wheel carries the full
+    /// manual torque, as a real assist valve gives almost no help on centre;
+    /// well above it the hand torque is `(1 − powerAssist)` of the manual
+    /// torque plus `powerAssist × powerAssistOnset`. Zero (the default) is
+    /// the constant fraction. 0 … 20.
+    pub power_assist_onset: f64,
     /// Column friction, N·m at the hand wheel, for the force-feedback device
     /// (not simulated: the hand wheel is the input).
     pub column_friction: f64,
@@ -476,6 +487,7 @@ impl Default for SteeringDef {
             scrub_radius: 0.01,
             steering_arm: 0.12,
             power_assist: 0.0,
+            power_assist_onset: 0.0,
             column_friction: 0.3,
             column_damping: 0.05,
             jacking_rate: 0.0,
@@ -780,6 +792,12 @@ impl VehicleDefinition {
                 e.push(format!("steering.{name} must be within ±0.5 m (got {v})"));
             }
         }
+        let onset = self.steering.power_assist_onset;
+        if !(0.0..=MAX_POWER_ASSIST_ONSET).contains(&onset) {
+            e.push(format!(
+                "steering.powerAssistOnset must be in [0, {MAX_POWER_ASSIST_ONSET}] N·m (got {onset})"
+            ));
+        }
         let atc = self.steering.align_torque_compliance_deg;
         if !(0.0..=MAX_ALIGN_TORQUE_COMPLIANCE_DEG).contains(&atc) {
             e.push(format!(
@@ -865,9 +883,22 @@ impl VehicleDefinition {
 
     /// Hand-wheel torque in the sign of the steer input (positive turns
     /// right) from a total kingpin torque, after the power assist.
+    ///
+    /// With a boost onset `T₀` (ADR-0029) the manual torque `Tm = −T_kp / ratio`
+    /// becomes `(1 − a)·Tm + a·Tm / √(1 + (Tm/T₀)²)`: slope 1 on centre (no
+    /// assist), slope `1 − a` at large torque, and rising everywhere, so the
+    /// wheel never gets lighter as the load grows. Without an onset it is
+    /// the constant fraction `(1 − a)·Tm`, bit for bit as before.
     #[inline]
     pub fn hand_wheel_torque(&self, kingpin_torque: f64) -> f64 {
-        -(1.0 - self.steering.power_assist) * kingpin_torque / self.steering.ratio
+        let a = self.steering.power_assist;
+        let manual = -kingpin_torque / self.steering.ratio;
+        let onset = self.steering.power_assist_onset;
+        if !(onset > 0.0) {
+            return (1.0 - a) * manual;
+        }
+        let x = manual / onset;
+        (1.0 - a) * manual + a * manual / m::sqrt(1.0 + x * x)
     }
 
     /// Which axles are driven, front then rear.

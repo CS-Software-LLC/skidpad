@@ -44,6 +44,42 @@ fn kingpin_torque_composes_trail_scrub_and_assist() {
 }
 
 #[test]
+fn the_boost_curve_leaves_the_centre_manual_and_tends_to_the_assist_fraction() {
+    // ADR-0029: Tm = −T_kp / ratio, T_h = (1 − a)·Tm + a·Tm / √(1 + (Tm/T₀)²).
+    let mut d = VehicleDefinition::default();
+    d.steering.ratio = 14.0;
+    d.steering.power_assist = 0.75;
+    d.steering.power_assist_onset = 1.0;
+    // At the onset itself: 0.25 + 0.75 / √2 of the manual torque.
+    let at_onset = d.hand_wheel_torque(-14.0);
+    let expect = 0.25 + 0.75 / 2f64.sqrt();
+    assert!((at_onset - expect).abs() < 1e-12, "{at_onset} vs {expect}");
+    // Odd in the torque.
+    assert_eq!(d.hand_wheel_torque(14.0), -at_onset);
+    // On centre the slope is the manual one.
+    let small = 1e-6;
+    let slope0 = d.hand_wheel_torque(-14.0 * small) / small;
+    assert!((slope0 - 1.0).abs() < 1e-9, "slope on centre {slope0}");
+    // Far above the onset: (1 − a)·Tm plus a·T₀.
+    let big = 1000.0;
+    let far = d.hand_wheel_torque(-14.0 * big);
+    assert!((far - (0.25 * big + 0.75)).abs() < 1e-3, "{far}");
+    // Rising everywhere, even at full assist.
+    d.steering.power_assist = 1.0;
+    let mut last = 0.0;
+    for i in 1..=2000 {
+        let tm = 0.01 * i as f64;
+        let th = d.hand_wheel_torque(-14.0 * tm);
+        assert!(th > last, "falls at {tm}: {th} after {last}");
+        last = th;
+    }
+    // Zero onset is the constant fraction exactly.
+    d.steering.power_assist = 0.75;
+    d.steering.power_assist_onset = 0.0;
+    assert_eq!(d.hand_wheel_torque(14.0), -(1.0 - 0.75) * 14.0 / 14.0);
+}
+
+#[test]
 fn mechanical_trail_adds_to_the_steering_torque_in_a_turn() {
     let mut w = World::new(1);
     w.add_vehicle(VehicleDefinition::default()).unwrap();
@@ -219,5 +255,10 @@ fn bad_steering_geometry_is_rejected() {
     assert!(d.validate().is_err());
     let mut d = VehicleDefinition::default();
     d.steering.jacking_rate = 2.0;
+    assert!(d.validate().is_err());
+    let mut d = VehicleDefinition::default();
+    d.steering.power_assist_onset = -1.0;
+    assert!(d.validate().is_err());
+    d.steering.power_assist_onset = 25.0;
     assert!(d.validate().is_err());
 }
