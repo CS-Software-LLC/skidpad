@@ -1,5 +1,19 @@
 # @skidpad/input
 
+## 0.10.0
+
+### Minor Changes
+
+- 228d8a0: - input: `LogitechWebHidSink.measureDamper()` measures the firmware damper's units with the hands off. It spins the rim at three constant torques with the damper at a known coefficient, then `fitDamper` fits `T = c·ω + f` for the damping, the friction and the sink's `damperRate`. The sandbox's wheel panel has a "Measure damping" button, and it remembers the result in this browser.
+- ce60316: - core: `SteeringTorqueSlice0` … `SteeringTorqueSlice7`, the host step's steering torque in eight equal slices of time (ADR-0032). Telemetry only; state and determinism hashes are unchanged.
+  - input: `LogitechWebHidSink` can play the slices out between host steps (`playoutRate`, Hz, default 0 = off) through the new `TorquePlayout`; `FfbScaler.scale` is split into `watch` (the runaway guard, once per host step) and `shape`. `setRotation()` sets the wheel's rotation, clamped to the model's `maxRotationDeg` (1080° on the G PRO); `WheelInput.rotationDeg` follows it, and a car lock wider than the wheel is then reached at the wheel's end stop. `DIRECT_DRIVE_SCALER` holds the slew and smoothing suggested for a direct-drive base. All off by default until tried on a wheel.
+- 42a2ccb: - core: force-feedback torque channels (ADR-0031). `SteeringTorqueMean` is the mean of `SteeringTorque` over the host step's substeps, and `SteerTorqueMz`, `SteerTorqueTrail`, `SteerTorqueScrub`, `SteerTorqueLift` and `SteerTorqueAssist` split `SteeringTorque` by source at the hand wheel. Telemetry only; state and determinism hashes are unchanged.
+  - input: `ffbFrameFromTelemetry` sends `SteeringTorqueMean` instead of the last substep's torque, which aliased anything above half the host rate. `FfbScaler` reports `requested`, `sent`, `lastClipped` and `peak`; `FfbSink` has an optional `scaler`.
+- 1f795f8: Gamepad steering is gentler by default. `GamepadInput` now asks for 75 % of full lock at full stick (`steerSensitivity`, also a live property), uses a square response curve (`steerExponent` default 2, was 1.5), and rate limits the steering output to 5 lock fractions per second (`steerRate`, `Infinity` for off) so a flicked stick no longer snaps the front wheels across in one frame. `map()` and `poll()` take an optional `dt` (default 1/60 s). Wheels, keyboard and touch are unchanged.
+- 199e026: - core: speed-sensitive column damping (ADR-0033). `steering.columnDampingAtSpeed` and `steering.columnDampingSpeed` (default 0, off) raise the force-feedback column damping linearly with speed. The `ColumnDamping` channel reports the current value. The column is not simulated, so state and hashes are unchanged.
+  - input: `ffbFrameFromTelemetry` sends `ColumnDamping`. `LogitechWebHidSink` re-sends the damper only when it moves by more than about 5 %.
+  - presets: the hatchback, sports car, crossover, pickup and open-wheeler reach four times their parking damping by 20 m/s.
+
 ## 0.9.0
 
 ### Minor Changes
