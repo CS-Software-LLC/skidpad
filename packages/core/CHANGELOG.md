@@ -1,5 +1,24 @@
 # @skidpad/core
 
+## 0.10.0
+
+### Minor Changes
+
+- ce60316: - core: `SteeringTorqueSlice0` … `SteeringTorqueSlice7`, the host step's steering torque in eight equal slices of time (ADR-0032). Telemetry only; state and determinism hashes are unchanged.
+  - input: `LogitechWebHidSink` can play the slices out between host steps (`playoutRate`, Hz, default 0 = off) through the new `TorquePlayout`; `FfbScaler.scale` is split into `watch` (the runaway guard, once per host step) and `shape`. `setRotation()` sets the wheel's rotation, clamped to the model's `maxRotationDeg` (1080° on the G PRO); `WheelInput.rotationDeg` follows it, and a car lock wider than the wheel is then reached at the wheel's end stop. `DIRECT_DRIVE_SCALER` holds the slew and smoothing suggested for a direct-drive base. All off by default until tried on a wheel.
+- 42a2ccb: - core: force-feedback torque channels (ADR-0031). `SteeringTorqueMean` is the mean of `SteeringTorque` over the host step's substeps, and `SteerTorqueMz`, `SteerTorqueTrail`, `SteerTorqueScrub`, `SteerTorqueLift` and `SteerTorqueAssist` split `SteeringTorque` by source at the hand wheel. Telemetry only; state and determinism hashes are unchanged.
+  - input: `ffbFrameFromTelemetry` sends `SteeringTorqueMean` instead of the last substep's torque, which aliased anything above half the host rate. `FfbScaler` reports `requested`, `sent`, `lastClipped` and `peak`; `FfbSink` has an optional `scaler`.
+- 50a4b6e: - core: speed-sensitive power assist (ADR-0034). `steering.powerAssistAtSpeed`, `powerAssistFadeStart` and `powerAssistFadeEnd` (default 0, off) fade the assist fraction linearly with road speed. It acts at the hand wheel only, so motion and hashes are unchanged.
+  - physics: presets: the hatchback, crossover, pickup and sports car fade from full assist at 4 m/s to about 60 % of it at 28 m/s, so `SteeringTorque` grows at speed. Their motion does not change.
+- 199e026: - core: speed-sensitive column damping (ADR-0033). `steering.columnDampingAtSpeed` and `steering.columnDampingSpeed` (default 0, off) raise the force-feedback column damping linearly with speed. The `ColumnDamping` channel reports the current value. The column is not simulated, so state and hashes are unchanged.
+  - input: `ffbFrameFromTelemetry` sends `ColumnDamping`. `LogitechWebHidSink` re-sends the damper only when it moves by more than about 5 %.
+  - presets: the hatchback, sports car, crossover, pickup and open-wheeler reach four times their parking damping by 20 m/s.
+
+### Patch Changes
+
+- 4d307e7: - core: about 30 % less time per step in every benchmark case, with bit-identical results. A vehicle now works out its tires' load-independent constants (the curve shape factors, the stiffness shape at the nominal load, the peak-slip tangents) and its steering axis once per definition instead of on every substep, and shares one load-dependent stiffness between the tire evaluation, the low-speed damping and the wheel-spin integration. Determinism hashes and validation results are unchanged.
+- c1cd84d: The WASM core is about 11 % smaller gzipped (221,831 to 197,262 bytes; 664 KB to 540 KB raw). `runScenario` requests are now read in two passes, the scenario name first, instead of as a serde enum tagged by `scenario`, which compiled the whole vehicle definition's parser a second time. Requests and results are unchanged; a malformed request's error message may now include a line and column. The build also maps `CARGO_HOME` to a fixed path, so a local release build is byte-identical to CI's. No simulation result changes.
+
 ## 0.9.0
 
 ### Minor Changes

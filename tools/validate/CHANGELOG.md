@@ -1,5 +1,18 @@
 # @skidpad/validate
 
+## 0.10.0
+
+### Patch Changes
+
+- Updated dependencies [4d307e7]
+- Updated dependencies [ce60316]
+- Updated dependencies [42a2ccb]
+- Updated dependencies [50a4b6e]
+- Updated dependencies [199e026]
+- Updated dependencies [c1cd84d]
+  - @skidpad/core@0.10.0
+  - @skidpad/presets@0.10.0
+
 ## 0.9.0
 
 ### Patch Changes

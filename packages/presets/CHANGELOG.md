@@ -1,5 +1,25 @@
 # @skidpad/presets
 
+## 0.10.0
+
+### Minor Changes
+
+- 50a4b6e: - core: speed-sensitive power assist (ADR-0034). `steering.powerAssistAtSpeed`, `powerAssistFadeStart` and `powerAssistFadeEnd` (default 0, off) fade the assist fraction linearly with road speed. It acts at the hand wheel only, so motion and hashes are unchanged.
+  - physics: presets: the hatchback, crossover, pickup and sports car fade from full assist at 4 m/s to about 60 % of it at 28 m/s, so `SteeringTorque` grows at speed. Their motion does not change.
+- 199e026: - core: speed-sensitive column damping (ADR-0033). `steering.columnDampingAtSpeed` and `steering.columnDampingSpeed` (default 0, off) raise the force-feedback column damping linearly with speed. The `ColumnDamping` channel reports the current value. The column is not simulated, so state and hashes are unchanged.
+  - input: `ffbFrameFromTelemetry` sends `ColumnDamping`. `LogitechWebHidSink` re-sends the damper only when it moves by more than about 5 %.
+  - presets: the hatchback, sports car, crossover, pickup and open-wheeler reach four times their parking damping by 20 m/s.
+
+### Patch Changes
+
+- Updated dependencies [4d307e7]
+- Updated dependencies [ce60316]
+- Updated dependencies [42a2ccb]
+- Updated dependencies [50a4b6e]
+- Updated dependencies [199e026]
+- Updated dependencies [c1cd84d]
+  - @skidpad/core@0.10.0
+
 ## 0.9.0
 
 ### Minor Changes
