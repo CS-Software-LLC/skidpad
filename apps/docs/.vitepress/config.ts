@@ -26,7 +26,7 @@ export default defineConfig({
           { text: "Replays and ghosts", link: "/guide/replays" },
           { text: "Worker mode", link: "/guide/worker" },
           { text: "Determinism contract", link: "/guide/determinism-contract" },
-          { text: "Wheels and force feedback", link: "/guide/force-feedback" },
+          { text: "Input, wheels and force feedback", link: "/guide/force-feedback" },
         ],
       },
       {

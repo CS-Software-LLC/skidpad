@@ -1,8 +1,51 @@
-# Wheels and force feedback
+# Input, wheels and force feedback
 
 Skidpad's core computes the torque the tires put on the hand wheel
 (`SteeringTorque`, see [steering](/concepts/steering)); the `@skidpad/input`
-package reads wheels and pedals and sends that torque back to the device.
+package reads keyboards, gamepads, wheels and touch screens into one
+filtered input frame, and sends that torque back to a wheel. Filtering
+happens in the input package, before the core, so a recorded replay holds
+exactly what the car was given, whatever the device.
+
+## Keyboard
+
+`KeyboardInput` turns held keys into ramps: steering rises at 2.5 full
+locks per second and falls back at 5, throttle at 3 and 6, brake at 4 and
+8 (pass `steer`, `throttle` or `brake` with `riseRate` and `fallRate` to
+change them). The default mapping is arrows or WASD to drive, Space for the
+handbrake, E or right Shift to shift up, Q or left Shift to shift down, and
+C for the clutch; `mapping` replaces any of the key lists, by
+`KeyboardEvent.code`. `attach(window)` wires the listeners and `update(dt)`
+reads a frame.
+
+A key steers to full lock, which is far too much at speed. The core's
+steering assist (`assists.steeringAssist`, see [assists](/concepts/assists))
+caps the road-wheel angle by speed and is the usual fix for keyboard
+driving; it is off unless the definition turns it on.
+
+## Gamepad
+
+`GamepadInput` reads the first pad with the browser's standard mapping:
+left stick steers, right trigger is throttle, left trigger brake, the
+bottom face button the handbrake, the bumpers shift and the top face button
+toggles reverse. Every binding is an option (`-1` for none on the shift
+buttons).
+
+A thumb stick travels a few millimetres for what a wheel does in 900°, so
+the steering is shaped before it reaches the car:
+
+- `deadzone` (default 0.08) ignores stick drift around the centre.
+- `steerExponent` (default 2) is the response curve: half stick asks for
+  about a quarter of the range. 1 is linear.
+- `steerSensitivity` (default 0.75) is the fraction of full lock that full
+  stick asks for. It is also a property, so a settings slider can change it
+  while driving; the sandbox's **Pad steering** slider does.
+- `steerRate` (default 5) is the fastest the steering output moves, in full
+  locks per second, so a flicked stick cannot snap the front wheels across
+  in one frame. `Infinity` turns it off.
+
+The rate limit needs the time between reads, so pass the step to
+`poll(dt)` (or `map(axes, buttons, dt)` in a test); it defaults to 1/60 s.
 
 ## Reading a wheel
 
@@ -58,7 +101,7 @@ const wheel = new WheelInput({ gears });
 const input = new InputMixer(
   [
     { name: "keyboard", read: (dt) => keyboard.update(dt) },
-    { name: "gamepad", read: () => gamepad.poll() },
+    { name: "gamepad", read: (dt) => gamepad.poll(dt) },
     { name: "wheel", read: () => wheel.poll() },
   ],
   { gears },
@@ -67,9 +110,11 @@ const input = new InputMixer(
 world.setInput(car, input.update(dt));
 ```
 
-`GamepadInput.poll()` reads the first pad with the standard mapping, so a
-connected wheel is never read as a gamepad, and leaves it in `lastPad` for a
-rumble sink.
+A device takes over when one of its inputs moves past `threshold` (default
+0.15) or it shifts, so a wheel left turned or a pedal resting slightly
+above zero does not steal control. `GamepadInput.poll()` reads the first pad
+with the standard mapping, so a connected wheel is never read as a gamepad,
+and leaves it in `lastPad` for a rumble sink.
 
 ## Safety first
 
@@ -175,6 +220,66 @@ gives full output, `damperRate` (default 10 rad/s), which no public source
 documents [VERIFY]: raise it for less damping. Both effects only resist
 motion, so they stay on when the runaway guard or the watchdog cuts the
 constant force. The classic protocol does not send them yet.
+
+A definition can raise the damping with speed
+(`steering.columnDampingAtSpeed` and `steering.columnDampingSpeed`,
+ADR-0033), so the wheel stays light when parking and does not swing when
+let go at speed. The core reports the current value on the `ColumnDamping`
+channel, `ffbFrameFromTelemetry` sends it, and the sink re-sends the damper
+only when it moves by more than about 5 %. The presets other than the kart
+reach four times their parking damping by 20 m/s.
+
+`sink.measureDamper(readAngleDeg)` finds the firmware damper's units on
+the wheel at hand. With the hands off, it spins the rim at three
+constant torques with the damper at a known coefficient, and `fitDamper`
+fits torque against the speed reached for the damping, the friction and
+the `damperRate` to use. The sandbox's **Measure damping** button runs it
+and remembers the result in the browser.
+
+## What the torque signal is
+
+`ffbFrameFromTelemetry` sends `SteeringTorqueMean`, the mean of the
+steering torque over the host step's substeps, not the last substep's
+value, which aliases anything faster than half the host rate into random
+steps (ADR-0031). The core also splits the torque by source
+(`SteerTorqueMz`, `SteerTorqueTrail`, `SteerTorqueScrub`,
+`SteerTorqueLift`, `SteerTorqueAssist`) for graphs and tuning; see
+[steering](/concepts/steering).
+
+A 60 Hz host step still sends the wheel a staircase. The frame also
+carries the step's torque in eight equal slices of time
+(`SteeringTorqueSlice0` … `7`, ADR-0032), and with `playoutRate` set (Hz,
+for example 250 to 500; default 0, off) the sink plays them out between
+host steps through `TorquePlayout`, one host step behind, with linear
+interpolation. It has not been tried on a wheel yet [VERIFY].
+
+Belt and gear wheels smooth the output themselves; a direct-drive base
+does not, and shows the scaler's own rate limit and smoothing as lag.
+`DIRECT_DRIVE_SCALER` holds a faster slew (50 full scales per second) and
+3 ms of smoothing for such a base; the defaults (5 per second, 10 ms) suit
+a G29. Raise the slew only once the sign and the gain are known to be
+right.
+
+`sink.setRotation(deg)` sets the wheel's rotation, clamped to the model's
+range (1080° on the G PRO), and tells `WheelInput` through its
+`rotationDeg`. Set it to the car's lock (`ratio × maxWheelAngleDeg`) and
+the wheel's end stop is the car's full lock.
+
+`FfbScaler` reports `requested` (the torque asked of the rim, N·m),
+`sent`, `output`, `lastClipped`, `peak` and `clipFraction`, so a setup
+panel can show how much of the signal the wheel cannot reproduce.
+
+## The sandbox's wheel panel
+
+**Wheel setup & assists** in the sandbox is a working example of all of
+the above: assign and calibrate controls, connect the wheel (protocol from
+the model, or forced; update mode), **Test pulse**, **Measure damping**,
+**Gain**, **Max output**, **Column feel** (`columnScale`, 0 to 4×),
+**invert**, a live graph of the torque requested and sent, **Sub-frame
+playout** at 250, 360 or 500 Hz, **Slew** and **Smoothing** with
+**Direct drive** and **Gear / belt** presets, **Match rotation to car**,
+**Re-enable** after the runaway guard trips, the diagnostics log, and the
+assists.
 
 ## Other makers
 
