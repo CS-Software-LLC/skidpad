@@ -45,10 +45,11 @@ win on specific, measurable axes, together:
 
 ## Status
 
-Milestones 0 to 6 are done. The core runs a four-wheel model with
-independent suspension on a six-degree-of-freedom chassis proxy, a Rapier
-adapter hosts that chassis in a real scene, and the planar single-track model
-stays as the level-of-detail model. Stability is a tested feature: parked
+Milestones 0 to 7 are done and milestone 8, dogfooding, is under way. The
+core runs a four-wheel model with independent suspension on a
+six-degree-of-freedom chassis proxy, a Rapier adapter hosts that chassis in
+a real scene, and the planar single-track model stays as the level-of-detail
+model. Stability is a tested feature: parked
 cars hold on slopes, brakes lock once and stay locked, the manoeuvres agree
 across the supported timestep range, and snapshots restore the full model
 exactly. Milestone 4 added the drivetrain: a combustion engine or electric
@@ -66,6 +67,15 @@ their wheels upright to the road, roll-centre heights that send part of the
 lateral load transfer through the links, the step-steer and double-lane-change
 manoeuvres, three more reference vehicles (a solid-axle pickup, an electric
 crossover, a winged open-wheeler) and a live tuning editor in the sandbox.
+Milestone 7 added level of detail, batched stepping, a worker mode, replays
+and ghosts, a path-following driver, the Jolt adapter and a Babylon example.
+Since then, unsprung mass is an opt-in second mass at each corner (a beam
+with its own heave and roll on a solid axle) that the presets turn on
+(ADR-0028), and the steering torque has grown what a wheel needs to feel
+settled: a power-assist boost curve that fades with speed, self-centring
+from kingpin inclination and caster, column damping that rises with speed,
+and force-feedback channels averaged over the host step or sliced within it
+(ADR-0029 to ADR-0034).
 Every number below comes from the validation runner that CI executes on each
 commit.
 
@@ -114,12 +124,12 @@ definitions, not as predictions for a real vehicle.
 
 Stability, from the same runner (all six presets, both models):
 
-| Check                                                                         | Result                                                                      |
-| ----------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
-| Parked on 10, 20, 30 % grades (brake), 10, 20 % (handbrake), 20 % cross slope | holds, creep below 1e-10 m/s                                                |
-| 100–0 km/h without ABS                                                        | wheels lock once at 0.2–0.35 s, zero releases, deceleration ripple ≤ 0.01 % |
-| Stop on the held brake                                                        | spring-back ≤ 0.27 m/s and ≤ 5 cm, at rest (< 1e-4 m/s) after 2 s           |
-| Timestep sweep, 250–2000 Hz internal × 30–240 Hz host                         | understeer gradient within 0.001 deg/g, braking distance within 0.7 %       |
+| Check                                                                         | Result                                                                       |
+| ----------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| Parked on 10, 20, 30 % grades (brake), 10, 20 % (handbrake), 20 % cross slope | holds, creep below 1e-10 m/s                                                 |
+| 100–0 km/h without ABS                                                        | wheels lock once at 0.06–0.79 s, zero releases, deceleration ripple ≤ 0.03 % |
+| Stop on the held brake                                                        | spring-back ≤ 0.31 m/s and ≤ 6 cm, at rest (< 1e-4 m/s) after 2 s            |
+| Timestep sweep, 250–2000 Hz internal × 30–240 Hz host                         | understeer gradient within 0.001 deg/g, braking distance within 0.7 %        |
 
 Benchmarks on a Node 22 x64 Linux container (CI class, not M1), 60 Hz host
 step, release build, CI on 2026-10-23:
@@ -166,12 +176,12 @@ state hashes.
 "Validated" covers four different checks. Skidpad has done three of them
 and started the fourth:
 
-| Level                 | Question                                                        | Status                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| --------------------- | --------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Self-consistency      | Same answer every run, stable across timesteps, no regressions? | Yes. The golden results in `tools/validate/golden` are the model's own earlier output, so they catch changes, not errors.                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
-| Analytic theory       | Does it reduce to the textbook result where one exists?         | Yes. The single-track understeer gradient matches linear theory with trail (table above).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
-| Independent simulator | Does it agree with a research-grade simulator on the same car?  | Partly. Against Project Chrono's multibody BMW E90, 21 of 23 metrics and 9 of 13 traces are within tolerances set before the run; two metrics were fitted. Chrono's E90 is itself a model, not a measured car.                                                                                                                                                                                                                                                                                                                                                                |
-| Measured vehicle data | Does it match instrumented tests of a real car and tire?        | Started. Against NHTSA's instrumented 1997 Jeep Cherokee (handling tests digitised from SAE 2000-01-0700), with three unknowns fitted on one test (one of them the steering's compliance steer, ADR-0027), all 12 predicted metrics and every trace are within tolerances set before the run. Its mass, centre of mass and inertias are NHTSA's measurements of a 1997 Cherokee (SAE 1999-01-1336); its suspension and tire data are not public, so the rest of its setup is estimated. See [docs/validation/nhtsa-jeep-cherokee.md](docs/validation/nhtsa-jeep-cherokee.md). |
+| Level                 | Question                                                        | Status                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| --------------------- | --------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Self-consistency      | Same answer every run, stable across timesteps, no regressions? | Yes. The golden results in `tools/validate/golden` are the model's own earlier output, so they catch changes, not errors.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| Analytic theory       | Does it reduce to the textbook result where one exists?         | Yes. The single-track understeer gradient matches linear theory with trail (table above).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| Independent simulator | Does it agree with a research-grade simulator on the same car?  | Partly. Against Project Chrono's multibody BMW E90, 22 of 25 metrics and 9 of 13 traces are within tolerances set before the run; two metrics were fitted. Chrono's E90 is itself a model, not a measured car.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| Measured vehicle data | Does it match instrumented tests of a real car and tire?        | Started. Against NHTSA's instrumented 1997 Jeep Cherokee (handling tests digitised from SAE 2000-01-0700), with three unknowns fitted on one test (one of them the steering's compliance steer, ADR-0027), all 12 predicted metrics and every trace are within tolerances set before the run. With unsprung mass on its beams the fitted front anti-roll bar rises from 27 to 41 kN/m, high for this car, so one of the estimates is likely off. Its mass, centre of mass and inertias are NHTSA's measurements of a 1997 Cherokee (SAE 1999-01-1336); its suspension and tire data are not public, so the rest of its setup is estimated. See [docs/validation/nhtsa-jeep-cherokee.md](docs/validation/nhtsa-jeep-cherokee.md). |
 
 Skidpad aims to be physically plausible and internally consistent for
 games, training and tooling. It is not a substitute for an engineering
@@ -241,16 +251,19 @@ packages/jolt       @skidpad/jolt: Jolt Physics host adapter
 packages/replay     @skidpad/replay: deterministic replays and ghosts
 packages/worker     @skidpad/worker: run a world in a Web Worker
 packages/telemetry  ring-buffer recorder, CSV and JSON export
-packages/input      keyboard ramps, gamepad and wheel mapping
+packages/input      @skidpad/input: keyboard, gamepad, wheel and touch input, force feedback over WebHID
 apps/sandbox        Vite + React Three Fiber playground
 apps/docs           VitePress docs with interactive explainers
 apps/bench          benchmark page and Node runner
 tools/validate      headless validation CLI with golden results
 tools/chrono-compare  behavioural comparison against Project Chrono's multibody BMW E90 and Sedan
+tools/nhtsa-compare   comparison against NHTSA's instrumented 1997 Jeep Cherokee tests
 tests/determinism   cross-browser determinism harness (Playwright), recorded laps
 examples/headless-node  a world in plain Node
 examples/babylon    Babylon.js on Jolt: AI traffic with level of detail, a lap ghost
 docs/adr            architecture decision records
+docs/validation     validation reports (analytic, Magic Formula, Chrono, NHTSA, force feedback)
+docs/plans          design plans for larger changes
 ```
 
 ## Developing
@@ -321,12 +334,36 @@ Contributors who only know TypeScript can work on everything outside
 ### Sandbox
 
 `pnpm dev:sandbox` opens a scene with a car on a looped track, a 40 m
-skidpad, and a set of obstacles. WASD or arrows drive, Space is the
-handbrake, Q and E shift (the presets are automatics; E from neutral is
-drive, Q below first is reverse), C is the clutch; gamepads, steering wheels
-and touch work, and the **Wheel setup** panel assigns and calibrates a
-wheel's controls, connects force feedback over WebHID (Chromium) and
-toggles the assists. The **Tuning** panel edits every definition parameter
+skidpad, and a set of obstacles. A finger on the screen drives first, then
+a connected wheel, then a gamepad while it is being moved, else the
+keyboard:
+
+- **Keyboard.** WASD or arrows drive, Space is the handbrake, Q and E shift
+  (the presets are automatics; E from neutral is drive, Q below first is
+  reverse), C is the clutch.
+- **Gamepad.** Left stick steers, right trigger is throttle, left trigger
+  brake, the bottom face button the handbrake, the bumpers shift and the
+  top face button toggles reverse. Full stick asks for 75 % of full lock
+  through a square response curve, rate limited so a flick cannot snap the
+  wheels across; the **Pad steering** slider in the toolbar sets that
+  fraction (30 to 100 %) and the browser remembers it.
+- **Wheel.** The **Wheel setup & assists** panel assigns and calibrates a
+  wheel's controls by moving them, and connects force feedback over WebHID
+  (Chromium): gain, max output, a **Column feel** multiplier on the car's
+  column friction and damping, a test pulse, a hands-off **Measure
+  damping** run, sub-frame torque playout, slew and smoothing presets for
+  direct-drive and belt wheels, matching the wheel's rotation to the car's
+  lock, a live torque graph and a diagnostics log. See the
+  [input and force-feedback guide](apps/docs/guide/force-feedback.md).
+- **Touch.** The left half of the screen steers, the right half is the
+  pedals.
+
+The same panel toggles the assists (ABS, traction control, stability
+control, speed-sensitive steering). They start from what each preset ships
+(the sports car and open-wheeler have ABS, traction and stability control
+on, the crossover traction control) and follow the car when the preset,
+map or tuning changes. Speed-sensitive steering is off by default; turn it
+on for keyboard driving at speed. The **Tuning** panel edits every definition parameter
 live, with units and ranges from the JSON schema, and exports or loads the
 definition as JSON. The surface selector puts the car on wet asphalt,
 gravel, grass, snow or ice. The host selector switches between the built-in
@@ -361,22 +398,23 @@ change:
 - **Release** maintains a "chore: version packages" pull request from the
   pending changesets. Allow it under Settings → Actions → General → Workflow
   permissions → "Allow GitHub Actions to create and approve pull requests".
-  It never publishes to npm until an `NPM_TOKEN` secret exists.
+  When that pull request merges, it publishes the new versions to npm with
+  the `NPM_TOKEN` secret (the packages are on npm, currently 0.10.0).
 
 ## Roadmap
 
-| Milestone | Scope                                                                                                                                                                                                                                                                          | Status |
-| --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------ |
-| M0        | Monorepo, CI with cross-browser determinism, licences and community files, deterministic math, sandbox, docs, bench skeleton                                                                                                                                                   | done   |
-| M1        | Feel and Magic Formula tires with `.tir` import, combined slip, load sensitivity, aligning moment, single-track model, tire explorer, understeer validation                                                                                                                    | done   |
-| M2        | Four wheels, suspension, Rapier adapter, chassis proxy, R3F track, telemetry overlay, benchmark baseline                                                                                                                                                                       | done   |
-| M3        | Standstill and slope stability, locked brakes, timestep sweep, snapshot and hash on the full model, cross-browser test on a real drive                                                                                                                                         | done   |
-| M4        | Drivetrain graph with implicit solver: engine, clutch, gearboxes, differentials, AWD, electric                                                                                                                                                                                 | done   |
-| M5        | Steering geometry, rack force and jacking; assists (ABS, traction and stability control, speed-sensitive steering); input calibration, wheel profiles, touch; force feedback over WebHID                                                                                       | done   |
-| M6        | Surfaces, aero, solid axles, tuning editor, full validation runner, reference vehicles                                                                                                                                                                                         | done   |
-| M7        | LOD, batched stepping, worker mode, replays and ghosts, AI helper, Jolt, Babylon                                                                                                                                                                                               | done   |
-| M8        | Dogfooding: publish 0.x to npm; build a small game outside this repo on the published packages; fix the API, packaging and docs friction it exposes; drive the sandbox on keyboard, gamepad and wheel and tune the feel; try the [VERIFY] force-feedback constants on hardware | next   |
-| M9        | Hardening: clear errors for invalid and extreme definitions, NaN guards, long-run soak tests, performance at realistic car counts, docs gaps found in M8                                                                                                                       | later  |
+| Milestone | Scope                                                                                                                                                                                                                                                                          | Status      |
+| --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------- |
+| M0        | Monorepo, CI with cross-browser determinism, licences and community files, deterministic math, sandbox, docs, bench skeleton                                                                                                                                                   | done        |
+| M1        | Feel and Magic Formula tires with `.tir` import, combined slip, load sensitivity, aligning moment, single-track model, tire explorer, understeer validation                                                                                                                    | done        |
+| M2        | Four wheels, suspension, Rapier adapter, chassis proxy, R3F track, telemetry overlay, benchmark baseline                                                                                                                                                                       | done        |
+| M3        | Standstill and slope stability, locked brakes, timestep sweep, snapshot and hash on the full model, cross-browser test on a real drive                                                                                                                                         | done        |
+| M4        | Drivetrain graph with implicit solver: engine, clutch, gearboxes, differentials, AWD, electric                                                                                                                                                                                 | done        |
+| M5        | Steering geometry, rack force and jacking; assists (ABS, traction and stability control, speed-sensitive steering); input calibration, wheel profiles, touch; force feedback over WebHID                                                                                       | done        |
+| M6        | Surfaces, aero, solid axles, tuning editor, full validation runner, reference vehicles                                                                                                                                                                                         | done        |
+| M7        | LOD, batched stepping, worker mode, replays and ghosts, AI helper, Jolt, Babylon                                                                                                                                                                                               | done        |
+| M8        | Dogfooding: publish 0.x to npm; build a small game outside this repo on the published packages; fix the API, packaging and docs friction it exposes; drive the sandbox on keyboard, gamepad and wheel and tune the feel; try the [VERIFY] force-feedback constants on hardware | in progress |
+| M9        | Hardening: clear errors for invalid and extreme definitions, NaN guards, long-run soak tests, performance at realistic car counts, docs gaps found in M8                                                                                                                       | later       |
 
 ### 1.0
 
