@@ -23,10 +23,10 @@ const input = new InputMixer(
 world.setInput(car, input.update(1 / 60));
 ```
 
-`GamepadInput` softens the stick for driving: full stick asks for 75 % of
-full lock (`steerSensitivity`, also a live property), through a square
-response curve (`steerExponent`), rate limited to 5 full locks a second
-(`steerRate`); pass the step to `poll(dt)`.
+`GamepadInput` softens the stick for driving: a square response curve
+(`steerExponent`), and the wheel turns toward the stick over time, winding
+on at 2 full locks a second (`steerRate`, also a live property) and back
+to centre at 5 (`steerReturnRate`); pass the step to `poll(dt)`.
 
 `WheelInput` reads wheels and pedals through calibrated, plain-JSON profiles;
 `AxisFinder` and `AxisCalibrator` build a setup flow; `TouchInput` is a

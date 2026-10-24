@@ -50,16 +50,16 @@ interface HudState {
 const WHEEL_NAMES = ["FL", "FR", "RL", "RR"] as const;
 const SOUND_KEY = "skidpad.sandbox.sound";
 const VOLUME_KEY = "skidpad.sandbox.volume";
-const PAD_STEER_KEY = "skidpad.sandbox.padSteer";
+const PAD_STEER_TIME_KEY = "skidpad.sandbox.padSteerTime";
 
 function readStoredVolume(): number {
   const v = Number(localStorage.getItem(VOLUME_KEY));
   return Number.isFinite(v) && localStorage.getItem(VOLUME_KEY) !== null ? v : 0.5;
 }
 
-function readStoredPadSteer(): number {
-  const v = Number(localStorage.getItem(PAD_STEER_KEY));
-  return Number.isFinite(v) && localStorage.getItem(PAD_STEER_KEY) !== null ? v : 0.75;
+function readStoredPadSteerTime(): number {
+  const v = Number(localStorage.getItem(PAD_STEER_TIME_KEY));
+  return Number.isFinite(v) && v > 0 && localStorage.getItem(PAD_STEER_TIME_KEY) !== null ? v : 0.5;
 }
 
 export function App() {
@@ -74,7 +74,7 @@ export function App() {
   const [recording, setRecording] = useState(false);
   const [sound, setSound] = useState(false);
   const [volume, setVolume] = useState(() => readStoredVolume());
-  const [padSteer, setPadSteer] = useState(() => readStoredPadSteer());
+  const [padSteerTime, setPadSteerTime] = useState(() => readStoredPadSteerTime());
   const [surface, setSurface] = useState<SurfaceId>("asphaltDry");
   // Counts definition changes (preset switches, tuning edits) so the parts
   // of the tree that read `sim.definition` at render pick them up.
@@ -142,9 +142,10 @@ export function App() {
   }, [sim, volume]);
 
   useEffect(() => {
-    if (sim) sim.gamepad.steerSensitivity = padSteer;
-    localStorage.setItem(PAD_STEER_KEY, String(padSteer));
-  }, [sim, padSteer]);
+    // The slider is the time from centre to full lock; the pad takes a rate.
+    if (sim) sim.gamepad.steerRate = 1 / padSteerTime;
+    localStorage.setItem(PAD_STEER_TIME_KEY, String(padSteerTime));
+  }, [sim, padSteerTime]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -320,17 +321,20 @@ export function App() {
               onChange={(e) => setVolume(Number(e.target.value))}
             />
           </label>
-          <label className="volume" title="Fraction of full lock that full stick gives">
+          <label
+            className="volume"
+            title="How long the wheel takes to turn from centre to full lock on a gamepad"
+          >
             Pad steering
             <input
               type="range"
-              min={0.3}
-              max={1}
+              min={0.1}
+              max={1.5}
               step={0.05}
-              value={padSteer}
-              onChange={(e) => setPadSteer(Number(e.target.value))}
+              value={padSteerTime}
+              onChange={(e) => setPadSteerTime(Number(e.target.value))}
             />
-            {Math.round(padSteer * 100)}%
+            {padSteerTime.toFixed(2)} s
           </label>
           <button
             onClick={async () => {
