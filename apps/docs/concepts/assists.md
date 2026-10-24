@@ -36,5 +36,5 @@ through the ordinary bounded constraint, so the wheel can still lock exactly.
 
 **The steering assist** caps the road-wheel angle at `L · a_lim / V²`, the
 angle a steady turn at the chosen lateral acceleration needs, so a keyboard
-gets full lock at walking pace and a few degrees at speed. The sandbox turns
-it on for keyboard driving.
+gets full lock at walking pace and a few degrees at speed. It is off by
+default, in the sandbox too, where the assists panel turns it on.
