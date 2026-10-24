@@ -87,16 +87,24 @@ describe("GamepadInput", () => {
     expect(f.handbrake).toBe(1);
   });
 
-  it("softens the stick by default: curve, 75 % lock, rate limit", () => {
+  it("turns the wheel over time: winds on at 2 lock/s, returns at 5", () => {
     const g = new GamepadInput({ deadzone: 0 });
-    // Full stick ramps at 5 lock/s toward 0.75 and holds there.
-    expect(g.map([1], [], 0.1).steer).toBeCloseTo(0.5);
-    expect(g.map([1], [], 0.1).steer).toBeCloseTo(0.75);
-    expect(g.map([1], [], 0.1).steer).toBeCloseTo(0.75);
-    // Half stick on the square curve asks for a quarter of 75 %.
-    expect(g.map([0.5], [], 1).steer).toBeCloseTo(0.1875);
-    g.steerSensitivity = 1;
-    expect(g.map([-1], [], 1).steer).toBeCloseTo(-1);
+    // Full stick asks for full lock and the wheel gets there in 0.5 s.
+    expect(g.map([1], [], 0.1).steer).toBeCloseTo(0.2);
+    expect(g.map([1], [], 0.1).steer).toBeCloseTo(0.4);
+    expect(g.map([1], [], 0.3).steer).toBeCloseTo(1);
+    expect(g.map([1], [], 0.1).steer).toBeCloseTo(1);
+    // Letting go unwinds faster than it wound on.
+    expect(g.map([0], [], 0.1).steer).toBeCloseTo(0.5);
+    // Half stick on the square curve asks for a quarter lock.
+    expect(g.map([0.5], [], 1).steer).toBeCloseTo(0.25);
+    // Across centre: 0.05 s back to centre, then 0.05 s winding on at 2.
+    expect(g.map([-1], [], 0.1).steer).toBeCloseTo(-0.1);
+    g.steerRate = 4;
+    expect(g.map([-1], [], 0.1).steer).toBeCloseTo(-0.5);
+    g.steerSensitivity = 0.5;
+    expect(g.map([-1], [], 1).steer).toBeCloseTo(-0.5);
+    expect(g.map([-1], [], 0).steer).toBeCloseTo(-0.5);
   });
 
   it("supports pedal axes in the −1…1 convention", () => {

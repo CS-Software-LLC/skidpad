@@ -343,10 +343,11 @@ keyboard:
   reverse), C is the clutch.
 - **Gamepad.** Left stick steers, right trigger is throttle, left trigger
   brake, the bottom face button the handbrake, the bumpers shift and the
-  top face button toggles reverse. Full stick asks for 75 % of full lock
-  through a square response curve, rate limited so a flick cannot snap the
-  wheels across; the **Pad steering** slider in the toolbar sets that
-  fraction (30 to 100 %) and the browser remembers it.
+  top face button toggles reverse. The stick goes through a square
+  response curve and the wheel turns toward where it points over time
+  (0.5 s from centre to full lock, quicker back to centre), so a flick
+  cannot snap the wheels across; the **Pad steering** slider in the
+  toolbar sets that time (0.1 to 1.5 s) and the browser remembers it.
 - **Wheel.** The **Wheel setup & assists** panel assigns and calibrates a
   wheel's controls by moving them, and connects force feedback over WebHID
   (Chromium): gain, max output, a **Column feel** multiplier on the car's

@@ -205,19 +205,25 @@ export interface GamepadOptions {
   /** Response curve on the stick (default 2; 1 is linear). */
   steerExponent?: number;
   /**
-   * Fraction of full lock that full stick asks for (default 0.75). A thumb
-   * stick travels a few millimetres for what a wheel does in 900°, so full
-   * lock from the stick is rarely wanted at speed. Changeable live through
-   * {@link GamepadInput.steerSensitivity}.
+   * Fraction of full lock that full stick asks for (default 1). Changeable
+   * live through {@link GamepadInput.steerSensitivity}.
    */
   steerSensitivity?: number;
   /**
-   * Fastest the steering output moves, in full-lock fractions per second
-   * (default 5, so centre to full lock takes 0.2 s at sensitivity 1).
-   * Stops a flicked stick snapping the front wheels across in one frame.
-   * `Infinity` turns it off.
+   * How fast the steering winds on, away from centre, in full-lock
+   * fractions per second (default 2, so centre to full lock takes 0.5 s).
+   * The stick asks for an angle and the wheel turns toward it at this rate,
+   * so a flicked stick turns the wheel over time instead of in one frame.
+   * Changeable live through {@link GamepadInput.steerRate}. `Infinity`
+   * turns it off.
    */
   steerRate?: number;
+  /**
+   * How fast the steering unwinds toward centre, in full-lock fractions per
+   * second (default 5, so full lock to centre takes 0.2 s). Faster than
+   * winding on, so letting go of the stick straightens the car promptly.
+   */
+  steerReturnRate?: number;
   /** The gear state to shift; share one between devices. */
   gears?: GearSelector;
   /**
@@ -236,7 +242,10 @@ export interface GamepadOptions {
  */
 export class GamepadInput {
   private readonly opts: Required<
-    Omit<GamepadOptions, "throttleAxis" | "brakeAxis" | "gears" | "pick" | "steerSensitivity">
+    Omit<
+      GamepadOptions,
+      "throttleAxis" | "brakeAxis" | "gears" | "pick" | "steerSensitivity" | "steerRate"
+    >
   > &
     Pick<GamepadOptions, "throttleAxis" | "brakeAxis">;
   private readonly pick: (pad: Gamepad) => boolean;
@@ -247,6 +256,8 @@ export class GamepadInput {
   lastPad: Gamepad | undefined;
   /** Fraction of full lock at full stick, 0…1; safe to change while driving. */
   steerSensitivity: number;
+  /** Wind-on rate in full locks per second; safe to change while driving. */
+  steerRate: number;
   private steer = 0;
 
   constructor(options: GamepadOptions = {}) {
@@ -264,9 +275,10 @@ export class GamepadInput {
       reverseButton: options.reverseButton ?? 3,
       deadzone: options.deadzone ?? 0.08,
       steerExponent: options.steerExponent ?? 2,
-      steerRate: options.steerRate ?? 5,
+      steerReturnRate: options.steerReturnRate ?? 5,
     };
-    this.steerSensitivity = options.steerSensitivity ?? 0.75;
+    this.steerSensitivity = options.steerSensitivity ?? 1;
+    this.steerRate = options.steerRate ?? 2;
   }
 
   /**
@@ -283,8 +295,7 @@ export class GamepadInput {
     const target =
       clamp(this.steerSensitivity, 0, 1) *
       responseCurve(applyDeadzone(raw, this.opts.deadzone), this.opts.steerExponent);
-    const step = this.opts.steerRate * dt;
-    this.steer += clamp(target - this.steer, -step, step);
+    this.steer = this.slew(target, dt);
     const steer = this.steer;
     const axisValue = (i: number | undefined): number | undefined =>
       i === undefined ? undefined : clamp(((axes[i] ?? -1) + 1) / 2, 0, 1);
@@ -303,6 +314,28 @@ export class GamepadInput {
       clutch: 0,
       gear: this.gears.gear,
     };
+  }
+
+  /**
+   * Moves the steering toward `target` over `dt`: at the return rate while
+   * heading for centre, at the wind-on rate away from it. A move across
+   * centre spends the first part of the step returning.
+   */
+  private slew(target: number, dt: number): number {
+    const from = this.steer;
+    if (!(dt > 0)) return from;
+    const wind = Math.max(this.steerRate, 0);
+    const back = Math.max(this.opts.steerReturnRate, 0);
+    if (from === 0 || Math.sign(target) === Math.sign(from)) {
+      const rate = Math.abs(target) < Math.abs(from) ? back : wind;
+      const step = rate * dt;
+      return from + clamp(target - from, -step, step);
+    }
+    // Target is at or past centre: unwind first, then wind on the other way.
+    const toCentre = Math.abs(from) / back;
+    if (toCentre >= dt) return from - Math.sign(from) * back * dt;
+    const step = wind * (dt - toCentre);
+    return clamp(target, -step, step);
   }
 
   private edge(buttons: ArrayLike<{ pressed: boolean }>, i: number): boolean {

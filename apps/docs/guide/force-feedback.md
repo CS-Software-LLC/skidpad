@@ -37,15 +37,21 @@ the steering is shaped before it reaches the car:
 - `deadzone` (default 0.08) ignores stick drift around the centre.
 - `steerExponent` (default 2) is the response curve: half stick asks for
   about a quarter of the range. 1 is linear.
-- `steerSensitivity` (default 0.75) is the fraction of full lock that full
-  stick asks for. It is also a property, so a settings slider can change it
-  while driving; the sandbox's **Pad steering** slider does.
-- `steerRate` (default 5) is the fastest the steering output moves, in full
-  locks per second, so a flicked stick cannot snap the front wheels across
-  in one frame. `Infinity` turns it off.
+- `steerRate` (default 2) is how fast the steering winds on, in full locks
+  per second. The stick asks for an angle and the wheel turns toward it at
+  this rate, so full stick reaches full lock after 0.5 s rather than in one
+  frame, the way console racing games turn the wheel. It is also a
+  property, so a settings slider can change it while driving; the
+  sandbox's **Pad steering** slider sets the time to full lock (its
+  inverse). `Infinity` turns it off.
+- `steerReturnRate` (default 5) is how fast the steering unwinds toward
+  centre, faster than winding on so letting go straightens the car
+  promptly.
+- `steerSensitivity` (default 1) is the fraction of full lock that full
+  stick asks for, also a live property.
 
-The rate limit needs the time between reads, so pass the step to
-`poll(dt)` (or `map(axes, buttons, dt)` in a test); it defaults to 1/60 s.
+The rates need the time between reads, so pass the step to `poll(dt)` (or
+`map(axes, buttons, dt)` in a test); it defaults to 1/60 s.
 
 ## Reading a wheel
 
