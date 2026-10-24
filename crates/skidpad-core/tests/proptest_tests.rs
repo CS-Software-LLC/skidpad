@@ -1,7 +1,7 @@
 use proptest::prelude::*;
 use skidpad_core::geom::Vec3;
 use skidpad_core::kinematics::{KinematicsDef, TravelCurve};
-use skidpad_core::tire::{FeelTireParams, TireInput, TireModel};
+use skidpad_core::tire::{FeelTireParams, TireInput, TireModel, TireOutput};
 use skidpad_core::vehicle::{BicycleVehicle, FourWheelVehicle};
 use skidpad_core::{VehicleDefinition, VehicleInput};
 
@@ -160,6 +160,22 @@ proptest! {
         prop_assert!(o.fx.is_finite() && o.fy.is_finite() && o.mz.is_finite());
         let limit = 1.5 * fz.max(1.0) * 2.0 + 1.0;
         prop_assert!(o.fx.abs() <= limit && o.fy.abs() <= limit);
+    }
+
+    #[test]
+    fn precomputed_tire_constants_give_bit_identical_results(p in arb_feel(), fz in 0.0f64..12000.0, k in -2.0f64..2.0, a in -1.5f64..1.5, g in -0.2f64..0.2, vx in -3.0f64..30.0) {
+        // The vehicles evaluate through `shape`/`at_load`; that must be the
+        // plain evaluation bit for bit, or every golden hash would move.
+        let m = TireModel::Feel(p);
+        let input = TireInput { fz, slip_ratio: k, slip_angle: a, camber: g, vx, ..TireInput::default() };
+        let shape = m.shape();
+        let at = m.at_load(&shape, fz);
+        let bits = |o: TireOutput| [o.fx, o.fy, o.mz, o.my, o.trail, o.fx_slide, o.fy_slide].map(f64::to_bits);
+        prop_assert_eq!(bits(m.eval_at(&shape, &at, &input)), bits(m.eval(&input)));
+        prop_assert_eq!(bits(m.eval_in(&shape, &input)), bits(m.eval(&input)));
+        prop_assert_eq!(at.longitudinal_stiffness().to_bits(), m.longitudinal_stiffness(fz).to_bits());
+        prop_assert_eq!(m.low_speed_damping_coefficients_at(&at, 1e-3), m.low_speed_damping_coefficients(fz, 1e-3));
+        prop_assert_eq!(m.static_slip_bounds_in(&shape), m.static_slip_bounds());
     }
 
     #[test]

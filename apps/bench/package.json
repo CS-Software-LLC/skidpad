@@ -7,6 +7,7 @@
     "dev": "vite",
     "build": "vite build",
     "bench:node": "tsx src/node.ts",
+    "bench:compare": "tsx src/compare.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {

@@ -11,7 +11,7 @@ pub mod tir;
 
 use skidpad_math as m;
 
-pub use feel::FeelTireParams;
+pub use feel::{FeelShape, FeelTireParams};
 pub use magic_formula::MagicFormulaParams;
 
 /// Inputs to a tire evaluation. All in SI, ISO sign convention.
@@ -95,12 +95,103 @@ impl Default for TireModel {
     }
 }
 
+/// The constants of a tire model that do not depend on its inputs
+/// ([`TireModel::shape`]). A vehicle works these out whenever its definition
+/// changes and passes them to the `*_in` and `*_at` methods, which give bit for bit
+/// the results of the plain methods without repeating a handful of
+/// transcendental calls on every substep. Built for one model, it must only
+/// be used with that model.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct TireShape {
+    feel: Option<FeelShape>,
+    static_slip_bounds: (f64, f64),
+}
+
+/// A tire's slip stiffnesses at one load ([`TireModel::at_load`]).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct TireAtLoad {
+    fz: f64,
+    kx: f64,
+    ky: Option<f64>,
+}
+
+impl TireAtLoad {
+    /// [`TireModel::longitudinal_stiffness`] at this load.
+    #[inline]
+    pub fn longitudinal_stiffness(&self) -> f64 {
+        self.kx
+    }
+}
+
 impl TireModel {
     #[inline]
     pub fn eval(&self, input: &TireInput) -> TireOutput {
         match self {
             TireModel::Feel(p) => p.eval(input),
             TireModel::MagicFormula(p) => p.eval(input),
+        }
+    }
+
+    /// The load-independent constants for the `*_in` and `*_at` methods.
+    pub fn shape(&self) -> TireShape {
+        TireShape {
+            feel: match self {
+                TireModel::Feel(p) => Some(p.shape()),
+                TireModel::MagicFormula(_) => None,
+            },
+            static_slip_bounds: self.static_slip_bounds(),
+        }
+    }
+
+    /// [`Self::eval`] with the constants from [`Self::shape`].
+    #[inline]
+    pub fn eval_in(&self, shape: &TireShape, input: &TireInput) -> TireOutput {
+        match (self, &shape.feel) {
+            (TireModel::Feel(p), Some(s)) => p.eval_in(s, input),
+            _ => self.eval(input),
+        }
+    }
+
+    /// [`Self::static_slip_bounds`] from [`Self::shape`].
+    #[inline]
+    pub fn static_slip_bounds_in(&self, shape: &TireShape) -> (f64, f64) {
+        shape.static_slip_bounds
+    }
+
+    /// The slip stiffnesses at load `fz`, worked out once for everything
+    /// that needs them in a substep: [`Self::eval_at`],
+    /// [`Self::low_speed_damping_coefficients_at`] and the wheel-spin
+    /// integration.
+    #[inline]
+    pub fn at_load(&self, shape: &TireShape, fz: f64) -> TireAtLoad {
+        match (self, &shape.feel) {
+            (TireModel::Feel(p), Some(s)) => {
+                let (kx, ky) = p.slip_stiffness_in(s, fz);
+                TireAtLoad {
+                    fz,
+                    kx,
+                    ky: Some(ky),
+                }
+            }
+            // The Magic Formula evaluation works its stiffnesses out
+            // itself, so the lateral one is only computed when asked for.
+            _ => TireAtLoad {
+                fz,
+                kx: self.longitudinal_stiffness(fz),
+                ky: None,
+            },
+        }
+    }
+
+    /// [`Self::eval`] with the constants from [`Self::shape`] and, when
+    /// `input.fz` is its load, [`Self::at_load`].
+    #[inline]
+    pub fn eval_at(&self, shape: &TireShape, at: &TireAtLoad, input: &TireInput) -> TireOutput {
+        match (self, &shape.feel, at.ky) {
+            (TireModel::Feel(p), Some(s), Some(ky)) if input.fz == at.fz => {
+                p.eval_with(s, (at.kx, ky), input)
+            }
+            _ => self.eval_in(shape, input),
         }
     }
 
@@ -167,6 +258,14 @@ impl TireModel {
     /// damper on that mass; the cap only binds at very low substep rates.
     #[inline]
     pub fn low_speed_damping_coefficients(&self, fz: f64, dt: f64) -> (f64, f64) {
+        self.low_speed_damping_coefficients_at(&self.at_load(&self.shape(), fz), dt)
+    }
+
+    /// [`Self::low_speed_damping_coefficients`] at the load of
+    /// [`Self::at_load`].
+    #[inline]
+    pub fn low_speed_damping_coefficients_at(&self, at: &TireAtLoad, dt: f64) -> (f64, f64) {
+        let fz = at.fz;
         let zeta = self.low_speed_damping();
         if zeta <= 0.0 || fz <= 0.0 {
             return (0.0, 0.0);
@@ -174,8 +273,12 @@ impl TireModel {
         let (sigma_x, sigma_y) = self.relaxation_lengths();
         let corner_mass = fz / crate::GRAVITY;
         let cap = corner_mass / (2.0 * m::max(dt, 1e-6));
-        let kx = m::max(self.longitudinal_stiffness(fz), 0.0) / m::max(sigma_x, 1e-6);
-        let ky = m::max(self.cornering_stiffness(fz), 0.0) / m::max(sigma_y, 1e-6);
+        let ky = match at.ky {
+            Some(ky) => ky,
+            None => self.cornering_stiffness(fz),
+        };
+        let kx = m::max(at.kx, 0.0) / m::max(sigma_x, 1e-6);
+        let ky = m::max(ky, 0.0) / m::max(sigma_y, 1e-6);
         (
             m::min(2.0 * zeta * m::sqrt(kx * corner_mass), cap),
             m::min(2.0 * zeta * m::sqrt(ky * corner_mass), cap),

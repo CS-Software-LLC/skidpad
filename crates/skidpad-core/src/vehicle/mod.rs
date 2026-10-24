@@ -10,10 +10,41 @@ pub use four_wheel::{
     FourWheelVehicle, HostMode, WheelContact, WheelGeometry, FL, FR, RL, RR, WHEEL_COUNT,
 };
 
-use crate::definition::{VehicleDefinition, VehicleModelKind};
+use crate::definition::{KingpinAxis, VehicleDefinition, VehicleModelKind};
 use crate::input::VehicleInput;
 use crate::snapshot::Snapshottable;
 use crate::surface::SurfaceTable;
+use crate::tire::TireShape;
+
+/// Constants of a definition that the step would otherwise work out again
+/// on every substep: each axle's tire shape and the steering axis. Both
+/// models rebuild it whenever the definition changes. Results are bit for
+/// bit those of working them out each time.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct Derived {
+    pub tires: [TireShape; 2],
+    pub kingpin: Option<KingpinAxis>,
+}
+
+impl Derived {
+    pub fn of(def: &VehicleDefinition) -> Self {
+        Self {
+            tires: core::array::from_fn(|a| {
+                def.axles.get(a).map(|x| x.tire.shape()).unwrap_or_default()
+            }),
+            kingpin: def.kingpin_axis(),
+        }
+    }
+
+    /// [`VehicleDefinition::kingpin_lift_torque`] for this definition.
+    #[inline]
+    pub fn kingpin_lift_torque(&self, fz: f64, steer: f64, side: f64, radius: f64) -> f64 {
+        match &self.kingpin {
+            Some(axis) => axis.lift_torque(fz, steer, side, radius),
+            None => 0.0,
+        }
+    }
+}
 
 // The four-wheel state is a few times larger than the single-track state;
 // both are stepped in place inside the world's vehicle list, and boxing the

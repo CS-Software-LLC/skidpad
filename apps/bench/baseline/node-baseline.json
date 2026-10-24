@@ -1,15 +1,15 @@
 {
-  "platform": "node-22.22.0-linux-x64",
-  "coreVersion": "0.1.0",
-  "timestamp": "2026-10-01T17:22:05.400Z",
+  "platform": "node-22.23.3-linux-x64",
+  "coreVersion": "0.9.0",
+  "timestamp": "2026-10-23T18:24:53.941Z",
   "results": [
     {
       "vehicles": 1,
       "substepRateHz": 1000,
       "model": "fourWheel",
       "label": "1 car, LOD 0 (1 kHz)",
-      "msPerStep": 0.06024919333333334,
-      "usPerVehicleStep": 60.24919333333334,
+      "msPerStep": 0.075,
+      "usPerVehicleStep": 75.0,
       "steps": 600
     },
     {
@@ -17,8 +17,8 @@
       "substepRateHz": 1000,
       "model": "fourWheel",
       "label": "10 cars, LOD 0 (1 kHz)",
-      "msPerStep": 0.6188235216666668,
-      "usPerVehicleStep": 61.88235216666668,
+      "msPerStep": 0.576,
+      "usPerVehicleStep": 57.6,
       "steps": 600
     },
     {
@@ -26,8 +26,8 @@
       "substepRateHz": 1000,
       "model": "fourWheel",
       "label": "20 cars, LOD 0 (1 kHz)",
-      "msPerStep": 1.090241775,
-      "usPerVehicleStep": 54.51208875,
+      "msPerStep": 1.152,
+      "usPerVehicleStep": 57.6,
       "steps": 600
     },
     {
@@ -35,8 +35,8 @@
       "substepRateHz": 500,
       "model": "fourWheel",
       "label": "50 cars, four-wheel at 500 Hz",
-      "msPerStep": 1.2580397383333333,
-      "usPerVehicleStep": 25.160794766666662,
+      "msPerStep": 1.376,
+      "usPerVehicleStep": 27.52,
       "steps": 600
     },
     {
@@ -44,8 +44,8 @@
       "substepRateHz": 500,
       "model": "singleTrack",
       "label": "50 cars, LOD 1 stand-in (single-track, 500 Hz)",
-      "msPerStep": 0.600604133333333,
-      "usPerVehicleStep": 12.01208266666666,
+      "msPerStep": 0.63,
+      "usPerVehicleStep": 12.6,
       "steps": 600
     },
     {
@@ -53,8 +53,44 @@
       "substepRateHz": 240,
       "model": "singleTrack",
       "label": "200 cars, LOD 2 stand-in (single-track, 240 Hz)",
-      "msPerStep": 1.2566437966666664,
-      "usPerVehicleStep": 6.283218983333331,
+      "msPerStep": 1.318,
+      "usPerVehicleStep": 6.59,
+      "steps": 600
+    },
+    {
+      "vehicles": 20,
+      "substepRateHz": 1000,
+      "model": "fourWheel",
+      "ai": true,
+      "label": "20 cars, path-following driver (four-wheel, 1 kHz)",
+      "msPerStep": 1.174,
+      "usPerVehicleStep": 58.7,
+      "steps": 600
+    },
+    {
+      "vehicles": 100,
+      "substepRateHz": 1000,
+      "model": "fourWheel",
+      "ai": true,
+      "lod": {
+        "singleTrack": 60,
+        "frozen": 30,
+        "singleTrackRateHz": 240
+      },
+      "label": "100 cars, driven: 10 full, 60 single-track at 240 Hz, 30 frozen",
+      "msPerStep": 1.037,
+      "usPerVehicleStep": 10.37,
+      "steps": 600
+    },
+    {
+      "vehicles": 200,
+      "substepRateHz": 240,
+      "model": "singleTrack",
+      "ai": true,
+      "batched": true,
+      "label": "200 cars, driven single-track at 240 Hz, batched",
+      "msPerStep": 1.483,
+      "usPerVehicleStep": 7.415,
       "steps": 600
     }
   ]

@@ -28,6 +28,7 @@
 //! accumulated impulses at the end; the proxy pose integrated here is only
 //! used to move the rays between substeps and is discarded.
 
+use super::Derived;
 use crate::assists::{self, AssistTelemetry, WheelObs};
 use crate::definition::{SuspensionKind, VehicleDefinition};
 use crate::drivetrain::{Drivetrain, WheelDyn};
@@ -309,6 +310,8 @@ pub struct WheelState {
 #[derive(Clone, Debug, PartialEq)]
 pub struct FourWheelVehicle {
     def: VehicleDefinition,
+    /// Constants of the definition, rebuilt whenever it changes.
+    derived: Derived,
     geometry: [WheelGeometry; WHEEL_COUNT],
     pub host_mode: HostMode,
     pub contacts: [WheelContact; WHEEL_COUNT],
@@ -387,6 +390,7 @@ impl FourWheelVehicle {
         let mut v = Self {
             geometry: [WheelGeometry::default(); WHEEL_COUNT],
             drivetrain,
+            derived: Derived::of(&def),
             def,
             host_mode: HostMode::Builtin,
             contacts: [WheelContact::flat_ground(); WHEEL_COUNT],
@@ -466,6 +470,7 @@ impl FourWheelVehicle {
     pub fn set_definition(&mut self, def: VehicleDefinition) {
         self.drivetrain
             .set_definition(def.drivetrain.clone(), def.driven_axles());
+        self.derived = Derived::of(&def);
         self.def = def;
         self.compute_geometry();
     }
@@ -983,6 +988,7 @@ impl FourWheelVehicle {
             let axle = i / 2;
             let adef = &self.def.axles[axle];
             let tire = &adef.tire;
+            let shape = &self.derived.tires[axle];
             let g = self.geometry[i];
             let radius = g.radius;
             let floor = tire.low_speed_floor();
@@ -1042,7 +1048,8 @@ impl FourWheelVehicle {
             w.kinematic_angle = alpha;
             // Contact-patch deflection transient (ADR-0010), bounded at
             // standstill by the force peak or the floored kinematic slip.
-            let (kappa_peak, tan_alpha_peak) = tire.static_slip_bounds();
+            let at = tire.at_load(shape, w.load);
+            let (kappa_peak, tan_alpha_peak) = tire.static_slip_bounds_in(shape);
             let slip_vx = w.omega * radius - wx;
             w.transient.update(
                 slip_vx,
@@ -1059,21 +1066,25 @@ impl FourWheelVehicle {
             // longitudinal part treated implicitly in the wheel equation.
             let fade = low_speed_fade(wx, tire.low_speed_damping_fade());
             let (c_x, c_y) = if fade > 0.0 && w.in_contact && w.load > 0.0 {
-                let (cx, cy) = tire.low_speed_damping_coefficients(w.load, dt);
+                let (cx, cy) = tire.low_speed_damping_coefficients_at(&at, dt);
                 (cx * fade, cy * fade)
             } else {
                 (0.0, 0.0)
             };
             let out = if w.in_contact && w.load > 0.0 {
-                let mut o = tire.eval(&TireInput {
-                    fz: w.load,
-                    slip_ratio: w.transient.slip_ratio,
-                    slip_angle: w.transient.slip_angle,
-                    camber: w.camber,
-                    vx: wx,
-                    grip: surface.grip,
-                    rolling_resistance: surface.rolling_resistance,
-                });
+                let mut o = tire.eval_at(
+                    shape,
+                    &at,
+                    &TireInput {
+                        fz: w.load,
+                        slip_ratio: w.transient.slip_ratio,
+                        slip_angle: w.transient.slip_angle,
+                        camber: w.camber,
+                        vx: wx,
+                        grip: surface.grip,
+                        rolling_resistance: surface.rolling_resistance,
+                    },
+                );
                 let fx = o.fx + c_x * slip_vx;
                 let fy = o.fy - c_y * wy;
                 // Curve plus damping may not exceed what the curve allows:
@@ -1098,7 +1109,7 @@ impl FourWheelVehicle {
             // ADR-0010), one wheel: the force sensitivity to wheel speed is
             // `Cκ·R·dt / (σx + dt·|Vx|)` plus the damping `c_x·R`.
             let gain = TireTransient::deflection_gain(wx, dt, sigma_x);
-            let dfx_domega = tire.longitudinal_stiffness(w.load) * radius * gain + c_x * radius;
+            let dfx_domega = at.longitudinal_stiffness() * radius * gain + c_x * radius;
             dyn_wheels[i] = WheelDyn {
                 omega: w.omega,
                 inertia: adef.wheel_inertia + dt * radius * dfx_domega,
@@ -1316,9 +1327,12 @@ impl FourWheelVehicle {
                     .kingpin_torque(w.out.mz, w.out.fy, w.out.fx, g.side);
                 // The load through the steering lift (ADR-0030), from the
                 // knuckle's own angle: toe is where the axis sits straight.
-                let lift =
-                    self.def
-                        .kingpin_lift_torque(w.load, w.steer - self.toe(i), g.side, g.radius);
+                let lift = self.derived.kingpin_lift_torque(
+                    w.load,
+                    w.steer - self.toe(i),
+                    g.side,
+                    g.radius,
+                );
                 kingpin += lift;
                 let st = &self.def.steering;
                 parts[0] += w.out.mz;

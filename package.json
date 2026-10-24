@@ -27,6 +27,7 @@
     "format": "prettier --write .",
     "validate": "pnpm --filter @skidpad/validate run validate",
     "bench": "pnpm --filter @skidpad/bench run bench:node",
+    "bench:compare": "pnpm --filter @skidpad/bench run bench:compare",
     "dev:sandbox": "node scripts/ensure-built.mjs && pnpm --filter @skidpad/sandbox run dev",
     "dev:docs": "node scripts/ensure-built.mjs && pnpm --filter @skidpad/docs run dev",
     "dev:bench": "node scripts/ensure-built.mjs && pnpm --filter @skidpad/bench run dev",
