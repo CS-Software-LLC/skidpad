@@ -79,7 +79,8 @@ export function TuningPanel({
     return true;
   };
 
-  const edit = (path: FieldPath, value: unknown): void => {
+  const edit = (path: FieldPath, value: unknown, label: string): void => {
+    sim.lastTuningChange = `${label} = ${JSON.stringify(value)}`;
     const next = withValue(latest.current, path, value);
     latest.current = next;
     setDraft(next);
@@ -168,7 +169,11 @@ export function TuningPanel({
               <h2>{g.title}</h2>
               <div className="tuning-grid">
                 {g.fields.map((f) => (
-                  <FieldRow key={f.path.join(".")} field={f} onChange={(v) => edit(f.path, v)} />
+                  <FieldRow
+                    key={f.path.join(".")}
+                    field={f}
+                    onChange={(v) => edit(f.path, v, `${g.title} › ${f.label}`)}
+                  />
                 ))}
               </div>
             </section>

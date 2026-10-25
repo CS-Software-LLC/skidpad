@@ -720,6 +720,31 @@ export interface AiStatus {
   finished: boolean;
 }
 
+/**
+ * What the core's divergence guard has done to a vehicle. After every step
+ * the core checks each vehicle's state; a NaN or infinite value, or a
+ * speed or spin rate no car reaches (1000 m/s, 100 rad/s body rate, 5000
+ * rad/s wheel spin), puts the vehicle back at rest at its last healthy
+ * position and heading. The `Diverged` telemetry channel carries the same
+ * count. A healthy vehicle is never touched.
+ */
+export interface VehicleHealth {
+  /** Resets since the vehicle was added or {@link World.clearHealth}. */
+  recoveries: number;
+  /** The world's step count just after the last reset (0 if none). */
+  lastStep: number;
+  /** Why the last reset happened. */
+  cause: "none" | "nonFinite" | "runaway";
+  /**
+   * The first telemetry channel that was non-finite or past its limit on
+   * the step of the last reset, or `null` (the bad value can be in state
+   * the telemetry does not show).
+   */
+  channel: string | null;
+}
+
+const DIVERGENCE_CAUSES = ["none", "nonFinite", "runaway"] as const;
+
 /** A set of vehicles stepped together. */
 export class World {
   private freed = false;
@@ -964,6 +989,26 @@ export class World {
       targetSpeed: f[o + 3]!,
       finished: f[o + 4]! > 0.5,
     };
+  }
+
+  /** What the divergence guard has done to the vehicle (see {@link VehicleHealth}). */
+  health(vehicle: number): VehicleHealth {
+    const ptr = this.sp.scratchPtr;
+    this.sp.check(this.sp.exports.sp_world_health(this.handle, vehicle, ptr, 8));
+    const f = this.sp.floats();
+    const o = ptr / 8;
+    const channel = f[o + 3]!;
+    return {
+      recoveries: f[o]!,
+      lastStep: f[o + 1]!,
+      cause: DIVERGENCE_CAUSES[f[o + 2]!] ?? "none",
+      channel: channel >= 0 ? (this.sp.telemetryLayout[channel]?.name ?? null) : null,
+    };
+  }
+
+  /** Forget the divergence guard's record of the vehicle; zeroes `Diverged`. */
+  clearHealth(vehicle: number): void {
+    this.sp.check(this.sp.exports.sp_world_clear_health(this.handle, vehicle));
   }
 
   // ---- external host contract (ADR-0002) ----------------------------------

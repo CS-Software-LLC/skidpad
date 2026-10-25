@@ -208,6 +208,15 @@ export class Sim {
   onBestChanged: (() => void) | undefined;
   /** Show the ghost of the best lap. */
   showGhost = true;
+  /** The last tuning field edited, for the divergence notice. */
+  lastTuningChange = "";
+  /**
+   * The core's divergence guard reset the car (its state went NaN or ran
+   * away, usually from a tuning value the integrator cannot hold): what to
+   * tell the user, and when (`performance.now()`), for the HUD.
+   */
+  divergence: { text: string; atMs: number } | undefined;
+  private divergedSeen = 0;
 
   async load(): Promise<void> {
     this.sp = await init();
@@ -676,6 +685,7 @@ export class Sim {
         this.world.step(HOST_DT);
       }
       const cost = performance.now() - t0;
+      if (this.read("Diverged") > this.divergedSeen) this.onDiverged();
       this.readPose(this.currPose);
       if (this.timer) this.stepCircuit();
       this.stepCostMs = this.stepCostMs === 0 ? cost : this.stepCostMs * 0.98 + cost * 0.02;
@@ -701,6 +711,24 @@ export class Sim {
   }
 
   private readonly readChannel = (name: string): number => this.read(name);
+
+  /**
+   * The core has put the car back at rest at its last healthy pose. Say so,
+   * with what went wrong and the last tuning edit (the usual cause); a
+   * Rapier body still carries the bad motion, so reset it too.
+   */
+  private onDiverged(): void {
+    const h = this.world.health(this.vehicle);
+    this.divergedSeen = h.recoveries;
+    const what = h.cause === "runaway" ? "ran away" : "went non-finite";
+    const where = h.channel ? ` (${h.channel} ${what})` : ` (state ${what})`;
+    const change = this.lastTuningChange ? ` · last tuning change: ${this.lastTuningChange}` : "";
+    this.divergence = {
+      text: `Simulation diverged and the car was reset${where}${change}`,
+      atMs: performance.now(),
+    };
+    if (this.body) this.reset();
+  }
 
   /**
    * One frame from the highest-priority active device: touch while a finger

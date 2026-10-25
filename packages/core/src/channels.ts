@@ -182,6 +182,7 @@ export const CHANNEL_NAMES = [
   "SteeringTorqueSlice6",
   "SteeringTorqueSlice7",
   "ColumnDamping",
+  "Diverged",
 ] as const;
 
 /** A telemetry channel name; `World.read` checks it at compile time. */

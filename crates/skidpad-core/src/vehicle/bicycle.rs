@@ -226,6 +226,19 @@ impl BicycleVehicle {
         self.kingpin_prev = 0.0;
         self.axle_fy_prev = [0.0, 0.0];
         self.compliance_steer = [0.0, 0.0];
+        // The last substep's outputs too, so telemetry written straight
+        // after a reset shows a car at rest (and nothing left over from a
+        // diverged state).
+        self.steer_angle = 0.0;
+        self.long_accel = 0.0;
+        self.lat_accel = 0.0;
+        self.drag_force = 0.0;
+        self.steering_torque = 0.0;
+        self.rack_force = 0.0;
+        self.steering_parts = [0.0; 5];
+        self.assist_telemetry = AssistTelemetry::default();
+        self.aero_lift = [0.0, 0.0];
+        self.surface_grips = [1.0; 4];
         for ax in &mut self.axles {
             *ax = AxleState::default();
         }
