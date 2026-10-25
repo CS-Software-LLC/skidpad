@@ -90,6 +90,7 @@ export function App() {
   const [padSteerTime, setPadSteerTime] = useState(() => readStoredPadSteerTime());
   const [padSpeedHalf, setPadSpeedHalf] = useState(() => readStoredPadSpeedHalf());
   const [surface, setSurface] = useState<SurfaceId>("asphaltDry");
+  const [roadTexture, setRoadTexture] = useState(true);
   // Counts definition changes (preset switches, tuning edits) so the parts
   // of the tree that read `sim.definition` at render pick them up.
   const [revision, setRevision] = useState(0);
@@ -230,6 +231,17 @@ export function App() {
               </option>
             ))}
           </select>
+          <label title="Surface roughness and kerb ridges under the tires, felt through the suspension and the wheel">
+            <input
+              type="checkbox"
+              checked={roadTexture}
+              onChange={(e) => {
+                setRoadTexture(e.target.checked);
+                sim.setRoadTexture(e.target.checked);
+              }}
+            />
+            Road texture
+          </label>
           <select
             aria-label="Map"
             value={mapKind}

@@ -35,7 +35,7 @@ use crate::drivetrain::{Drivetrain, WheelDyn};
 use crate::geom::{Quat, Vec3};
 use crate::input::VehicleInput;
 use crate::snapshot::Snapshottable;
-use crate::surface::SurfaceTable;
+use crate::surface::{SurfaceTable, Texture};
 use crate::telemetry as t;
 use crate::tire::{
     clamp_to_friction, kinematic_slip, low_speed_fade, TireInput, TireModel, TireOutput,
@@ -285,6 +285,12 @@ pub struct WheelState {
     pub surface_grip: f64,
     /// Ploughing drag the surface put on the chassis at this contact, N.
     pub surface_drag: f64,
+    /// Road texture under the contact this substep (ADR-0036); zero on a
+    /// smooth surface.
+    pub texture: Texture,
+    /// Force of the texture's slope on the wheel along its heading, N,
+    /// negative climbing a rise (ADR-0036).
+    pub texture_fx: f64,
     /// Geometric lateral load transfer on this wheel through its axle's
     /// roll centre, N (ADR-0016). Positive adds load.
     pub geometric_load: f64,
@@ -734,8 +740,22 @@ impl FourWheelVehicle {
             }
             w.compliance_steer = compliance[i];
             let dn = down.dot(c.normal);
+            // Road texture (ADR-0036): the ground under the hit is raised
+            // by the surface's height there, and rises at the rate the
+            // contact moves across its slope.
+            let surface = surfaces.get(c.surface_id);
+            let mut texture_rate = None;
+            w.texture = Texture::default();
             let hit_t = if c.hit && dn < -1e-6 {
-                let tt = (c.point - origin).dot(c.normal) / dn;
+                let mut tt = (c.point - origin).dot(c.normal) / dn;
+                if surface.is_textured() && tt.is_finite() {
+                    let p = origin + down * tt;
+                    let tex = surface.texture(p.x, p.y);
+                    tt += tex.height / dn;
+                    let v = self.vel + omega_world.cross(origin - self.pos) - c.surface_velocity;
+                    texture_rate = Some(-(tex.dx * v.x + tex.dy * v.y) / dn);
+                    w.texture = tex;
+                }
                 if tt.is_finite() {
                     Some(tt)
                 } else {
@@ -763,7 +783,10 @@ impl FourWheelVehicle {
                     let ground =
                         g.ray_length - g.tire_static_deflection - s.travel_droop - tt + jack;
                     let v_origin = self.vel + omega_world.cross(origin - self.pos);
-                    let ground_rate = (v_origin - c.surface_velocity).dot(c.normal) / dn;
+                    let mut ground_rate = (v_origin - c.surface_velocity).dot(c.normal) / dn;
+                    if let Some(r) = texture_rate {
+                        ground_rate += r;
+                    }
                     w.travel = w.hub_travel;
                     w.travel_rate = w.hub_rate;
                     w.tire_deflection = ground - w.hub_travel;
@@ -789,6 +812,9 @@ impl FourWheelVehicle {
                         g.ray_length - self.def.axles[i / 2].suspension.travel_droop - tt + jack;
                     let v_origin = self.vel + omega_world.cross(origin - self.pos);
                     w.travel_rate = (v_origin - c.surface_velocity).dot(c.normal) / dn;
+                    if let Some(r) = texture_rate {
+                        w.travel_rate += r;
+                    }
                     w.contact_point = origin + down * tt;
                     w.hub = origin + down * (tt - g.radius);
                 }
@@ -1133,7 +1159,17 @@ impl FourWheelVehicle {
             } else {
                 Vec3::ZERO
             };
-            let f_tire = fwd * out.fx + lat * out.fy;
+            let mut f_tire = fwd * out.fx + lat * out.fy;
+            // The texture's slope tilts the ground under the tire, so the
+            // load pushes the wheel back up a rise and forward down a fall
+            // (ADR-0036). The force acts through the wheel centre; it
+            // reaches the chassis here and the steering below.
+            w.texture_fx = 0.0;
+            if w.in_contact && w.load > 0.0 && w.texture != Texture::default() {
+                let slope = w.texture.dx * fwd.x + w.texture.dy * fwd.y;
+                w.texture_fx = -w.load * slope;
+                f_tire = f_tire + fwd * w.texture_fx;
+            }
             // Lateral force of the axle in the body frame, for the roll
             // centre of the next substep.
             let f_body = orient.inverse_rotate(f_tire);
@@ -1340,6 +1376,16 @@ impl FourWheelVehicle {
                 parts[1] -= st.mechanical_trail * w.out.fy;
                 parts[2] -= g.side * st.scrub_radius * w.out.fx;
                 parts[3] += lift;
+                // The texture's kick at the wheel centre (ADR-0036), whose
+                // lever about the kingpin is the scrub radius plus the
+                // axis's inboard lean over one wheel radius; it counts with
+                // the scrub-radius share.
+                if w.texture_fx != 0.0 {
+                    let lever = st.scrub_radius + g.radius * self.derived.kpi_tan;
+                    let kick = -g.side * lever * w.texture_fx;
+                    kingpin += kick;
+                    parts[2] += kick;
+                }
             }
         }
         self.steering_torque = self.def.hand_wheel_torque_at(kingpin, self.speed());

@@ -447,6 +447,25 @@ export function validateSurfaces(surfaces: unknown): ValidationResult {
     if (drag !== undefined && (!isNum(drag) || drag < 0 || drag > 1)) {
       errors.push(`surfaces[${i}].drag must be between 0 and 1 (got ${String(drag)})`);
     }
+    const roughness = v.roughness;
+    if (roughness !== undefined && (!isNum(roughness) || roughness < 0 || roughness > 8192)) {
+      errors.push(`surfaces[${i}].roughness must be between 0 and 8192 (got ${String(roughness)})`);
+    }
+    const ridgeHeight = v.ridgeHeight;
+    if (
+      ridgeHeight !== undefined &&
+      (!isNum(ridgeHeight) || ridgeHeight < 0 || ridgeHeight > 0.05)
+    ) {
+      errors.push(
+        `surfaces[${i}].ridgeHeight must be between 0 and 0.05 m (got ${String(ridgeHeight)})`,
+      );
+    }
+    const ridgeSpacing = v.ridgeSpacing;
+    if (isNum(ridgeHeight) && ridgeHeight > 0 && (!isNum(ridgeSpacing) || ridgeSpacing < 0.1)) {
+      errors.push(
+        `surfaces[${i}].ridgeSpacing must be at least 0.1 m when ridgeHeight is set (got ${String(ridgeSpacing)})`,
+      );
+    }
   });
   return { ok: errors.length === 0, errors, warnings };
 }

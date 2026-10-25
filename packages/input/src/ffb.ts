@@ -123,6 +123,15 @@ export interface FfbScalerOptions {
    */
   runawayRate?: number;
   runawayTime?: number;
+  /**
+   * Road detail (ADR-0036): gain on the part of the torque faster than
+   * `detailCutoff`, on top of `gain` (default 1, the torque as the model
+   * gives it). Above 1 the road texture and kerbs come through stronger
+   * without making the steering itself heavier; 0 removes them.
+   */
+  detail?: number;
+  /** Corner of the first-order split between steering and detail, Hz (default 10). */
+  detailCutoff?: number;
 }
 
 /**
@@ -144,6 +153,8 @@ export class FfbScaler {
   slewRate: number;
   runawayRate: number;
   runawayTime: number;
+  detail: number;
+  detailCutoff: number;
   /** Last normalised output. */
   output = 0;
   /** Last requested torque at the rim, gain × car torque, N·m (before clipping). */
@@ -157,6 +168,8 @@ export class FfbScaler {
   private lastAngle: number | undefined;
   private runawayFor = 0;
   private trippedReason: string | undefined;
+  /** The torque below `detailCutoff`, N·m. */
+  private slow = 0;
 
   constructor(options: FfbScalerOptions = {}) {
     this.gain = options.gain ?? 0.5;
@@ -167,6 +180,8 @@ export class FfbScaler {
     this.slewRate = options.slewRate ?? 5;
     this.runawayRate = options.runawayRate ?? 10;
     this.runawayTime = options.runawayTime ?? 0.1;
+    this.detail = options.detail ?? 1;
+    this.detailCutoff = options.detailCutoff ?? 10;
   }
 
   /** Why the runaway guard cut the output, or undefined while it has not. */
@@ -203,7 +218,17 @@ export class FfbScaler {
    * (see `watch`): gain, clipping, smoothing and the slew limit.
    */
   shape(torque: number, dt: number): number {
-    this.requested = this.gain * torque;
+    // Road detail: split the torque at `detailCutoff` and scale the fast
+    // part. At a detail of 1 the slow part just follows the torque, so
+    // turning the detail up never starts with a jump.
+    let t = torque;
+    if (this.detail !== 1 && dt > 0 && this.detailCutoff > 0) {
+      this.slow += (torque - this.slow) * (1 - Math.exp(-2 * Math.PI * this.detailCutoff * dt));
+      t = this.slow + Math.max(0, this.detail) * (torque - this.slow);
+    } else {
+      this.slow = torque;
+    }
+    this.requested = this.gain * t;
     this.peak = Math.max(this.peak, Math.abs(this.requested));
     const raw = this.requested / Math.max(this.maxTorque, 1e-6);
     const limit = Math.max(0, Math.min(1, this.limit));

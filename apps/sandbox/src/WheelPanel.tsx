@@ -70,6 +70,9 @@ export function WheelPanel({
   // firmware applies; they resist motion, so raising it is safe. 2× is
   // what felt right on a G PRO (2026-10-25).
   const [columnScale, setColumnScale] = useState(2);
+  // Road detail (ADR-0036): gain on the torque above 10 Hz, the road
+  // texture and kerbs, on top of the gain. 1× is the model as it is.
+  const [detail, setDetail] = useState(1);
   // Polish items 1B, 2 and 3, on since a drive on a G PRO (2026-10-25):
   // playing the core's torque slices out between frames, a direct-drive
   // slew and smoothing, and setting the wheel's rotation to the car's lock.
@@ -217,6 +220,7 @@ export function WheelPanel({
         invert,
         maxOutput,
         columnScale,
+        detail,
         slewRate,
         smoothing: smoothingMs / 1000,
         playoutRate: playout ? playoutRate : 0,
@@ -239,6 +243,7 @@ export function WheelPanel({
       sink.current.scaler.invert = invert;
       sink.current.maxOutput = maxOutput;
       sink.current.columnScale = columnScale;
+      sink.current.scaler.detail = detail;
       sink.current.scaler.slewRate = slewRate;
       sink.current.scaler.smoothing = smoothingMs / 1000;
       sink.current.playoutRate = playout ? playoutRate : 0;
@@ -249,6 +254,7 @@ export function WheelPanel({
     invert,
     maxOutput,
     columnScale,
+    detail,
     slewRate,
     smoothingMs,
     playout,
@@ -402,6 +408,18 @@ export function WheelPanel({
                 onChange={(e) => setColumnScale(Number(e.target.value))}
               />
               {columnScale.toFixed(2)}×
+            </label>
+            <label title="Gain on the fast part of the torque (above 10 Hz): road texture and kerbs, without making the steering heavier. 1× is the car as modelled">
+              Road detail
+              <input
+                type="range"
+                min={0}
+                max={4}
+                step={0.25}
+                value={detail}
+                onChange={(e) => setDetail(Number(e.target.value))}
+              />
+              {detail.toFixed(2)}×
             </label>
             <label>
               <input

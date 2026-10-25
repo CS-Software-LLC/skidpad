@@ -449,6 +449,36 @@ describe("force feedback", () => {
     expect(smooth.scale(10, 0.01)).toBeCloseTo(0.1);
   });
 
+  it("scales the fast part of the torque by the road detail and leaves steady torque alone", async () => {
+    const { FfbScaler } = await import("../src/index.js");
+    const opts = { maxTorque: 100, smoothing: 0, gain: 1, slewRate: Infinity } as const;
+    const plain = new FfbScaler(opts);
+    const boosted = new FfbScaler({ ...opts, detail: 3 });
+    const dt = 0.002;
+    // A steady 2 N·m plus a 50 Hz ripple of 0.1 N·m, for two seconds.
+    let peakA = 0;
+    let peakB = 0;
+    let steady = 0;
+    for (let k = 0; k < 1000; k++) {
+      const torque = 2 + 0.1 * Math.sin(2 * Math.PI * 50 * k * dt);
+      const a = plain.scale(torque, dt) * 100;
+      const b = boosted.scale(torque, dt) * 100;
+      if (k >= 500) {
+        peakA = Math.max(peakA, Math.abs(a - 2));
+        peakB = Math.max(peakB, Math.abs(b - 2));
+        steady += (b - a) / 500;
+      }
+    }
+    // The ripple about triples, the steady torque is untouched.
+    const ripple = peakB / peakA;
+    expect(ripple).toBeGreaterThan(2.5);
+    expect(ripple).toBeLessThan(3.2);
+    expect(Math.abs(steady)).toBeLessThan(0.01);
+    // A detail of 1 is the torque as given.
+    const one = new FfbScaler({ ...opts, detail: 1 });
+    expect(one.scale(1.234, dt)).toBe(plain.scale(1.234, dt));
+  });
+
   it("reports the requested and sent torque, the clip flag and the peak", async () => {
     const { FfbScaler } = await import("../src/index.js");
     const s = new FfbScaler({

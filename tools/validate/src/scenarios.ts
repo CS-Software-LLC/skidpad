@@ -206,7 +206,10 @@ export function runSurfaces(
   const out: Record<string, SurfaceBraking> = {};
   for (const id of BRAKING_SURFACES) {
     const surface = surfaces.find((s) => s.id === id)!;
-    const config = { maxAccelTime: 0, surface };
+    // The friction and drag only: the goldens are stops on a smooth
+    // surface, and road texture (ADR-0036) is a feel feature.
+    const { grip, rollingResistance, drag } = surface;
+    const config = { maxAccelTime: 0, surface: { grip, rollingResistance, drag } };
     const locked = sp.runScenario({ scenario: "straightLine", definition: def, config });
     const abs = sp.runScenario({ scenario: "straightLine", definition: withAbs, config });
     out[id] = {
