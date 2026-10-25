@@ -37,9 +37,9 @@ the steering is shaped before it reaches the car:
 - `deadzone` (default 0.08) ignores stick drift around the centre.
 - `steerExponent` (default 2) is the response curve: half stick asks for
   about a quarter of the range. 1 is linear.
-- `steerRate` (default 2) is how fast the steering winds on, in full locks
-  per second. The stick asks for an angle and the wheel turns toward it at
-  this rate, so full stick reaches full lock after 0.5 s rather than in one
+- `steerRate` (default 4/3) is how fast the steering winds on, in full
+  locks per second. The stick asks for an angle and the wheel turns toward
+  it at this rate, so full stick reaches full lock after 0.75 s rather than in one
   frame, the way console racing games turn the wheel. It is also a
   property, so a settings slider can change it while driving; the
   sandbox's **Pad steering** slider sets the time to full lock (its
@@ -47,6 +47,15 @@ the steering is shaped before it reaches the car:
 - `steerReturnRate` (default 5) is how fast the steering unwinds toward
   centre, faster than winding on so letting go straightens the car
   promptly.
+- `steerSpeedHalf` (default 20 m/s, about 72 km/h) is the speed at which
+  full stick asks for half lock. The lock falls as `1 / (1 + (v / half)²)`,
+  so at speed the stick's whole travel covers the few degrees a corner
+  needs and a small thumb movement is a small correction, while full lock
+  is still there when slow. It needs the car's speed: set the `speed`
+  property (m/s) before each read; left at 0 nothing is scaled. Also a live
+  property (the sandbox's **Pad at speed** slider, in km/h); `Infinity`
+  turns it off. It scales the wound-on angle, so turn-in takes the same
+  time at any speed.
 - `steerSensitivity` (default 1) is the fraction of full lock that full
   stick asks for, also a live property.
 

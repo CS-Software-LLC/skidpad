@@ -25,8 +25,9 @@ world.setInput(car, input.update(1 / 60));
 
 `GamepadInput` softens the stick for driving: a square response curve
 (`steerExponent`), and the wheel turns toward the stick over time, winding
-on at 2 full locks a second (`steerRate`, also a live property) and back
-to centre at 5 (`steerReturnRate`); pass the step to `poll(dt)`.
+on in 0.75 s (`steerRate`, also a live property) and back to centre at 5
+locks a second (`steerReturnRate`), with less lock as speed rises (set
+`speed` each frame; `steerSpeedHalf`); pass the step to `poll(dt)`.
 
 `WheelInput` reads wheels and pedals through calibrated, plain-JSON profiles;
 `AxisFinder` and `AxisCalibrator` build a setup flow; `TouchInput` is a

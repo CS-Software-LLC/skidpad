@@ -51,6 +51,7 @@ const WHEEL_NAMES = ["FL", "FR", "RL", "RR"] as const;
 const SOUND_KEY = "skidpad.sandbox.sound";
 const VOLUME_KEY = "skidpad.sandbox.volume";
 const PAD_STEER_TIME_KEY = "skidpad.sandbox.padSteerTime";
+const PAD_SPEED_HALF_KEY = "skidpad.sandbox.padSpeedHalf";
 
 function readStoredVolume(): number {
   const v = Number(localStorage.getItem(VOLUME_KEY));
@@ -59,7 +60,15 @@ function readStoredVolume(): number {
 
 function readStoredPadSteerTime(): number {
   const v = Number(localStorage.getItem(PAD_STEER_TIME_KEY));
-  return Number.isFinite(v) && v > 0 && localStorage.getItem(PAD_STEER_TIME_KEY) !== null ? v : 0.5;
+  return Number.isFinite(v) && v > 0 && localStorage.getItem(PAD_STEER_TIME_KEY) !== null
+    ? v
+    : 0.75;
+}
+
+/** km/h at which full stick gives half lock on a gamepad. */
+function readStoredPadSpeedHalf(): number {
+  const v = Number(localStorage.getItem(PAD_SPEED_HALF_KEY));
+  return Number.isFinite(v) && v > 0 && localStorage.getItem(PAD_SPEED_HALF_KEY) !== null ? v : 72;
 }
 
 export function App() {
@@ -75,6 +84,7 @@ export function App() {
   const [sound, setSound] = useState(false);
   const [volume, setVolume] = useState(() => readStoredVolume());
   const [padSteerTime, setPadSteerTime] = useState(() => readStoredPadSteerTime());
+  const [padSpeedHalf, setPadSpeedHalf] = useState(() => readStoredPadSpeedHalf());
   const [surface, setSurface] = useState<SurfaceId>("asphaltDry");
   // Counts definition changes (preset switches, tuning edits) so the parts
   // of the tree that read `sim.definition` at render pick them up.
@@ -146,6 +156,11 @@ export function App() {
     if (sim) sim.gamepad.steerRate = 1 / padSteerTime;
     localStorage.setItem(PAD_STEER_TIME_KEY, String(padSteerTime));
   }, [sim, padSteerTime]);
+
+  useEffect(() => {
+    if (sim) sim.gamepad.steerSpeedHalf = padSpeedHalf / 3.6;
+    localStorage.setItem(PAD_SPEED_HALF_KEY, String(padSpeedHalf));
+  }, [sim, padSpeedHalf]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -335,6 +350,21 @@ export function App() {
               onChange={(e) => setPadSteerTime(Number(e.target.value))}
             />
             {padSteerTime.toFixed(2)} s
+          </label>
+          <label
+            className="volume"
+            title="Speed at which full stick gives half lock on a gamepad; lower is calmer at speed"
+          >
+            Pad at speed
+            <input
+              type="range"
+              min={30}
+              max={180}
+              step={5}
+              value={padSpeedHalf}
+              onChange={(e) => setPadSpeedHalf(Number(e.target.value))}
+            />
+            {padSpeedHalf} km/h
           </label>
           <button
             onClick={async () => {
