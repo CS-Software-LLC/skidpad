@@ -1,5 +1,13 @@
 # @skidpad/rapier
 
+## 0.11.0
+
+### Patch Changes
+
+- Updated dependencies [4fdd76f]
+- Updated dependencies [d84f818]
+  - @skidpad/core@0.11.0
+
 ## 0.10.0
 
 ### Patch Changes
