@@ -124,6 +124,8 @@ fn canonical_key(key: &str) -> &str {
 pub fn import(file: &TirFile) -> TirImport {
     let mut params = MagicFormulaParams::default();
     let mut warnings = Vec::new();
+    let mut has_fittyp = false;
+    let mut format_is_mf6 = false;
 
     for section in &file.sections {
         match section.name.as_str() {
@@ -155,6 +157,7 @@ pub fn import(file: &TirFile) -> TirImport {
                 for (k, v) in &section.entries {
                     match v {
                         TirValue::Number(n) => {
+                            has_fittyp |= k == "FITTYP";
                             if !params.set_by_key(canonical_key(k), *n) {
                                 warnings.push(TirWarning {
                                     section: section.name.clone(),
@@ -165,7 +168,11 @@ pub fn import(file: &TirFile) -> TirImport {
                                 });
                             }
                         }
-                        TirValue::Text(_) => {}
+                        TirValue::Text(t) => {
+                            if k == "PROPERTY_FILE_FORMAT" {
+                                format_is_mf6 = is_mf6_format(t);
+                            }
+                        }
                     }
                 }
             }
@@ -179,6 +186,11 @@ pub fn import(file: &TirFile) -> TirImport {
         }
     }
 
+    if !has_fittyp && format_is_mf6 {
+        params.fittyp = 61.0;
+    }
+    version_warnings(file, &params, &mut warnings);
+
     let mut errors = Vec::new();
     params.validate("tire", &mut errors);
     for e in errors {
@@ -190,6 +202,44 @@ pub fn import(file: &TirFile) -> TirImport {
     }
 
     TirImport { params, warnings }
+}
+
+/// `PROPERTY_FILE_FORMAT` values that name MF 6.x (`MF61`, `MF_62`, …).
+fn is_mf6_format(t: &str) -> bool {
+    let t = t.trim().to_ascii_uppercase().replace(['_', '.', ' '], "");
+    t.starts_with("MF6") || t.starts_with("MFTYRE6")
+}
+
+/// Keys that exist in only one of the two camber versions. A file that sets
+/// one of these to a non-zero value for the other version is told it is
+/// unused, since that usually means `FITTYP` is wrong.
+const MF6_ONLY: &[&str] = &[
+    "PKY5", "PKY6", "PKY7", "PEY5", "RBX3", "RBY4", "QBZ6", "QDZ10", "QDZ11",
+];
+const MF52_ONLY: &[&str] = &["PHY3", "QBZ4"];
+
+fn version_warnings(file: &TirFile, params: &MagicFormulaParams, warnings: &mut Vec<TirWarning>) {
+    let (unused, why) = if params.is_mf6() {
+        (MF52_ONLY, "an MF 5.2 term with no MF 6.x meaning; ignored")
+    } else {
+        (
+            MF6_ONLY,
+            "an MF 6.x term, unused because FITTYP selects the MF 5.2 equations",
+        )
+    };
+    for section in &file.sections {
+        for (k, v) in &section.entries {
+            if let TirValue::Number(n) = v {
+                if *n != 0.0 && unused.contains(&k.as_str()) {
+                    warnings.push(TirWarning {
+                        section: section.name.clone(),
+                        key: k.clone(),
+                        message: String::from(why),
+                    });
+                }
+            }
+        }
+    }
 }
 
 /// Convenience: parse and import in one call.
@@ -216,6 +266,30 @@ mod tests {
         assert_eq!(imp.params.pky1, -21.5);
         assert_eq!(imp.params.pcy1, 1.3);
         assert!(imp.warnings.iter().any(|w| w.key == "BOGUS"));
+    }
+
+    #[test]
+    fn selects_the_camber_version_from_the_file() {
+        let v52 = import_str(
+            "[MODEL]\nPROPERTY_FILE_FORMAT = 'PAC2002'\n[LATERAL_COEFFICIENTS]\nPKY6 = -0.9\n",
+        );
+        assert!(!v52.params.is_mf6());
+        assert!(v52.warnings.iter().any(|w| w.key == "PKY6"));
+
+        let by_fittyp =
+            import_str("[MODEL]\nFITTYP = 61\n[LATERAL_COEFFICIENTS]\nPKY6 = -0.9\nPHY3 = 0.02\n");
+        assert!(by_fittyp.params.is_mf6());
+        assert_eq!(by_fittyp.params.pky6, -0.9);
+        assert!(!by_fittyp
+            .warnings
+            .iter()
+            .any(|w| w.key == "PKY6" || w.key == "FITTYP"));
+        assert!(by_fittyp.warnings.iter().any(|w| w.key == "PHY3"));
+
+        let by_format = import_str("[MODEL]\nPROPERTY_FILE_FORMAT = 'MF_62'\n");
+        assert!(by_format.params.is_mf6());
+        let fittyp_wins = import_str("[MODEL]\nPROPERTY_FILE_FORMAT = 'MF61'\nFITTYP = 52\n");
+        assert!(!fittyp_wins.params.is_mf6());
     }
 
     #[test]
