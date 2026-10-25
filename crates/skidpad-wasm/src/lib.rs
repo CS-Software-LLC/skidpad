@@ -569,6 +569,55 @@ pub unsafe extern "C" fn sp_world_ai_status(
     )
 }
 
+/// Number of values `sp_world_health` writes.
+pub const HEALTH_LEN: usize = 4;
+
+/// Write what the divergence guard has done to a vehicle, `[recoveries,
+/// lastStep, cause, channel]`, into `out`: cause 0 none, 1 non-finite, 2
+/// runaway; channel the telemetry index of the first bad channel on the
+/// last reset, or -1. Returns 4.
+///
+/// # Safety
+/// `out` must point to at least `cap` writable f64 values.
+#[no_mangle]
+pub unsafe extern "C" fn sp_world_health(
+    handle: u32,
+    vehicle: u32,
+    out: *mut f64,
+    cap: usize,
+) -> i32 {
+    if out.is_null() || cap < HEALTH_LEN {
+        set_error("health needs 4 values");
+        return ERR_BUFFER_TOO_SMALL;
+    }
+    let buf = std::slice::from_raw_parts_mut(out, cap);
+    unwrap_code(
+        with_world(handle, |w| w.health(vehicle as usize)),
+        |r| match r {
+            Ok(h) => {
+                buf[0] = h.recoveries as f64;
+                buf[1] = h.last_step as f64;
+                buf[2] = h.cause.as_u32() as f64;
+                buf[3] = h.channel.map_or(-1.0, |c| c as f64);
+                HEALTH_LEN as i32
+            }
+            Err(e) => world_error_code(e),
+        },
+    )
+}
+
+/// Forget the divergence guard's record of a vehicle.
+#[no_mangle]
+pub extern "C" fn sp_world_clear_health(handle: u32, vehicle: u32) -> i32 {
+    unwrap_code(
+        with_world(handle, |w| w.clear_health(vehicle as usize)),
+        |r| match r {
+            Ok(()) => OK,
+            Err(e) => world_error_code(e),
+        },
+    )
+}
+
 #[no_mangle]
 pub extern "C" fn sp_world_step_count(handle: u32) -> u64 {
     with_world(handle, |w| w.step_count).unwrap_or(0)

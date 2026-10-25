@@ -4,6 +4,7 @@ import {
   type ChannelName,
   type LodTarget,
   type AiStatus,
+  type VehicleHealth,
   type Lod,
   type PartialVehicleDefinition,
   type SurfaceDefinition,
@@ -306,6 +307,14 @@ export class WorkerWorld {
 
   aiStatus(vehicle: number): Promise<AiStatus | null> {
     return this.call("aiStatus", vehicle);
+  }
+
+  health(vehicle: number): Promise<VehicleHealth> {
+    return this.call("health", vehicle);
+  }
+
+  clearHealth(vehicle: number): Promise<void> {
+    return this.call("clearHealth", vehicle);
   }
 
   snapshot(vehicle: number): Promise<Uint8Array> {

@@ -45,6 +45,16 @@ Firefox, WebKit, Node, on x86 and ARM.
   as a yaw angle, so resetting onto a track direction needs no
   `Math.atan2`: the core converts it with its own deterministic `atan2`.
 
+- A divergence guard (ADR-0035). After every step the core checks each
+  car's state; a NaN or infinite value, or a speed or spin rate no car
+  reaches (1000 m/s, 100 rad/s body rate, 5000 rad/s wheel spin), resets
+  the car to rest at its last healthy position and heading and zeroes its
+  impulse to an external body for that step. `world.health(car)` reports
+  the count, the step, the cause and the first bad channel, and the
+  `Diverged` telemetry channel carries the count. A healthy car is never
+  touched, and recoveries are as deterministic as any other step. Under an
+  external host, reset your body too when `Diverged` changes.
+
 ## What is not covered
 
 - Your host physics engine. For full-scene determinism use a deterministic

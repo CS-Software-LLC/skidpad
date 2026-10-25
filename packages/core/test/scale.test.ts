@@ -174,3 +174,31 @@ describe("LodController", () => {
     w.free();
   });
 });
+
+describe("divergence guard", () => {
+  it("resets a car whose tuning blows up and reports it", () => {
+    const w = sp.createWorld(2);
+    const healthy = w.addVehicle({ name: "healthy" });
+    // Passes validation, but a 60 Hz integrator cannot hold a near-rigid
+    // spring.
+    const axle = { suspension: { springRate: 1e9 } };
+    const bad = w.addVehicle({
+      name: "unstable",
+      simulation: { substepRateHz: 60 },
+      axles: [axle, axle],
+    });
+    w.setInput(bad, { throttle: 0.5 });
+    w.stepMany(1 / 60, 600);
+    const h = w.health(bad);
+    expect(h.recoveries).toBeGreaterThan(0);
+    expect(h.cause).not.toBe("none");
+    expect(h.lastStep).toBeGreaterThan(0);
+    expect(w.read(bad, "Diverged")).toBe(h.recoveries);
+    expect(Array.from(w.telemetryView(bad)).every(Number.isFinite)).toBe(true);
+    expect(w.health(healthy)).toEqual({ recoveries: 0, lastStep: 0, cause: "none", channel: null });
+    w.clearHealth(bad);
+    expect(w.health(bad).recoveries).toBe(0);
+    expect(w.read(bad, "Diverged")).toBe(0);
+    w.free();
+  });
+});

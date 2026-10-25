@@ -45,7 +45,11 @@ interface HudState {
   staticLoad: number;
   surface: string;
   surfaceGrip: number;
+  /** The divergence notice, for a few seconds after the core reset the car. */
+  diverged: string | undefined;
 }
+
+const DIVERGED_NOTICE_MS = 10_000;
 
 const WHEEL_NAMES = ["FL", "FR", "RL", "RR"] as const;
 const SOUND_KEY = "skidpad.sandbox.sound";
@@ -427,6 +431,10 @@ function Hud({ sim }: { sim: Sim }) {
         staticLoad: (sim.definition.chassis.mass * 9.80665) / 4,
         surface: surfaces[w.read(v, "SurfaceId_FL")]?.name ?? `#${w.read(v, "SurfaceId_FL")}`,
         surfaceGrip: w.read(v, "SurfaceGrip_FL"),
+        diverged:
+          sim.divergence && performance.now() - sim.divergence.atMs < DIVERGED_NOTICE_MS
+            ? sim.divergence.text
+            : undefined,
         wheels: WHEEL_NAMES.map((n) => ({
           load: w.read(v, `TireLoad_${n}`),
           slipRatio: w.read(v, `SlipRatio_${n}`),
@@ -445,6 +453,7 @@ function Hud({ sim }: { sim: Sim }) {
       {hud && (
         <>
           <div className="big">{hud.speedKmh.toFixed(0)} km/h</div>
+          {hud.diverged && <div className="diverged">{hud.diverged}</div>}
           <table>
             <tbody>
               <tr>

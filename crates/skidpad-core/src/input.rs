@@ -24,13 +24,16 @@ impl VehicleInput {
     /// Number of `f64` slots this input occupies in the shared input buffer.
     pub const STRIDE: usize = 6;
 
+    /// Each value clamped to its range. A non-finite value reads as zero:
+    /// `clamp` passes NaN through, and one NaN pedal from a host would
+    /// otherwise poison the whole vehicle state.
     pub fn clamped(self) -> Self {
         Self {
-            steer: skidpad_math::clamp(self.steer, -1.0, 1.0),
-            throttle: skidpad_math::clamp(self.throttle, 0.0, 1.0),
-            brake: skidpad_math::clamp(self.brake, 0.0, 1.0),
-            handbrake: skidpad_math::clamp(self.handbrake, 0.0, 1.0),
-            clutch: skidpad_math::clamp(self.clutch, 0.0, 1.0),
+            steer: skidpad_math::clamp(finite_or_zero(self.steer), -1.0, 1.0),
+            throttle: skidpad_math::clamp(finite_or_zero(self.throttle), 0.0, 1.0),
+            brake: skidpad_math::clamp(finite_or_zero(self.brake), 0.0, 1.0),
+            handbrake: skidpad_math::clamp(finite_or_zero(self.handbrake), 0.0, 1.0),
+            clutch: skidpad_math::clamp(finite_or_zero(self.clutch), 0.0, 1.0),
             gear: if self.gear.is_finite() {
                 skidpad_math::clamp(self.gear, -1.0, 16.0)
             } else {
@@ -60,5 +63,14 @@ impl VehicleInput {
             s[4] = self.clutch;
             s[5] = self.gear;
         }
+    }
+}
+
+#[inline]
+fn finite_or_zero(x: f64) -> f64 {
+    if x.is_finite() {
+        x
+    } else {
+        0.0
     }
 }

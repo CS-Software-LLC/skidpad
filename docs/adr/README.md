@@ -41,3 +41,4 @@ Rejected.
 | [0032](0032-sub-frame-torque-playout.md)               | Sub-frame steering torque for force-feedback playout                    | Proposed                  |
 | [0033](0033-speed-sensitive-column-damping.md)         | Speed-sensitive column damping                                          | Proposed                  |
 | [0034](0034-speed-sensitive-power-assist.md)           | Speed-sensitive power assist                                            | Proposed                  |
+| [0035](0035-divergence-guard.md)                       | Runtime divergence guard                                                | Proposed                  |
