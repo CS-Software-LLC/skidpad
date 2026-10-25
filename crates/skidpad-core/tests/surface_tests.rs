@@ -15,6 +15,7 @@ fn ice() -> Surface {
         grip: 0.2,
         rolling_resistance: 0.8,
         drag: 0.0,
+        ..Surface::REFERENCE
     }
 }
 
@@ -23,6 +24,7 @@ fn gravel() -> Surface {
         grip: 0.6,
         rolling_resistance: 2.0,
         drag: 0.04,
+        ..Surface::REFERENCE
     }
 }
 
@@ -211,6 +213,7 @@ fn rolling_resistance_and_ploughing_slow_a_coasting_car() {
                 grip: 1.0,
                 rolling_resistance: 3.0,
                 drag: 0.0,
+                ..Surface::REFERENCE
             },
             model,
         );

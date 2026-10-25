@@ -164,6 +164,8 @@ export class Sim {
   hostKind: HostKind = "builtin";
   /** Surface id (index into the preset surface table) of the ground the car drives on. */
   surfaceId = 0;
+  /** Whether the surfaces carry their road texture, roughness and kerb ridges (ADR-0036). */
+  roadTexture = true;
   /**
    * Speed-sensitive steering for keyboards, as the core's steering assist
    * (ADR-0013): the road-wheel angle is capped so that the lateral
@@ -222,7 +224,7 @@ export class Sim {
     this.sp = await init();
     this.recorder = new TelemetryRecorder({ channels: this.sp.telemetryLayout, capacity: 60 * 60 });
     this.world = this.sp.createWorld(1);
-    this.world.setSurfaces(surfaceTable());
+    this.world.setSurfaces(surfaceTable({ texture: this.roadTexture }));
     this.setPreset(this.presetId);
     this.detach = this.keyboard.attach(globalThis.window);
   }
@@ -307,6 +309,12 @@ export class Sim {
   setSurface(id: number): void {
     this.surfaceId = id;
     this.syncSurface();
+  }
+
+  /** Turn the surfaces' road texture on or off; the table is swapped in place. */
+  setRoadTexture(on: boolean): void {
+    this.roadTexture = on;
+    this.world.setSurfaces(surfaceTable({ texture: on }));
   }
 
   /**

@@ -513,6 +513,16 @@ export interface SurfaceDefinition {
   rollingResistance: number;
   /** Ploughing drag, N per N of load, opposing the contact-patch motion (gravel, sand, snow). */
   drag: number;
+  /**
+   * Road roughness (ADR-0036): the ISO 8608 displacement spectral density at
+   * 0.1 cycles/m in 10⁻⁶ m³ (class A up to 32, B 32–128, C 128–512). 0 is
+   * perfectly smooth (default).
+   */
+  roughness?: number;
+  /** Crest height of a ridge grid such as a kerb's ripples, m (ADR-0036). 0 for none. */
+  ridgeHeight?: number;
+  /** Crest-to-crest spacing of the ridge grid, m; at least 0.1 when `ridgeHeight` is set. */
+  ridgeSpacing?: number;
 }
 
 /** The vehicle models. Both read the same definition. */

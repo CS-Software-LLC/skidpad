@@ -165,6 +165,7 @@ impl BicycleVehicle {
             grip: 0.5 * (a.grip + b.grip),
             rolling_resistance: 0.5 * (a.rolling_resistance + b.rolling_resistance),
             drag: 0.5 * (a.drag + b.drag),
+            ..Surface::REFERENCE
         }
     }
 

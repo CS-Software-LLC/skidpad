@@ -37,6 +37,12 @@ pub fn cos(x: f64) -> f64 {
     libm::cos(x)
 }
 
+/// Sine and cosine together, cheaper than one call each.
+#[inline]
+pub fn sin_cos(x: f64) -> (f64, f64) {
+    libm::sincos(x)
+}
+
 #[inline]
 pub fn tan(x: f64) -> f64 {
     libm::tan(x)

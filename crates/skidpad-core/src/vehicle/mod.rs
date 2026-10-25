@@ -24,6 +24,9 @@ use crate::tire::TireShape;
 pub(crate) struct Derived {
     pub tires: [TireShape; 2],
     pub kingpin: Option<KingpinAxis>,
+    /// Tangent of the kingpin inclination, for the lever of the road
+    /// texture's kick at the hub (ADR-0036).
+    pub kpi_tan: f64,
 }
 
 impl Derived {
@@ -33,6 +36,9 @@ impl Derived {
                 def.axles.get(a).map(|x| x.tire.shape()).unwrap_or_default()
             }),
             kingpin: def.kingpin_axis(),
+            kpi_tan: skidpad_math::tan(skidpad_math::deg_to_rad(
+                def.steering.kingpin_inclination_deg,
+            )),
         }
     }
 

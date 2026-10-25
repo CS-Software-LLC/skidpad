@@ -1,7 +1,8 @@
 # Surfaces
 
 A surface is what the ground under a wheel does to the tire: a scale on its
-friction, a scale on its rolling resistance, and a ploughing drag. The host
+friction, a scale on its rolling resistance, a ploughing drag, and
+optionally a road texture of roughness and ridges. The host
 tags every wheel contact with a surface id, the world holds a small table
 that says what each id means, and the tire models apply the scales inside
 their own equations, so the surface is part of the physics, of every replay
@@ -39,6 +40,35 @@ resistance gets ([ADR-0005](https://github.com/CS-Software-LLC/skidpad/blob/main
 so a car parked on gravel sees a small viscous force and never one that
 switches sign.
 
+## Road texture
+
+A surface can also carry a texture
+([ADR-0036](https://github.com/CS-Software-LLC/skidpad/blob/main/docs/adr/0036-road-texture.md)),
+which is what makes the road felt through the seat and the steering wheel:
+
+- **`roughness`** is the road's class in ISO 8608, the displacement
+  spectral density at 0.1 cycles/m in 10⁻⁶ m³: class A (a good road) is up
+  to 32, B 32 to 128, C 128 to 512, D 512 to 2048. The core builds a fixed
+  random road with that spectrum over wavelengths from 4 m down to 0.25 m;
+  class A is under a millimetre RMS, class C a few millimetres.
+- **`ridgeHeight`** and **`ridgeSpacing`** (m) add a grid of crests, like a
+  kerb's ripples or cobbles. A wheel rolling along a world axis crosses
+  crests half the height every spacing; one rolling diagonally, full-height
+  crests. The spacing must be at least 0.1 m.
+
+The texture is a height over the world plane, so the same spot is the same
+bump every lap and in every replay. Under each four-wheel car's wheels it
+raises the ground (the suspension and tire carry it as load), and its
+slope pushes the wheel back up a rise and forward down a fall, a force that
+reaches the steering through the scrub radius and the kingpin inclination.
+That is the kick through the rim when one side runs over a kerb; with both
+front wheels on the same ridges the kicks cancel through the rack. The
+single-track model ignores texture. All three default to 0, which costs
+nothing and changes nothing.
+
+Texture costs about 3 µs per car per substep natively on a textured
+surface, so a world with many full-detail cars on rough ground pays for it.
+
 ## Where the id comes from
 
 On the built-in host, `world.setSurface(vehicle, id)` sets the surface of
@@ -54,21 +84,24 @@ The Rapier adapter takes a `surfaceId` callback that maps the collider a
 wheel ray hit to an id (see [Driving a Rapier body](/guide/rapier#surfaces)).
 
 `world.setSurfaces(list)` replaces the table: entry `i` is surface id `i`.
-Each entry is `{ grip, rollingResistance, drag }`, missing fields take the
-reference values, and the whole list is validated before anything changes
-(grip 0 to 5, drag 0 to 1 N/N).
+Each entry is `{ grip, rollingResistance, drag, roughness, ridgeHeight,
+ridgeSpacing }`, missing fields take the reference values, and the whole
+list is validated before anything changes (grip 0 to 5, drag 0 to 1 N/N,
+roughness 0 to 8192, ridge height 0 to 0.05 m).
 
 ```ts
 import { surfaceTable, surfaceId } from "@skidpad/presets";
 
-world.setSurfaces(surfaceTable());
+world.setSurfaces(surfaceTable({ texture: true }));
 world.setSurface(car, surfaceId("gravel"));
 ```
 
 ## The reference table
 
 `@skidpad/presets` exports `surfaces`, the table below in id order, with
-`surfaceTable()` giving the plain entries for `setSurfaces` and
+`surfaceTable()` giving the plain entries for `setSurfaces` (with the
+texture only when called as `surfaceTable({ texture: true })`, so a table
+that ran before texture existed runs unchanged) and
 `surfaceId("snow")` the index of a named surface. Grip is the friction
 coefficient of the surface relative to dry asphalt, from the ranges
 published for passenger-car tires (J. Y. Wong, _Theory of Ground Vehicles_,
@@ -91,6 +124,23 @@ a car coasts to a stop on sand in a few car lengths.
 | 8   | `snow`       | 0.3  | 1.5                | 0.04       | Wong ch. 1, Gillespie ch. 10: packed snow 0.2–0.35.                                                              |
 | 9   | `ice`        | 0.12 | 0.8                | 0          | Wong ch. 1, Gillespie ch. 10: smooth ice near freezing 0.1–0.15.                                                 |
 | 10  | `kerb`       | 0.9  | 1.2                | 0          | Painted concrete kerbing, a little below dry asphalt.                                                            |
+
+The texture of each entry (roughness as an ISO 8608 class, and ridges) is
+an estimate:
+
+| Name         | Roughness (10⁻⁶ m³) | Ridges            |
+| ------------ | ------------------- | ----------------- |
+| `asphaltDry` | 8 (class A)         |                   |
+| `concrete`   | 8 (class A)         |                   |
+| `asphaltWet` | 8 (class A)         |                   |
+| `cobbles`    | 256 (class C)       | 6 mm every 0.15 m |
+| `gravel`     | 256 (class C)       |                   |
+| `dirt`       | 128 (class B/C)     |                   |
+| `grass`      | 128 (class B/C)     |                   |
+| `sand`       | 64 (class B)        |                   |
+| `snow`       | 64 (class B)        |                   |
+| `ice`        | 2                   |                   |
+| `kerb`       | 8 (class A)         | 12 mm every 0.5 m |
 
 The table is a starting point, not a measurement of any particular road.
 An application is free to build its own, or to use the ids for its own

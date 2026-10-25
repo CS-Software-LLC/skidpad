@@ -84,6 +84,12 @@ export interface NamedSurface extends SurfaceDefinition {
  * figure for the motion resistance of a tire on a deformable surface (Wong
  * ch. 2, terramechanics), chosen so a car coasts to a stop on sand in a few
  * car lengths.
+ *
+ * Roughness is a road class from ISO 8608 (the displacement spectral
+ * density at 0.1 cycles/m, in 10⁻⁶ m³, whose class limits are 32, 128, 512
+ * and 2048 for A to D); which class each surface sits in, and the kerb and
+ * sett ridges, are estimates. The core sees them only through
+ * `surfaceTable({ texture: true })` (ADR-0036).
  */
 export const surfaces: readonly NamedSurface[] = [
   {
@@ -92,7 +98,9 @@ export const surfaces: readonly NamedSurface[] = [
     grip: 1,
     rollingResistance: 1,
     drag: 0,
-    source: "The reference surface the tire parameters describe.",
+    roughness: 8,
+    source:
+      "The reference surface the tire parameters describe. Texture: low ISO 8608 class A (class A runs 0–32, mean 16), for a well-kept track [ESTIMATE].",
   },
   {
     id: "concrete",
@@ -100,8 +108,9 @@ export const surfaces: readonly NamedSurface[] = [
     grip: 0.95,
     rollingResistance: 0.9,
     drag: 0,
+    roughness: 8,
     source:
-      "Wong ch. 1: peak coefficients on dry concrete a little below dry asphalt; rolling resistance slightly lower.",
+      "Wong ch. 1: peak coefficients on dry concrete a little below dry asphalt; rolling resistance slightly lower. Texture: low class A, like the asphalt [ESTIMATE].",
   },
   {
     id: "asphaltWet",
@@ -109,8 +118,9 @@ export const surfaces: readonly NamedSurface[] = [
     grip: 0.65,
     rollingResistance: 1.1,
     drag: 0,
+    roughness: 8,
     source:
-      "Gillespie ch. 10: wet pavement peak 0.5–0.8 of dry depending on tread depth and speed; the middle of that range.",
+      "Gillespie ch. 10: wet pavement peak 0.5–0.8 of dry depending on tread depth and speed; the middle of that range. Texture: the dry asphalt's.",
   },
   {
     id: "cobbles",
@@ -118,7 +128,11 @@ export const surfaces: readonly NamedSurface[] = [
     grip: 0.75,
     rollingResistance: 1.6,
     drag: 0,
-    source: "Wong ch. 1: dry cobbles 0.6–0.8 of asphalt; rolling resistance well above asphalt.",
+    roughness: 256,
+    ridgeHeight: 0.006,
+    ridgeSpacing: 0.15,
+    source:
+      "Wong ch. 1: dry cobbles 0.6–0.8 of asphalt; rolling resistance well above asphalt. Texture: ISO class C (128–512) with setts about 15 cm across and 6 mm crowns [ESTIMATE].",
   },
   {
     id: "gravel",
@@ -126,8 +140,9 @@ export const surfaces: readonly NamedSurface[] = [
     grip: 0.6,
     rollingResistance: 2,
     drag: 0.02,
+    roughness: 256,
     source:
-      "Wong ch. 1: loose gravel 0.55–0.65; rolling resistance about twice asphalt; light ploughing.",
+      "Wong ch. 1: loose gravel 0.55–0.65; rolling resistance about twice asphalt; light ploughing. Texture: ISO class C, the class of an unpaved road [ESTIMATE].",
   },
   {
     id: "dirt",
@@ -135,7 +150,9 @@ export const surfaces: readonly NamedSurface[] = [
     grip: 0.65,
     rollingResistance: 1.5,
     drag: 0.01,
-    source: "Wong ch. 1: hard-packed earth road 0.6–0.7 of asphalt.",
+    roughness: 128,
+    source:
+      "Wong ch. 1: hard-packed earth road 0.6–0.7 of asphalt. Texture: class B/C boundary for a graded dirt road [ESTIMATE].",
   },
   {
     id: "grass",
@@ -143,7 +160,9 @@ export const surfaces: readonly NamedSurface[] = [
     grip: 0.45,
     rollingResistance: 2.5,
     drag: 0.03,
-    source: "Wong ch. 1: dry grass 0.4–0.5; soft ground raises the rolling resistance severalfold.",
+    roughness: 128,
+    source:
+      "Wong ch. 1: dry grass 0.4–0.5; soft ground raises the rolling resistance severalfold. Texture: class B/C boundary, mown verge over soil [ESTIMATE].",
   },
   {
     id: "sand",
@@ -151,8 +170,9 @@ export const surfaces: readonly NamedSurface[] = [
     grip: 0.4,
     rollingResistance: 3,
     drag: 0.12,
+    roughness: 64,
     source:
-      "Wong ch. 2: the motion resistance of a tire sinking into loose sand is of the order of a tenth of the load.",
+      "Wong ch. 2: the motion resistance of a tire sinking into loose sand is of the order of a tenth of the load. Texture: class B; loose sand smooths itself out [ESTIMATE].",
   },
   {
     id: "snow",
@@ -160,7 +180,9 @@ export const surfaces: readonly NamedSurface[] = [
     grip: 0.3,
     rollingResistance: 1.5,
     drag: 0.04,
-    source: "Wong ch. 1, Gillespie ch. 10: packed snow 0.2–0.35.",
+    roughness: 64,
+    source:
+      "Wong ch. 1, Gillespie ch. 10: packed snow 0.2–0.35. Texture: class B, packed and rutted [ESTIMATE].",
   },
   {
     id: "ice",
@@ -168,7 +190,9 @@ export const surfaces: readonly NamedSurface[] = [
     grip: 0.12,
     rollingResistance: 0.8,
     drag: 0,
-    source: "Wong ch. 1, Gillespie ch. 10: smooth ice near freezing 0.1–0.15.",
+    roughness: 2,
+    source:
+      "Wong ch. 1, Gillespie ch. 10: smooth ice near freezing 0.1–0.15. Texture: near-perfectly smooth [ESTIMATE].",
   },
   {
     id: "kerb",
@@ -176,7 +200,11 @@ export const surfaces: readonly NamedSurface[] = [
     grip: 0.9,
     rollingResistance: 1.2,
     drag: 0,
-    source: "Painted concrete kerbing, a little below dry asphalt.",
+    roughness: 8,
+    ridgeHeight: 0.012,
+    ridgeSpacing: 0.5,
+    source:
+      "Painted concrete kerbing, a little below dry asphalt. Texture: the asphalt's roughness plus ripples 12 mm high every 0.5 m, a 50 Hz buzz at 90 km/h [ESTIMATE].",
   },
 ];
 
@@ -188,7 +216,22 @@ export function surfaceId(id: SurfaceId): number {
   return i < 0 ? 0 : i;
 }
 
-/** The table as plain `{grip, rollingResistance, drag}` entries for `World.setSurfaces()`. */
-export function surfaceTable(): SurfaceDefinition[] {
-  return surfaces.map(({ grip, rollingResistance, drag }) => ({ grip, rollingResistance, drag }));
+/**
+ * The table as plain entries for `World.setSurfaces()`. The road texture
+ * (roughness and ridges, ADR-0036) is left out unless `texture` is set, so
+ * a table that ran before texture existed runs exactly as it did.
+ */
+export function surfaceTable(options: { texture?: boolean } = {}): SurfaceDefinition[] {
+  return surfaces.map(({ grip, rollingResistance, drag, roughness, ridgeHeight, ridgeSpacing }) =>
+    options.texture
+      ? {
+          grip,
+          rollingResistance,
+          drag,
+          roughness: roughness ?? 0,
+          ridgeHeight: ridgeHeight ?? 0,
+          ridgeSpacing: ridgeSpacing ?? 0,
+        }
+      : { grip, rollingResistance, drag },
+  );
 }

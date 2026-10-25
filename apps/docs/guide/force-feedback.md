@@ -283,6 +283,14 @@ range (1080° on the G PRO), and tells `WheelInput` through its
 `rotationDeg`. Set it to the car's lock (`ratio × maxWheelAngleDeg`) and
 the wheel's end stop is the car's full lock.
 
+**Road detail** (`detail`, default 1, and `detailCutoff`, default 10 Hz;
+[ADR-0036](https://github.com/CS-Software-LLC/skidpad/blob/main/docs/adr/0036-road-texture.md))
+splits the torque with a first-order low-pass at the cutoff and multiplies
+the fast part, the road texture and kerbs of
+[Surfaces](/concepts/surfaces#road-texture), before the gain. Above 1 the
+road comes through stronger without the steering getting heavier; 0
+removes it; 1 leaves the torque exactly as the model gave it.
+
 `FfbScaler` reports `requested` (the torque asked of the rim, N·m),
 `sent`, `output`, `lastClipped`, `peak` and `clipFraction`, so a setup
 panel can show how much of the signal the wheel cannot reproduce.
@@ -293,14 +301,15 @@ panel can show how much of the signal the wheel cannot reproduce.
 the above: assign and calibrate controls, connect the wheel (protocol from
 the model, or forced; update mode), **Test pulse**, **Measure damping**,
 **Gain**, **Max output**, **Column feel** (`columnScale`, 0 to 4×),
-**invert**, a live graph of the torque requested and sent, **Sub-frame
+**Road detail** (`detail`, 0 to 4×), **invert**, a live graph of the torque requested and sent, **Sub-frame
 playout** at 250, 360 or 500 Hz, **Slew** and **Smoothing** with
 **Direct drive** and **Gear / belt** presets, **Match rotation to car**,
 **Re-enable** after the runaway guard trips, the diagnostics log, and the
 assists.
 
 The panel starts with the settings that were driven on a G PRO: gain 0.5,
-max output 40 %, **Column feel** 2×, **Sub-frame playout** on at 500 Hz,
+max output 40 %, **Column feel** 2×, **Road detail** 1×, **Sub-frame
+playout** on at 500 Hz,
 the **Direct drive** slew and smoothing, and **Match rotation to car** on.
 On a belt or gear wheel, press **Gear / belt**.
 
