@@ -163,6 +163,19 @@ describe("calibration", () => {
     expect(loadProfiles(storage)).toEqual([]);
     saveProfiles(storage, builtinProfiles());
     expect(loadProfiles(storage).map((p) => p.id)).toEqual(builtinProfiles().map((p) => p.id));
+    // A G PRO profile saved with the old, swapped paddles loads corrected.
+    const gPro = builtinProfiles()[0]!;
+    expect(gPro.shiftUp?.button).toBe(4);
+    saveProfiles(storage, [
+      {
+        ...gPro,
+        shiftUp: { device: "wheel", button: 5 },
+        shiftDown: { device: "wheel", button: 4 },
+      },
+    ]);
+    const [loaded] = loadProfiles(storage);
+    expect(loaded!.shiftUp?.button).toBe(4);
+    expect(loaded!.shiftDown?.button).toBe(5);
   });
 });
 
@@ -173,7 +186,7 @@ describe("WheelInput", () => {
       index: 0,
       connected: true,
       axes: [steer, 0, 0, 0],
-      buttons: Array.from({ length: 8 }, (_, i) => ({ value: 0, pressed: paddle && i === 5 })),
+      buttons: Array.from({ length: 8 }, (_, i) => ({ value: 0, pressed: paddle && i === 4 })),
     },
     {
       id: "Logitech PRO Racing Pedals (Vendor: 046d Product: 2112)",

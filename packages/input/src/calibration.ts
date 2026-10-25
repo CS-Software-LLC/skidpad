@@ -168,7 +168,7 @@ export function loadProfiles(storage: ProfileStorage | undefined): WheelProfile[
     if (!raw) return [];
     const parsed = JSON.parse(raw) as { format?: number; profiles?: WheelProfile[] };
     if (parsed.format !== PROFILE_FORMAT || !Array.isArray(parsed.profiles)) return [];
-    return parsed.profiles;
+    return parsed.profiles.map(fixGProPaddles);
   } catch {
     return [];
   }
@@ -181,6 +181,20 @@ export function saveProfiles(storage: ProfileStorage | undefined, profiles: Whee
   } catch {
     // Storage full or blocked: the profile lives for this session only.
   }
+}
+
+/**
+ * A G PRO profile saved before its paddles were corrected still carries
+ * the old built-in pair (up 5, down 4), which no setup flow can change, so
+ * swap it on load.
+ */
+function fixGProPaddles(p: WheelProfile): WheelProfile {
+  if (p.id !== "logitech-g-pro" || p.shiftUp?.button !== 5 || p.shiftDown?.button !== 4) return p;
+  return {
+    ...p,
+    shiftUp: { ...p.shiftUp, button: 4 },
+    shiftDown: { ...p.shiftDown, button: 5 },
+  };
 }
 
 /**
@@ -210,8 +224,10 @@ export function builtinProfiles(): WheelProfile[] {
       brake: pedal("pedals", 1),
       clutch: pedal("pedals", 2),
       handbrake: { device: "wheel", button: 3 },
-      shiftUp: { device: "wheel", button: 5 },
-      shiftDown: { device: "wheel", button: 4 },
+      // Right paddle up, checked on a G PRO (2026-10-25); 5 and 4 were
+      // the wrong way round.
+      shiftUp: { device: "wheel", button: 4 },
+      shiftDown: { device: "wheel", button: 5 },
       reverse: { device: "wheel", button: 2 },
     },
     {
