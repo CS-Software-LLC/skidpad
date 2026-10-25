@@ -211,7 +211,7 @@ export interface GamepadOptions {
   steerSensitivity?: number;
   /**
    * How fast the steering winds on, away from centre, in full-lock
-   * fractions per second (default 2, so centre to full lock takes 0.5 s).
+   * fractions per second (default 4/3, so centre to full lock takes 0.75 s).
    * The stick asks for an angle and the wheel turns toward it at this rate,
    * so a flicked stick turns the wheel over time instead of in one frame.
    * Changeable live through {@link GamepadInput.steerRate}. `Infinity`
@@ -224,6 +224,15 @@ export interface GamepadOptions {
    * winding on, so letting go of the stick straightens the car promptly.
    */
   steerReturnRate?: number;
+  /**
+   * Speed in m/s at which full stick asks for half lock (default 20, about
+   * 72 km/h). The lock the stick reaches falls as `1 / (1 + (v / this)²)`,
+   * so the stick's whole travel covers the few degrees a corner needs at
+   * speed and small corrections stay small, while full lock is still there
+   * when slow. Needs {@link GamepadInput.speed}; changeable live through
+   * {@link GamepadInput.steerSpeedHalf}. `Infinity` turns it off.
+   */
+  steerSpeedHalf?: number;
   /** The gear state to shift; share one between devices. */
   gears?: GearSelector;
   /**
@@ -244,7 +253,13 @@ export class GamepadInput {
   private readonly opts: Required<
     Omit<
       GamepadOptions,
-      "throttleAxis" | "brakeAxis" | "gears" | "pick" | "steerSensitivity" | "steerRate"
+      | "throttleAxis"
+      | "brakeAxis"
+      | "gears"
+      | "pick"
+      | "steerSensitivity"
+      | "steerRate"
+      | "steerSpeedHalf"
     >
   > &
     Pick<GamepadOptions, "throttleAxis" | "brakeAxis">;
@@ -258,6 +273,14 @@ export class GamepadInput {
   steerSensitivity: number;
   /** Wind-on rate in full locks per second; safe to change while driving. */
   steerRate: number;
+  /** Speed in m/s at which full stick gives half lock; safe to change while driving. */
+  steerSpeedHalf: number;
+  /**
+   * The car's speed in m/s, set by the host before each read so the lock
+   * can fall with speed (see {@link GamepadOptions.steerSpeedHalf}). Left at
+   * 0, full stick always asks for full lock.
+   */
+  speed = 0;
   private steer = 0;
 
   constructor(options: GamepadOptions = {}) {
@@ -278,7 +301,8 @@ export class GamepadInput {
       steerReturnRate: options.steerReturnRate ?? 5,
     };
     this.steerSensitivity = options.steerSensitivity ?? 1;
-    this.steerRate = options.steerRate ?? 2;
+    this.steerRate = options.steerRate ?? 4 / 3;
+    this.steerSpeedHalf = options.steerSpeedHalf ?? 20;
   }
 
   /**
@@ -296,7 +320,10 @@ export class GamepadInput {
       clamp(this.steerSensitivity, 0, 1) *
       responseCurve(applyDeadzone(raw, this.opts.deadzone), this.opts.steerExponent);
     this.steer = this.slew(target, dt);
-    const steer = this.steer;
+    // Scaled after the slew, so the wheel takes the same time to wind on at
+    // any speed and a change of speed never shows up as a jump.
+    const v = Math.abs(this.speed) / Math.max(this.steerSpeedHalf, 1e-6);
+    const steer = this.steer / (1 + v * v);
     const axisValue = (i: number | undefined): number | undefined =>
       i === undefined ? undefined : clamp(((axes[i] ?? -1) + 1) / 2, 0, 1);
     const throttle =

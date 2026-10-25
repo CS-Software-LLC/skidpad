@@ -87,8 +87,8 @@ describe("GamepadInput", () => {
     expect(f.handbrake).toBe(1);
   });
 
-  it("turns the wheel over time: winds on at 2 lock/s, returns at 5", () => {
-    const g = new GamepadInput({ deadzone: 0 });
+  it("turns the wheel over time: winds on in 0.75 s, returns at 5 lock/s", () => {
+    const g = new GamepadInput({ deadzone: 0, steerRate: 2 });
     // Full stick asks for full lock and the wheel gets there in 0.5 s.
     expect(g.map([1], [], 0.1).steer).toBeCloseTo(0.2);
     expect(g.map([1], [], 0.1).steer).toBeCloseTo(0.4);
@@ -105,6 +105,19 @@ describe("GamepadInput", () => {
     g.steerSensitivity = 0.5;
     expect(g.map([-1], [], 1).steer).toBeCloseTo(-0.5);
     expect(g.map([-1], [], 0).steer).toBeCloseTo(-0.5);
+    expect(new GamepadInput({ deadzone: 0 }).map([1], [], 0.375).steer).toBeCloseTo(0.5);
+  });
+
+  it("asks for less lock as speed rises", () => {
+    const g = new GamepadInput({ deadzone: 0, steerRate: Infinity });
+    expect(g.map([1], []).steer).toBeCloseTo(1);
+    // Half lock at the half speed (20 m/s), a fifth at twice it.
+    g.speed = 20;
+    expect(g.map([1], []).steer).toBeCloseTo(0.5);
+    g.speed = -40;
+    expect(g.map([1], []).steer).toBeCloseTo(0.2);
+    g.steerSpeedHalf = Infinity;
+    expect(g.map([1], []).steer).toBeCloseTo(1);
   });
 
   it("supports pedal axes in the −1…1 convention", () => {
