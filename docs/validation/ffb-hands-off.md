@@ -17,9 +17,9 @@ they reach a real wheel.
   until the next step.
 - Full scale is 4.4 N·m (G PRO peak 11 N·m × `maxOutput` 0.4), gain 0.5.
 - `J` = 0.03 kg·m² [VERIFY]: the order of a direct-drive base with a
-  300 mm rim. The damper's units on the device are not published either
-  (`damperRate`, [VERIFY]), so the harness assumes the damping reaches the
-  rim as sent.
+  300 mm rim. The damper's units on the device are not published either;
+  `damperRate` has since been measured on a G PRO (8.5 rad/s, ADR-0032),
+  and the harness assumes the damping reaches the rim as sent.
 
 The car is brought to speed in a straight line by the path follower, held
 there with the throttle, and the rim is let go from 90° (30° at 100 km/h).

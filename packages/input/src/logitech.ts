@@ -84,16 +84,30 @@ export interface LogitechWheelModel {
   maxRotationDeg?: number;
   /** A direct-drive base: no belt or gear lag, so it can take a fast slew. */
   directDrive?: boolean;
+  /**
+   * The firmware damper's units, measured on this wheel with
+   * `measureDamper()`: the sink's default `damperRate`, rad/s.
+   */
+  damperRate?: number;
 }
 
 /**
  * Scaler settings for a direct-drive base (polish item 2): zero to full
  * output in 20 ms and 3 ms smoothing, against 0.2 s and 10 ms for gear and
  * belt wheels. Simucube leaves its slew limit off by default; the runaway
- * guard and `maxOutput` stay as the safety layer. [VERIFY] on the G PRO
- * before it becomes the default.
+ * guard and `maxOutput` stay as the safety layer. Driven on a G PRO with
+ * 500 Hz playout and the rotation matched to the car (2026-10-25), and the
+ * sandbox's default since.
  */
 export const DIRECT_DRIVE_SCALER = { slewRate: 50, smoothing: 0.003 } as const;
+
+/**
+ * The G PRO's measured `damperRate`, rad/s: `measureDamper()` on the
+ * Xbox / PC base at the default coefficient 0.4 gave 0.520 N·m·s/rad and
+ * 0.13 N·m friction, so 0.4 × 11 N·m / 0.520 ≈ 8.5 (ADR-0032). Only two of
+ * the three runs settled, so the fit has no spread to check it by.
+ */
+export const G_PRO_DAMPER_RATE = 8.5;
 
 /**
  * Wheels known by USB product id, with the protocol the Linux drivers use
@@ -121,6 +135,8 @@ export const LOGITECH_WHEELS: readonly LogitechWheelModel[] = [
     peakTorque: 11,
     maxRotationDeg: 1080,
     directDrive: true,
+    // Measured with `measureDamper()` on a G PRO, 2026-10-25 (ADR-0032).
+    damperRate: G_PRO_DAMPER_RATE,
   },
   // [VERIFY] not in the Linux drivers.
   {
@@ -130,6 +146,7 @@ export const LOGITECH_WHEELS: readonly LogitechWheelModel[] = [
     peakTorque: 11,
     maxRotationDeg: 1080,
     directDrive: true,
+    damperRate: G_PRO_DAMPER_RATE,
   },
 ];
 
@@ -191,9 +208,10 @@ export interface LogitechSinkOptions extends FfbScalerOptions {
   columnScale?: number;
   /**
    * Hand-wheel rate at which a damper coefficient of 1 gives the device's
-   * full output, rad/s (default 10) [VERIFY]. The firmware's velocity unit
-   * is not documented; a larger value gives less damping for the same
-   * definition.
+   * full output, rad/s. The firmware's velocity unit is not documented; a
+   * larger value gives less damping for the same definition. Defaults to
+   * the attached model's measured value (8.5 on the G PRO), else 10
+   * [VERIFY on other wheels; measure with `measureDamper()`].
    */
   damperRate?: number;
 }
@@ -482,8 +500,8 @@ export class LogitechWebHidSink implements FfbSink {
   private classicColumnNoted = false;
   /** Multiplier on the definition's column friction and damping. */
   columnScale: number;
-  /** Hand-wheel rate of full damper output per unit coefficient, rad/s [VERIFY]. */
-  damperRate: number;
+  /** `damperRate` as set, overriding the model's measured value. */
+  private damperRateOverride: number | undefined;
   private pending: HidppWaiter[] = [];
   /** Output report ids the attached interface declares, when known. */
   private reportIds: Set<number> | undefined;
@@ -553,7 +571,7 @@ export class LogitechWebHidSink implements FfbSink {
     this.playoutRate = Math.max(0, options.playoutRate ?? 0);
     this.log = options.log ?? (() => {});
     this.columnScale = options.columnScale ?? 1;
-    this.damperRate = options.damperRate ?? 10;
+    this.damperRateOverride = options.damperRate;
   }
 
   /**
@@ -985,6 +1003,19 @@ export class LogitechWebHidSink implements FfbSink {
   }
 
   /**
+   * Hand-wheel rate of full damper output per unit coefficient, rad/s: the
+   * value set, else the attached model's measured one, else 10 [VERIFY].
+   * Setting `undefined` goes back to the model's.
+   */
+  get damperRate(): number {
+    return this.damperRateOverride ?? this.model?.damperRate ?? 10;
+  }
+
+  set damperRate(v: number | undefined) {
+    this.damperRateOverride = v;
+  }
+
+  /**
    * The column's friction and damping, on the wheel's own friction and
    * damper effects: the firmware applies them at its own rate, far above
    * the host's, which a damper needs to stay stable. They resist motion
@@ -1021,7 +1052,7 @@ export class LogitechWebHidSink implements FfbSink {
     this.lastColumn = key;
     this.record(
       `   column: friction ${(c.friction * this.peakTorque).toFixed(2)} N·m, ` +
-        `damper ${c.damper.toFixed(3)} of full output at ${this.damperRate} rad/s`,
+        `damper ${c.damper.toFixed(3)} of full output at ${this.damperRate.toFixed(1)} rad/s`,
     );
     this.frictionSlot = await this.setCondition(
       this.frictionSlot,

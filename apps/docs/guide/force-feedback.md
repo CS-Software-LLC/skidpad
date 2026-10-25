@@ -231,8 +231,10 @@ centre, where the tires' aligning torque is small. Each is multiplied by
 `gain` and by `columnScale` (default 1; the sandbox's **Column feel**
 slider), divided by the wheel's peak torque and capped at `maxOutput`. The
 damper's coefficient also needs the hand-wheel rate at which the firmware
-gives full output, `damperRate` (default 10 rad/s), which no public source
-documents [VERIFY]: raise it for less damping. Both effects only resist
+gives full output, `damperRate`, which no public source documents: raise it
+for less damping. It defaults to the model's measured value (8.5 rad/s on
+the G PRO, from **Measure damping**; see ADR-0032) and to 10 rad/s on
+wheels not yet measured [VERIFY]. Both effects only resist
 motion, so they stay on when the runaway guard or the watchdog cuts the
 constant force. The classic protocol does not send them yet.
 
@@ -266,13 +268,14 @@ carries the step's torque in eight equal slices of time
 (`SteeringTorqueSlice0` … `7`, ADR-0032), and with `playoutRate` set (Hz,
 for example 250 to 500; default 0, off) the sink plays them out between
 host steps through `TorquePlayout`, one host step behind, with linear
-interpolation. It has not been tried on a wheel yet [VERIFY].
+interpolation. 500 Hz has been driven on a G PRO and is the sandbox's
+default.
 
 Belt and gear wheels smooth the output themselves; a direct-drive base
 does not, and shows the scaler's own rate limit and smoothing as lag.
 `DIRECT_DRIVE_SCALER` holds a faster slew (50 full scales per second) and
-3 ms of smoothing for such a base; the defaults (5 per second, 10 ms) suit
-a G29. Raise the slew only once the sign and the gain are known to be
+3 ms of smoothing for such a base; the scaler's defaults (5 per second,
+10 ms) suit a G29. Raise the slew only once the sign and the gain are known to be
 right.
 
 `sink.setRotation(deg)` sets the wheel's rotation, clamped to the model's
@@ -295,6 +298,11 @@ playout** at 250, 360 or 500 Hz, **Slew** and **Smoothing** with
 **Direct drive** and **Gear / belt** presets, **Match rotation to car**,
 **Re-enable** after the runaway guard trips, the diagnostics log, and the
 assists.
+
+The panel starts with the settings that were driven on a G PRO: gain 0.5,
+max output 40 %, **Column feel** 2×, **Sub-frame playout** on at 500 Hz,
+the **Direct drive** slew and smoothing, and **Match rotation to car** on.
+On a belt or gear wheel, press **Gear / belt**.
 
 ## Other makers
 

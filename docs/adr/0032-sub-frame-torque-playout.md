@@ -1,6 +1,6 @@
 # ADR-0032: Sub-frame steering torque for force-feedback playout
 
-- Status: Proposed
+- Status: Accepted (driven on a G PRO, 2026-10-25)
 - Date: 2026-10-23
 - Supersedes / superseded by: extends ADR-0031
 
@@ -55,3 +55,22 @@ hand reproduce, at 64 bytes per step.
   smoothing and the slew limit apply per playout tick.
 - `the_torque_slices_are_the_step_in_eight_parts` checks the slices bit
   for bit against single-substep steps for 20, 8, 5 and 1 substeps.
+
+## Tried on hardware (2026-10-25)
+
+Driven on a Logitech G PRO (Xbox / PC, direct drive) with gain 0.5, max
+output 0.4, sub-frame playout at 500 Hz, `DIRECT_DRIVE_SCALER` (slew 50/s,
+3 ms smoothing), the rotation matched to the car's lock and **Column feel**
+2×. It felt right, so these are now the sandbox's defaults; the library's
+own defaults (`playoutRate` 0, slew 5/s, 10 ms, `columnScale` 1) are
+unchanged, since they also serve gear and belt wheels.
+
+The same session measured the firmware damper with `measureDamper()` at
+coefficient 0.4. The 0.30 and 0.70 N·m runs settled (0.70 N·m gave
+63°/s); the 0.50 N·m run was still accelerating and was left out. The fit
+gave 0.520 N·m·s/rad damping and 0.13 N·m friction, so
+`damperRate = 0.4 × 11 / 0.520 ≈ 8.5 rad/s`, against the 10 rad/s guess.
+With two runs the line fits exactly, so the reported 0 % spread says
+nothing; a repeat with all three runs settled would. 8.5 is the G PRO
+models' `damperRate` (`G_PRO_DAMPER_RATE`); other wheels keep 10
+[VERIFY].

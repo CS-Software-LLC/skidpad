@@ -843,6 +843,20 @@ describe("force feedback", () => {
     expect(columnEffects(0.3, 0.05, { ...o, gain: 0 }).friction).toBe(0);
   });
 
+  it("uses the model's measured damperRate unless one is set", async () => {
+    const { LogitechWebHidSink, G_PRO_DAMPER_RATE } = await import("../src/index.js");
+    const sink = new LogitechWebHidSink({});
+    expect(sink.damperRate).toBe(10);
+    await sink.attach(fakeWheel(0xc272).device);
+    expect(sink.damperRate).toBe(G_PRO_DAMPER_RATE);
+    sink.damperRate = 12;
+    expect(sink.damperRate).toBe(12);
+    sink.damperRate = undefined;
+    expect(sink.damperRate).toBe(8.5);
+    await sink.disconnect();
+    expect(new LogitechWebHidSink({ damperRate: 9 }).damperRate).toBe(9);
+  });
+
   it("picks the wheel interface that declares HID++ reports", async () => {
     const { LogitechWebHidSink, pickHidppDevice } = await import("../src/index.js");
     const iface = (reports: number[], usagePage: number) => {
