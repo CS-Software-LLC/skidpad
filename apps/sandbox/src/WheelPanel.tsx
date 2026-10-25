@@ -67,20 +67,23 @@ export function WheelPanel({
   const [maxOutput, setMaxOutput] = useState(0.4);
   const [invert, setInvert] = useState(false);
   // Multiplier on the car's column friction and damping, which the wheel's
-  // firmware applies; they resist motion, so raising it is safe.
-  const [columnScale, setColumnScale] = useState(1);
-  // Polish items 1B, 2 and 3, off until tried on a wheel: playing the
-  // core's torque slices out between frames, a direct-drive slew and
-  // smoothing, and setting the wheel's rotation to the car's lock.
-  const [playout, setPlayout] = useState(false);
+  // firmware applies; they resist motion, so raising it is safe. 2× is
+  // what felt right on a G PRO (2026-10-25).
+  const [columnScale, setColumnScale] = useState(2);
+  // Polish items 1B, 2 and 3, on since a drive on a G PRO (2026-10-25):
+  // playing the core's torque slices out between frames, a direct-drive
+  // slew and smoothing, and setting the wheel's rotation to the car's lock.
+  // A gear or belt wheel can take the "Gear / belt" button.
+  const [playout, setPlayout] = useState(true);
   const [playoutRate, setPlayoutRate] = useState(500);
-  const [slewRate, setSlewRate] = useState(5);
-  const [smoothingMs, setSmoothingMs] = useState(10);
-  const [matchRotation, setMatchRotation] = useState(false);
+  const [slewRate, setSlewRate] = useState<number>(DIRECT_DRIVE_SCALER.slewRate);
+  const [smoothingMs, setSmoothingMs] = useState(DIRECT_DRIVE_SCALER.smoothing * 1000);
+  const [matchRotation, setMatchRotation] = useState(true);
   const [rotationNote, setRotationNote] = useState("");
   // Polish item 4: the firmware damper's units, measured on this wheel and
-  // remembered per browser.
-  const [damperRate, setDamperRate] = useState(() => loadDamperRate() ?? 10);
+  // remembered per browser; until then the sink uses the model's (the G
+  // PRO's is measured).
+  const [damperRate, setDamperRate] = useState(loadDamperRate);
   const [measuring, setMeasuring] = useState(false);
   const [log, setLog] = useState<string[]>([]);
   const [assists, setAssists] = useState(() => currentAssists(sim));
@@ -217,7 +220,7 @@ export function WheelPanel({
         slewRate,
         smoothing: smoothingMs / 1000,
         playoutRate: playout ? playoutRate : 0,
-        damperRate,
+        ...(damperRate !== undefined && { damperRate }),
       });
       // Keep the sink even when the force path fails, so its diagnostics
       // log stays on screen.
