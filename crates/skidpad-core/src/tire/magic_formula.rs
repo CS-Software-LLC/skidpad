@@ -1,8 +1,11 @@
-//! A well-defined subset of Pacejka's Magic Formula, version 5.2 ("PAC2002").
+//! A well-defined subset of Pacejka's Magic Formula, version 5.2 ("PAC2002"),
+//! with the camber equations of MF 6.x when `FITTYP` is 61 or 62.
 //!
 //! Implemented from the published equations in H. B. Pacejka, *Tire and
 //! Vehicle Dynamics*, 2nd ed. (2006), §4.3.2, equations 4.E1–4.E78, and the
-//! original Bakker–Nyborg–Pacejka SAE 870421 paper. Not from any commercial
+//! original Bakker–Nyborg–Pacejka SAE 870421 paper; the MF 6.x camber terms
+//! from the 3rd ed. (2012), §4.3.2, and Besselink, Schmeitz and Pacejka,
+//! Vehicle System Dynamics 48, sup. 1 (2010). Not from any commercial
 //! implementation (see `docs/clean-room.md`).
 //!
 //! Supported: pure longitudinal `Fx0`, pure lateral `Fy0`, combined-slip
@@ -13,8 +16,8 @@
 //! equations are honoured.
 //!
 //! Ignored, with a warning on import: turn slip (`PPY*`, `PDXP*`, `PKYP*`,
-//! `PECP*`, `QDTP*`, `QCRP*`, `QBRP*`, `QDRP*`), the extended camber stiffness
-//! terms of MF 6.x (`PKY5`–`PKY7`, `PVY*` beyond 4), inflation pressure (`PPX*`,
+//! `PECP*`, `QDTP*`, `QCRP*`, `QBRP*`, `QDRP*`), the MF 6.x overturning
+//! moment terms (`QSX4` onwards; `Mx` stays MF 5.2's), inflation pressure (`PPX*`,
 //! `PPY*`, `PPZ*`, `PPMX*`), contact-patch and belt dynamics (`[CONTACT_PATCH]`,
 //! `[STRUCTURAL]`), and the `[VERTICAL]` section beyond `FZ0`,
 //! `VERTICAL_STIFFNESS` and `VERTICAL_DAMPING` (used only with unsprung mass,
@@ -65,6 +68,11 @@ mf_params! {
     #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
     #[cfg_attr(feature = "serde", serde(rename_all = "camelCase", default))]
     pub struct MagicFormulaParams {
+        // Model
+        /// `FITTYP` of the `.tir` file: 61 or 62 selects the MF 6.x camber
+        /// equations, anything below 60 MF 5.2's. Import also sets 61 for
+        /// a `PROPERTY_FILE_FORMAT` of `MF61`/`MF62` with no `FITTYP`.
+        fittyp: "FITTYP" = 52.0,
         // Dimensions and references
         /// Unloaded radius `R0`, m.
         unloaded_radius: "UNLOADED_RADIUS" = 0.31,
@@ -103,6 +111,10 @@ mf_params! {
         lmx: "LMX" = 1.0,
         lvmx: "LVMX" = 1.0,
         lmy: "LMY" = 1.0,
+        /// Camber stiffness scale `λKyγ` (MF 6.x; replaces `LGAY`).
+        lkyc: "LKYC" = 1.0,
+        /// Camber moment stiffness scale `λKzγ` (MF 6.x; replaces `LGAZ`).
+        lkzc: "LKZC" = 1.0,
         // Longitudinal
         pcx1: "PCX1" = 1.6,
         pdx1: "PDX1" = 1.0,
@@ -121,6 +133,8 @@ mf_params! {
         pvx2: "PVX2" = 0.0,
         rbx1: "RBX1" = 12.0,
         rbx2: "RBX2" = 10.0,
+        /// Camber in `Bxα` (MF 6.x).
+        rbx3: "RBX3" = 0.0,
         rcx1: "RCX1" = 1.0,
         rex1: "REX1" = 0.0,
         rex2: "REX2" = 0.0,
@@ -134,12 +148,20 @@ mf_params! {
         pey2: "PEY2" = 0.0,
         pey3: "PEY3" = 0.0,
         pey4: "PEY4" = 0.0,
+        /// Camber squared in `Ey` (MF 6.x).
+        pey5: "PEY5" = 0.0,
         pky1: "PKY1" = -18.0,
         pky2: "PKY2" = 2.0,
         pky3: "PKY3" = 0.0,
         /// Curvature of `Kyα` against load (MF 6.x; 2 in MF 5.2, where it
         /// is not a parameter).
         pky4: "PKY4" = 2.0,
+        /// Camber squared in the load at which `Kyα` peaks (MF 6.x).
+        pky5: "PKY5" = 0.0,
+        /// Camber stiffness `Kyγ0 / Fz` at nominal load (MF 6.x).
+        pky6: "PKY6" = 0.0,
+        /// Change of `Kyγ0 / Fz` with load (MF 6.x).
+        pky7: "PKY7" = 0.0,
         phy1: "PHY1" = 0.0,
         phy2: "PHY2" = 0.0,
         phy3: "PHY3" = 0.0,
@@ -150,6 +172,8 @@ mf_params! {
         rby1: "RBY1" = 7.0,
         rby2: "RBY2" = 2.5,
         rby3: "RBY3" = 0.0,
+        /// Camber in `Byκ` (MF 6.x).
+        rby4: "RBY4" = 0.0,
         rcy1: "RCY1" = 1.0,
         rey1: "REY1" = 0.0,
         rey2: "REY2" = 0.0,
@@ -167,6 +191,8 @@ mf_params! {
         qbz3: "QBZ3" = 0.0,
         qbz4: "QBZ4" = 0.0,
         qbz5: "QBZ5" = 0.0,
+        /// Camber squared in `Bt` (MF 6.x).
+        qbz6: "QBZ6" = 0.0,
         qbz9: "QBZ9" = 0.0,
         qbz10: "QBZ10" = 0.0,
         qcz1: "QCZ1" = 1.1,
@@ -178,6 +204,10 @@ mf_params! {
         qdz7: "QDZ7" = 0.0,
         qdz8: "QDZ8" = 0.0,
         qdz9: "QDZ9" = 0.0,
+        /// `|γ|` in the camber part of `Dr` (MF 6.x).
+        qdz10: "QDZ10" = 0.0,
+        /// Change of `QDZ10` with load (MF 6.x).
+        qdz11: "QDZ11" = 0.0,
         qez1: "QEZ1" = 0.0,
         qez2: "QEZ2" = 0.0,
         qez3: "QEZ3" = 0.0,
@@ -217,6 +247,19 @@ mf_params! {
     }
 }
 
+/// The intermediate values of the pure lateral force that the combined-slip
+/// and aligning-moment equations reuse.
+struct PureLateral {
+    kya: f64,
+    shy: f64,
+    svy: f64,
+    muy: f64,
+    cy: f64,
+    dy: f64,
+    by: f64,
+    fy0: f64,
+}
+
 impl MagicFormulaParams {
     #[inline]
     fn fz0_prime(&self) -> f64 {
@@ -243,17 +286,85 @@ impl MagicFormulaParams {
         m::abs(self.kya(fz, 0.0))
     }
 
+    /// Whether the MF 6.x camber equations apply (`FITTYP` 61 or 62).
+    #[inline]
+    pub fn is_mf6(&self) -> bool {
+        self.fittyp >= 60.0
+    }
+
     /// `Kyα` with camber (eq. 4.E25, with MF 6.x's `PKY4` in place of the 2).
+    /// `gamma` is `γy = λγy γ` in MF 5.2 and `γ* = sin γ` in MF 6.x, where
+    /// `PKY5` also moves the load at which the stiffness peaks.
     /// `F'z0 = λFz0·Fz0` carries the nominal-load scale once; it is not
     /// applied again.
     #[inline]
     fn kya(&self, fz: f64, gamma: f64) -> f64 {
         let f0 = self.fz0_prime();
-        self.pky1
-            * f0
-            * m::sin(self.pky4 * m::atan(fz / (self.pky2 * f0)))
-            * (1.0 - self.pky3 * m::abs(gamma))
-            * self.lky
+        if self.is_mf6() {
+            self.pky1
+                * f0
+                * m::sin(self.pky4 * m::atan((fz / f0) / (self.pky2 + self.pky5 * gamma * gamma)))
+                * (1.0 - self.pky3 * m::abs(gamma))
+                * self.lky
+        } else {
+            self.pky1
+                * f0
+                * m::sin(self.pky4 * m::atan(fz / (self.pky2 * f0)))
+                * (1.0 - self.pky3 * m::abs(gamma))
+                * self.lky
+        }
+    }
+
+    /// Pure lateral slip, eq. 4.E19–4.E30. `gamma` is `γy` (MF 5.2) or
+    /// `γ*` (MF 6.x), as in [`Self::kya`].
+    ///
+    /// MF 6.x restructures camber (Pacejka, 3rd ed. 2012, §4.3.2; Besselink,
+    /// Schmeitz and Pacejka, "An improved Magic Formula/Swift tyre model that
+    /// can handle inflation pressure changes", Vehicle System Dynamics 48,
+    /// sup. 1, 2010): camber thrust comes from an explicit camber stiffness
+    /// `Kyγ0 = Fz (PKY6 + PKY7 dfz) λKyγ`, carried into the curve as the
+    /// horizontal shift `(Kyγ0 γ* − SVyγ) / Kyα` so that `∂Fy/∂γ = Kyγ0` at
+    /// zero slip. `PHY3` is gone and `PEY5` adds `γ*²` to the curvature.
+    fn pure_lateral(&self, fz: f64, dfz: f64, alpha: f64, gamma: f64, lmuy: f64) -> PureLateral {
+        let kya = self.kya(fz, gamma);
+        let cy = self.pcy1 * self.lcy;
+        let (shy, svy, muy, ey_camber) = if self.is_mf6() {
+            let kyg0 = fz * (self.pky6 + self.pky7 * dfz) * self.lkyc;
+            let svyg = fz * (self.pvy3 + self.pvy4 * dfz) * gamma * self.lkyc * lmuy;
+            let svy = fz * (self.pvy1 + self.pvy2 * dfz) * self.lvy * lmuy + svyg;
+            let kya_safe = if m::abs(kya) > 1e-9 { kya } else { 1e-9 };
+            let shy = (self.phy1 + self.phy2 * dfz) * self.lhy + (kyg0 * gamma - svyg) / kya_safe;
+            let muy = (self.pdy1 + self.pdy2 * dfz) * (1.0 - self.pdy3 * gamma * gamma) * lmuy;
+            (shy, svy, muy, self.pey5 * gamma * gamma)
+        } else {
+            let shy = (self.phy1 + self.phy2 * dfz) * self.lhy + self.phy3 * gamma;
+            let svy = fz
+                * ((self.pvy1 + self.pvy2 * dfz) * self.lvy
+                    + (self.pvy3 + self.pvy4 * dfz) * gamma)
+                * lmuy;
+            let muy = (self.pdy1 + self.pdy2 * dfz) * (1.0 - self.pdy3 * gamma * gamma) * lmuy;
+            (shy, svy, muy, 0.0)
+        };
+        let ay = alpha + shy;
+        let dy = muy * fz;
+        let ey = m::min(
+            (self.pey1 + self.pey2 * dfz)
+                * (1.0 + ey_camber - (self.pey3 + self.pey4 * gamma) * m::signum(ay))
+                * self.ley,
+            1.0,
+        );
+        let by = kya / m::max(cy * dy, 1e-9);
+        let fy0 = magic(by, cy, dy, ey, ay) + svy;
+        PureLateral {
+            kya,
+            shy,
+            svy,
+            muy,
+            cy,
+            dy,
+            by,
+            fy0,
+        }
     }
 
     pub fn eval(&self, i: &TireInput) -> TireOutput {
@@ -269,8 +380,15 @@ impl MagicFormulaParams {
         // `cos α` in the aligning moment.
         let alpha = m::tan(i.slip_angle);
         let gamma = i.camber;
-        let gamma_y = gamma * self.lgay;
-        let gamma_z = gamma * self.lgaz;
+        let mf6 = self.is_mf6();
+        // MF 5.2 scales camber per channel with `λγy`, `λγz`; MF 6.x uses
+        // `γ* = sin γ` throughout and scales the camber stiffnesses instead.
+        let (gamma_y, gamma_z) = if mf6 {
+            let gs = m::sin(gamma);
+            (gs, gs)
+        } else {
+            (gamma * self.lgay, gamma * self.lgaz)
+        };
         let r0 = self.unloaded_radius;
         // The surface's grip scale multiplies the friction scaling factors
         // `λμx`, `λμy` (ADR-0014), which is where Pacejka puts a change of
@@ -296,26 +414,30 @@ impl MagicFormulaParams {
         let fx0 = magic(bx, cx, dx, ex, kx) + svx;
 
         // ---- Pure lateral, eq. 4.E19–4.E30 ----
-        let kya = self.kya(fz, gamma_y);
-        let shy = (self.phy1 + self.phy2 * dfz) * self.lhy + self.phy3 * gamma_y;
-        let ay = alpha + shy;
-        let cy = self.pcy1 * self.lcy;
-        let muy = (self.pdy1 + self.pdy2 * dfz) * (1.0 - self.pdy3 * gamma_y * gamma_y) * lmuy;
-        let dy = muy * fz;
-        let ey = m::min(
-            (self.pey1 + self.pey2 * dfz)
-                * (1.0 - (self.pey3 + self.pey4 * gamma_y) * m::signum(ay))
-                * self.ley,
-            1.0,
-        );
-        let by = kya / m::max(cy * dy, 1e-9);
-        let svy = fz
-            * ((self.pvy1 + self.pvy2 * dfz) * self.lvy + (self.pvy3 + self.pvy4 * dfz) * gamma_y)
-            * lmuy;
-        let fy0 = magic(by, cy, dy, ey, ay) + svy;
+        let PureLateral {
+            kya,
+            shy,
+            svy,
+            muy,
+            cy,
+            dy,
+            by,
+            fy0,
+        } = self.pure_lateral(fz, dfz, alpha, gamma_y, lmuy);
 
         // ---- Combined slip, eq. 4.E50–4.E67 ----
-        let bxa = self.rbx1 * m::cos(m::atan(self.rbx2 * kappa)) * self.lxal;
+        // MF 6.x adds `RBX3 γ*²` to `Bxα` and `RBY4 γ*²` to `Byκ`; the
+        // combined camber of MF 5.2 is `RVY3 γ` only.
+        let (gxa_camber, gyk_camber, gamma_vyk) = if mf6 {
+            (
+                self.rbx3 * gamma_y * gamma_y,
+                self.rby4 * gamma_y * gamma_y,
+                gamma_y,
+            )
+        } else {
+            (0.0, 0.0, gamma)
+        };
+        let bxa = (self.rbx1 + gxa_camber) * m::cos(m::atan(self.rbx2 * kappa)) * self.lxal;
         let cxa = self.rcx1;
         let exa = m::min(self.rex1 + self.rex2 * dfz, 1.0);
         let shxa = self.rhx1;
@@ -326,18 +448,21 @@ impl MagicFormulaParams {
         let gxa = m::max(gxa, 0.0);
         let fx = gxa * fx0;
 
-        let byk = self.rby1 * m::cos(m::atan(self.rby2 * (alpha - self.rby3))) * self.lyka;
+        let byk_slip = m::cos(m::atan(self.rby2 * (alpha - self.rby3)));
         let cyk = self.rcy1;
         let eyk = m::min(self.rey1 + self.rey2 * dfz, 1.0);
         let shyk = self.rhy1 + self.rhy2 * dfz;
         let kappa_s = kappa + shyk;
-        let gyk0 = magic_cos(byk, cyk, 1.0, eyk, shyk);
-        let gyk =
-            magic_cos(byk, cyk, 1.0, eyk, kappa_s) / if m::abs(gyk0) > 1e-9 { gyk0 } else { 1.0 };
-        let gyk = m::max(gyk, 0.0);
+        let gyk_at = |byk: f64| {
+            let gyk0 = magic_cos(byk, cyk, 1.0, eyk, shyk);
+            let gyk = magic_cos(byk, cyk, 1.0, eyk, kappa_s)
+                / if m::abs(gyk0) > 1e-9 { gyk0 } else { 1.0 };
+            m::max(gyk, 0.0)
+        };
+        let gyk = gyk_at((self.rby1 + gyk_camber) * byk_slip * self.lyka);
         let dvyk = muy
             * fz
-            * (self.rvy1 + self.rvy2 * dfz + self.rvy3 * gamma)
+            * (self.rvy1 + self.rvy2 * dfz + self.rvy3 * gamma_vyk)
             * m::cos(m::atan(self.rvy4 * alpha));
         let svyk = dvyk * m::sin(self.rvy5 * m::atan(self.rvy6 * kappa)) * self.lvyka;
         let fy = gyk * fy0 + svyk;
@@ -347,28 +472,51 @@ impl MagicFormulaParams {
         let alpha_t = alpha + sht;
         let shf = shy + svy / if m::abs(kya) > 1e-9 { kya } else { 1e-9 };
         let alpha_r = alpha + shf;
-        let bt = (self.qbz1 + self.qbz2 * dfz + self.qbz3 * dfz * dfz)
-            * (1.0 + self.qbz4 * gamma_z + self.qbz5 * m::abs(gamma_z))
-            * self.lky
+        // MF 6.x drops `QBZ4`, adds `QBZ6 γ*²` to `Bt`, takes `|γ*|` with
+        // `QDZ3`, and moves the camber part of `Dr` onto `λKzγ` with the
+        // extra `(QDZ10 + QDZ11 dfz) |γ*|`.
+        let (bt_camber, dt_camber, dr_camber) = if mf6 {
+            (
+                1.0 + self.qbz5 * m::abs(gamma_z) + self.qbz6 * gamma_z * gamma_z,
+                1.0 + self.qdz3 * m::abs(gamma_z) + self.qdz4 * gamma_z * gamma_z,
+                ((self.qdz8 + self.qdz9 * dfz) + (self.qdz10 + self.qdz11 * dfz) * m::abs(gamma_z))
+                    * gamma_z
+                    * self.lkzc,
+            )
+        } else {
+            (
+                1.0 + self.qbz4 * gamma_z + self.qbz5 * m::abs(gamma_z),
+                1.0 + self.qdz3 * gamma_z + self.qdz4 * gamma_z * gamma_z,
+                (self.qdz8 + self.qdz9 * dfz) * gamma_z,
+            )
+        };
+        let bt = (self.qbz1 + self.qbz2 * dfz + self.qbz3 * dfz * dfz) * bt_camber * self.lky
             / m::max(lmuy, 1e-9);
         let ct = self.qcz1;
-        let dt = fz
-            * (self.qdz1 + self.qdz2 * dfz)
-            * (1.0 + self.qdz3 * gamma_z + self.qdz4 * gamma_z * gamma_z)
-            * (r0 / f0)
-            * self.ltr;
+        let dt = fz * (self.qdz1 + self.qdz2 * dfz) * dt_camber * (r0 / f0) * self.ltr;
         let br = self.qbz9 * self.lky / m::max(lmuy, 1e-9) + self.qbz10 * by * cy;
-        let dr = fz
-            * ((self.qdz6 + self.qdz7 * dfz) * self.lres + (self.qdz8 + self.qdz9 * dfz) * gamma_z)
-            * r0
-            * lmuy;
+        let dr = fz * ((self.qdz6 + self.qdz7 * dfz) * self.lres + dr_camber) * r0 * lmuy;
+
+        // The trail acts on the side force without its camber part in MF
+        // 6.x, where camber reaches `Mz` through `Dr`: `F'y` and the `Kyα`
+        // of `αt,eq` are taken at `γ = 0`. MF 5.2 uses them with camber.
+        let (fy_prime, kya_t) = if mf6 && gamma_y != 0.0 {
+            let flat = self.pure_lateral(fz, dfz, alpha, 0.0, lmuy);
+            (
+                gyk_at(self.rby1 * byk_slip * self.lyka) * flat.fy0,
+                flat.kya,
+            )
+        } else {
+            (fy - svyk, kya)
+        };
 
         // Equivalent slips for combined slip (eq. 4.E77, 4.E78), in the
         // `α*` form of the 3rd edition: `αt` is already a tangent, so it
         // adds in quadrature with `(Kxκ / Kyα) κ` directly.
         let ratio = kxk / if m::abs(kya) > 1e-9 { kya } else { 1e-9 };
+        let ratio_t = kxk / if m::abs(kya_t) > 1e-9 { kya_t } else { 1e-9 };
         let alpha_t_eq = m::copysign(
-            m::sqrt(alpha_t * alpha_t + ratio * ratio * kappa * kappa),
+            m::sqrt(alpha_t * alpha_t + ratio_t * ratio_t * kappa * kappa),
             alpha_t,
         );
         let alpha_r_eq = m::copysign(
@@ -390,7 +538,6 @@ impl MagicFormulaParams {
         let s = r0
             * (self.ssz1 + self.ssz2 * (fy / f0) + (self.ssz3 + self.ssz4 * dfz) * gamma_z)
             * self.ls;
-        let fy_prime = fy - svyk;
         let mz = -trail * fy_prime + mzr + s * fx;
 
         // ---- Overturning and rolling resistance, eq. 4.E69, 4.E70 ----

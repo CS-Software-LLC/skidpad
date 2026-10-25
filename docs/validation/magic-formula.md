@@ -99,16 +99,16 @@ The change was small. On the synthetic tire, before and after:
 The aligning moment moves more than the force because `Mz` falls steeply
 past its peak, so a small shift in slip moves it a lot.
 
-**Camber is MF 5.2's.** MF 6.x restructures the camber terms of `Fy` and
-`Mz` (camber stiffness `PKY6`, `PKY7`; `PHY3` dropped). Skidpad implements
-5.2's, so given a 6.x file it reads `PKY3`, `PVY3`, `PVY4`, `QBZ4`, `QDZ3`,
-`QDZ8` and `QDZ9` with their MF 5.2 meanings and ignores `PKY6` and `PKY7`
-with a warning. Its camber thrust will then not be the one the file
-intends.
+**Camber follows the file's version.** MF 6.x restructures the camber
+terms of `Fy` and `Mz`. Until 2026-10-25 skidpad used MF 5.2's for every
+file, so a 6.x file's `PKY3`, `PVY3`, `PVY4`, `QDZ3`, `QDZ8` and `QDZ9`
+were read with their 5.2 meanings and `PKY6`, `PKY7` ignored. A 6.x tire's
+camber thrust was then not the one the file intends. See
+[MF 6.x camber](#mf-6x-camber) below.
 
 **Also outside these checks:** inflation pressure, turn slip, the
-overturning and rolling-resistance moments, and the aligning moment under
-combined slip.
+overturning and rolling-resistance moments, and (for MF 5.2) the aligning
+moment under combined slip.
 
 **The tests catch real errors.** Each of these mutations of
 `magic_formula.rs` fails at least one check, and each was reverted:
@@ -118,3 +118,64 @@ fixing `PKY4` at 2, and feeding the formula `α` instead of `tan α`.
 
 **What this does not cover.** These checks pin the equations, not the
 tire. A tire fitted wrongly would still pass.
+
+## MF 6.x camber
+
+|           |                                                                                                                                                                                                                                     |
+| --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Date      | 2026-10-25                                                                                                                                                                                                                          |
+| Reference | Pacejka, _Tire and Vehicle Dynamics_, 3rd ed. (2012), §4.3.2; Besselink, Schmeitz and Pacejka, "An improved Magic Formula/Swift tyre model that can handle inflation pressure changes", _Vehicle System Dynamics_ 48, sup. 1 (2010) |
+| Harness   | [`crates/skidpad-core/tests/magic_formula_mf6_tests.rs`](../../crates/skidpad-core/tests/magic_formula_mf6_tests.rs)                                                                                                                |
+
+A file whose `FITTYP` is 61 or 62 now runs the MF 6.x camber equations;
+with no `FITTYP`, a `PROPERTY_FILE_FORMAT` of `MF61` or `MF62` does the
+same. Everything else (`PAC2002`, `FITTYP` 6, 21 or 52, no `FITTYP`) runs
+MF 5.2 as before. The import warns about a non-zero key that belongs to
+the other version (`PKY6` in a 5.2 file, `PHY3` in a 6.x file), since that
+usually means `FITTYP` is wrong.
+
+What changes in 6.x mode, without inflation pressure or turn slip:
+
+- `γ* = sin γ` replaces `λγy γ` and `λγz γ` everywhere; `LGAY` and `LGAZ`
+  have no effect, and `LKYC`, `LKZC` scale the camber stiffnesses instead.
+- Camber thrust comes from an explicit camber stiffness
+  `Kyγ0 = Fz (PKY6 + PKY7 dfz) λKyγ`. `SVyγ = Fz (PVY3 + PVY4 dfz) γ* λKyγ λμy`
+  is its vertical part and `(Kyγ0 γ* − SVyγ) / Kyα` its horizontal shift,
+  so `∂Fy/∂γ = Kyγ0` at zero slip whatever the split. `PHY3` is gone.
+- `Kyα` peaks at `(PKY2 + PKY5 γ*²) F'z0 tan(π / 2 PKY4)`, and `PEY5 γ*²`
+  enters `Ey`.
+- Combined slip gains `RBX3 γ*²` in `Bxα` and `RBY4 γ*²` in `Byκ`.
+- In `Mz`, `QBZ4` is gone, `QBZ6 γ*²` enters `Bt`, `QDZ3` takes `|γ*|`,
+  and `Dr` gains `(QDZ10 + QDZ11 dfz) |γ*|` with `λKzγ`. The trail acts on
+  `F'y = Gyκ Fy0` taken at `γ = 0`, with `Kyα` at `γ = 0` in `αt,eq`, so
+  camber reaches the aligning moment through `Dr`.
+- `Fx` and its camber term `PDX3` are unchanged. `Mx` stays MF 5.2's; the
+  6.x overturning terms (`QSX4` onwards) are still ignored with a warning.
+
+The checks run on the synthetic tire read as MF 6.1 with every 6.x camber
+term on and made-up values at a passenger tire's order of magnitude. The
+5.2-only keys are set too, so a leak would show.
+
+| Check                                                 | Equations                                                         | Tolerance          |
+| ----------------------------------------------------- | ----------------------------------------------------------------- | ------------------ |
+| Camber stiffness at zero slip                         | `∂Fy/∂γ = Fz (PKY6 + PKY7 dfz) λKyγ`                              | 1e-6               |
+| Camber stiffness against `PVY3` of −0.5, 0, 0.5       | unchanged                                                         | 1e-6               |
+| `Kyα` at ±0.03, ±0.1 rad, and where it peaks          | `1 − PKY3 \|γ*\|`, peak at `(PKY2 + PKY5 γ*²) F'z0 tan(π/2 PKY4)` | 1e-6               |
+| Camber moment stiffness at zero slip                  | `∂Mz/∂γ = Fz R0 (QDZ8 + QDZ9 dfz) λKzγ`                           | 1e-6               |
+| 6.x at zero camber with no 6.x terms                  | equals 5.2                                                        | 1e-12 `Fz`         |
+| Every term, 5 × 6 × 5 grid of `κ`, `α*`, `γ`, 4 loads | `Fx`, `Fy`, `Mz` written out in full, combined `Mz` included      | 1e-9 `Fz`, `Fz R0` |
+
+All pass. The camber moment check zeroes `QDZ10` and `QDZ11`, whose odd
+`|γ*| γ*` adds `h (QDZ10 + QDZ11 dfz)` to a central difference of step `h`.
+
+MF 5.2 is unchanged bit for bit: over 375 points of load, slip and camber,
+with every 5.2 camber term, `LGAY` and `LGAZ` off their defaults, a hash of
+every output matches the previous core's.
+
+Each of these mutations fails at least one check, and each was reverted:
+`γ*` as `γ` instead of `sin γ`, the trail on the cambered side force, `Kyα`
+of `αt,eq` with camber, dropping `PKY5`, `QDZ3` without the absolute value,
+`SVyγ` without `λKyγ`, and dropping `RBX3`.
+
+As with MF 5.2, these pin the equations, not a tire. No published 6.x tire
+with its own reference curves is in the repository yet.

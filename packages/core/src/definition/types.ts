@@ -73,12 +73,15 @@ export interface FeelTireParams {
 }
 
 /**
- * Magic Formula 5.2 subset. Keys are the lower-cased `.tir` coefficient
- * names (`pky1`, `qbz1`, …) plus the structural fields below. Use
- * {@link Skidpad.importTir} to build one from a `.tir` file.
+ * Magic Formula 5.2 subset, with MF 6.x camber when `fittyp` is 61 or 62.
+ * Keys are the lower-cased `.tir` coefficient names (`pky1`, `qbz1`, …)
+ * plus the structural fields below. Use {@link Skidpad.importTir} to build
+ * one from a `.tir` file.
  */
 export interface MagicFormulaParams {
   model: "magicFormula";
+  /** `FITTYP`: 61 or 62 selects the MF 6.x camber equations. Default 52 (MF 5.2). */
+  fittyp?: number;
   unloadedRadius?: number;
   fz0?: number;
   longvl?: number;
