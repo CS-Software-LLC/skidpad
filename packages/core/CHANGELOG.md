@@ -1,5 +1,12 @@
 # @skidpad/core
 
+## 0.11.0
+
+### Minor Changes
+
+- 4fdd76f: Runtime divergence guard. After every step the core checks each car; a NaN or infinite state value, or a speed or spin rate no car reaches, resets the car to rest at its last healthy pose (keeping its clock) and zeroes its impulse to an external body for that step. `world.health(car)` reports the recoveries, the step of the last one, the cause and the first bad telemetry channel; `world.clearHealth(car)` forgets them; the new `Diverged` telemetry channel carries the count. Healthy cars and their hashes are unchanged. NaN inputs now read as zero and a NaN step length is ignored. The sandbox shows a notice naming the last tuning edit when it happens.
+- d84f818: - physics: the Magic Formula tire uses the MF 6.x camber equations when the `.tir` file's `FITTYP` is 61 or 62 (or, with no `FITTYP`, its `PROPERTY_FILE_FORMAT` is `MF61`/`MF62`). Camber thrust comes from the camber stiffness `PKY6`, `PKY7` (scaled by `LKYC`) as in MF 6.x, `γ* = sin γ` replaces `λγ γ`, and the import now reads `PKY5`–`PKY7`, `PEY5`, `RBX3`, `RBY4`, `QBZ6`, `QDZ10`, `QDZ11`, `LKYC` and `LKZC`. In the aligning moment the trail acts on the side force at zero camber, and camber reaches `Mz` through the residual moment. A 6.x file previously ran with MF 5.2's camber and ignored `PKY6`/`PKY7`, so its camber thrust was not the one the file intends. MF 5.2 files (`PAC2002`, or no `FITTYP`) run bit for bit as before; the import warns about keys that belong to the other version. New parameter `fittyp` (default 52). See `docs/validation/magic-formula.md`.
+
 ## 0.10.0
 
 ### Minor Changes

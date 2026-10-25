@@ -1,5 +1,17 @@
 # @skidpad/input
 
+## 0.11.0
+
+### Minor Changes
+
+- cc6ab8d: Gamepad steering turns the wheel over time instead of capping the lock. Full stick asks for full lock again (`steerSensitivity` now defaults to 1, was 0.75), and the wheel winds toward the stick at `steerRate` (default 2 full locks a second, was 5; now a live property) and unwinds toward centre at the faster `steerReturnRate` (new, default 5). Wheels, keyboard and touch are unchanged.
+- 909400b: Gamepad steering asks for less lock as speed rises, so small corrections stay small at track speed. Set `GamepadInput.speed` (m/s) before each read; full stick then gives half lock at `steerSpeedHalf` (default 20 m/s, a live property, `Infinity` for off) and falls as `1 / (1 + (v / half)²)`. Left at speed 0 nothing changes. The default wind-on rate is now 4/3 full locks a second (0.75 s to full lock, was 0.5 s). Wheels, keyboard and touch are unchanged.
+
+### Patch Changes
+
+- 2135cf9: - input: the G PRO models carry a measured `damperRate` of 8.5 rad/s (`G_PRO_DAMPER_RATE`, from `measureDamper()` on a G PRO); `LogitechWebHidSink.damperRate` defaults to the attached model's value, else 10, and setting it to `undefined` goes back to the model's. The sandbox's wheel panel now starts with the settings driven on a G PRO: Column feel 2×, sub-frame playout at 500 Hz, the direct-drive slew and smoothing, and the rotation matched to the car.
+  - input: the G PRO profile's paddles were swapped (up was button 5, down 4); up is now 4 and down 5, and a G PRO profile saved with the old pair is corrected on load.
+
 ## 0.10.0
 
 ### Minor Changes
