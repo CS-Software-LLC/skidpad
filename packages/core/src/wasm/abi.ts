@@ -69,6 +69,8 @@ export interface CpExports {
   ): number;
   sp_world_clear_ai(handle: number, vehicle: number): number;
   sp_world_ai_status(handle: number, vehicle: number, out: number, cap: number): number;
+  sp_world_health(handle: number, vehicle: number, out: number, cap: number): number;
+  sp_world_clear_health(handle: number, vehicle: number): number;
   sp_world_step_count(handle: number): bigint;
   sp_world_state_hash(handle: number, vehicle: number): bigint;
   sp_world_hash(handle: number): bigint;

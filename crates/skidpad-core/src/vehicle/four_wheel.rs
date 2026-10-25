@@ -546,6 +546,7 @@ impl FourWheelVehicle {
         self.axle_fx_prev = [0.0, 0.0];
         self.wheel_fy_prev = [0.0; WHEEL_COUNT];
         self.kingpin_prev = 0.0;
+        self.assist_telemetry = AssistTelemetry::default();
         for (i, w) in self.wheels.iter_mut().enumerate() {
             let g = self.geometry[i];
             *w = WheelState {

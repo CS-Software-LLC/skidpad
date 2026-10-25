@@ -302,6 +302,14 @@ impl VehicleModel {
         }
     }
 
+    /// Set the vehicle's clock, s.
+    pub fn set_time(&mut self, t: f64) {
+        match self {
+            VehicleModel::SingleTrack(v) => v.time = t,
+            VehicleModel::FourWheel(v) => v.time = t,
+        }
+    }
+
     /// Forward speed in the body frame, m/s.
     pub fn vx(&self) -> f64 {
         match self {

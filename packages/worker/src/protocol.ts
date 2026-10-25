@@ -26,6 +26,8 @@ export const CALLABLE = [
   "setAi",
   "clearAi",
   "aiStatus",
+  "health",
+  "clearHealth",
   "snapshot",
   "restore",
   "stateHash",

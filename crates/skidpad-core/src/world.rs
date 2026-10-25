@@ -66,6 +66,58 @@ impl Lod {
     }
 }
 
+/// Physical limits past which a vehicle's state counts as running away
+/// rather than merely fast: no car reaches them, and an integrator that has
+/// gone unstable passes them within a few steps on its way to infinity.
+/// Body speed, m/s.
+pub const RUNAWAY_SPEED: f64 = 1000.0;
+/// Body yaw, roll or pitch rate, rad/s.
+pub const RUNAWAY_BODY_RATE: f64 = 100.0;
+/// Wheel spin, rad/s.
+pub const RUNAWAY_WHEEL_SPEED: f64 = 5000.0;
+
+/// Why the divergence guard last reset a vehicle (see [`World::health`]).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Divergence {
+    /// Never reset.
+    #[default]
+    None,
+    /// A state value was NaN or infinite.
+    NonFinite,
+    /// A speed or rate passed its runaway limit ([`RUNAWAY_SPEED`] and the
+    /// rest) while still finite.
+    Runaway,
+}
+
+impl Divergence {
+    pub fn as_u32(self) -> u32 {
+        match self {
+            Divergence::None => 0,
+            Divergence::NonFinite => 1,
+            Divergence::Runaway => 2,
+        }
+    }
+}
+
+/// What the divergence guard has done to one vehicle. After every step the
+/// world checks each stepped vehicle's state; a non-finite value or a
+/// runaway speed resets the vehicle to rest at its last healthy planar
+/// pose, keeping its clock, and is counted here and in the `Diverged`
+/// telemetry channel. A healthy vehicle is never touched, so its state and
+/// hashes are those of a world without the guard.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Health {
+    /// Resets since the vehicle was added or [`World::clear_health`].
+    pub recoveries: u32,
+    /// The world's step count just after the last reset.
+    pub last_step: u64,
+    pub cause: Divergence,
+    /// The first telemetry channel that was non-finite or past its limit
+    /// on the step of the last reset, if any was (a non-finite value can be
+    /// in state the telemetry does not show).
+    pub channel: Option<usize>,
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct Vehicle {
     pub model: VehicleModel,
@@ -78,6 +130,10 @@ pub struct Vehicle {
     /// Substep rate override of the level of detail, Hz; zero runs the
     /// definition's rate.
     lod_rate_hz: f64,
+    health: Health,
+    /// Planar pose `(x, y, yaw)` at the end of the last healthy step: where
+    /// the divergence guard puts the vehicle back.
+    last_good: [f64; 3],
 }
 
 impl Vehicle {
@@ -241,6 +297,8 @@ impl World {
             authored: def,
             lod: Lod::Full,
             lod_rate_hz: 0.0,
+            health: Health::default(),
+            last_good: [0.0; 3],
         });
         self.ai.push(None);
         self.clear_host_records(idx);
@@ -248,6 +306,7 @@ impl World {
         self.vehicles[idx]
             .model
             .write_telemetry(&VehicleInput::default(), rec);
+        self.remember_pose(idx);
         Ok(idx)
     }
 
@@ -391,8 +450,9 @@ impl World {
     // of the whole substep pipeline (the WASM size budget).
     #[inline(never)]
     pub fn step(&mut self, dt: f64) {
+        // `clamp` passes NaN through; the negated test rejects it.
         let dt = m::clamp(dt, 0.0, 1.0);
-        if dt <= 0.0 {
+        if !(dt > 0.0) {
             return;
         }
         for (i, v) in self.vehicles.iter_mut().enumerate() {
@@ -451,6 +511,47 @@ impl World {
                     rec[telemetry::STEERING_TORQUE_SLICE_0 + k - 1]
                 };
             }
+            // Divergence guard: the state decides every later step, so it is
+            // what must stay finite.
+            let len = v.model.state_len();
+            v.model.write_state(&mut self.scratch[..len]);
+            match diverged(&self.scratch[..len], rec) {
+                None => {
+                    v.last_good = [
+                        rec[telemetry::POS_X],
+                        rec[telemetry::POS_Y],
+                        rec[telemetry::YAW],
+                    ]
+                }
+                Some(cause) => {
+                    let t = v.model.time();
+                    let [x, y, yaw] = v.last_good;
+                    v.model.reset(x, y, yaw);
+                    v.model.set_time(t);
+                    if let Some(ai) = self.ai[i].as_mut() {
+                        ai.reset();
+                    }
+                    v.health = Health {
+                        recoveries: v.health.recoveries.saturating_add(1),
+                        last_step: self.step_count + 1,
+                        cause,
+                        channel: first_bad_channel(rec),
+                    };
+                    // The reset zeroed the impulses: an external body gets
+                    // nothing from the bad step.
+                    if let Some(f) = v.model.as_four_wheel() {
+                        let out =
+                            &mut self.host_out[i * HOST_OUT_STRIDE..(i + 1) * HOST_OUT_STRIDE];
+                        write_host_out(f, out);
+                    }
+                    v.model.write_telemetry(&input, rec);
+                    let torque = v.model.steering_torque();
+                    rec[telemetry::STEERING_TORQUE_MEAN] = torque;
+                    rec[telemetry::STEERING_TORQUE_SLICE_0..telemetry::STEERING_TORQUE_SLICE_0 + S]
+                        .fill(torque);
+                }
+            }
+            rec[telemetry::DIVERGED] = v.health.recoveries as f64;
         }
         self.step_count += 1;
     }
@@ -531,6 +632,32 @@ impl World {
     pub fn ai_status(&self, i: usize) -> Result<Option<AiStatus>, WorldError> {
         self.vehicle(i)?;
         Ok(self.ai[i].as_ref().map(|d| d.status()))
+    }
+
+    /// What the divergence guard has done to vehicle `i` (see [`Health`]).
+    pub fn health(&self, i: usize) -> Result<Health, WorldError> {
+        Ok(self.vehicle(i)?.health)
+    }
+
+    /// Forget the divergence guard's record of vehicle `i`, after a host
+    /// has dealt with it (fixed the tuning, say). Zeroes `Diverged`.
+    pub fn clear_health(&mut self, i: usize) -> Result<(), WorldError> {
+        self.vehicle_mut(i)?.health = Health::default();
+        self.telemetry[i * telemetry::STRIDE + telemetry::DIVERGED] = 0.0;
+        Ok(())
+    }
+
+    /// Take vehicle `i`'s telemetry pose as its last healthy one.
+    fn remember_pose(&mut self, i: usize) {
+        let rec = &self.telemetry[i * telemetry::STRIDE..(i + 1) * telemetry::STRIDE];
+        let pose = [
+            rec[telemetry::POS_X],
+            rec[telemetry::POS_Y],
+            rec[telemetry::YAW],
+        ];
+        if pose.iter().all(|p| p.is_finite()) {
+            self.vehicles[i].last_good = pose;
+        }
     }
 
     pub fn state_hash(&mut self, i: usize) -> Result<u64, WorldError> {
@@ -623,6 +750,7 @@ impl World {
         );
         let rec = &mut self.telemetry[i * telemetry::STRIDE..(i + 1) * telemetry::STRIDE];
         self.vehicles[i].model.write_telemetry(&input, rec);
+        self.remember_pose(i);
     }
 
     pub fn reset_vehicle(&mut self, i: usize, x: f64, y: f64, yaw: f64) -> Result<(), WorldError> {
@@ -636,6 +764,7 @@ impl World {
         if let Some(ai) = self.ai[i].as_mut() {
             ai.reset();
         }
+        self.remember_pose(i);
         Ok(())
     }
 
@@ -682,6 +811,50 @@ impl World {
         v.model.write_telemetry(&VehicleInput::default(), rec);
         Ok(())
     }
+}
+
+/// Whether a stepped vehicle has diverged: any state value non-finite, or a
+/// speed or rate in its telemetry past the runaway limits.
+#[inline]
+fn diverged(state: &[f64], rec: &[f64]) -> Option<Divergence> {
+    // `x * 0.0` is ±0 for a finite `x` and NaN otherwise, so the sum is
+    // nonzero (NaN) exactly when some value is not finite: one test for
+    // the whole state, no branch per value.
+    let mut z = 0.0;
+    for &x in state {
+        z += x * 0.0;
+    }
+    if z != 0.0 {
+        return Some(Divergence::NonFinite);
+    }
+    if past_limits(rec).is_some() {
+        return Some(Divergence::Runaway);
+    }
+    None
+}
+
+/// The first runaway channel of a telemetry record, if any.
+fn past_limits(rec: &[f64]) -> Option<usize> {
+    use telemetry as t;
+    if m::abs(rec[t::SPEED]) > RUNAWAY_SPEED {
+        return Some(t::SPEED);
+    }
+    for c in [t::YAW_RATE, t::ROLL_RATE, t::PITCH_RATE] {
+        if m::abs(rec[c]) > RUNAWAY_BODY_RATE {
+            return Some(c);
+        }
+    }
+    (t::WHEEL_SPEED_FL..t::WHEEL_SPEED_FL + WHEEL_COUNT)
+        .find(|&c| m::abs(rec[c]) > RUNAWAY_WHEEL_SPEED)
+}
+
+/// The first non-finite or runaway channel of a telemetry record: for
+/// diagnosis only, off the hot path.
+#[inline(never)]
+fn first_bad_channel(rec: &[f64]) -> Option<usize> {
+    rec.iter()
+        .position(|x| !x.is_finite())
+        .or_else(|| past_limits(rec))
 }
 
 fn read_host_in(f: &mut crate::vehicle::FourWheelVehicle, rec: &[f64]) {
