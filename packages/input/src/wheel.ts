@@ -6,6 +6,7 @@
  */
 import {
   AxisCalibrator,
+  CENTRED_DEADZONE,
   builtinProfiles,
   calibrateCentred,
   calibratePedal,
@@ -276,7 +277,7 @@ export class AxisFinder {
     const calibration = cal.result() ?? {
       min: found.min,
       max: found.max,
-      deadzone: centred ? 0.02 : 0.03,
+      deadzone: centred ? CENTRED_DEADZONE : 0.03,
       invert: false,
       exponent: 1,
     };

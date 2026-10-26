@@ -176,6 +176,16 @@ describe("calibration", () => {
     const [loaded] = loadProfiles(storage);
     expect(loaded!.shiftUp?.button).toBe(4);
     expect(loaded!.shiftDown?.button).toBe(5);
+    // A profile saved with the old 2 % steering dead zone loads without
+    // one; a dead zone set to anything else stays.
+    const withDeadzone = (deadzone: number) => ({
+      ...gPro,
+      steer: { ...gPro.steer, calibration: { ...gPro.steer.calibration, deadzone } },
+    });
+    saveProfiles(storage, [withDeadzone(0.02), withDeadzone(0.05)]);
+    const [cleared, kept] = loadProfiles(storage);
+    expect(cleared!.steer.calibration.deadzone).toBe(0);
+    expect(kept!.steer.calibration.deadzone).toBe(0.05);
   });
 });
 
@@ -204,13 +214,22 @@ describe("WheelInput", () => {
     expect(w.status.profile?.id).toBe("logitech-g-pro");
     expect(w.status.pedals?.index).toBe(1);
     const f = w.map()!;
-    // Half of a 900° wheel, less the 2 % dead zone, over a 490° lock.
-    const angle = ((0.5 - 0.02) / 0.98) * 450;
-    expect(w.status.wheelAngleDeg).toBeCloseTo(angle);
-    expect(f.steer).toBeCloseTo(angle / 490);
+    // Half of a 900° wheel over a 490° lock.
+    expect(w.status.wheelAngleDeg).toBeCloseTo(225);
+    expect(f.steer).toBeCloseTo(225 / 490);
     expect(f.throttle).toBeCloseTo(1);
     expect(f.brake).toBe(0);
     expect(f.gear).toBe(0);
+  });
+
+  it("steers from the first degree off centre, with no dead zone", async () => {
+    const { WheelInput } = await import("../src/index.js");
+    // The hatchback: 558° of lock each way, the wheel matched to it.
+    const w = new WheelInput({ steeringLockDeg: 558 });
+    w.rotationDeg = 1116;
+    w.match(pads(1 / 558, -1, -1));
+    expect(w.map()!.steer).toBeCloseTo(1 / 558, 6);
+    expect(w.status.wheelAngleDeg).toBeCloseTo(1);
   });
 
   it("follows a rotation set on the device, and reaches a wider lock at the end stop", async () => {

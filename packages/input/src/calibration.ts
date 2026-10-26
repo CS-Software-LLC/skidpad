@@ -21,8 +21,27 @@ export interface AxisCalibration {
   exponent: number;
 }
 
+/**
+ * A wheel's steering axis has no dead zone: its encoder reads true at
+ * centre, and a dead zone as a fraction of the rotation is a band of rim
+ * angle where the car goes straight and the core sends no aligning torque,
+ * so the released rim parks anywhere inside it. 2 % was ±11° on a
+ * hatchback with the rotation matched to its lock (2026-10-26).
+ */
+export const CENTRED_DEADZONE = 0;
+
+/** The steering dead zone wheel profiles carried before 2026-10-26. */
+const OLD_CENTRED_DEADZONE = 0.02;
+
 export function defaultCentredCalibration(): AxisCalibration {
-  return { min: -1, max: 1, center: 0, deadzone: 0.02, invert: false, exponent: 1 };
+  return {
+    min: -1,
+    max: 1,
+    center: 0,
+    deadzone: CENTRED_DEADZONE,
+    invert: false,
+    exponent: 1,
+  };
 }
 
 export function defaultPedalCalibration(): AxisCalibration {
@@ -92,7 +111,7 @@ export class AxisCalibrator {
   }
 
   /** The calibration, or undefined when too little travel was seen. */
-  result(deadzone = this.centred ? 0.02 : 0.03): AxisCalibration | undefined {
+  result(deadzone = this.centred ? CENTRED_DEADZONE : 0.03): AxisCalibration | undefined {
     if (this.travel < 0.2) return undefined;
     const base: AxisCalibration = {
       min: this.lo,
@@ -168,7 +187,7 @@ export function loadProfiles(storage: ProfileStorage | undefined): WheelProfile[
     if (!raw) return [];
     const parsed = JSON.parse(raw) as { format?: number; profiles?: WheelProfile[] };
     if (parsed.format !== PROFILE_FORMAT || !Array.isArray(parsed.profiles)) return [];
-    return parsed.profiles.map(fixGProPaddles);
+    return parsed.profiles.map((p) => clearOldSteerDeadzone(fixGProPaddles(p)));
   } catch {
     return [];
   }
@@ -194,6 +213,19 @@ function fixGProPaddles(p: WheelProfile): WheelProfile {
     ...p,
     shiftUp: { ...p.shiftUp, button: 4 },
     shiftDown: { ...p.shiftDown, button: 5 },
+  };
+}
+
+/**
+ * A profile saved with the old 2 % steering dead zone, which no setup flow
+ * can change, gets none on load; any other value was set on purpose and
+ * stays.
+ */
+function clearOldSteerDeadzone(p: WheelProfile): WheelProfile {
+  if (p.steer?.calibration?.deadzone !== OLD_CENTRED_DEADZONE) return p;
+  return {
+    ...p,
+    steer: { ...p.steer, calibration: { ...p.steer.calibration, deadzone: CENTRED_DEADZONE } },
   };
 }
 
