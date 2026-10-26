@@ -120,3 +120,24 @@ Direct-drive scaler, column ×1:
 - The kart, with no assist, a 2.5:1 ratio and no speed damping, needs
   about 0.6 N·m·s/rad at speed to settle in the harness. It is left alone:
   nobody lets go of a kart's wheel.
+
+## The steering dead zone
+
+2026-10-26. On a G PRO with the direct-drive defaults (PR #72), the wheel
+could sit turned at speed on a straight with the car going straight. The
+cause was the wheel axis's 2 % centre dead zone: 2 % of half the rotation,
+which with the rotation matched to the car's lock is ±11° of rim on the
+hatchback and pickup, ±10° on the crossover and ±8° on the sports car.
+Inside it the core saw no steer, so the car did not turn and the aligning
+torque was zero, and the column friction (0.25 to 0.4 N·m at the rim)
+held the rim wherever it stopped.
+
+Released from 15° at 100 km/h (`deadzone: 0.02` in the harness), the
+hatchback's rim parked at 10.6° with zero yaw rate. With no dead zone it
+returns to within half a degree on every road car, because the core's
+on-centre torque is enough to beat the friction: at 100 km/h one degree
+of rim gives 0.26 N·m on the hatchback and about 0.3 to 0.5 N·m on the
+others at the rim (gain 0.5), the same as the friction, which still lets
+the rim rest within about a degree. The wheel profiles now ship with no
+steering dead zone, and the test suite asserts the return to centre and
+the old parked rim.

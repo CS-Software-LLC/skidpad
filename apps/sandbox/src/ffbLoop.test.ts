@@ -60,6 +60,28 @@ describe("hands-off force feedback", () => {
     }
   });
 
+  it("brings the released wheel back to centre at 100 km/h, with no steering dead zone", () => {
+    // The sandbox's direct-drive defaults (PR #72). With the wheel axis's
+    // old 2 % dead zone the hatchback's rim parked 11° off centre with the
+    // car going straight: inside the band the core saw no steer and sent
+    // no aligning torque, and the column friction held the rim there.
+    const o = {
+      speed: 100 / 3.6,
+      releaseAngle: deg(15),
+      seconds: 6,
+      playout: true,
+      columnScale: 2,
+      scaler: DIRECT_DRIVE_SCALER,
+    };
+    for (const id of ["hatchbackFwd", "sportsRwd", "crossoverEv", "openWheeler"] as const) {
+      const tr = releaseWheel(sp, preset(id), o);
+      expect(Math.abs(tr.angle.at(-1)!), id).toBeLessThan(deg(1));
+    }
+    const old = releaseWheel(sp, preset("hatchbackFwd"), { ...o, deadzone: 0.02 });
+    expect(Math.abs(old.angle.at(-1)!)).toBeGreaterThan(deg(8));
+    expect(Math.abs(old.yawRate.at(-1)!)).toBeLessThan(0.01);
+  });
+
   it("catches the oscillation when the column damping and friction are taken away", () => {
     // The harness's own check: without the firmware's damper the parked
     // wheel's swing grows through the 60 Hz loop.

@@ -15,6 +15,7 @@ import type { PartialVehicleDefinition, Skidpad } from "@skidpad/core";
 import {
   FfbScaler,
   TorquePlayout,
+  applyDeadzone,
   ffbFrameFromTelemetry,
   type FfbScalerOptions,
 } from "@skidpad/input";
@@ -49,6 +50,12 @@ export interface ReleaseOptions {
   playout?: boolean;
   /** Scaler options over the defaults (gain, smoothing, slew). */
   scaler?: FfbScalerOptions;
+  /**
+   * The wheel axis's centre dead zone, a fraction of half the rotation,
+   * which is matched to the car's lock (default 0, as the wheel profiles
+   * now ship): rim angles inside it read as straight ahead.
+   */
+  deadzone?: number;
 }
 
 export interface ReleaseTrace {
@@ -116,7 +123,7 @@ export function releaseWheel(
   for (let k = 0; k < (o.seconds ?? 4) / hostDt; k++) {
     // The host reads the wheel, steps the car and updates the motor.
     world.setInput(car, {
-      steer: Math.max(-1, Math.min(1, angle / lockRad)),
+      steer: applyDeadzone(Math.max(-1, Math.min(1, angle / lockRad)), o.deadzone ?? 0),
       throttle: holdThrottle(),
     });
     world.step(hostDt);

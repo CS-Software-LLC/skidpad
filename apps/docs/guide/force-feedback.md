@@ -97,6 +97,12 @@ Pads with the browser's standard gamepad mapping are left to
 `GamepadInput` (wheels report a non-standard mapping), unless you pass
 `matchStandardPads: true`.
 
+A wheel's steering axis has no dead zone (`CENTRED_DEADZONE` is 0; pedals
+keep 3 %). A dead zone there is a band of rim angle where the car goes
+straight and the core sends no aligning torque, so with column friction the
+released rim parks anywhere inside it. Profiles saved with the old 2 % load
+with none.
+
 ## Several devices and one gearbox
 
 Each device class can hold the requested gear itself, but a car has one
