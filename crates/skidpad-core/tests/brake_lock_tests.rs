@@ -70,10 +70,13 @@ fn brakes_lock_once_without_chatter_and_the_car_stops_cleanly() {
                 assert!(r.wheel_locked, "{tag}: no wheel locked");
                 // The driven wheels also have to drag the engine down through
                 // the clutch before they can lock (the kart's single-speed
-                // engine from near redline takes the longest).
+                // engine from near redline takes the longest, and its full
+                // pedal is only a little past the dry lock point, so the
+                // wheels creep through the peak for a couple of seconds).
                 let t_lock = r.lock_time.unwrap();
+                let lock_limit = if id == "kart" { 2.5 } else { 1.0 };
                 assert!(
-                    t_lock > 0.05 && t_lock < 1.0,
+                    t_lock > 0.05 && t_lock < lock_limit,
                     "{tag}: first lock at {t_lock} s"
                 );
                 // Each wheel locks at most once and never releases while the

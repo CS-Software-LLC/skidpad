@@ -215,3 +215,82 @@ fn a_car_without_unsprung_mass_feels_the_road_through_its_springs() {
         std_dev(&travel[1000..])
     );
 }
+
+fn kart() -> VehicleDefinition {
+    serde_json::from_str(include_str!(
+        "../../../packages/presets/src/vehicles/kart.json"
+    ))
+    .unwrap()
+}
+
+/// Wet asphalt as the presets give it with texture on.
+fn wet(roughness: f64) -> Surface {
+    Surface {
+        grip: 0.65,
+        rolling_resistance: 1.1,
+        roughness,
+        ..Surface::REFERENCE
+    }
+}
+
+/// Brake the kart in a straight line from `speed` on `s` with `brake` and
+/// `steer` held; the largest yaw on the way down, degrees, and the time
+/// the rear first locked, s.
+fn kart_stop(s: Surface, speed: f64, brake: f64, steer: f64) -> (f64, Option<f64>) {
+    let mut w = World::new(1);
+    w.add_vehicle(kart()).unwrap();
+    w.set_surfaces(&[s]).unwrap();
+    w.vehicle_mut(0).unwrap().model.set_speed(speed);
+    for _ in 0..200 {
+        w.step(0.001);
+    }
+    w.set_input(
+        0,
+        VehicleInput {
+            brake,
+            steer,
+            ..VehicleInput::default()
+        },
+    )
+    .unwrap();
+    let (mut yaw, mut lock) = (0.0f64, None);
+    for k in 0..8000 {
+        w.step(0.001);
+        let rec = w.telemetry_of(0);
+        yaw = yaw.max(rec[t::YAW].abs());
+        if lock.is_none() && rec[t::WHEEL_LOCKED_RL] > 0.5 {
+            lock = Some(k as f64 * 1e-3);
+        }
+        if rec[t::SPEED] < 0.3 {
+            break;
+        }
+    }
+    (yaw.to_degrees(), lock)
+}
+
+#[test]
+fn the_kart_brakes_straight_on_textured_wet_asphalt_short_of_locking() {
+    // Half pedal is short of the rear's lock point on wet asphalt.
+    for speed in [12.0, 18.0, 25.0] {
+        let (yaw, lock) = kart_stop(wet(8.0), speed, 0.5, 0.0);
+        assert!(lock.is_none(), "{speed} m/s: rear locked at {lock:?} s");
+        assert!(yaw < 1.0, "{speed} m/s: yawed {yaw}°");
+    }
+}
+
+#[test]
+fn a_locked_kart_rear_swaps_ends_on_a_smooth_road_too() {
+    // The kart brakes its rear axle only, so once the rear locks nothing
+    // holds the tail. The texture does not move the lock point; it only
+    // breaks a symmetry a smooth road keeps exactly, which a quarter of a
+    // degree of steer breaks just as well.
+    let (_, smooth) = kart_stop(wet(0.0), 18.0, 0.8, 0.0);
+    let (_, rough) = kart_stop(wet(8.0), 18.0, 0.8, 0.0);
+    let (smooth, rough) = (smooth.unwrap(), rough.unwrap());
+    assert!(
+        (smooth - rough).abs() < 0.05,
+        "lock {smooth} s vs {rough} s"
+    );
+    let (yaw, _) = kart_stop(wet(0.0), 18.0, 0.8, 0.01);
+    assert!(yaw > 90.0, "smooth, steer 0.01: yawed {yaw}°");
+}

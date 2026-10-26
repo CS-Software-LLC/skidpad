@@ -116,6 +116,13 @@ signal of its own.
   0.17 N·m; the kerb ridges about 0.35 N·m RMS at 50 Hz. Presets without
   scrub radius, inclination or caster (the kart, the open-wheeler) feel it
   only through the tire's load sensitivity, so very little.
-- The validation stops stay on the smooth surfaces. A light car on stiff
-  tires is sensitive to texture when braking: the kart, braked on textured
-  wet asphalt, swaps ends where it did not before.
+- The validation stops stay on the smooth surfaces. The kart, braked hard
+  on textured wet asphalt, swaps ends where it did not on the smooth one.
+  The texture is not the cause (2026-10-26): it does not move the point at
+  which the kart's rear locks, and a kart braking short of that point stays
+  straight on it. The kart brakes its rear axle only, and a locked rear
+  axle holds no line; the smooth road kept the car balanced only because
+  nothing broke its symmetry, and a quarter of a degree of steer spins it
+  there too. The kart's brake torque came down from 320 to 200 N·m so the
+  rear locks from about 0.6 of the pedal on wet asphalt instead of a third
+  (`road_texture_tests`).
