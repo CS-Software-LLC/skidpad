@@ -83,7 +83,7 @@ commit.
 | ---------------------- | ------------------------------- | ------------ | ------------------------ | ---------- | ------------------------- |
 | Light FWD hatchback    | 1.07 deg/g                      | 0.93 deg/g   | 0.93 deg/g               | 9.8 s      | 46.6 m (42.6 m with ABS)  |
 | RWD sports car         | 0.71 deg/g                      | 0.59 deg/g   | 0.58 deg/g               | 4.9 s      | 38.7 m (35.5 m with ABS)  |
-| Kart                   | -0.16 deg/g (solid axle push)   | 0.31 deg/g   | 0.36 deg/g               | 10.9 s     | 58.1 m (rear brakes only) |
+| Kart                   | -0.16 deg/g (solid axle push)   | 0.31 deg/g   | 0.36 deg/g               | 10.9 s     | 57.1 m (rear brakes only) |
 | Pickup 4x4             | 0.93 deg/g                      | 0.72 deg/g   | 0.71 deg/g               | 7.4 s      | 52.2 m (47.1 m with ABS)  |
 | Electric crossover AWD | 0.28 deg/g                      | 0.22 deg/g   | 0.21 deg/g               | 5.0 s      | 44.6 m (40.1 m with ABS)  |
 | Open-wheeler           | 0.65 deg/g                      | 0.60 deg/g   | 0.66 deg/g               | 2.9 s      | 24.0 m (22.5 m with ABS)  |
@@ -105,13 +105,13 @@ reference surface table:
 | ---------------------- | ------------------- | ------------------------ | ----------- | ------ | ----- | ----- |
 | Light FWD hatchback    | 0.21 s, 4 %         | 100 km/h                 | 70 m        | 73 m   | 126 m | 331 m |
 | RWD sports car         | 0.20 s, 0 %         | 110 km/h                 | 58 m        | 60 m   | 107 m | 282 m |
-| Kart                   | 0.15 s, 2 %         | 80 km/h                  | 79 m        | 79 m   | 113 m | spins |
+| Kart                   | 0.15 s, 2 %         | 80 km/h                  | 78 m        | 79 m   | spins | spins |
 | Pickup 4x4             | 0.21 s, 2 %         | 90 km/h                  | 78 m        | 80 m   | 137 m | 361 m |
 | Electric crossover AWD | 0.25 s, 0 %         | 90 km/h                  | 67 m        | 70 m   | 122 m | 330 m |
 | Open-wheeler           | 0.14 s, 0 %         | 100 km/h                 | 36 m        | 38 m   | 68 m  | 166 m |
 
-The kart brakes on its rear axle only, so on ice it swaps ends; the runner
-reports that rather than a distance.
+The kart brakes on its rear axle only, so on snow and ice it swaps ends; the
+runner reports that rather than a distance.
 
 The presets are generic vehicle classes, not specific cars, and their tire
 parameters were tuned toward typical road-test figures for each class. They
