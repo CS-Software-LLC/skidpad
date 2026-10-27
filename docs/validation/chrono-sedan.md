@@ -224,7 +224,8 @@ that is wrong on both cars:
   tolerance leave the toe unchanged.
 
 Compliance steer in the engine would therefore have nothing to be checked
-against here. The understeer gap of about 0.2°/g on both cars remains open.
+against here. The understeer gap of about 0.2°/g on both cars is broken down
+in [The understeer gap](#the-understeer-gap) below.
 
 **4. Near the limit Skidpad holds more grip.** On the ramp Skidpad's car
 reaches 1.0 g where Chrono's holds 0.93 g, and its peak reading of
@@ -275,7 +276,8 @@ Skidpad's has settled.
 Three patterns hold on both cars, so they belong to the engine or to how
 Chrono builds a vehicle:
 
-- **Understeer.** Skidpad shows 0.22°/g less on both cars.
+- **Understeer.** Skidpad shows 0.22°/g less on both cars. Only part of it
+  is shared, and that part sits on Chrono's side (next section).
 - **Pitch damping.** The braking pitch settles too fast on both cars.
 - **Front lift.** Skidpad lifts the front further than Chrono does when
   toe-in forces jack it.
@@ -284,17 +286,80 @@ The E90's 0.4-pedal stop was put down to Chrono's shaft brake realising less
 torque. The Sedan uses the same brake model and stops within 2 %, so the
 E90's TMsimple tire is the more likely cause.
 
+## The understeer gap
+
+2026-10-27. Skidpad steers each car with Chrono's own mean front road-wheel
+angle, so the gap is all in how much slip each axle needs and in rear steer.
+Taken apart on the ramp steer (20 m/s, 0.1–0.5 g), it is three things, and
+only the first is common to both cars. Negative means Skidpad understeers
+less.
+
+| Part (deg/g)                                              | Sedan | E90   |
+| --------------------------------------------------------- | ----- | ----- |
+| Chrono's front axle carries more of the lateral force     | −0.17 | −0.13 |
+| Chrono's rear roll steer, absent with Skidpad's fixed toe | −0.09 | +0.09 |
+| Axle cornering compliance                                 | +0.03 | −0.18 |
+| Total, Skidpad − Chrono                                   | −0.22 | −0.23 |
+
+- **Load transfer and the tires agree per axle.** The roll gradient and the
+  front share of load transfer match, and on the Sedan each axle's slip per
+  newton of lateral force is within 0.5 % of Chrono's.
+- **Rear roll steer goes opposite ways on the two cars.** Chrono's logged
+  rear wheel angles steer by +0.09°/g on the Sedan (understeer) and −0.09°/g
+  on the E90 (oversteer). Skidpad's comparison cars keep the rear toe fixed.
+- **The E90's rear axle is 5 % softer in Skidpad.** The TMsimple fit
+  (`tire-fit.ts`) matches the cornering stiffness at the nominal load and
+  1.5 times it, and the loaded outer rear sits away from both. The front is
+  2 % stiffer. This part is the E90's alone.
+
+**The shared part is a yaw moment missing from Chrono's tire forces.** In a
+steady turn the tire forces must balance in yaw about the centre of mass.
+Skidpad's logged forces and aligning moments do, within about 100 N·m per g.
+Chrono's leave a restoring moment unbalanced, and its front axle carries
+1.1 to 1.3 points more of the lateral force than the centre of mass alone
+asks for:
+
+| Unbalanced yaw moment (N·m per g) | Sedan     | E90     |
+| --------------------------------- | --------- | ------- |
+| Chrono, ramp steer at 20 m/s      | 440       | 640     |
+| Chrono, step steer at 22 m/s      | about 480 | 760     |
+| Chrono, low-speed turn at 5 m/s   |           | about 0 |
+| Skidpad, ramp steer               | 9         | −106    |
+
+It grows with speed, roughly with its square at the same lateral
+acceleration. It is not:
+
+- **the tires' aligning moment.** TMsimple has none (`ChTMsimpleTire.cpp`
+  sets `Mz = 0`). On the Sedan, Chrono's Pac02 trail evaluated at its own
+  logged slips and loads gives −490 N·m/g, and Skidpad's tire −506.
+- **yaw acceleration** in the ramp, under 60 N·m/g.
+- **the centre of mass or the wheel positions.** The static loads put the
+  centre of mass where `static.json` does within 1 mm, and Chrono's logged
+  slip angles match the kinematics at those positions.
+- **where Chrono applies the tire force.** `ChForceElementTire` moves it from
+  the contact patch, straight below the disc's centre, to the wheel centre,
+  which adds no moment about the vertical.
+
+Its source is inside Chrono's vehicle, outside what the harness logs.
+Logging every body's external forces in a turn would find it. It is a
+finding on the reference side, so the engine is not changed for it.
+
 ## Recommendations
 
 1. **Not compliance steer.** Neither car has it (finding 3).
 2. **Find out why Chrono's front jacks less than its geometry.** The
-   understeer gap, the runaway with toe curves, the E90's rear ride height
+   runaway with toe curves, the E90's rear ride height
    and Skidpad's extra grip near the limit may share a cause in how the
    wheel loads reach the body through the links. Logging Chrono's link and
    spring forces per wheel would show it. That is a harness change first,
    and an engine change only once the cause is known.
 3. **Look at the pitch and yaw damping with the unsprung mass in mind.**
    Both settle faster in Skidpad on both cars.
+4. **Leave the understeer gap.** Both cars are inside the ±0.3°/g band, and
+   the shared part is Chrono's unbalanced yaw moment
+   ([The understeer gap](#the-understeer-gap)). Adding the rear toe curves
+   would make the rear roll steer a prediction but move the E90 to about
+   −0.32°/g.
 
 ## Reproducing
 
