@@ -339,8 +339,10 @@ all carried over. The remaining difference is open and within tolerance.
 
 1. **Not compliance steer** (corrected 2026-10-10). Chrono's toe follows
    travel (finding 2, corrected). The understeer gap, about 0.2°/g on both
-   reference cars, stays open; [chrono-sedan.md](chrono-sedan.md) has the
-   next steps.
+   reference cars, is taken apart in
+   [chrono-sedan.md](chrono-sedan.md#the-understeer-gap). On the E90 it is
+   Chrono's unbalanced yaw moment (−0.13°/g), the TMsimple fit's softer rear
+   axle (−0.18°/g) and Chrono's rear roll steer (+0.09°/g).
 2. **Look at the roll progression.** Skidpad's roll per g now grows faster
    than Chrono's at high lateral acceleration (finding 4). A lateral
    roll-centre shift, or curves measured in roll rather than heave, would
