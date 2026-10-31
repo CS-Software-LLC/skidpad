@@ -36,6 +36,13 @@ pub const KAPPA_STAR_MIN_DENOM: f64 = 1e-3;
 /// clamp the lateral curve is at its asymptote regardless. ADR-0008.
 pub const ALPHA_TAN_LIMIT: f64 = 1.5;
 
+/// Range of `longitudinalFrictionRatio`. Measured road tires sit within
+/// a few tens of percent of one either way; the range only rejects values
+/// that are clearly a typo, such as a friction coefficient entered in place
+/// of the ratio. ADR-0037.
+pub const LONGITUDINAL_FRICTION_RATIO_MIN: f64 = 0.5;
+pub const LONGITUDINAL_FRICTION_RATIO_MAX: f64 = 2.0;
+
 /// Range of `trailReversal` the trail curve accepts. Zero would make the
 /// shape factor infinite (the curve would collapse to zero for any slip), so
 /// the depth is floored at a tenth of a percent, which is indistinguishable
@@ -63,6 +70,12 @@ pub struct FeelTireParams {
     pub nominal_load: f64,
     /// Peak friction coefficient at the nominal load.
     pub peak_friction: f64,
+    /// Peak longitudinal (braking and driving) friction as a multiple of
+    /// `peakFriction`, which then sets the lateral peak only. Real tires
+    /// usually grip a little more in braking than in cornering, which is why
+    /// the Magic Formula carries the two peaks separately (`PDX1`, `PDY1`).
+    /// One (the default) gives both directions the same peak. ADR-0037.
+    pub longitudinal_friction_ratio: f64,
     /// Fractional drop in peak friction per unit of `(Fz − Fz0) / Fz0`.
     /// 0.1 means 10 % less friction at twice the nominal load.
     pub load_sensitivity: f64,
@@ -141,6 +154,7 @@ impl Default for FeelTireParams {
             radius: 0.31,
             nominal_load: 4000.0,
             peak_friction: 1.0,
+            longitudinal_friction_ratio: 1.0,
             load_sensitivity: 0.1,
             peak_slip_ratio: 0.12,
             peak_slip_angle_deg: 7.0,
@@ -292,10 +306,11 @@ impl FeelTireParams {
         // peaks at a smaller slip, as a tire on ice does.
         let mu = self.friction_at_load(fz) * m::max(i.grip, 0.0);
         let peak = mu * fz;
+        let peak_x = peak * self.longitudinal_friction_ratio;
         let kappa_peak = m::max(self.peak_slip_ratio, 1e-4);
         let alpha_peak = m::max(self.peak_slip_angle(), 1e-4);
 
-        let cx = MagicCurve::from_feel_shape(peak, kx, kappa_peak, shape.long);
+        let cx = MagicCurve::from_feel_shape(peak_x, kx, kappa_peak, shape.long);
         let cy = MagicCurve::from_feel_shape(peak, ky, alpha_peak, shape.lat);
 
         // Camber thrust enters as an equivalent slip-angle shift so that it is
@@ -404,9 +419,9 @@ impl FeelTireParams {
             mx: 0.0,
             my,
             trail,
-            fx_max: peak,
+            fx_max: peak_x,
             fy_max: peak,
-            fx_slide: m::clamp(self.falloff_long, 0.05, 1.0) * peak,
+            fx_slide: m::clamp(self.falloff_long, 0.05, 1.0) * peak_x,
             fy_slide: m::clamp(self.falloff_lat, 0.05, 1.0) * peak,
         }
     }
@@ -452,6 +467,14 @@ impl FeelTireParams {
             errors.push(format!(
                 "{prefix}.peakSlipAngleDeg must be at most 45 (got {})",
                 self.peak_slip_angle_deg
+            ));
+        }
+        if !(self.longitudinal_friction_ratio >= LONGITUDINAL_FRICTION_RATIO_MIN
+            && self.longitudinal_friction_ratio <= LONGITUDINAL_FRICTION_RATIO_MAX)
+        {
+            errors.push(format!(
+                "{prefix}.longitudinalFrictionRatio must be in [{LONGITUDINAL_FRICTION_RATIO_MIN}, {LONGITUDINAL_FRICTION_RATIO_MAX}] (got {})",
+                self.longitudinal_friction_ratio
             ));
         }
         if !(0.0..1.0).contains(&self.load_sensitivity) {

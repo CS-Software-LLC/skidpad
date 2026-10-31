@@ -6,6 +6,7 @@
     "sources": [
       "Class-typical figures from manufacturer specification sheets for B/C-segment hatchbacks (mass 1150–1300 kg, wheelbase 2.5–2.65 m, Cd 0.30–0.33, 60/40 front weight bias).",
       "Tire feel parameters tuned to a ~0.85 g skidpad and ~38 m 100–0 km/h braking distance, typical of published road tests for the class.",
+      "Braking grip [ILLUSTRATIVE] (ADR-0037): longitudinalFrictionRatio 1.12, the tire's peak braking and traction friction over its cornering friction, picked so the ABS stop meets the braking target above while the skidpad stays where it was; one friction value could not meet both (2026-10-31). The front brakes are 3400 N·m on the axle (was 3000) so they can still lock the fronts at that grip.",
       "Lateral relaxation [ILLUSTRATIVE] (ADR-0038): relaxationLengthLat is the length at the nominal load and follows the cornering stiffness with load (lateralRelaxationFollowsLoad), as a tire's contact patch does when its carcass stiffness stays put (2026-10-31).",
       "Suspension rates typical of a compact hatchback with ~1.4 Hz front and ~1.5 Hz rear ride frequencies, soft rear bar (Gillespie, Fundamentals of Vehicle Dynamics, ch. 5).",
       "Drivetrain [ILLUSTRATIVE]: a 1.6 l naturally aspirated four (peak 172 N·m, 100 kW at 6000 rpm), five-speed ratios and a 4.1 final drive typical of the class; open front differential.",
@@ -35,6 +36,7 @@
         "radius": 0.3,
         "nominalLoad": 3600,
         "peakFriction": 0.95,
+        "longitudinalFrictionRatio": 1.12,
         "loadSensitivity": 0.12,
         "peakSlipAngleDeg": 7.5,
         "corneringStiffness": 17,
@@ -48,7 +50,7 @@
       "wheelInertia": 1.6,
       "driven": true,
       "steered": true,
-      "maxBrakeTorque": 3000,
+      "maxBrakeTorque": 3400,
       "staticCamberDeg": -0.5,
       "suspension": {
         "springRate": 24000,
@@ -81,6 +83,7 @@
         "radius": 0.3,
         "nominalLoad": 3600,
         "peakFriction": 0.95,
+        "longitudinalFrictionRatio": 1.12,
         "loadSensitivity": 0.12,
         "peakSlipAngleDeg": 7.5,
         "corneringStiffness": 17,

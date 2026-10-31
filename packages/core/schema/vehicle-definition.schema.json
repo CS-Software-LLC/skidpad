@@ -800,6 +800,12 @@
           "exclusiveMinimum": 0,
           "default": 1.0
         },
+        "longitudinalFrictionRatio": {
+          "type": "number",
+          "minimum": 0.5,
+          "maximum": 2,
+          "default": 1.0
+        },
         "loadSensitivity": {
           "type": "number",
           "minimum": 0,

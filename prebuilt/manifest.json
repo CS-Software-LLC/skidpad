@@ -1,7 +1,7 @@
 {
-  "sourceHash": "ce4711093ecad24db4b21acab4ab3df168895a070a88a6b4322d8bc4d5842501",
+  "sourceHash": "5c38f387af7e5b5ed4a1c3fe85cf7cc050137a4879788b5bd35a71d643eee920",
   "coreVersion": "0.12.0",
-  "bytes": 559062,
-  "gzipBytes": 204316,
-  "builtAt": "2026-10-31T17:54:22.829Z"
+  "bytes": 560020,
+  "gzipBytes": 204574,
+  "builtAt": "2026-10-31T17:58:30.328Z"
 }
