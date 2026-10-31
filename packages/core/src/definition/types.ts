@@ -15,6 +15,11 @@ export interface FeelTireParams {
   nominalLoad?: number;
   /** Peak friction coefficient at the nominal load. */
   peakFriction?: number;
+  /**
+   * Peak longitudinal (braking and driving) friction as a multiple of
+   * `peakFriction`, which then sets the lateral peak only. Default 1.
+   */
+  longitudinalFrictionRatio?: number;
   /** Fractional drop in peak friction per unit of (Fz − Fz0) / Fz0. */
   loadSensitivity?: number;
   /** Slip ratio at which longitudinal force peaks. */

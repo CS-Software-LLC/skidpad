@@ -170,6 +170,13 @@ helps. Parameters are per tire unless noted.
 - Road tests have ABS; turn on `assists.abs`. Its `slipTarget` should sit at
   the tire's `peakSlipRatio`; the `floor` is how much brake stays when a
   wheel runs away.
+- If the mean deceleration already sits near `peakFriction` g, the tire is
+  the limit. Raise `longitudinalFrictionRatio` (feel tire) rather than
+  `peakFriction`: it adds braking and traction grip without moving the
+  skidpad. The road presets use 1.05 to 1.12.
+- Check that `maxBrakeTorque` can still lock the axle at the new grip:
+  front torque below `radius × μx × front load under braking` leaves grip
+  unused.
 
 ## Steering does not go light before the limit
 

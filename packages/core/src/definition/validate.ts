@@ -174,6 +174,10 @@ function validateTire(errors: string[], warnings: string[], path: string, tire: 
     nonNegative(errors, `${path}.lowSpeedDamping`, t.lowSpeedDamping);
     positive(errors, `${path}.verticalStiffness`, t.verticalStiffness);
     nonNegative(errors, `${path}.verticalDamping`, t.verticalDamping);
+    const lfr = t.longitudinalFrictionRatio;
+    if (lfr !== undefined && (!isNum(lfr) || lfr < 0.5 || lfr > 2)) {
+      errors.push(`${path}.longitudinalFrictionRatio must be in [0.5, 2] (got ${String(lfr)})`);
+    }
     for (const k of ["falloffLong", "falloffLat"]) {
       const v = t[k];
       if (v !== undefined && (!isNum(v) || v <= 0 || v > 1)) {
