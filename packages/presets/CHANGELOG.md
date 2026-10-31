@@ -1,5 +1,20 @@
 # @skidpad/presets
 
+## 0.13.0
+
+### Minor Changes
+
+- 66f418f: - core: the feel tire has a `longitudinalFrictionRatio` (default 1), the peak braking and traction friction as a multiple of `peakFriction`, which then sets the cornering peak only (ADR-0037). Definitions without it run as before.
+  - physics: presets: the hatchback, crossover, pickup and sports car set `longitudinalFrictionRatio` (1.12, 1.08, 1.07, 1.05) and the hatchback's front brakes go from 3000 to 3400 N·m, so their 100–0 km/h ABS stops land on their `dataSheet` targets (38.3, 37.2, 44.1 and 33.9 m, were 42.6, 40.1, 47.1 and 35.5 m) while their skidpad figures stay put. Stops on wet, gravel, snow and ice shorten in proportion, and traction-limited launches are slightly quicker.
+- fe4fcda: - core: the lateral relaxation length can follow the tire's load (ADR-0038): the feel tire's `lateralRelaxationFollowsLoad` scales `relaxationLengthLat` with the cornering stiffness, and a Magic Formula tire with `PTY1` and `PTY2` (now read from `.tir` files) uses the MF 5.2 form. Both are off by default; definitions without them run as before.
+  - physics: presets: the hatchback, crossover, pickup and sports car turn `lateralRelaxationFollowsLoad` on. Step-steer yaw overshoot falls a little (hatchback 4.1 → 3.5 %, pickup 2.4 → 1.9 %); response times, gradients and lane-change pass speeds are unchanged.
+
+### Patch Changes
+
+- Updated dependencies [66f418f]
+- Updated dependencies [fe4fcda]
+  - @skidpad/core@0.13.0
+
 ## 0.12.0
 
 ### Minor Changes
