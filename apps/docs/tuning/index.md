@@ -257,6 +257,12 @@ helps. Parameters are per tire unless noted.
 - Toe-out on the front does the opposite and sharpens turn-in. Either way
   the scrub costs a little straight-line speed
   ([toe](/concepts/suspension#toe)).
+- `relaxationLengthLat` sets how far a tire rolls before its side force
+  builds; longer answers later and overshoots more. With
+  `lateralRelaxationFollowsLoad` it is the length at `nominalLoad`, and a
+  loaded tire relaxes over a longer distance than a light one, as real
+  tires do. Magic Formula tires read the same from the `.tir` file's `PTY1`
+  and `PTY2`.
 
 ## Car understeers more at speed than the steering ratio suggests
 

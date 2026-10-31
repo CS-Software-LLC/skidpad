@@ -116,8 +116,17 @@ pub struct FeelTireParams {
     pub rolling_resistance: f64,
     /// Longitudinal relaxation length, m.
     pub relaxation_length_long: f64,
-    /// Lateral relaxation length, m.
+    /// Lateral relaxation length, m; at the nominal load when
+    /// `lateralRelaxationFollowsLoad` is set.
     pub relaxation_length_lat: f64,
+    /// Scale the lateral relaxation length with the cornering stiffness, so
+    /// it is `relaxationLengthLat` at the nominal load, longer above it and
+    /// shorter below. The contact patch's lateral deflection is a spring of
+    /// roughly constant carcass stiffness `CFy`, and `σα = Cα / CFy`
+    /// (Pacejka, *Tire and Vehicle Dynamics*, ch. 7 [VERIFY]), which is
+    /// also the load shape of the Magic Formula's `PTY1`/`PTY2`. Off (the
+    /// default) keeps one length at every load. ADR-0038.
+    pub lateral_relaxation_follows_load: bool,
     /// Speed floor for the kinematic slip, m/s (ADR-0005). Sets the
     /// telemetry slips and the static deflection bound at standstill; the
     /// deflection transient itself decays at the true rolling speed
@@ -162,6 +171,7 @@ impl Default for FeelTireParams {
             rolling_resistance: 0.012,
             relaxation_length_long: 0.25,
             relaxation_length_lat: 0.35,
+            lateral_relaxation_follows_load: false,
             low_speed_floor: 0.5,
             low_speed_damping: 0.7,
             low_speed_damping_fade: 2.0,
@@ -254,6 +264,20 @@ impl FeelTireParams {
             self.longitudinal_stiffness * self.nominal_load * shape,
             self.cornering_stiffness * self.nominal_load * shape,
         )
+    }
+
+    /// Lateral relaxation length for cornering stiffness `ky` (from
+    /// [`Self::cornering_stiffness`] at the load in question), m.
+    #[inline]
+    pub fn relaxation_length_lat_with(&self, ky: f64) -> f64 {
+        if !self.lateral_relaxation_follows_load {
+            return self.relaxation_length_lat;
+        }
+        let ky0 = self.cornering_stiffness * self.nominal_load;
+        if ky0 <= 0.0 {
+            return self.relaxation_length_lat;
+        }
+        self.relaxation_length_lat * m::max(ky, 0.0) / ky0
     }
 
     #[inline]

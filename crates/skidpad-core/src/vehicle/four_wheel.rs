@@ -1019,7 +1019,7 @@ impl FourWheelVehicle {
             let g = self.geometry[i];
             let radius = g.radius;
             let floor = tire.low_speed_floor();
-            let (sigma_x, sigma_y) = tire.relaxation_lengths();
+            let (sigma_x, _) = tire.relaxation_lengths();
             let c = self.contacts[i];
             let surface = surfaces.get(c.surface_id);
             let w = &mut self.wheels[i];
@@ -1076,6 +1076,8 @@ impl FourWheelVehicle {
             // Contact-patch deflection transient (ADR-0010), bounded at
             // standstill by the force peak or the floored kinematic slip.
             let at = tire.at_load(shape, w.load);
+            // ADR-0038: the lateral length may follow the load.
+            let sigma_y = at.relaxation_length_lat();
             let (kappa_peak, tan_alpha_peak) = tire.static_slip_bounds_in(shape);
             let slip_vx = w.omega * radius - wx;
             w.transient.update(

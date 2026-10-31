@@ -383,7 +383,7 @@ impl BicycleVehicle {
             let shape = &self.derived.tires[i];
             let radius = tire.unloaded_radius();
             let floor = tire.low_speed_floor();
-            let (sigma_x, sigma_y) = tire.relaxation_lengths();
+            let (sigma_x, _) = tire.relaxation_lengths();
             // Static camber is mirrored left to right on a real axle, so its
             // thrust cancels. The single-track tire represents both wheels and
             // therefore runs at zero camber; camber effects return with the
@@ -423,6 +423,8 @@ impl BicycleVehicle {
             st.kinematic_ratio = kappa;
             st.kinematic_angle = alpha;
             let at = tire.at_load(shape, fz_tire);
+            // ADR-0038: the lateral length may follow the load.
+            let sigma_y = at.relaxation_length_lat();
             let (kappa_peak, tan_alpha_peak) = tire.static_slip_bounds_in(shape);
             let slip_vx = st.omega * radius - wx;
             st.transient.update(

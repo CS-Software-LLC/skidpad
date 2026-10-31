@@ -172,6 +172,12 @@ function validateTire(errors: string[], warnings: string[], path: string, tire: 
       positive(errors, `${path}.${k}`, t[k]);
     }
     nonNegative(errors, `${path}.lowSpeedDamping`, t.lowSpeedDamping);
+    const follows = t.lateralRelaxationFollowsLoad;
+    if (follows !== undefined && typeof follows !== "boolean") {
+      errors.push(
+        `${path}.lateralRelaxationFollowsLoad must be true or false (got ${String(follows)})`,
+      );
+    }
     positive(errors, `${path}.verticalStiffness`, t.verticalStiffness);
     nonNegative(errors, `${path}.verticalDamping`, t.verticalDamping);
     const lfr = t.longitudinalFrictionRatio;
@@ -234,6 +240,8 @@ function validateTire(errors: string[], warnings: string[], path: string, tire: 
     }
     nonNegative(errors, `${path}.lowSpeedDamping`, t.lowSpeedDamping);
     nonNegative(errors, `${path}.verticalDamping`, t.verticalDamping);
+    nonNegative(errors, `${path}.pty1`, t.pty1);
+    nonNegative(errors, `${path}.pty2`, t.pty2);
     const pky1 = t.pky1;
     if (isNum(pky1) && pky1 > 0) {
       errors.push(

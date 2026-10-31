@@ -906,6 +906,11 @@
           "default": 0.35,
           "description": "m"
         },
+        "lateralRelaxationFollowsLoad": {
+          "type": "boolean",
+          "default": false,
+          "description": "Scale relaxationLengthLat with the cornering stiffness (ADR-0038)"
+        },
         "lowSpeedFloor": {
           "type": "number",
           "exclusiveMinimum": 0,
@@ -971,6 +976,18 @@
           "type": "number",
           "exclusiveMinimum": 0,
           "default": 0.35
+        },
+        "pty1": {
+          "type": "number",
+          "minimum": 0,
+          "default": 0,
+          "description": "PTY1: peak lateral relaxation length over R0; 0 keeps relaxationLengthLat (ADR-0038)"
+        },
+        "pty2": {
+          "type": "number",
+          "minimum": 0,
+          "default": 0,
+          "description": "PTY2: Fz/Fz0' at which the lateral relaxation length peaks"
         },
         "lowSpeedFloor": {
           "type": "number",

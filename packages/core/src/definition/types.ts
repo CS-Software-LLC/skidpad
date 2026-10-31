@@ -59,8 +59,13 @@ export interface FeelTireParams {
   rollingResistance?: number;
   /** Longitudinal relaxation length, m. */
   relaxationLengthLong?: number;
-  /** Lateral relaxation length, m. */
+  /** Lateral relaxation length, m (at the nominal load when it follows the load). */
   relaxationLengthLat?: number;
+  /**
+   * Scale the lateral relaxation length with the cornering stiffness, so it
+   * grows with load (ADR-0038). Default false: one length at every load.
+   */
+  lateralRelaxationFollowsLoad?: boolean;
   /**
    * Speed floor of the kinematic slip, m/s (ADR-0005): telemetry slips and
    * the standstill deflection bound. The deflection transient decays at the
@@ -92,6 +97,13 @@ export interface MagicFormulaParams {
   longvl?: number;
   relaxationLengthLong?: number;
   relaxationLengthLat?: number;
+  /**
+   * `PTY1` and `PTY2`: with both positive the lateral relaxation length is
+   * `PTY1 · sin(2·atan(Fz / (PTY2·Fz0'))) · R0` instead of
+   * `relaxationLengthLat` (ADR-0038). Default 0.
+   */
+  pty1?: number;
+  pty2?: number;
   lowSpeedFloor?: number;
   lowSpeedDamping?: number;
   lowSpeedDampingFade?: number;

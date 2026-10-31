@@ -44,3 +44,4 @@ Rejected.
 | [0035](0035-divergence-guard.md)                       | Runtime divergence guard                                                | Proposed                  |
 | [0036](0036-road-texture.md)                           | Road texture from surface roughness and ridges                          | Proposed                  |
 | [0037](0037-longitudinal-friction-ratio.md)            | Separate longitudinal friction for the feel tire                        | Proposed                  |
+| [0038](0038-load-dependent-lateral-relaxation.md)      | Load-dependent lateral relaxation length                                | Proposed                  |

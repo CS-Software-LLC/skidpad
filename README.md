@@ -103,7 +103,7 @@ reference surface table:
 
 | Vehicle (preset)       | Step steer response | Lane change passes up to | Wet asphalt | Gravel | Snow  | Ice   |
 | ---------------------- | ------------------- | ------------------------ | ----------- | ------ | ----- | ----- |
-| Light FWD hatchback    | 0.21 s, 4 %         | 100 km/h                 | 63 m        | 66 m   | 114 m | 300 m |
+| Light FWD hatchback    | 0.21 s, 3 %         | 100 km/h                 | 63 m        | 66 m   | 114 m | 300 m |
 | RWD sports car         | 0.20 s, 0 %         | 110 km/h                 | 55 m        | 58 m   | 103 m | 270 m |
 | Kart                   | 0.15 s, 2 %         | 80 km/h                  | 78 m        | 79 m   | spins | spins |
 | Pickup 4x4             | 0.21 s, 2 %         | 90 km/h                  | 73 m        | 76 m   | 130 m | 340 m |
@@ -131,7 +131,7 @@ Stability, from the same runner (all six presets, both models):
 | Parked on 10, 20, 30 % grades (brake), 10, 20 % (handbrake), 20 % cross slope | holds, creep below 1e-10 m/s                                                 |
 | 100–0 km/h without ABS                                                        | wheels lock once at 0.06–0.79 s, zero releases, deceleration ripple ≤ 0.03 % |
 | Stop on the held brake                                                        | spring-back ≤ 0.31 m/s and ≤ 6 cm, at rest (< 1e-4 m/s) after 2 s            |
-| Timestep sweep, 250–2000 Hz internal × 30–240 Hz host                         | understeer gradient within 0.001 deg/g, braking distance within 0.7 %        |
+| Timestep sweep, 250–2000 Hz internal × 30–240 Hz host                         | understeer gradient within 0.005 deg/g, braking distance within 0.7 %        |
 
 Benchmarks on a Node 22 x64 Linux container (CI class, not M1), 60 Hz host
 step, release build, CI on 2026-10-23:

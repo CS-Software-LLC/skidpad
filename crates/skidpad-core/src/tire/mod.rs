@@ -113,6 +113,7 @@ pub struct TireAtLoad {
     fz: f64,
     kx: f64,
     ky: Option<f64>,
+    sigma_lat: f64,
 }
 
 impl TireAtLoad {
@@ -120,6 +121,12 @@ impl TireAtLoad {
     #[inline]
     pub fn longitudinal_stiffness(&self) -> f64 {
         self.kx
+    }
+
+    /// [`TireModel::relaxation_length_lat`] at this load, m.
+    #[inline]
+    pub fn relaxation_length_lat(&self) -> f64 {
+        self.sigma_lat
     }
 }
 
@@ -171,6 +178,7 @@ impl TireModel {
                     fz,
                     kx,
                     ky: Some(ky),
+                    sigma_lat: p.relaxation_length_lat_with(ky),
                 }
             }
             // The Magic Formula evaluation works its stiffnesses out
@@ -179,6 +187,7 @@ impl TireModel {
                 fz,
                 kx: self.longitudinal_stiffness(fz),
                 ky: None,
+                sigma_lat: self.relaxation_length_lat(fz),
             },
         }
     }
@@ -195,7 +204,21 @@ impl TireModel {
         }
     }
 
-    /// Longitudinal and lateral relaxation lengths, m.
+    /// Lateral relaxation length at load `fz`, m (ADR-0038). The quoted
+    /// `relaxationLengthLat` unless the tire makes it follow the load: a
+    /// feel tire with `lateralRelaxationFollowsLoad`, or a Magic Formula
+    /// tire whose `PTY1` and `PTY2` are both positive.
+    #[inline]
+    pub fn relaxation_length_lat(&self, fz: f64) -> f64 {
+        match self {
+            TireModel::Feel(p) => p.relaxation_length_lat_with(p.cornering_stiffness(fz)),
+            TireModel::MagicFormula(p) => p.relaxation_length_lat_at(fz),
+        }
+    }
+
+    /// Longitudinal and lateral relaxation lengths as quoted, m. The
+    /// lateral one is the value at the nominal load when it follows the
+    /// load; [`Self::relaxation_length_lat`] gives it at any load.
     #[inline]
     pub fn relaxation_lengths(&self) -> (f64, f64) {
         match self {
@@ -270,7 +293,8 @@ impl TireModel {
         if zeta <= 0.0 || fz <= 0.0 {
             return (0.0, 0.0);
         }
-        let (sigma_x, sigma_y) = self.relaxation_lengths();
+        let (sigma_x, _) = self.relaxation_lengths();
+        let sigma_y = at.sigma_lat;
         let corner_mass = fz / crate::GRAVITY;
         let cap = corner_mass / (2.0 * m::max(dt, 1e-6));
         let ky = match at.ky {

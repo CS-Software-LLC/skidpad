@@ -185,6 +185,12 @@ mf_params! {
         rvy4: "RVY4" = 0.0,
         rvy5: "RVY5" = 1.9,
         rvy6: "RVY6" = -10.0,
+        /// Peak of the lateral relaxation length over `R0` (MF 5.2 transient
+        /// slip, ADR-0038). Zero (the default) keeps the fixed
+        /// `SKIDPAD_RELAXATION_LENGTH_LAT`.
+        pty1: "PTY1" = 0.0,
+        /// `Fz / Fz0'` at which the lateral relaxation length peaks.
+        pty2: "PTY2" = 0.0,
         // Aligning
         qbz1: "QBZ1" = 8.0,
         qbz2: "QBZ2" = 0.0,
@@ -234,7 +240,8 @@ mf_params! {
         /// Longitudinal relaxation length, m. Not part of MF 5.2 `.tir` files;
         /// defaults are typical passenger-car values.
         relaxation_length_long: "SKIDPAD_RELAXATION_LENGTH_LONG" = 0.25,
-        /// Lateral relaxation length, m.
+        /// Lateral relaxation length, m. Used at every load unless `PTY1`
+        /// and `PTY2` are both positive.
         relaxation_length_lat: "SKIDPAD_RELAXATION_LENGTH_LAT" = 0.35,
         /// Speed floor for the kinematic slip, m/s (ADR-0005, ADR-0010).
         low_speed_floor: "SKIDPAD_LOW_SPEED_FLOOR" = 0.5,
@@ -264,6 +271,21 @@ impl MagicFormulaParams {
     #[inline]
     fn fz0_prime(&self) -> f64 {
         m::max(self.fz0 * self.lfzo, 1.0)
+    }
+
+    /// Lateral relaxation length at load `fz`, m (ADR-0038). With `PTY1`
+    /// and `PTY2` both positive it is the MF 5.2 transient-slip form
+    /// `σα = PTY1 · sin(2 · atan(Fz / (PTY2 · Fz0'))) · R0` (Pacejka, *Tire
+    /// and Vehicle Dynamics*, ch. 4, transient slip [VERIFY]), without its
+    /// camber factor `1 − PKY3 · |γ|`; otherwise the fixed
+    /// `SKIDPAD_RELAXATION_LENGTH_LAT`.
+    #[inline]
+    pub fn relaxation_length_lat_at(&self, fz: f64) -> f64 {
+        if !(self.pty1 > 0.0 && self.pty2 > 0.0) {
+            return self.relaxation_length_lat;
+        }
+        let x = m::max(fz, 0.0) / (self.pty2 * self.fz0_prime());
+        self.pty1 * m::sin(2.0 * m::atan(x)) * self.unloaded_radius
     }
 
     #[inline]
@@ -604,6 +626,13 @@ impl MagicFormulaParams {
                 "{prefix}.lowSpeedDamping must be zero or positive (got {})",
                 self.low_speed_damping
             ));
+        }
+        for (name, v) in [("pty1", self.pty1), ("pty2", self.pty2)] {
+            if !(v >= 0.0) || !v.is_finite() {
+                errors.push(format!(
+                    "{prefix}.{name} must be zero or positive (got {v}); zero keeps the fixed relaxationLengthLat"
+                ));
+            }
         }
         if self.pky1 == 0.0 || !self.pky1.is_finite() {
             errors.push(format!(

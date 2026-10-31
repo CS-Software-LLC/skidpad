@@ -225,6 +225,8 @@ export function sedan(
     unloadedRadius: d.rollingRadius,
     relaxationLengthLong: RELAXATION_LENGTH,
     relaxationLengthLat: RELAXATION_LENGTH,
+    // The file's PTY1/PTY2 would replace the near-zero length (ADR-0038).
+    pty1: 0,
   };
   const toe = (axle: Axle) =>
     (toeCurve ? d.restToeDeg[axle] : d.drivingToeDeg[axle]) + d.offsetToeDeg[axle];
