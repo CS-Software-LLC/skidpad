@@ -81,11 +81,11 @@ commit.
 
 | Vehicle (preset)       | Understeer gradient, four-wheel | Single-track | Linear theory with trail | 0–100 km/h | 100–0 km/h, no ABS        |
 | ---------------------- | ------------------------------- | ------------ | ------------------------ | ---------- | ------------------------- |
-| Light FWD hatchback    | 1.07 deg/g                      | 0.93 deg/g   | 0.93 deg/g               | 9.8 s      | 46.6 m (42.6 m with ABS)  |
-| RWD sports car         | 0.71 deg/g                      | 0.59 deg/g   | 0.58 deg/g               | 4.9 s      | 38.7 m (35.5 m with ABS)  |
+| Light FWD hatchback    | 1.07 deg/g                      | 0.93 deg/g   | 0.93 deg/g               | 9.8 s      | 42.1 m (38.3 m with ABS)  |
+| RWD sports car         | 0.71 deg/g                      | 0.59 deg/g   | 0.58 deg/g               | 4.9 s      | 37.0 m (33.9 m with ABS)  |
 | Kart                   | -0.16 deg/g (solid axle push)   | 0.31 deg/g   | 0.36 deg/g               | 10.9 s     | 57.1 m (rear brakes only) |
-| Pickup 4x4             | 0.93 deg/g                      | 0.72 deg/g   | 0.71 deg/g               | 7.4 s      | 52.2 m (47.1 m with ABS)  |
-| Electric crossover AWD | 0.28 deg/g                      | 0.22 deg/g   | 0.21 deg/g               | 5.0 s      | 44.6 m (40.1 m with ABS)  |
+| Pickup 4x4             | 0.93 deg/g                      | 0.72 deg/g   | 0.71 deg/g               | 7.4 s      | 49.0 m (44.1 m with ABS)  |
+| Electric crossover AWD | 0.28 deg/g                      | 0.22 deg/g   | 0.21 deg/g               | 5.0 s      | 41.4 m (37.2 m with ABS)  |
 | Open-wheeler           | 0.65 deg/g                      | 0.60 deg/g   | 0.66 deg/g               | 2.9 s      | 24.0 m (22.5 m with ABS)  |
 
 The four-wheel gradient sits above the single-track one by the load
@@ -103,24 +103,26 @@ reference surface table:
 
 | Vehicle (preset)       | Step steer response | Lane change passes up to | Wet asphalt | Gravel | Snow  | Ice   |
 | ---------------------- | ------------------- | ------------------------ | ----------- | ------ | ----- | ----- |
-| Light FWD hatchback    | 0.21 s, 4 %         | 100 km/h                 | 70 m        | 73 m   | 126 m | 331 m |
-| RWD sports car         | 0.20 s, 0 %         | 110 km/h                 | 58 m        | 60 m   | 107 m | 282 m |
+| Light FWD hatchback    | 0.21 s, 4 %         | 100 km/h                 | 63 m        | 66 m   | 114 m | 300 m |
+| RWD sports car         | 0.20 s, 0 %         | 110 km/h                 | 55 m        | 58 m   | 103 m | 270 m |
 | Kart                   | 0.15 s, 2 %         | 80 km/h                  | 78 m        | 79 m   | spins | spins |
-| Pickup 4x4             | 0.21 s, 2 %         | 90 km/h                  | 78 m        | 80 m   | 137 m | 361 m |
-| Electric crossover AWD | 0.25 s, 0 %         | 90 km/h                  | 67 m        | 70 m   | 122 m | 330 m |
+| Pickup 4x4             | 0.21 s, 2 %         | 90 km/h                  | 73 m        | 76 m   | 130 m | 340 m |
+| Electric crossover AWD | 0.25 s, 0 %         | 90 km/h                  | 62 m        | 65 m   | 115 m | 307 m |
 | Open-wheeler           | 0.14 s, 0 %         | 100 km/h                 | 36 m        | 38 m   | 68 m  | 166 m |
 
 The kart brakes on its rear axle only, so on snow and ice it swaps ends; the
 runner reports that rather than a distance.
 
 The presets are generic vehicle classes, not specific cars, and their tire
-parameters were tuned toward typical road-test figures for each class. They
-do not all land on those targets yet: with ABS, the hatchback stops from
-100 km/h in 42.6 m against a ~38 m target (+12 %), the electric crossover in
-40.1 m against ~37 m (+8 %), the pickup in 47.1 m against ~44 m (+7 %) and the
-sports car in 35.5 m against ~34 m (+4 %). The targets are in each preset's
-`dataSheet`. Treat the tables as what this model produces for these
-definitions, not as predictions for a real vehicle.
+parameters were tuned toward typical road-test figures for each class. With
+ABS, the hatchback stops from 100 km/h in 38.3 m against a ~38 m target, the
+electric crossover in 37.2 m against ~37 m, the pickup in 44.1 m against
+~44 m and the sports car in 33.9 m against ~34 m. One friction value could
+not meet both the skidpad and the stop, so the road presets give their tires
+more grip in braking than in cornering (`longitudinalFrictionRatio`,
+ADR-0037). The targets are in each preset's `dataSheet`. Treat the tables as
+what this model produces for these definitions, not as predictions for a
+real vehicle.
 
 Stability, from the same runner (all six presets, both models):
 

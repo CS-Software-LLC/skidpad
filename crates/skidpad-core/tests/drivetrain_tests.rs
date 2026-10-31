@@ -10,6 +10,7 @@ use skidpad_core::drivetrain::{
     ElectricMotorDef, PowerUnitDef, TransmissionDef, TransmissionMode, WheelDyn, RPM_TO_RAD,
 };
 use skidpad_core::telemetry as t;
+use skidpad_core::tire::TireModel;
 use skidpad_core::vehicle::{FourWheelVehicle, FL, FR, RL, RR};
 use skidpad_core::{VehicleDefinition, VehicleInput, World};
 use skidpad_math as m;
@@ -809,10 +810,15 @@ fn full_throttle_shifts_at_the_same_speeds_as_before() {
     ];
     for (model, speeds) in before {
         // The pinned speeds predate the preset's unsprung mass (ADR-0028),
-        // which moves them by about 2 mm/s; compare like with like.
+        // which moves them by about 2 mm/s, and its longitudinal friction
+        // ratio (ADR-0037), which lets first gear pull harder off the line;
+        // compare like with like.
         let mut d = hatchback(model);
         for a in d.axles.iter_mut() {
             a.suspension.unsprung_mass = 0.0;
+            if let TireModel::Feel(t) = &mut a.tire {
+                t.longitudinal_friction_ratio = 1.0;
+            }
         }
         let changes = gear_changes(d.clone(), throttle(1.0), 3000);
         assert_eq!(

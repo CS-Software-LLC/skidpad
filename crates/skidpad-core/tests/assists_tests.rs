@@ -23,6 +23,9 @@ fn wild_rwd() -> VehicleDefinition {
     rear.bias_coast = 1.8;
     if let TireModel::Feel(t) = &mut d.axles[1].tire {
         t.peak_friction = 1.12;
+        // The preset's extra braking and traction grip (ADR-0037) would
+        // stop this car spinning up on the launch.
+        t.longitudinal_friction_ratio = 1.0;
         t.cornering_stiffness = 21.0;
     }
     d

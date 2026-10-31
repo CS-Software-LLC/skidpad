@@ -240,6 +240,75 @@ fn tir_import_reads_coefficients_and_warns_on_ignored_keys() {
     assert!(imp.warnings.iter().any(|w| w.section == "MDI_HEADER"));
 }
 
+/// ADR-0037: `longitudinalFrictionRatio` scales the longitudinal peak alone.
+/// Pure braking and pure driving peak at `ratio × μ × Fz`, pure cornering is
+/// bit for bit what the ratio-one tire gives, and the combined force stays
+/// inside the ellipse of the two peaks.
+#[test]
+fn longitudinal_friction_ratio_scales_only_the_longitudinal_peak() {
+    let base = FeelTireParams::default();
+    let ratio = 1.12;
+    let scaled = TireModel::Feel(FeelTireParams {
+        longitudinal_friction_ratio: ratio,
+        ..base.clone()
+    });
+    let base_model = TireModel::Feel(base.clone());
+    let fz = 4000.0;
+    let peak = |model: &TireModel, sign: f64| {
+        (1..=200)
+            .map(|i| m::abs(eval(model, fz, sign * i as f64 * 0.005, 0.0).fx))
+            .fold(0.0, m::max)
+    };
+    for sign in [-1.0, 1.0] {
+        let p0 = peak(&base_model, sign);
+        let p1 = peak(&scaled, sign);
+        assert!(
+            m::abs(p0 - base.friction_at_load(fz) * fz) < 1e-6 * p0,
+            "ratio one peaks at mu Fz: {p0}"
+        );
+        assert!(
+            m::abs(p1 / p0 - ratio) < 1e-9,
+            "sign {sign}: peak ratio {}",
+            p1 / p0
+        );
+        let o = eval(&scaled, fz, sign * 0.1, 0.0);
+        assert!(m::abs(o.fx_max - ratio * base.friction_at_load(fz) * fz) < 1e-6);
+    }
+    for j in -30..=30 {
+        let a = j as f64 * m::deg_to_rad(1.0);
+        assert_eq!(
+            eval(&scaled, fz, 0.0, a).fy.to_bits(),
+            eval(&base_model, fz, 0.0, a).fy.to_bits(),
+            "pure lateral at {a} rad"
+        );
+    }
+    for i in -20..=20 {
+        for j in -20..=20 {
+            let o = eval(&scaled, fz, i as f64 * 0.05, j as f64 * m::deg_to_rad(1.0));
+            let (ex, ey) = (o.fx / o.fx_max, o.fy / o.fy_max);
+            let e = ex * ex + ey * ey;
+            assert!(e <= 1.0 + 1e-9, "({i},{j}) outside the ellipse: {e}");
+        }
+    }
+}
+
+#[test]
+fn feel_validation_rejects_a_longitudinal_friction_ratio_out_of_range() {
+    for bad in [0.0, 0.4, 2.5, f64::NAN] {
+        let p = FeelTireParams {
+            longitudinal_friction_ratio: bad,
+            ..FeelTireParams::default()
+        };
+        let mut errs = Vec::new();
+        p.validate("axles[0].tire", &mut errs);
+        assert!(
+            errs.iter()
+                .any(|e| e.contains("axles[0].tire.longitudinalFrictionRatio must be in [0.5, 2]")),
+            "{bad}: {errs:?}"
+        );
+    }
+}
+
 #[test]
 fn feel_validation_reports_readable_messages() {
     let p = FeelTireParams {
