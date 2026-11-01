@@ -1,5 +1,20 @@
 # @skidpad/nhtsa-compare
 
+## 0.13.0
+
+### Patch Changes
+
+- fee6496: - nhtsa-compare: a second measured car, NHTSA VRTC's 1994 Ford Taurus GL (SAE 970563). An estimated build with only its steering ratio fitted on a 33 m/s J-turn, then compared with the 22.8 m/s pulse-steer frequency response (`pnpm taurus`, `docs/validation/nhtsa-ford-taurus.md`). No core changes.
+- Updated dependencies [66f418f]
+- Updated dependencies [bfe0e3b]
+- Updated dependencies [fe4fcda]
+- Updated dependencies [7e20b64]
+- Updated dependencies [240be23]
+- Updated dependencies [db0774a]
+- Updated dependencies [8062a9a]
+- Updated dependencies [f3b6ebb]
+  - @skidpad/core@0.13.0
+
 ## 0.12.0
 
 ### Patch Changes

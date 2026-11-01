@@ -1,5 +1,13 @@
 # @skidpad/input
 
+## 0.13.0
+
+### Minor Changes
+
+- fcda1c0: - input: `FfbScaler` keeps the car's peak steering torque over the last minute (`carPeak`, a new `TorquePeak` window) and `autoGain()` returns the gain that puts it at 90 % of the rim's limit (`rimLimit`), within 0.05 to 2, after 10 s of driving. It never sets the gain itself; the defaults are unchanged.
+- 7e20b64: - core: two telemetry channels for the parking twist (ADR-0039 amendment A): `SteerTwist`, its share of `SteeringTorque`, and `SteerTwistFriction`, the hand-wheel torque that slides the parked contact patches. Both are zero without the twist.
+  - input: `ffbFrameFromTelemetry` takes the parking twist out of the motor torque and sends it as wheel friction (`FfbFrame.twistFriction`), which the Logitech sink adds to the friction effect. As motor torque the twist was a stiff spring one host step late and set a parked wheel swinging.
+
 ## 0.12.0
 
 ### Minor Changes
