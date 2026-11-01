@@ -1,5 +1,22 @@
 # @skidpad/core
 
+## 0.13.0
+
+### Minor Changes
+
+- 66f418f: - core: the feel tire has a `longitudinalFrictionRatio` (default 1), the peak braking and traction friction as a multiple of `peakFriction`, which then sets the cornering peak only (ADR-0037). Definitions without it run as before.
+  - physics: presets: the hatchback, crossover, pickup and sports car set `longitudinalFrictionRatio` (1.12, 1.08, 1.07, 1.05) and the hatchback's front brakes go from 3000 to 3400 N·m, so their 100–0 km/h ABS stops land on their `dataSheet` targets (38.3, 37.2, 44.1 and 33.9 m, were 42.6, 40.1, 47.1 and 35.5 m) while their skidpad figures stay put. Stops on wet, gravel, snow and ice shorten in proportion, and traction-limited launches are slightly quicker.
+- bfe0e3b: - core: a coast-down validation scenario (`runScenario({ scenario: "coastDown" })`): from 80 mph in neutral to 15 mph on flat ground, fitted as `F = A + B·v + C·v²` in SI and EPA units. The validation runner compares the presets' road load with EPA's 2025 coast-down targets for real cars of each class (`docs/validation/epa-coast-down.md`). No simulated behaviour changes.
+- fe4fcda: - core: the lateral relaxation length can follow the tire's load (ADR-0038): the feel tire's `lateralRelaxationFollowsLoad` scales `relaxationLengthLat` with the cornering stiffness, and a Magic Formula tire with `PTY1` and `PTY2` (now read from `.tir` files) uses the MF 5.2 form. Both are off by default; definitions without them run as before.
+  - physics: presets: the hatchback, crossover, pickup and sports car turn `lateralRelaxationFollowsLoad` on. Step-steer yaw overshoot falls a little (hatchback 4.1 → 3.5 %, pickup 2.4 → 1.9 %); response times, gradients and lane-change pass speeds are unchanged.
+- 7e20b64: - core: two telemetry channels for the parking twist (ADR-0039 amendment A): `SteerTwist`, its share of `SteeringTorque`, and `SteerTwistFriction`, the hand-wheel torque that slides the parked contact patches. Both are zero without the twist.
+  - input: `ffbFrameFromTelemetry` takes the parking twist out of the motor torque and sends it as wheel friction (`FfbFrame.twistFriction`), which the Logitech sink adds to the friction effect. As motor torque the twist was a stiff spring one host step late and set a parked wheel swinging.
+- 240be23: - core: parking twist (ADR-0039). A steered tire with `contactRadius` and `torsionalStiffness` both set resists being turned on the spot: its contact patch twists like a spring, then slides at `⅔·μ·Fz·a`, and the effect fades out by walking pace. The moment adds to the aligning moment, so it reaches the hand wheel. Off by default and in every preset; definitions without the two settings run bit for bit as before. The sandbox's Tuning panel has a switch to try it.
+- db0774a: - core: the feel tire's rolling resistance can grow with speed. `rollingResistanceSpeed` (default 0) adds `rollingResistanceSpeed · |vx| / 16.7 m/s` to the coefficient, as the Magic Formula's QSY3 does; a coast-down shows it as the `B` term.
+  - physics: the sports car's tires have `rollingResistanceSpeed` 0.004, which puts its road load inside the EPA coast-down range of its class at 50 and 100 km/h (it was 13 % low at 100 km/h). Its understeer gradient moves from 0.71 to 0.72 deg/g. The other presets are unchanged.
+- 8062a9a: - core: an FMVSS 126 sine-with-dwell validation scenario (`runScenario({ scenario: "sineWithDwell" })`): the slowly increasing steer for `A`, then 0.7 Hz sines with a 500 ms dwell from 1.5A up to 6.5A or 270°, both ways, judged on the regulation's yaw-rate ratios and lateral displacement. The validation runner runs it on the road presets as shipped and with stability control on (`docs/validation/sine-with-dwell.md`). No simulated behaviour changes.
+- f3b6ebb: - core: a `weave` validation scenario (ISO 13674-1 on-centre weave) reports Norman's steering-feel metrics: torque at 0 g, torque gradient at 0 g and 0.1 g, steering sensitivity and angle hysteresis, with the driver torque including the device's column friction and damping. The validation runner prints them for every preset (docs/validation/on-centre-weave.md). No simulated behaviour changes.
+
 ## 0.12.0
 
 ### Minor Changes
