@@ -46,14 +46,14 @@ Printed by `pnpm validate` and held in the goldens. The forces are the
 fitted road load in N. A preset counts as in its class when it is inside
 the class range widened by 10 %.
 
-| Preset       | A (lbf) | B (lbf/mph) | C (lbf/mph²) | 50 km/h: sim / class | 100 km/h: sim / class     |
-| ------------ | ------- | ----------- | ------------ | -------------------- | ------------------------- |
-| Hatchback    | 31.2    | 0.036       | 0.0179       | 221 / 205–292        | 456 / 453–585             |
-| Sports car   | 33.4    | 0.112       | 0.0154       | 230 / 241–329        | 444 / 510–641 (3 % below) |
-| Pickup       | 40.7    | 0.054       | 0.0351       | 339 / 300–353        | 798 / 781–846             |
-| Crossover    | 40.5    | 0.000       | 0.0194       | 263 / 235–258        | 514 / 477–564             |
-| Kart         | 5.3     | 0.001       | 0.0149       | 87                   | 279                       |
-| Open-wheeler | 11.5    | 0.068       | 0.0247       | 166                  | 494                       |
+| Preset       | A (lbf) | B (lbf/mph) | C (lbf/mph²) | 50 km/h: sim / class | 100 km/h: sim / class |
+| ------------ | ------- | ----------- | ------------ | -------------------- | --------------------- |
+| Hatchback    | 31.2    | 0.036       | 0.0179       | 221 / 205–292        | 456 / 453–585         |
+| Sports car   | 33.0    | 0.452       | 0.0153       | 275 / 241–329        | 534 / 510–641         |
+| Pickup       | 40.7    | 0.054       | 0.0351       | 339 / 300–353        | 798 / 781–846         |
+| Crossover    | 40.5    | 0.000       | 0.0194       | 263 / 235–258        | 514 / 477–564         |
+| Kart         | 5.3     | 0.001       | 0.0149       | 87                   | 279                   |
+| Open-wheeler | 11.5    | 0.068       | 0.0247       | 166                  | 494                   |
 
 - **Hatchback and crossover** sit in their classes at both speeds.
 - **Pickup** sits in its class at both speeds since the retune below.
@@ -62,17 +62,19 @@ the class range widened by 10 %.
   172 N, and its drag area, `Cd·A` = 0.45 × 3.4 = 1.53 m², gave
   `C` = 0.91 N/(m/s)² against the trucks' 0.72 to 0.76 (about 1.2 to
   1.3 m²).
-- **Sports car** is a little low at 100 km/h. Its drag area (0.60 m²) is
-  in the class, but the real cars' load grows faster with speed than drag
-  alone. Their `B` term is the tires' speed-dependent loss, which the feel
-  tire's constant rolling resistance does not have. Its 33.4 lbf constant
-  term is inside the class's 27 to 57 lbf.
+- **Sports car** sits in its class at both speeds since its tires got a
+  speed term (below). It was 13 % low at 100 km/h (444 N): its drag area
+  (0.60 m²) is in the class, but the real cars' load grows faster with
+  speed than drag alone. Their `B` term, 0.35 to 0.45 lbf/mph, is mostly
+  the tires' speed-dependent loss, which a constant rolling resistance
+  does not have.
 
 ## What this does and does not show
 
 - EPA's targets include the drivetrain's spin losses in neutral and the
-  tires' speed-dependent losses. The core has neither, so its `B` is near
-  zero and its `A` and `C` carry everything.
+  tires' speed-dependent losses. The core has no spin losses, and only a
+  tire with `rollingResistanceSpeed` has the second, so most presets' `B`
+  is near zero and their `A` and `C` carry everything.
 - The masses differ. EPA's equivalent test weight is the curb weight plus
   300 lb, while the presets are curb weight with a driver. Rolling load
   scales with mass, so a lighter preset should sit low in its class.
@@ -90,6 +92,22 @@ moves: its understeer gradient goes from 0.93 to 0.91 deg/g (less drag on
 the driven wheels in the steady turn), 0–100 km/h from 7.4 s to 7.3 s, and
 the no-ABS stop from 49.0 m to 49.1 m. The ABS stop stays at 44.1 m.
 
-The sports car's shortfall at speed is left as it is. It comes from the
-feel tire's constant rolling resistance, and a speed term in the tire is
-a separate proposal.
+## Speed-dependent rolling loss (2026-11-01)
+
+The feel tire has `rollingResistanceSpeed`: its rolling resistance
+coefficient is `rollingResistance + rollingResistanceSpeed · |vx| / 16.7 m/s`,
+the Magic Formula's `QSY3` term with its default `LONGVL`. In a coast-down
+it is the `B` term, `rollingResistanceSpeed · m·g / 16.7`
+(`crates/skidpad-core/tests/coast_down_tests.rs`). It defaults to 0, and
+every preset but the sports car keeps it there, so their results are
+bit-identical.
+
+The sports car's tires now have 0.004. Its `B` is 0.452 lbf/mph, at the
+top of the class's 0.345 to 0.452, and its road load is 275 N at 50 km/h
+and 534 N at 100 km/h, inside the class at both. Its understeer gradient
+goes from 0.71 to 0.72 deg/g. Its 0–100 km/h (4.9 s) and its stops do not
+change.
+
+The hatchback, crossover and pickup are already in class without the
+term. Giving them one would mean lowering their `rollingResistance` to
+match, which moves their results for no gain in this check.

@@ -57,6 +57,12 @@ export interface FeelTireParams {
   fxMomentArm?: number;
   /** Rolling resistance coefficient. */
   rollingResistance?: number;
+  /**
+   * Growth of the rolling resistance coefficient with speed: the coefficient
+   * is `rollingResistance + rollingResistanceSpeed · |vx| / 16.7 m/s` (Magic
+   * Formula QSY3). Default 0, a constant coefficient.
+   */
+  rollingResistanceSpeed?: number;
   /** Longitudinal relaxation length, m. */
   relaxationLengthLong?: number;
   /** Lateral relaxation length, m (at the nominal load when it follows the load). */

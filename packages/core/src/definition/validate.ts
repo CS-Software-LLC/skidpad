@@ -232,7 +232,12 @@ function validateTire(errors: string[], warnings: string[], path: string, tire: 
     if (ls !== undefined && (!isNum(ls) || ls < 0 || ls >= 1)) {
       errors.push(`${path}.loadSensitivity must be in [0, 1) (got ${String(ls)})`);
     }
-    for (const k of ["camberStiffness", "pneumaticTrail", "rollingResistance"]) {
+    for (const k of [
+      "camberStiffness",
+      "pneumaticTrail",
+      "rollingResistance",
+      "rollingResistanceSpeed",
+    ]) {
       nonNegative(errors, `${path}.${k}`, t[k]);
     }
     const tzc = t.trailZeroCrossing;
