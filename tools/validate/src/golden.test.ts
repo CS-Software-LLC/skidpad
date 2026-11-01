@@ -58,6 +58,16 @@ describe("validation scenarios", () => {
     }
   });
 
+  it("every preset coasts down to a clean road-load fit", () => {
+    for (const [id, v] of Object.entries(report.vehicles)) {
+      const c = v.coastDown;
+      expect(c.completed, `${id}: coast-down did not complete`).toBe(true);
+      expect(c.a, `${id}: A`).toBeGreaterThan(0);
+      expect(c.c, `${id}: C`).toBeGreaterThan(0);
+      expect(c.fitSpread, `${id}: fit spread`).toBeLessThan(0.05);
+    }
+  });
+
   it("every preset completes the weave and weights up off centre", () => {
     for (const [id, v] of Object.entries(report.vehicles)) {
       const w = v.weave;

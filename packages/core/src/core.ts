@@ -411,6 +411,40 @@ export interface WeaveResult {
   completed: boolean;
 }
 
+/**
+ * Coast-down in neutral on flat ground, fitted as `F = A + B·v + C·v²` like
+ * EPA's coast-down target coefficients.
+ */
+export interface CoastDownConfig {
+  /** Speed the coast starts from, m/s (default 80 mph). */
+  startSpeed?: number;
+  /** Speed the fit ends at, m/s (default 15 mph). */
+  endSpeed?: number;
+  maxTime?: number;
+  hostDt?: number;
+}
+
+export interface CoastDownResult {
+  /** Road-load coefficients: N, N per m/s, N per (m/s)². */
+  a: number;
+  b: number;
+  c: number;
+  /** The same in EPA's units: lbf, lbf/mph, lbf/mph². */
+  aLbf: number;
+  bLbfMph: number;
+  cLbfMph2: number;
+  /** Road load from the fit at 50 and 100 km/h, N. */
+  force50: number;
+  force100: number;
+  /** Mass plus the wheels' rotating inertia, kg. */
+  effectiveMass: number;
+  /** Time from the start speed to the end speed, s. */
+  coastTime: number;
+  /** Largest gap between a sample and the fit, as a fraction of the sample. */
+  fitSpread: number;
+  completed: boolean;
+}
+
 export type ScenarioRequest =
   | {
       scenario: "understeerGradient";
@@ -430,7 +464,8 @@ export type ScenarioRequest =
       definition: PartialVehicleDefinition;
       config?: LaneChangeConfig;
     }
-  | { scenario: "weave"; definition: PartialVehicleDefinition; config?: WeaveConfig };
+  | { scenario: "weave"; definition: PartialVehicleDefinition; config?: WeaveConfig }
+  | { scenario: "coastDown"; definition: PartialVehicleDefinition; config?: CoastDownConfig };
 
 export type ScenarioResult<R extends ScenarioRequest> = R extends { scenario: "understeerGradient" }
   ? UndersteerResult
@@ -444,7 +479,9 @@ export type ScenarioResult<R extends ScenarioRequest> = R extends { scenario: "u
           ? StepSteerResult
           : R extends { scenario: "doubleLaneChange" }
             ? LaneChangeResult
-            : WeaveResult;
+            : R extends { scenario: "weave" }
+              ? WeaveResult
+              : CoastDownResult;
 
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();

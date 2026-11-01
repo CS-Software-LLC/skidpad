@@ -12,6 +12,8 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { init } from "@skidpad/core";
 import { compare, DEFAULT_TOLERANCE, runAll, type ValidationReport } from "./scenarios.js";
+import { EPA_ROAD_LOAD, epaBand } from "./epaRoadLoad.js";
+import type { PresetId } from "@skidpad/presets";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = join(here, "..");
@@ -116,6 +118,27 @@ for (const [id, v] of Object.entries(report.vehicles)) {
   const w = v.weave;
   console.log(
     `| ${id} | ${fmt(w.torqueAtZeroG)} | ${fmt(w.torqueGradientZeroG, 1)} | ${fmt(w.torqueGradientReference, 1)} | ${fmt(w.steeringSensitivity)} | ${fmt(w.angleHysteresisDeg, 1)} | ${fmt(w.latAccelPeakG)}, ${fmt(w.torquePeak, 1)}${w.completed ? "" : " (INCOMPLETE)"} |`,
+  );
+}
+console.log("");
+console.log(
+  "| Vehicle | Coast-down A (lbf) | B (lbf/mph) | C (lbf/mph²) | Road load 50 km/h (N): sim / EPA class | 100 km/h (N): sim / EPA class |",
+);
+console.log("| --- | --- | --- | --- | --- | --- |");
+for (const [id, v] of Object.entries(report.vehicles)) {
+  const c = v.coastDown;
+  const refs = EPA_ROAD_LOAD[id as PresetId];
+  const cell = (kmh: number, f: number) => {
+    if (!refs) return `${fmt(f, 0)} / n/a`;
+    const b = epaBand(refs, kmh, f);
+    const note =
+      b.outside === 0
+        ? ""
+        : ` (${b.outside > 0 ? "+" : ""}${(b.outside * 100).toFixed(0)} % outside)`;
+    return `${fmt(f, 0)} / ${fmt(b.min, 0)}–${fmt(b.max, 0)}${note}`;
+  };
+  console.log(
+    `| ${id} | ${fmt(c.aLbf, 1)} | ${fmt(c.bLbfMph, 3)} | ${fmt(c.cLbfMph2, 4)} | ${cell(50, c.force50)} | ${cell(100, c.force100)}${c.completed ? "" : " (INCOMPLETE)"} |`,
   );
 }
 console.log("");

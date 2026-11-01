@@ -127,6 +127,18 @@ column friction and damping a force-feedback wheel adds
 | Electric crossover AWD | 0.73 N·m      | 33 N·m/g               | 23 N·m/g | 3.1 g per 100° |
 | Open-wheeler           | 0.33 N·m      | 17 N·m/g               | 17 N·m/g | 3.4 g per 100° |
 
+Road load, from the same runner: a coast-down from 80 mph in neutral, fitted
+as `F = A + B·v + C·v²` like EPA's coast-down targets, against the 2025
+targets of three or four real cars of each class
+([docs/validation/epa-coast-down.md](docs/validation/epa-coast-down.md)):
+
+| Vehicle (preset)       | Road load at 50 km/h (EPA class) | At 100 km/h (EPA class)        |
+| ---------------------- | -------------------------------- | ------------------------------ |
+| Light FWD hatchback    | 221 N (205–292 N)                | 456 N (453–585 N)              |
+| RWD sports car         | 230 N (241–329 N)                | 444 N (510–641 N), 13 % below  |
+| Pickup 4x4             | 482 N (300–353 N), 37 % above    | 1022 N (781–846 N), 21 % above |
+| Electric crossover AWD | 263 N (235–258 N)                | 514 N (477–564 N)              |
+
 The presets are generic vehicle classes, not specific cars, and their tire
 parameters were tuned toward typical road-test figures for each class. With
 ABS, the hatchback stops from 100 km/h in 38.3 m against a ~38 m target, the
