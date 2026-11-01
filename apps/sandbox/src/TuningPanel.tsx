@@ -8,7 +8,14 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { validateDefinition, type VehicleDefinition } from "@skidpad/core";
 import type { Sim } from "./sim.js";
 import { download } from "./record.js";
-import { definitionGroups, withValue, type Field, type FieldPath } from "./tuning.js";
+import {
+  definitionGroups,
+  hasParkingTwist,
+  withParkingTwist,
+  withValue,
+  type Field,
+  type FieldPath,
+} from "./tuning.js";
 
 const APPLY_DELAY_MS = 100;
 
@@ -146,6 +153,25 @@ export function TuningPanel({
                 if (f) void loadFile(f);
               }}
             />
+          </div>
+          <div className="row">
+            <label title="Parking twist (ADR-0039): the steered tires resist being turned on the spot, springy at first, then heavy once the contact patch slides, and the effect fades out by walking pace. Sets contactRadius from the static load and torsionalStiffness on each steered tire; tune both below.">
+              <input
+                type="checkbox"
+                checked={hasParkingTwist(draft)}
+                onChange={(e) => {
+                  const on = e.target.checked;
+                  sim.lastTuningChange = `Parking twist = ${on}`;
+                  replace(
+                    withParkingTwist(latest.current, on),
+                    on
+                      ? "Parking twist on: the steered tires' contactRadius and torsionalStiffness are set."
+                      : "Parking twist off.",
+                  );
+                }}
+              />{" "}
+              Parking twist
+            </label>
           </div>
           <div className="row">
             <input

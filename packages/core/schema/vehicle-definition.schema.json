@@ -940,6 +940,19 @@
           "minimum": 0,
           "default": 500,
           "description": "N·s/m. Tire vertical damping, used only with unsprung mass (ADR-0028)"
+        },
+        "contactRadius": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 0.5,
+          "default": 0,
+          "description": "m. Radius of a round contact patch with this tire's area, for the parking twist (ADR-0039). With torsionalStiffness also positive a steered wheel resists being turned on the spot, up to 2/3·μ·Fz·a, fading out by walking pace; 0 leaves it off. Four-wheel model only"
+        },
+        "torsionalStiffness": {
+          "type": "number",
+          "minimum": 0,
+          "default": 0,
+          "description": "N·m/rad per kN of load. Torsional stiffness of the contact patch for the parking twist (ADR-0039); 0 leaves it off"
         }
       },
       "required": ["model"],
@@ -1015,6 +1028,19 @@
           "minimum": 0,
           "default": 500,
           "description": "N·s/m (VERTICAL_DAMPING). Used only with unsprung mass (ADR-0028)"
+        },
+        "contactRadius": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 0.5,
+          "default": 0,
+          "description": "m. Radius of a round contact patch with this tire's area, for the parking twist (ADR-0039). With torsionalStiffness also positive a steered wheel resists being turned on the spot, up to 2/3·μ·Fz·a, fading out by walking pace; 0 leaves it off. Four-wheel model only"
+        },
+        "torsionalStiffness": {
+          "type": "number",
+          "minimum": 0,
+          "default": 0,
+          "description": "N·m/rad per kN of load. Torsional stiffness of the contact patch for the parking twist (ADR-0039); 0 leaves it off"
         }
       },
       "required": ["model"],

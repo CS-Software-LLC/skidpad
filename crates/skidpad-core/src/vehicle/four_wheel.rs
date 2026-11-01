@@ -255,6 +255,11 @@ pub struct WheelState {
     /// unsprung mass; zero otherwise.
     pub hub_travel: f64,
     pub hub_rate: f64,
+    /// Twist of a steered wheel against its contact patch, rad about the
+    /// contact normal (ADR-0039): the wheel's yaw since the patch last
+    /// stuck, less what rolling has unwound. In the snapshot only when the
+    /// vehicle has the parking twist; zero otherwise.
+    pub patch_twist: f64,
     // --- derived per substep, not part of the snapshot ---
     pub in_contact: bool,
     /// Suspension compression from the static ride position, m (+ bump).
@@ -311,6 +316,10 @@ pub struct WheelState {
     /// Tire vertical spring and damper force, N (ADR-0028). Zero for the
     /// massless strut, whose tire load is the suspension force.
     pub tire_force: f64,
+    /// Moment of the twisted contact patch on the wheel, N·m about the
+    /// contact normal (ADR-0039), included in `out.mz`. Zero without the
+    /// parking twist.
+    pub twist_moment: f64,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -378,6 +387,10 @@ pub struct FourWheelVehicle {
     /// compliance steer (ADR-0027), lagged like `axle_fy_prev`. In the
     /// snapshot.
     pub kingpin_prev: f64,
+    /// Whether the wheels' `steer` holds the last substep's angle, so the
+    /// parking twist can take the change (ADR-0039). False after a reset,
+    /// whose wheels were never steered. In the snapshot with the twist.
+    pub twist_primed: bool,
     /// Surface id the built-in flat ground carries under each wheel
     /// (ADR-0014). An external host tags each contact itself.
     pub builtin_surface_ids: [u32; WHEEL_COUNT],
@@ -420,6 +433,7 @@ impl FourWheelVehicle {
             axle_fx_prev: [0.0, 0.0],
             wheel_fy_prev: [0.0; WHEEL_COUNT],
             kingpin_prev: 0.0,
+            twist_primed: false,
             builtin_surface_ids: [0; WHEEL_COUNT],
             ground_slope: [0.0, 0.0],
         };
@@ -552,6 +566,7 @@ impl FourWheelVehicle {
         self.axle_fx_prev = [0.0, 0.0];
         self.wheel_fy_prev = [0.0; WHEEL_COUNT];
         self.kingpin_prev = 0.0;
+        self.twist_primed = false;
         self.assist_telemetry = AssistTelemetry::default();
         for (i, w) in self.wheels.iter_mut().enumerate() {
             let g = self.geometry[i];
@@ -583,6 +598,7 @@ impl FourWheelVehicle {
         for (i, w) in self.wheels.iter_mut().enumerate() {
             w.omega = vx / self.geometry[i].radius;
             w.transient = TireTransient::default();
+            w.patch_twist = 0.0;
         }
         let mut carrier = 0.0;
         let driven = self.def.driven_axles();
@@ -729,6 +745,13 @@ impl FourWheelVehicle {
 
         // --- contacts: ray from the top of travel to the contact plane ------
         // --- suspension travel and rate ---------------------------------------
+        // Last substep's road-wheel angles, for the parking twist (ADR-0039).
+        let steer_prev = [
+            self.wheels[FL].steer,
+            self.wheels[FR].steer,
+            self.wheels[RL].steer,
+            self.wheels[RR].steer,
+        ];
         for (i, &steer) in steers.iter().enumerate() {
             let g = self.geometry[i];
             let c = self.contacts[i];
@@ -1126,6 +1149,40 @@ impl FourWheelVehicle {
             } else {
                 TireOutput::default()
             };
+            let mut out = out;
+            // Parking twist (ADR-0039): the patch holds while the wheel
+            // turns over it, a torsional spring up to the moment that
+            // slides the whole patch, and rolling unwinds it. Its moment
+            // fades out with rolling speed like the low-speed damping, so
+            // nothing changes above walking pace.
+            w.twist_moment = 0.0;
+            if adef.steered {
+                if let Some((a, k_per_kn)) = tire.patch_twist() {
+                    if w.in_contact && w.load > 0.0 {
+                        let turn = if self.twist_primed {
+                            w.steer - steer_prev[i]
+                        } else {
+                            0.0
+                        };
+                        let (twist, moment) = patch_twist_step(
+                            w.patch_twist,
+                            turn + omega_world.dot(n) * dt,
+                            wx,
+                            dt,
+                            a,
+                            k_per_kn * 1e-3 * w.load,
+                            out.fy_max,
+                        );
+                        w.patch_twist = twist;
+                        if fade > 0.0 {
+                            w.twist_moment = fade * moment;
+                            out.mz += w.twist_moment;
+                        }
+                    } else {
+                        w.patch_twist = 0.0;
+                    }
+                }
+            }
             w.out = out;
 
             let mut brake_cap = 0.5 * input.brake * adef.max_brake_torque;
@@ -1178,8 +1235,12 @@ impl FourWheelVehicle {
             axle_fy[axle] += f_body.y;
             axle_fx[axle] += f_body.x;
             wheel_fy[i] = f_body.y;
-            tire_forces[i] = (f_tire + drag, n, out.mz);
+            // The parking twist's moment is left off the body (ADR-0039):
+            // a parked car's static rolling resistance and brakes hold it,
+            // and without them here it would set the car creeping.
+            tire_forces[i] = (f_tire + drag, n, out.mz - w.twist_moment);
         }
+        self.twist_primed = true;
         self.axle_fy_prev = axle_fy;
         self.axle_fx_prev = axle_fx;
         self.wheel_fy_prev = wheel_fy;
@@ -1723,6 +1784,37 @@ pub(crate) fn write_drivetrain_telemetry(d: &Drivetrain, input: &VehicleInput, r
     rec[t::CLUTCH] = input.clutch;
 }
 
+/// One substep of a steered wheel's contact-patch twist (ADR-0039), as
+/// `(twist, moment)`: `twist` in rad about the contact normal and the
+/// patch's `moment` on the wheel, N·m, against it.
+///
+/// The wheel turned by `turn` against the ground this substep, which winds
+/// the patch up; rolling at `vx` unwinds it over one patch length `2a`,
+/// implicitly so a fast roll cannot overshoot. The patch is a torsional
+/// spring of rate `k`, N·m/rad, until the moment reaches the one that
+/// slides a round patch of radius `a` under uniform pressure, `⅔·μ·Fz·a`
+/// with `μ·Fz` the lateral force peak `fy_max`; past it the patch slips
+/// and the twist stays at the limit.
+#[inline]
+pub fn patch_twist_step(
+    twist: f64,
+    turn: f64,
+    vx: f64,
+    dt: f64,
+    a: f64,
+    k: f64,
+    fy_max: f64,
+) -> (f64, f64) {
+    let wound = (twist + turn) / (1.0 + m::abs(vx) * dt / (2.0 * a));
+    let limit = 2.0 / 3.0 * m::max(fy_max, 0.0) * a;
+    let twist = if k * m::abs(wound) > limit {
+        m::signum(wound) * limit / k
+    } else {
+        wound
+    };
+    (twist, -k * twist)
+}
+
 /// Snapshot values of the body, before the wheels.
 pub const BODY_STATE_LEN: usize = 23;
 /// Snapshot values per wheel.
@@ -1735,10 +1827,26 @@ pub const STATE_LEN: usize =
 /// mass (ADR-0028): its travel and travel rate.
 pub const HUB_STATE_LEN: usize = 2;
 
+/// Values appended to the snapshot when the vehicle has the parking twist
+/// (ADR-0039): each wheel's patch twist and road-wheel angle, then whether
+/// those angles are primed.
+pub const TWIST_STATE_LEN: usize = 2 * WHEEL_COUNT + 1;
+
 /// Snapshot length of a four-wheel vehicle with this definition: the
-/// massless layout is unchanged, and unsprung mass appends each wheel's
-/// travel and rate after it.
+/// massless layout is unchanged, unsprung mass appends each wheel's
+/// travel and rate after it, and the parking twist its own state after
+/// that.
 pub fn state_len(def: &VehicleDefinition) -> usize {
+    hub_state_end(def)
+        + if def.has_patch_twist() {
+            TWIST_STATE_LEN
+        } else {
+            0
+        }
+}
+
+/// Where the parking twist's snapshot values start.
+fn hub_state_end(def: &VehicleDefinition) -> usize {
     if def.has_unsprung_mass() {
         STATE_LEN + WHEEL_COUNT * HUB_STATE_LEN
     } else {
@@ -1788,6 +1896,14 @@ impl Snapshottable for FourWheelVehicle {
                 out[STATE_LEN + 2 * i + 1] = w.hub_rate;
             }
         }
+        if self.def.has_patch_twist() {
+            let o = hub_state_end(&self.def);
+            for (i, w) in self.wheels.iter().enumerate() {
+                out[o + 2 * i] = w.patch_twist;
+                out[o + 2 * i + 1] = w.steer;
+            }
+            out[o + 2 * WHEEL_COUNT] = if self.twist_primed { 1.0 } else { 0.0 };
+        }
     }
 
     fn read_state(&mut self, v: &[f64]) {
@@ -1815,6 +1931,14 @@ impl Snapshottable for FourWheelVehicle {
                 w.hub_travel = v[STATE_LEN + 2 * i];
                 w.hub_rate = v[STATE_LEN + 2 * i + 1];
             }
+        }
+        if self.def.has_patch_twist() {
+            let o = hub_state_end(&self.def);
+            for (i, w) in self.wheels.iter_mut().enumerate() {
+                w.patch_twist = v[o + 2 * i];
+                w.steer = v[o + 2 * i + 1];
+            }
+            self.twist_primed = v[o + 2 * WHEEL_COUNT] != 0.0;
         }
     }
 }

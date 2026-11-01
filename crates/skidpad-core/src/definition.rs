@@ -1133,6 +1133,13 @@ impl VehicleDefinition {
         }
     }
 
+    /// Whether any steered axle's tire has the parking twist (ADR-0039).
+    pub fn has_patch_twist(&self) -> bool {
+        self.axles
+            .iter()
+            .any(|a| a.steered && a.tire.patch_twist().is_some())
+    }
+
     /// Whether any axle carries unsprung mass (ADR-0028).
     pub fn has_unsprung_mass(&self) -> bool {
         self.axles.iter().any(|a| a.suspension.unsprung_mass > 0.0)

@@ -146,6 +146,14 @@ pub struct FeelTireParams {
     /// Vertical damping of the tire, N·s/m (ADR-0028). Used only on an axle
     /// with unsprung mass.
     pub vertical_damping: f64,
+    /// Radius of a round contact patch with this tire's area, m, for the
+    /// parking twist (ADR-0039). With `torsionalStiffness` both positive a
+    /// steered wheel resists being turned on the spot; zero (the default)
+    /// leaves it off. Four-wheel model only.
+    pub contact_radius: f64,
+    /// Torsional stiffness of the contact patch per kN of load, N·m/rad,
+    /// for the parking twist (ADR-0039). Zero (the default) leaves it off.
+    pub torsional_stiffness: f64,
 }
 
 impl Default for FeelTireParams {
@@ -177,6 +185,8 @@ impl Default for FeelTireParams {
             low_speed_damping_fade: 2.0,
             vertical_stiffness: 250000.0,
             vertical_damping: 500.0,
+            contact_radius: 0.0,
+            torsional_stiffness: 0.0,
         }
     }
 }
@@ -514,5 +524,11 @@ impl FeelTireParams {
                 ));
             }
         }
+        super::validate_patch_twist(
+            prefix,
+            self.contact_radius,
+            self.torsional_stiffness,
+            errors,
+        );
     }
 }
