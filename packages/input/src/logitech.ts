@@ -375,6 +375,8 @@ export interface ColumnEffects {
  * clamped to `0 … maxOutput`, and the saturation is `maxOutput`, so the
  * firmware never pushes harder than the sink's own limit. Negative inputs
  * give zero: a negative damper would push the wheel along, not resist it.
+ * The parking twist's friction (ADR-0039), a physical torque, adds to the
+ * friction scaled by `gain` alone.
  */
 export function columnEffects(
   friction: number,
@@ -386,12 +388,15 @@ export function columnEffects(
     peakTorque: number;
     maxOutput: number;
   },
+  twistFriction = 0,
 ): ColumnEffects {
   const limit = clamp01(o.maxOutput);
-  const k = (Math.max(0, o.gain) * Math.max(0, o.columnScale)) / Math.max(o.peakTorque, 1e-6);
+  const kTorque = Math.max(0, o.gain) / Math.max(o.peakTorque, 1e-6);
+  const k = kTorque * Math.max(0, o.columnScale);
   const fit = (x: number): number => (Number.isFinite(x) ? Math.max(0, Math.min(limit, x)) : 0);
+  const twist = Number.isFinite(twistFriction) ? Math.max(0, twistFriction) : 0;
   return {
-    friction: fit(k * friction),
+    friction: fit(k * friction + kTorque * twist),
     damper: fit(k * damping * Math.max(0, o.damperRate)),
     saturation: limit,
   };
@@ -1025,29 +1030,36 @@ export class LogitechWebHidSink implements FfbSink {
    */
   private async sendColumn(frame: FfbFrame): Promise<void> {
     if (this.protocol === "classic") {
-      if (!this.classicColumnNoted && (frame.friction > 0 || frame.damping > 0)) {
+      const twist = frame.twistFriction ?? 0;
+      if (!this.classicColumnNoted && (frame.friction > 0 || frame.damping > 0 || twist > 0)) {
         this.classicColumnNoted = true;
         this.record("   column friction and damping are not sent over the classic protocol yet");
       }
       return;
     }
     if (this.featureIndex === 0) return;
-    const c = columnEffects(frame.friction, frame.damping, {
-      gain: this.scaler.gain,
-      columnScale: this.columnScale,
-      damperRate: this.damperRate,
-      peakTorque: this.peakTorque,
-      maxOutput: this.maxOutputValue,
-    });
+    const c = columnEffects(
+      frame.friction,
+      frame.damping,
+      {
+        gain: this.scaler.gain,
+        columnScale: this.columnScale,
+        damperRate: this.damperRate,
+        peakTorque: this.peakTorque,
+        maxOutput: this.maxOutputValue,
+      },
+      frame.twistFriction ?? 0,
+    );
     const q = (x: number): number => Math.round(x * 0x7fff);
     // The damper in steps of about 5 %: with speed-sensitive damping
     // (ADR-0033) it moves every frame, and each change costs reports.
     const qd = q(c.damper) === 0 ? 0 : Math.round(Math.log(c.damper) / Math.log(1.05));
+    // The friction likewise: the parking twist's (ADR-0039) fades with
+    // rolling speed over a second or so.
+    const qf = q(c.friction) === 0 ? 0 : Math.round(Math.log(c.friction) / Math.log(1.05));
     // Both off is one state whatever the saturation, as set-up leaves them.
     const key =
-      q(c.friction) === 0 && q(c.damper) === 0
-        ? COLUMN_OFF
-        : `${q(c.friction)} ${qd} ${q(c.saturation)}`;
+      q(c.friction) === 0 && q(c.damper) === 0 ? COLUMN_OFF : `${qf} ${qd} ${q(c.saturation)}`;
     if (key === this.lastColumn) return;
     this.lastColumn = key;
     this.record(

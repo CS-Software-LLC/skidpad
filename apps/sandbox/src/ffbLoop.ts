@@ -25,6 +25,13 @@ export interface ReleaseOptions {
   speed: number;
   /** Rim angle when released, rad (default 90°). */
   releaseAngle?: number;
+  /**
+   * Turn the rim by hand from centre to the release angle over this many
+   * seconds before letting go (default 0: the car starts with the wheel
+   * already there). With the parking twist (ADR-0039) this winds the
+   * contact patches up the way a driver does.
+   */
+  windUp?: number;
   /** Seconds to simulate after the release (default 4). */
   seconds?: number;
   /** Host step, s (default 1/60). */
@@ -111,10 +118,21 @@ export function releaseWheel(
   const inertia = o.inertia ?? 0.03;
   const col = o.columnScale ?? 1;
   let damping = scaler.gain * col * def.steering.columnDamping;
-  const friction = scaler.gain * col * def.steering.columnFriction;
+  let friction = scaler.gain * col * def.steering.columnFriction;
   const endStop = o.endStop ?? (540 * Math.PI) / 180;
-  let angle = o.releaseAngle ?? Math.PI / 2;
+  const release = o.releaseAngle ?? Math.PI / 2;
+  let angle = release;
   let rate = 0;
+  const windSteps = Math.round((o.windUp ?? 0) / hostDt);
+  for (let k = 1; k <= windSteps; k++) {
+    // The hand moves the rim; the motor's torque goes into the hand.
+    angle = (release * k) / windSteps;
+    world.setInput(car, {
+      steer: applyDeadzone(Math.max(-1, Math.min(1, angle / lockRad)), o.deadzone ?? 0),
+      throttle: holdThrottle(),
+    });
+    world.step(hostDt);
+  }
   let motor = 0;
   const playout = new TorquePlayout();
   const trace: ReleaseTrace = { time: [], angle: [], rate: [], yawRate: [] };
@@ -130,6 +148,12 @@ export function releaseWheel(
     const frame = ffbFrameFromTelemetry(read, def.steering, (angle * 180) / Math.PI);
     // The firmware damper follows the car's (speed-sensitive) column damping.
     damping = scaler.gain * col * frame.damping;
+    // The parking twist as wheel friction (ADR-0039), a physical torque.
+    // The firmware caps it at full output, like the motor.
+    friction = Math.min(
+      o.fullScale ?? 11 * 0.4,
+      scaler.gain * (col * frame.friction + (frame.twistFriction ?? 0)),
+    );
     if (o.playout) {
       scaler.watch(hostDt, frame.wheelAngle);
       playout.push(frame.samples!, hostDt, k * hostDt);

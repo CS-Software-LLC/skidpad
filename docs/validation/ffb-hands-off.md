@@ -141,3 +141,18 @@ others at the rim (gain 0.5), the same as the friction, which still lets
 the rim rest within about a degree. The wheel profiles now ship with no
 steering dead zone, and the test suite asserts the return to centre and
 the old parked rim.
+
+## Parking twist
+
+2026-11-01. With the parking twist on (ADR-0039) a G PRO's parked wheel
+swung back and forth without stopping. The earlier releases started with
+the car placed at the release angle, so the contact patches were never
+wound up; `releaseWheel`'s `windUp` now turns the rim by hand from centre
+first. Wound to 45° over a second and let go (playout, direct-drive slew,
+column scale 2), the hatchback's rim swung between 41° and 45° for the
+whole run: the twist was a spring of about 13 N·m/rad at the hand wheel
+in the motor torque, one host step late.
+
+Sent as wheel friction instead (ADR-0039 amendment A), every preset's rim
+wound to 10°, 45° or 90° stays within a degree of where it was let go.
+With the twist off the results are as before.

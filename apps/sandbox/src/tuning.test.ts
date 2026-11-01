@@ -5,9 +5,12 @@
  */
 import { beforeAll, describe, expect, it } from "vitest";
 import { init, validateDefinition, type Skidpad } from "@skidpad/core";
+import { DIRECT_DRIVE_SCALER } from "@skidpad/input";
 import { preset, presetIds } from "@skidpad/presets";
 import { releaseVerdict, releaseWheel } from "./ffbLoop.js";
 import { hasParkingTwist, withParkingTwist } from "./tuning.js";
+
+const deg = (d: number) => (d * Math.PI) / 180;
 
 let sp: Skidpad;
 beforeAll(async () => {
@@ -53,6 +56,25 @@ describe("parking twist switch", () => {
     const on = torqueAt(withParkingTwist(sp.completeDefinition(def), true));
     expect(on).toBeLessThan(0);
     expect(Math.abs(on)).toBeGreaterThan(5 * Math.abs(off));
+  });
+
+  it("holds a wound-up parked wheel where it is let go, on every preset", () => {
+    // Turned by hand to 45° and released: as motor torque the twist was a
+    // stiff spring a host step late, and the hatchback's rim swung 41–45°
+    // for good. As wheel friction it stays put (ADR-0039).
+    for (const id of presetIds) {
+      const def = withParkingTwist(sp.completeDefinition(preset(id)), true);
+      const tr = releaseWheel(sp, def, {
+        speed: 0,
+        windUp: 1,
+        releaseAngle: deg(45),
+        playout: true,
+        scaler: DIRECT_DRIVE_SCALER,
+        columnScale: 2,
+      });
+      expect(releaseVerdict(tr), id).toBe("settled");
+      expect(Math.abs(tr.angle.at(-1)! - deg(45)), id).toBeLessThan(deg(1));
+    }
   });
 
   it("still lets every preset's parked wheel settle when released", () => {
