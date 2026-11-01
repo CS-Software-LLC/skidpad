@@ -113,6 +113,20 @@ reference surface table:
 The kart brakes on its rear axle only, so on snow and ice it swaps ends; the
 runner reports that rather than a distance.
 
+On-centre steering feel, from the same runner: the ISO 13674-1 weave at
+100 km/h and 0.2 Hz, sized for 0.2 g, with the driver torque including the
+column friction and damping a force-feedback wheel adds
+([docs/validation/on-centre-weave.md](docs/validation/on-centre-weave.md)):
+
+| Vehicle (preset)       | Torque at 0 g | Torque gradient at 0 g | At 0.1 g | Sensitivity    |
+| ---------------------- | ------------- | ---------------------- | -------- | -------------- |
+| Light FWD hatchback    | 0.50 N·m      | 21 N·m/g               | 15 N·m/g | 2.4 g per 100° |
+| RWD sports car         | 0.63 N·m      | 29 N·m/g               | 23 N·m/g | 2.8 g per 100° |
+| Kart                   | 0.45 N·m      | 13 N·m/g               | 13 N·m/g | 17 g per 100°  |
+| Pickup 4x4             | 0.81 N·m      | 31 N·m/g               | 19 N·m/g | 1.8 g per 100° |
+| Electric crossover AWD | 0.73 N·m      | 33 N·m/g               | 23 N·m/g | 3.1 g per 100° |
+| Open-wheeler           | 0.33 N·m      | 17 N·m/g               | 17 N·m/g | 3.4 g per 100° |
+
 The presets are generic vehicle classes, not specific cars, and their tire
 parameters were tuned toward typical road-test figures for each class. With
 ABS, the hatchback stops from 100 km/h in 38.3 m against a ~38 m target, the

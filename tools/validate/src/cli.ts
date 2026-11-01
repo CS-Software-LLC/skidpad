@@ -108,6 +108,17 @@ for (const [id, v] of Object.entries(report.vehicles)) {
   );
 }
 console.log("");
+console.log(
+  "| Vehicle | Weave 100 km/h, 0.2 Hz: torque at 0 g (N·m) | Gradient at 0 g (N·m/g) | At 0.1 g (N·m/g) | Sensitivity (g/100°) | Angle hysteresis (deg) | Peak (g, N·m) |",
+);
+console.log("| --- | --- | --- | --- | --- | --- | --- |");
+for (const [id, v] of Object.entries(report.vehicles)) {
+  const w = v.weave;
+  console.log(
+    `| ${id} | ${fmt(w.torqueAtZeroG)} | ${fmt(w.torqueGradientZeroG, 1)} | ${fmt(w.torqueGradientReference, 1)} | ${fmt(w.steeringSensitivity)} | ${fmt(w.angleHysteresisDeg, 1)} | ${fmt(w.latAccelPeakG)}, ${fmt(w.torquePeak, 1)}${w.completed ? "" : " (INCOMPLETE)"} |`,
+  );
+}
+console.log("");
 console.log("| Vehicle | 100–0 km/h locked / ABS (m): wet asphalt | gravel | snow | ice |");
 console.log("| --- | --- | --- | --- | --- |");
 for (const [id, v] of Object.entries(report.vehicles)) {

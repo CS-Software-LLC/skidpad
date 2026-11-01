@@ -58,6 +58,16 @@ describe("validation scenarios", () => {
     }
   });
 
+  it("every preset completes the weave and weights up off centre", () => {
+    for (const [id, v] of Object.entries(report.vehicles)) {
+      const w = v.weave;
+      expect(w.completed, `${id}: weave did not complete`).toBe(true);
+      expect(w.torqueGradientZeroG, `${id}: gradient ${w.torqueGradientZeroG}`).toBeGreaterThan(0);
+      expect(w.torqueAtZeroG, `${id}: torque at 0 g ${w.torqueAtZeroG}`).toBeGreaterThan(0);
+      expect(w.steeringSensitivity, `${id}: sensitivity`).toBeGreaterThan(0);
+    }
+  });
+
   it("every preset answers the step steer promptly and finishes the lane change", () => {
     for (const [id, v] of Object.entries(report.vehicles)) {
       const s = v.stepSteer;
