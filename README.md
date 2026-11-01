@@ -82,7 +82,7 @@ commit.
 | Vehicle (preset)       | Understeer gradient, four-wheel | Single-track | Linear theory with trail | 0–100 km/h | 100–0 km/h, no ABS        |
 | ---------------------- | ------------------------------- | ------------ | ------------------------ | ---------- | ------------------------- |
 | Light FWD hatchback    | 1.07 deg/g                      | 0.93 deg/g   | 0.93 deg/g               | 9.8 s      | 42.1 m (38.3 m with ABS)  |
-| RWD sports car         | 0.71 deg/g                      | 0.59 deg/g   | 0.58 deg/g               | 4.9 s      | 37.0 m (33.9 m with ABS)  |
+| RWD sports car         | 0.72 deg/g                      | 0.59 deg/g   | 0.58 deg/g               | 4.9 s      | 37.0 m (33.9 m with ABS)  |
 | Kart                   | -0.16 deg/g (solid axle push)   | 0.31 deg/g   | 0.36 deg/g               | 10.9 s     | 57.1 m (rear brakes only) |
 | Pickup 4x4             | 0.91 deg/g                      | 0.72 deg/g   | 0.71 deg/g               | 7.3 s      | 49.1 m (44.1 m with ABS)  |
 | Electric crossover AWD | 0.28 deg/g                      | 0.22 deg/g   | 0.21 deg/g               | 5.0 s      | 41.4 m (37.2 m with ABS)  |
@@ -132,12 +132,12 @@ as `F = A + B·v + C·v²` like EPA's coast-down targets, against the 2025
 targets of three or four real cars of each class
 ([docs/validation/epa-coast-down.md](docs/validation/epa-coast-down.md)):
 
-| Vehicle (preset)       | Road load at 50 km/h (EPA class) | At 100 km/h (EPA class)       |
-| ---------------------- | -------------------------------- | ----------------------------- |
-| Light FWD hatchback    | 221 N (205–292 N)                | 456 N (453–585 N)             |
-| RWD sports car         | 230 N (241–329 N)                | 444 N (510–641 N), 13 % below |
-| Pickup 4x4             | 339 N (300–353 N)                | 798 N (781–846 N)             |
-| Electric crossover AWD | 263 N (235–258 N)                | 514 N (477–564 N)             |
+| Vehicle (preset)       | Road load at 50 km/h (EPA class) | At 100 km/h (EPA class) |
+| ---------------------- | -------------------------------- | ----------------------- |
+| Light FWD hatchback    | 221 N (205–292 N)                | 456 N (453–585 N)       |
+| RWD sports car         | 275 N (241–329 N)                | 534 N (510–641 N)       |
+| Pickup 4x4             | 339 N (300–353 N)                | 798 N (781–846 N)       |
+| Electric crossover AWD | 263 N (235–258 N)                | 514 N (477–564 N)       |
 
 The presets are generic vehicle classes, not specific cars, and their tire
 parameters were tuned toward typical road-test figures for each class. With

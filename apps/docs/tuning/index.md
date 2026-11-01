@@ -165,6 +165,16 @@ helps. Parameters are per tire unless noted.
   `slipTarget` and `slipRelease`; set the target a little below the rear
   tire's `peakSlipRatio`.
 
+## The car coasts down too slowly or too quickly at speed
+
+- Compare with an EPA coast-down: `runScenario({ scenario: "coastDown" })`
+  fits the road load as `A + B·v + C·v²` (`docs/validation/epa-coast-down.md`).
+- `A` is the rolling resistance, `rollingResistance × m × g`; `C` is the
+  drag, `½ × airDensity × dragCoefficient × frontalArea`.
+- Real cars' load also grows in proportion to speed (`B`), mostly from the
+  tires. Set `rollingResistanceSpeed` (feel tire) for it: `B` is
+  `rollingResistanceSpeed × m × g / 16.7`. The sports car uses 0.004.
+
 ## Braking distance is longer than road-test figures
 
 - Road tests have ABS; turn on `assists.abs`. Its `slipTarget` should sit at
