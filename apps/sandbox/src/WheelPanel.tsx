@@ -5,6 +5,7 @@
  */
 import { useEffect, useRef, useState } from "react";
 import {
+  AUTO_GAIN_MAX,
   AxisCalibrator,
   AxisFinder,
   DIRECT_DRIVE_SCALER,
@@ -42,6 +43,12 @@ interface Status {
   lapPeak: number | undefined;
   tripped: string | undefined;
   torque: number;
+  /** The car's peak |torque| over the last minute, N·m (before the gain). */
+  carPeak: number;
+  /** The rim's torque limit, N·m. */
+  rimLimit: number;
+  /** What Auto would set the gain to, or undefined before enough driving. */
+  auto: number | undefined;
 }
 
 export function WheelPanel({
@@ -115,6 +122,9 @@ export function WheelPanel({
         lapPeak: sim.ffbLapPeak,
         tripped: sink.current?.scaler.tripped,
         torque: sim.world.read(sim.vehicle, "SteeringTorque"),
+        carPeak: sink.current?.scaler.carPeak.peak ?? 0,
+        rimLimit: sink.current?.scaler.rimLimit ?? 0,
+        auto: sink.current?.scaler.autoGain(),
       });
       if (sink.current) setLog(sink.current.diagnostics.slice(-12));
     }, 100);
@@ -372,18 +382,35 @@ export function WheelPanel({
             <button onClick={disconnect}>Off</button>
           </div>
           <div className="row">
-            <label>
+            <label title="Rim N·m per car N·m: 1× is the car's steering torque at true scale">
               Gain
               <input
                 type="range"
                 min={0}
-                max={1}
+                max={AUTO_GAIN_MAX}
                 step={0.05}
                 value={gain}
+                list="ffb-gain-ticks"
                 onChange={(e) => setGain(Number(e.target.value))}
               />
-              {gain.toFixed(2)}
+              <datalist id="ffb-gain-ticks">
+                <option value={1} label="true scale" />
+              </datalist>
+              {gain.toFixed(2)}× rim N·m per car N·m{gain === 1 ? " (true scale)" : ""}
             </label>
+            <button
+              onClick={() =>
+                status.auto !== undefined && setGain(Math.round(status.auto * 100) / 100)
+              }
+              disabled={status.auto === undefined}
+              title={
+                status.auto === undefined
+                  ? "Drive for at least 10 s with the wheel connected first"
+                  : `Sets the gain so the last minute's peak (${status.carPeak.toFixed(1)} N·m) sits at 90 % of the rim's ${status.rimLimit.toFixed(1)} N·m limit`
+              }
+            >
+              Auto{status.auto !== undefined ? ` (${status.auto.toFixed(2)}×)` : ""}
+            </button>
             <label>
               Max output
               <input
@@ -434,6 +461,14 @@ export function WheelPanel({
               {status.peak.toFixed(1)} N·m
               {status.lapPeak !== undefined && ` (last lap ${status.lapPeak.toFixed(1)})`}
             </span>
+            {sink.current && (
+              <span>
+                last minute: car peak {status.carPeak.toFixed(1)} N·m →{" "}
+                {(gain * status.carPeak).toFixed(1)} N·m at the rim, limit{" "}
+                {status.rimLimit.toFixed(1)} N·m
+                {status.auto === undefined && " · drive a lap for Auto"}
+              </span>
+            )}
           </div>
           {sim.ffbSink?.scaler && (
             <div className="row">
