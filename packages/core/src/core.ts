@@ -370,6 +370,47 @@ export interface LaneChangeResult {
   maxPassingSpeed: number | null;
 }
 
+/** On-centre weave after ISO 13674-1, with Norman's steering-feel metrics. */
+export interface WeaveConfig {
+  /** Speed held, m/s (default 100 km/h). */
+  speed?: number;
+  /** Steering frequency, Hz (default 0.2). */
+  frequency?: number;
+  /** Peak lateral acceleration the sine is sized for, m/s² (default 0.2 g). */
+  latAccelPeak?: number;
+  /** Where the second torque gradient is read, m/s² (default 0.1 g). */
+  referenceLatAccel?: number;
+  settleCycles?: number;
+  measureCycles?: number;
+  leadTime?: number;
+  /** Half-width of the fit band around each acceleration, m/s² (default 0.03 g). */
+  fitBand?: number;
+  /** Add the device's column friction and damping (default true). */
+  includeColumn?: boolean;
+  hostDt?: number;
+}
+
+export interface WeaveResult {
+  speed: number;
+  /** Peak hand-wheel angle of the sine, degrees. */
+  steeringWheelAmplitudeDeg: number;
+  latAccelPeakG: number;
+  /** Half the width of the driver-torque loop at 0 g, N·m. */
+  torqueAtZeroG: number;
+  /** Driver torque per g at 0 g, N·m/g. */
+  torqueGradientZeroG: number;
+  /** Driver torque per g at the reference acceleration, N·m/g. */
+  torqueGradientReference: number;
+  /** Lateral acceleration per 100° of hand wheel at 0 g, g. */
+  steeringSensitivity: number;
+  /** Width of the hand-wheel angle loop at 0 g, degrees. */
+  angleHysteresisDeg: number;
+  torquePeak: number;
+  /** The column friction and damping's share of `torqueAtZeroG`, N·m. */
+  columnTorqueAtZeroG: number;
+  completed: boolean;
+}
+
 export type ScenarioRequest =
   | {
       scenario: "understeerGradient";
@@ -388,7 +429,8 @@ export type ScenarioRequest =
       scenario: "doubleLaneChange";
       definition: PartialVehicleDefinition;
       config?: LaneChangeConfig;
-    };
+    }
+  | { scenario: "weave"; definition: PartialVehicleDefinition; config?: WeaveConfig };
 
 export type ScenarioResult<R extends ScenarioRequest> = R extends { scenario: "understeerGradient" }
   ? UndersteerResult
@@ -400,7 +442,9 @@ export type ScenarioResult<R extends ScenarioRequest> = R extends { scenario: "u
         ? TimestepSweepResult
         : R extends { scenario: "stepSteer" }
           ? StepSteerResult
-          : LaneChangeResult;
+          : R extends { scenario: "doubleLaneChange" }
+            ? LaneChangeResult
+            : WeaveResult;
 
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();

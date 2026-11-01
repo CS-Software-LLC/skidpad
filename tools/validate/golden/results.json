@@ -259,6 +259,18 @@
           }
         ]
       },
+      "weave": {
+        "steeringWheelAmplitudeDeg": 8.639064106311693,
+        "latAccelPeakG": 0.20456427085420872,
+        "torqueAtZeroG": 0.5012520042264581,
+        "torqueGradientZeroG": 21.387009034277728,
+        "torqueGradientReference": 15.17406822671696,
+        "steeringSensitivity": 2.429090994265093,
+        "angleHysteresisDeg": 3.035716517264014,
+        "torquePeak": 3.554292844925443,
+        "columnTorqueAtZeroG": 0.2798481906859182,
+        "completed": true
+      },
       "surfaces": {
         "asphaltWet": {
           "grip": 0.65,
@@ -548,6 +560,18 @@
           }
         ]
       },
+      "weave": {
+        "steeringWheelAmplitudeDeg": 6.23145103433048,
+        "latAccelPeakG": 0.18019410327912652,
+        "torqueAtZeroG": 0.6349121835010012,
+        "torqueGradientZeroG": 28.603650256712896,
+        "torqueGradientReference": 22.790151349236226,
+        "steeringSensitivity": 2.835554885347609,
+        "angleHysteresisDeg": 1.7447368151582576,
+        "torquePeak": 4.521766336673534,
+        "columnTorqueAtZeroG": 0.3270734735872058,
+        "completed": true
+      },
       "surfaces": {
         "asphaltWet": {
           "grip": 0.65,
@@ -828,6 +852,18 @@
             "maxBodySlipAngle": 0.04669635644910504
           }
         ]
+      },
+      "weave": {
+        "steeringWheelAmplitudeDeg": 0.5617772937370711,
+        "latAccelPeakG": 0.09516272532155802,
+        "torqueAtZeroG": 0.4458425076130874,
+        "torqueGradientZeroG": 13.262984629365802,
+        "torqueGradientReference": 12.518616139597306,
+        "steeringSensitivity": 17.040975654258574,
+        "angleHysteresisDeg": 0.18440111438322804,
+        "torquePeak": 1.6451732992667343,
+        "columnTorqueAtZeroG": 0.40024314220474355,
+        "completed": true
       },
       "surfaces": {
         "asphaltWet": {
@@ -1118,6 +1154,18 @@
           }
         ]
       },
+      "weave": {
+        "steeringWheelAmplitudeDeg": 11.568269438490312,
+        "latAccelPeakG": 0.19903179727838424,
+        "torqueAtZeroG": 0.8105728256412983,
+        "torqueGradientZeroG": 31.12478843995908,
+        "torqueGradientReference": 18.72282318175227,
+        "steeringSensitivity": 1.7725394481303651,
+        "angleHysteresisDeg": 4.399728895951985,
+        "torquePeak": 4.514944163537586,
+        "columnTorqueAtZeroG": 0.4598143483862742,
+        "completed": true
+      },
       "surfaces": {
         "asphaltWet": {
           "grip": 0.65,
@@ -1407,6 +1455,18 @@
           }
         ]
       },
+      "weave": {
+        "steeringWheelAmplitudeDeg": 6.743678913683107,
+        "latAccelPeakG": 0.2005876762873051,
+        "torqueAtZeroG": 0.7343159281281191,
+        "torqueGradientZeroG": 33.05440961439377,
+        "torqueGradientReference": 22.942507477198276,
+        "steeringSensitivity": 3.090100599279116,
+        "angleHysteresisDeg": 3.2947838866679993,
+        "torquePeak": 5.159449845697856,
+        "columnTorqueAtZeroG": 0.3287419216729065,
+        "completed": true
+      },
       "surfaces": {
         "asphaltWet": {
           "grip": 0.65,
@@ -1687,6 +1747,18 @@
             "maxBodySlipAngle": 0.0246997090793275
           }
         ]
+      },
+      "weave": {
+        "steeringWheelAmplitudeDeg": 5.392539832045202,
+        "latAccelPeakG": 0.18177990870904204,
+        "torqueAtZeroG": 0.33143396012247606,
+        "torqueGradientZeroG": 16.896563911141193,
+        "torqueGradientReference": 16.856530392370345,
+        "steeringSensitivity": 3.369488592849601,
+        "angleHysteresisDeg": 0.8284017754987231,
+        "torquePeak": 3.262765763953774,
+        "columnTorqueAtZeroG": 0.2141522733818172,
+        "completed": true
       },
       "surfaces": {
         "asphaltWet": {

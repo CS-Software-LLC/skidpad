@@ -5,6 +5,7 @@ import {
   type ParkedResult,
   type Skidpad,
   type StepSteerResult,
+  type WeaveResult,
   type SweepCell,
   type VehicleDefinition,
 } from "@skidpad/core";
@@ -119,6 +120,12 @@ export interface VehicleResults {
    */
   laneChange: LaneChangeSummary;
   /**
+   * On-centre weave after ISO 13674-1: 100 km/h, 0.2 Hz, sized for 0.2 g,
+   * with Norman's steering-feel numbers (driver torque includes the
+   * device's column friction and damping).
+   */
+  weave: WeaveSummary;
+  /**
    * The 100–0 km/h stop on other surfaces of the reference table
    * (ADR-0014), locked wheels and with the ABS.
    */
@@ -181,6 +188,13 @@ export function runStepSteer(sp: Skidpad, def: VehicleDefinition): StepSteerSumm
     roll: r.roll,
     completed: r.completed,
   };
+}
+
+export type WeaveSummary = Omit<WeaveResult, "speed">;
+
+export function runWeave(sp: Skidpad, def: VehicleDefinition): WeaveSummary {
+  const { speed: _speed, ...rest } = sp.runScenario({ scenario: "weave", definition: def });
+  return rest;
 }
 
 export function runLaneChange(sp: Skidpad, def: VehicleDefinition): LaneChangeSummary {
@@ -337,6 +351,7 @@ export function runAll(sp: Skidpad, ids: PresetId[] = presetIds): ValidationRepo
       timestepSweep: runTimestepSweep(sp, def),
       stepSteer: runStepSteer(sp, def),
       laneChange: runLaneChange(sp, def),
+      weave: runWeave(sp, def),
       surfaces: runSurfaces(sp, noAbs, withAbs),
       scriptedDriveHash: scriptedDriveHash(sp, def),
     };

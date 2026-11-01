@@ -8,6 +8,7 @@ pub mod step_steer;
 pub mod straight_line;
 pub mod timestep_sweep;
 pub mod understeer;
+pub mod weave;
 
 pub use lane_change::{LaneChangeAttempt, LaneChangeConfig, LaneChangeCourse, LaneChangeResult};
 pub use parked::{ParkedConfig, ParkedResult};
@@ -15,6 +16,7 @@ pub use step_steer::{StepSteerConfig, StepSteerResult};
 pub use straight_line::{StraightLineConfig, StraightLineResult};
 pub use timestep_sweep::{SweepCell, TimestepSweepConfig, TimestepSweepResult};
 pub use understeer::{UndersteerConfig, UndersteerPoint, UndersteerResult};
+pub use weave::{WeaveConfig, WeaveResult};
 
 /// Least-squares slope and intercept of `y` against `x`.
 pub(crate) fn linear_fit(x: &[f64], y: &[f64]) -> (f64, f64) {
