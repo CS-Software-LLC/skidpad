@@ -285,6 +285,30 @@
         "fitSpread": 0.011166297927312822,
         "completed": true
       },
+      "sineWithDwell": {
+        "asShipped": {
+          "stabilityControl": false,
+          "amplitudeADeg": 19.600696844384686,
+          "runs": 52,
+          "worstYawRatio1": 0.7985848522461777,
+          "worstYawRatio175": 0.7364853986407766,
+          "minLateralDisplacement": 3.2372984272859022,
+          "firstFailureDeg": 88.20313579973109,
+          "passed": false,
+          "completed": true
+        },
+        "escOn": {
+          "stabilityControl": true,
+          "amplitudeADeg": 19.42446573561864,
+          "runs": 52,
+          "worstYawRatio1": 0.006667908665189022,
+          "worstYawRatio175": 0.0002529483738943421,
+          "minLateralDisplacement": 3.155752379805753,
+          "firstFailureDeg": null,
+          "passed": true,
+          "completed": true
+        }
+      },
       "surfaces": {
         "asphaltWet": {
           "grip": 0.65,
@@ -599,6 +623,30 @@
         "coastTime": 138.9,
         "fitSpread": 0.0348367310434934,
         "completed": true
+      },
+      "sineWithDwell": {
+        "asShipped": {
+          "stabilityControl": true,
+          "amplitudeADeg": 15.256420179233173,
+          "runs": 68,
+          "worstYawRatio1": 0.00004490088901603201,
+          "worstYawRatio175": 0,
+          "minLateralDisplacement": 3.5579465892792204,
+          "firstFailureDeg": null,
+          "passed": true,
+          "completed": true
+        },
+        "escOn": {
+          "stabilityControl": true,
+          "amplitudeADeg": 15.256420179233173,
+          "runs": 68,
+          "worstYawRatio1": 0.00004490088901603201,
+          "worstYawRatio175": 0,
+          "minLateralDisplacement": 3.5579465892792204,
+          "firstFailureDeg": null,
+          "passed": true,
+          "completed": true
+        }
       },
       "surfaces": {
         "asphaltWet": {
@@ -1222,6 +1270,30 @@
         "fitSpread": 0.011693953064215697,
         "completed": true
       },
+      "sineWithDwell": {
+        "asShipped": {
+          "stabilityControl": false,
+          "amplitudeADeg": 27.30327174425824,
+          "runs": 36,
+          "worstYawRatio1": 1.2549463437075676,
+          "worstYawRatio175": 1.2877013832525448,
+          "minLateralDisplacement": 2.926829290760215,
+          "firstFailureDeg": 95.56145110490382,
+          "passed": false,
+          "completed": true
+        },
+        "escOn": {
+          "stabilityControl": true,
+          "amplitudeADeg": 27.30327174425824,
+          "runs": 36,
+          "worstYawRatio1": 0.9412196082363677,
+          "worstYawRatio175": 0.8208840326184598,
+          "minLateralDisplacement": 2.893570586872229,
+          "firstFailureDeg": 95.56145110490382,
+          "passed": false,
+          "completed": true
+        }
+      },
       "surfaces": {
         "asphaltWet": {
           "grip": 0.65,
@@ -1536,6 +1608,30 @@
         "coastTime": 179.60000000000002,
         "fitSpread": 0.00003895040824663123,
         "completed": true
+      },
+      "sineWithDwell": {
+        "asShipped": {
+          "stabilityControl": false,
+          "amplitudeADeg": 16.773016567814267,
+          "runs": 62,
+          "worstYawRatio1": 1.4895827375705208,
+          "worstYawRatio175": 1.5787487790179469,
+          "minLateralDisplacement": 3.3312054866631886,
+          "firstFailureDeg": 67.09206627125707,
+          "passed": false,
+          "completed": true
+        },
+        "escOn": {
+          "stabilityControl": true,
+          "amplitudeADeg": 16.773016567814267,
+          "runs": 62,
+          "worstYawRatio1": 0.9654477335359275,
+          "worstYawRatio175": 0.8918320407366662,
+          "minLateralDisplacement": 3.2840254266791584,
+          "firstFailureDeg": 75.4785745551642,
+          "passed": false,
+          "completed": true
+        }
       },
       "surfaces": {
         "asphaltWet": {

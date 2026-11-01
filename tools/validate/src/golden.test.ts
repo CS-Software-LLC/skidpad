@@ -58,6 +58,22 @@ describe("validation scenarios", () => {
     }
   });
 
+  it("every road car runs the sine with dwell, and passes it with stability control as shipped", () => {
+    for (const [id, v] of Object.entries(report.vehicles)) {
+      const swd = v.sineWithDwell;
+      if (!swd) continue;
+      expect(swd.asShipped.completed, `${id}: as shipped`).toBe(true);
+      expect(swd.escOn.completed, `${id}: ESC on`).toBe(true);
+      expect(swd.escOn.stabilityControl, id).toBe(true);
+      expect(swd.asShipped.amplitudeADeg, `${id}: A`).toBeGreaterThan(5);
+    }
+    // The sports car ships with stability control and passes.
+    expect(report.vehicles.sportsRwd!.sineWithDwell!.asShipped.passed).toBe(true);
+    // The hatchback ships without it and fails; with it, it passes.
+    expect(report.vehicles.hatchbackFwd!.sineWithDwell!.asShipped.passed).toBe(false);
+    expect(report.vehicles.hatchbackFwd!.sineWithDwell!.escOn.passed).toBe(true);
+  });
+
   it("every preset coasts down to a clean road-load fit", () => {
     for (const [id, v] of Object.entries(report.vehicles)) {
       const c = v.coastDown;

@@ -5,6 +5,7 @@
 pub mod coast_down;
 pub mod lane_change;
 pub mod parked;
+pub mod sine_with_dwell;
 pub mod step_steer;
 pub mod straight_line;
 pub mod timestep_sweep;
@@ -14,6 +15,7 @@ pub mod weave;
 pub use coast_down::{CoastDownConfig, CoastDownResult};
 pub use lane_change::{LaneChangeAttempt, LaneChangeConfig, LaneChangeCourse, LaneChangeResult};
 pub use parked::{ParkedConfig, ParkedResult};
+pub use sine_with_dwell::{SineWithDwellConfig, SineWithDwellResult, SineWithDwellRun};
 pub use step_steer::{StepSteerConfig, StepSteerResult};
 pub use straight_line::{StraightLineConfig, StraightLineResult};
 pub use timestep_sweep::{SweepCell, TimestepSweepConfig, TimestepSweepResult};

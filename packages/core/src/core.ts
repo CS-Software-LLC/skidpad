@@ -445,6 +445,60 @@ export interface CoastDownResult {
   completed: boolean;
 }
 
+/** Sine with dwell after FMVSS 126 (49 CFR 571.126), the US ESC test. */
+export interface SineWithDwellConfig {
+  /** Entry speed, m/s (default 80 km/h). */
+  speed?: number;
+  /** Sine frequency, Hz (0.7). */
+  frequency?: number;
+  /** Hold at the second peak, s (0.5). */
+  dwell?: number;
+  /** Hand-wheel rate of the slowly increasing steer, rad/s (13.5°/s). */
+  sisRate?: number;
+  /** Lateral acceleration A is read at, m/s² (0.3 g). */
+  sisTarget?: number;
+  /** Smallest lateral displacement 1.07 s after the beginning of steer, m (1.83). */
+  minDisplacement?: number;
+  /** Turn stability control on whatever the definition says (the test's condition). */
+  forceStabilityControl?: boolean;
+  hostDt?: number;
+}
+
+export interface SineWithDwellRun {
+  /** Commanded hand-wheel amplitude, rad. */
+  amplitude: number;
+  /** +1 when the first half-cycle steers left, −1 right. */
+  direction: number;
+  /** First yaw-rate peak after the steer reverses, rad/s. */
+  peakYawRate: number;
+  /** Yaw rate 1.0 s and 1.75 s after completion of steer over the peak (limits 0.35, 0.20). */
+  yawRatio1: number;
+  yawRatio175: number;
+  /** Lateral displacement 1.07 s after the beginning of steer, m. */
+  lateralDisplacement: number;
+  stable: boolean;
+  /** The displacement criterion, on runs at 5A or more; null below. */
+  responsive: boolean | null;
+  /** The amplitude was more than the car's steering lock. */
+  lockLimited: boolean;
+  completed: boolean;
+}
+
+export interface SineWithDwellResult {
+  /** Hand-wheel angle for 0.3 g in the slowly increasing steer, rad. */
+  amplitudeA: number;
+  stabilityControl: boolean;
+  runs: SineWithDwellRun[];
+  worstYawRatio1: number;
+  worstYawRatio175: number;
+  /** Smallest displacement over the runs at 5A or more, m. */
+  minLateralDisplacement: number;
+  /** Smallest amplitude whose run failed, rad; null when all passed. */
+  firstFailure: number | null;
+  passed: boolean;
+  completed: boolean;
+}
+
 export type ScenarioRequest =
   | {
       scenario: "understeerGradient";
@@ -465,7 +519,12 @@ export type ScenarioRequest =
       config?: LaneChangeConfig;
     }
   | { scenario: "weave"; definition: PartialVehicleDefinition; config?: WeaveConfig }
-  | { scenario: "coastDown"; definition: PartialVehicleDefinition; config?: CoastDownConfig };
+  | { scenario: "coastDown"; definition: PartialVehicleDefinition; config?: CoastDownConfig }
+  | {
+      scenario: "sineWithDwell";
+      definition: PartialVehicleDefinition;
+      config?: SineWithDwellConfig;
+    };
 
 export type ScenarioResult<R extends ScenarioRequest> = R extends { scenario: "understeerGradient" }
   ? UndersteerResult
@@ -481,7 +540,9 @@ export type ScenarioResult<R extends ScenarioRequest> = R extends { scenario: "u
             ? LaneChangeResult
             : R extends { scenario: "weave" }
               ? WeaveResult
-              : CoastDownResult;
+              : R extends { scenario: "coastDown" }
+                ? CoastDownResult
+                : SineWithDwellResult;
 
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();

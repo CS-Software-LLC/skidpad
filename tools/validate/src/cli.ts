@@ -142,6 +142,23 @@ for (const [id, v] of Object.entries(report.vehicles)) {
   );
 }
 console.log("");
+console.log(
+  "| Vehicle | Sine with dwell (FMVSS 126): A (deg) | ESC | Runs | Worst yaw ratio 1.0 s / 1.75 s | Min displacement (m) | Result |",
+);
+console.log("| --- | --- | --- | --- | --- | --- | --- |");
+for (const [id, v] of Object.entries(report.vehicles)) {
+  const swd = v.sineWithDwell;
+  if (!swd) continue;
+  for (const s of swd.asShipped.stabilityControl ? [swd.asShipped] : [swd.asShipped, swd.escOn]) {
+    const result = s.passed
+      ? "pass"
+      : `FAIL from ${fmt(s.firstFailureDeg ?? 0, 0)}°${s.completed ? "" : " (INCOMPLETE)"}`;
+    console.log(
+      `| ${id} | ${fmt(s.amplitudeADeg, 1)} | ${s.stabilityControl ? "on" : "off"} | ${s.runs} | ${fmt(s.worstYawRatio1, 2)} / ${fmt(s.worstYawRatio175, 2)} | ${fmt(s.minLateralDisplacement, 2)} | ${result} |`,
+    );
+  }
+}
+console.log("");
 console.log("| Vehicle | 100–0 km/h locked / ABS (m): wet asphalt | gravel | snow | ice |");
 console.log("| --- | --- | --- | --- | --- |");
 for (const [id, v] of Object.entries(report.vehicles)) {
