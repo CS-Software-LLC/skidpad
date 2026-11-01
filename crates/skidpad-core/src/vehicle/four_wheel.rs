@@ -320,6 +320,10 @@ pub struct WheelState {
     /// contact normal (ADR-0039), included in `out.mz`. Zero without the
     /// parking twist.
     pub twist_moment: f64,
+    /// Moment that slides this wheel's contact patch, N·m, faded with
+    /// rolling speed like `twist_moment` (ADR-0039). Zero without the
+    /// parking twist.
+    pub twist_limit: f64,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -362,6 +366,13 @@ pub struct FourWheelVehicle {
     /// `steering_torque` split by source (ADR-0031), N·m at the hand wheel:
     /// see [`VehicleDefinition::steering_parts`].
     pub steering_parts: [f64; 5],
+    /// The parking twist's share of `steering_torque`, N·m at the hand
+    /// wheel in the same sign, and the hand-wheel torque that slides the
+    /// steered patches (ADR-0039). A force-feedback host sends the share as
+    /// wheel friction of that size instead of motor torque. Zero without
+    /// the twist.
+    pub steer_twist: f64,
+    pub steer_twist_friction: f64,
     /// What the assists did this substep (ADR-0013).
     pub assist_telemetry: AssistTelemetry,
     /// Aero lift at the front and rear axle this substep, N, positive up
@@ -427,6 +438,8 @@ impl FourWheelVehicle {
             steering_torque: 0.0,
             rack_force: 0.0,
             steering_parts: [0.0; 5],
+            steer_twist: 0.0,
+            steer_twist_friction: 0.0,
             assist_telemetry: AssistTelemetry::default(),
             aero_lift: [0.0, 0.0],
             axle_fy_prev: [0.0, 0.0],
@@ -560,6 +573,8 @@ impl FourWheelVehicle {
         self.steering_torque = 0.0;
         self.rack_force = 0.0;
         self.steering_parts = [0.0; 5];
+        self.steer_twist = 0.0;
+        self.steer_twist_friction = 0.0;
         self.steer_angle = 0.0;
         self.aero_lift = [0.0, 0.0];
         self.axle_fy_prev = [0.0, 0.0];
@@ -1156,6 +1171,7 @@ impl FourWheelVehicle {
             // fades out with rolling speed like the low-speed damping, so
             // nothing changes above walking pace.
             w.twist_moment = 0.0;
+            w.twist_limit = 0.0;
             if adef.steered {
                 if let Some((a, k_per_kn)) = tire.patch_twist() {
                     if w.in_contact && w.load > 0.0 {
@@ -1176,6 +1192,7 @@ impl FourWheelVehicle {
                         w.patch_twist = twist;
                         if fade > 0.0 {
                             w.twist_moment = fade * moment;
+                            w.twist_limit = fade * patch_slide_moment(a, out.fy_max);
                             out.mz += w.twist_moment;
                         }
                     } else {
@@ -1418,6 +1435,7 @@ impl FourWheelVehicle {
         // to the hand wheel, and over the knuckle arm to the rack.
         let mut kingpin = 0.0;
         let mut parts = [0.0; 4];
+        let (mut twist, mut twist_limit) = (0.0, 0.0);
         for i in 0..WHEEL_COUNT {
             if self.def.axles[i / 2].steered {
                 let w = &self.wheels[i];
@@ -1436,6 +1454,8 @@ impl FourWheelVehicle {
                 kingpin += lift;
                 let st = &self.def.steering;
                 parts[0] += w.out.mz;
+                twist += w.twist_moment;
+                twist_limit += w.twist_limit;
                 parts[1] -= st.mechanical_trail * w.out.fy;
                 parts[2] -= g.side * st.scrub_radius * w.out.fx;
                 parts[3] += lift;
@@ -1452,6 +1472,17 @@ impl FourWheelVehicle {
             }
         }
         self.steering_torque = self.def.hand_wheel_torque_at(kingpin, self.speed());
+        // The twist's share through the same (non-linear) assist, and its
+        // slide limit at the hand wheel (ADR-0039).
+        if twist_limit > 0.0 {
+            let rest = self.def.hand_wheel_torque_at(kingpin - twist, self.speed());
+            self.steer_twist = self.steering_torque - rest;
+            self.steer_twist_friction =
+                m::abs(self.def.hand_wheel_torque_at(twist_limit, self.speed()));
+        } else {
+            self.steer_twist = 0.0;
+            self.steer_twist_friction = 0.0;
+        }
         self.steering_parts = self
             .def
             .steering_parts(parts, kingpin, self.steering_torque);
@@ -1677,6 +1708,8 @@ impl FourWheelVehicle {
         rec[t::STEER_TORQUE_MZ..t::STEER_TORQUE_MZ + 5].copy_from_slice(&self.steering_parts);
         rec[t::RACK_FORCE] = self.rack_force;
         rec[t::COLUMN_DAMPING] = self.def.column_damping_at(self.speed());
+        rec[t::STEER_TWIST] = self.steer_twist;
+        rec[t::STEER_TWIST_FRICTION] = self.steer_twist_friction;
         rec[t::DRAG_FORCE] = self.drag_force;
 
         for axle in 0..2 {
@@ -1806,13 +1839,21 @@ pub fn patch_twist_step(
     fy_max: f64,
 ) -> (f64, f64) {
     let wound = (twist + turn) / (1.0 + m::abs(vx) * dt / (2.0 * a));
-    let limit = 2.0 / 3.0 * m::max(fy_max, 0.0) * a;
+    let limit = patch_slide_moment(a, fy_max);
     let twist = if k * m::abs(wound) > limit {
         m::signum(wound) * limit / k
     } else {
         wound
     };
     (twist, -k * twist)
+}
+
+/// The moment that slides a round contact patch of radius `a` under
+/// uniform pressure, `⅔·μ·Fz·a`, with `μ·Fz` the lateral force peak
+/// `fy_max` (ADR-0039).
+#[inline]
+pub fn patch_slide_moment(a: f64, fy_max: f64) -> f64 {
+    2.0 / 3.0 * m::max(fy_max, 0.0) * a
 }
 
 /// Snapshot values of the body, before the wheels.

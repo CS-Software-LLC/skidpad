@@ -85,3 +85,39 @@ parked turn at `⅔·μ·Fz·a` within 0.1 %, held for 3 s without the car
 moving, a sine-steer run at 15 m/s and the on-centre weave bit for bit
 unchanged, snapshot restore mid-turn, a reset with the wheel turned, and
 validation. `apps/sandbox/src/tuning.test.ts` covers the switch.
+
+## Amendment A (2026-11-01): to the wheel as friction
+
+**Problem.** On the G PRO the twist made a parked wheel swing back and
+forth without stopping. The hands-off harness reproduces it once the rim
+is turned by hand first (`releaseWheel`'s new `windUp`): the hatchback
+wound to 45° and let go swings between 41° and 45° for good. The twist is
+a stiff spring in the motor torque, about 13 N·m/rad at the hand wheel
+with the hatchback's assist, and the torque reaches the rim once per
+60 Hz host step, a step late with playout. A stiff spring with that delay
+and the column's light damping drives itself. The earlier release check
+started with the patches relaxed, so it never wound them up.
+
+**Decision.** The twist stays in the physics and in `SteeringTorque`, but
+a force-feedback sink no longer plays it on the motor:
+
+- Two channels, `SteerTwist` (the twist's share of `SteeringTorque`, the
+  hand-wheel torque less what it would be without the twist, through the
+  same assist) and `SteerTwistFriction` (the hand-wheel torque of the
+  patches' slide limit, `Σ ⅔·μ·Fz·a` through the assist, faded with
+  rolling speed like the twist).
+- `ffbFrameFromTelemetry` takes `SteerTwist` out of the torque and its
+  slices and puts `SteerTwistFriction` on the frame as `twistFriction`.
+- The Logitech sink adds it to the wheel's friction effect, scaled by the
+  gain like the motor torque (it is a physical torque) but not by the
+  column scale, and capped at `maxOutput` with the rest.
+
+The wheel runs friction itself at its own rate with no host delay, so it
+cannot oscillate, and a parked wheel then feels the way a real one does:
+heavy to turn and staying where it is left. What is lost is the short
+elastic spring-back before the patch slides, a few degrees of rim.
+
+**Result.** In the harness every preset's parked wheel, wound to 10°, 45°
+or 90° and let go, stays within a degree of where it was released, with
+the G PRO settings (playout, direct-drive slew, column scale 2).
+`apps/sandbox/src/tuning.test.ts` keeps the 45° case for every preset.

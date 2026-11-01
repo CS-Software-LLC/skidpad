@@ -182,6 +182,8 @@ export const CHANNEL_NAMES = [
   "SteeringTorqueSlice6",
   "SteeringTorqueSlice7",
   "ColumnDamping",
+  "SteerTwist",
+  "SteerTwistFriction",
   "Diverged",
 ] as const;
 

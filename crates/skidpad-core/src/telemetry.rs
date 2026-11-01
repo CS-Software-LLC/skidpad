@@ -255,6 +255,13 @@ channels! {
     // The column damping for the force-feedback device at the current
     // speed (ADR-0033), N·m per rad/s of hand-wheel rate.
     COLUMN_DAMPING => ("ColumnDamping", "N*m*s/rad"),
+    // Parking twist (ADR-0039): its share of `SteeringTorque` at the hand
+    // wheel, and the hand-wheel torque that slides the steered contact
+    // patches. A force-feedback sink takes the share out of the motor
+    // torque and sends the limit as wheel friction, which the device runs
+    // itself without the host step's delay. Zero without the twist.
+    STEER_TWIST => ("SteerTwist", "N*m"),
+    STEER_TWIST_FRICTION => ("SteerTwistFriction", "N*m"),
     // Divergence guard: how many times the world has found this vehicle's
     // state non-finite or running away and reset it (`World::health`).
     // Zero for a healthy car; a host watches it for a change.

@@ -15,6 +15,15 @@ export interface FfbFrame {
   /** Friction to apply at the device, N·m. */
   friction: number;
   /**
+   * Friction of the parked tires' contact patches at the hand wheel, N·m
+   * (ADR-0039): the parking twist, sent as wheel friction instead of
+   * motor torque because the device runs friction itself, without the
+   * host step's delay that makes a stiff spring in the torque oscillate.
+   * A physical torque, so a sink scales it like the motor torque, not by
+   * its column scale. Zero or absent without the twist.
+   */
+  twistFriction?: number | undefined;
+  /**
    * Hand-wheel angle, rad, positive right, when a wheel is the input. The
    * scaler's runaway guard needs it; without it the guard is off.
    */
@@ -44,7 +53,9 @@ export interface FfbSink {
  * Read the frame from the core's telemetry and the definition. The torque
  * is `SteeringTorqueMean`, the mean over the host step's substeps (ADR-0031):
  * the last substep's `SteeringTorque` sampled once per host step aliases
- * anything faster than half the host rate into random steps.
+ * anything faster than half the host rate into random steps. The parking
+ * twist's share (`SteerTwist`) comes out of the torque and its slices and
+ * goes to the device as friction (`SteerTwistFriction`, ADR-0039).
  */
 export function ffbFrameFromTelemetry(
   read: (channel: string) => number,
@@ -53,12 +64,16 @@ export function ffbFrameFromTelemetry(
 ): FfbFrame {
   // The core's speed-sensitive damping (ADR-0033), when it reports it.
   const damping = read("ColumnDamping");
+  // Absent on a core without the parking twist: read as zero.
+  const orZero = (x: number): number => (Number.isFinite(x) ? x : 0);
+  const twist = orZero(read("SteerTwist"));
   return {
-    torque: read("SteeringTorqueMean"),
+    torque: read("SteeringTorqueMean") - twist,
     damping: Number.isFinite(damping) ? damping : steering.columnDamping,
     friction: steering.columnFriction,
+    twistFriction: orZero(read("SteerTwistFriction")),
     wheelAngle: wheelAngleDeg === undefined ? undefined : (wheelAngleDeg * Math.PI) / 180,
-    samples: TORQUE_SLICES.map(read),
+    samples: TORQUE_SLICES.map((c) => read(c) - twist),
   };
 }
 

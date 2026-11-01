@@ -170,6 +170,41 @@ fn a_big_turn_parked_slides_at_the_textbook_moment() {
     assert!(car.vel.length() < 1e-2, "{}", car.vel.length());
 }
 
+/// The force-feedback channels (ADR-0039): the twist's share of the hand
+/// wheel torque is what the option added to it, and while the patches
+/// slide it sits at the reported friction, both within 5 % (the assist is
+/// not linear, so the share is not exactly the limit through it).
+#[test]
+fn the_twist_share_and_its_friction_reach_the_hand_wheel() {
+    let mut off = FourWheelVehicle::new(VehicleDefinition::default());
+    let mut car = FourWheelVehicle::new(twisted());
+    settle(&mut off);
+    settle(&mut car);
+    assert_eq!(car.steer_twist, 0.0);
+    assert!(car.steer_twist_friction > 0.0);
+    ramp(&mut off, 0.0, 0.3, 1.0);
+    ramp(&mut car, 0.0, 0.3, 1.0);
+    let added = car.steering_torque - off.steering_torque;
+    assert!(
+        rel(car.steer_twist, added) < 0.05,
+        "{} vs {added}",
+        car.steer_twist
+    );
+    assert!(car.steer_twist < 0.0);
+    assert!(
+        rel(-car.steer_twist, car.steer_twist_friction) < 0.05,
+        "{} vs {}",
+        car.steer_twist,
+        car.steer_twist_friction
+    );
+    // Rolling, both are gone.
+    let mut rolling = FourWheelVehicle::new(twisted());
+    rolling.set_speed(5.0);
+    hold(&mut rolling, 0.1, 0.5);
+    assert_eq!(rolling.steer_twist, 0.0);
+    assert_eq!(rolling.steer_twist_friction, 0.0);
+}
+
 /// Turning back from the slide unloads each patch elastically at once:
 /// the moment drops by the spring rate times the wheel's turn, within 2 %.
 #[test]

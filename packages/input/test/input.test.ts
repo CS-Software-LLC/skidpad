@@ -539,6 +539,21 @@ describe("force feedback", () => {
       columnDamping: 0.05,
     });
     expect(g.damping).toBe(0.12);
+    // Without the parking twist's channels nothing changes.
+    expect(g.twistFriction).toBe(0);
+    // With them, its share leaves the torque and every slice and becomes
+    // wheel friction (ADR-0039).
+    channels.SteerTwist = -4;
+    channels.SteerTwistFriction = 4.5;
+    channels.SteeringTorqueSlice3 = -3;
+    const h = ffbFrameFromTelemetry((c) => channels[c] ?? NaN, {
+      columnFriction: 0.2,
+      columnDamping: 0.05,
+    });
+    expect(h.torque).toBe(5.5);
+    expect(h.samples![3]).toBe(1);
+    expect(h.friction).toBe(0.2);
+    expect(h.twistFriction).toBe(4.5);
   });
 
   it("plays a step's slices out one step behind, continuously", async () => {
@@ -903,6 +918,11 @@ describe("force feedback", () => {
     expect(columnEffects(100, 100, o)).toEqual({ friction: 0.4, damper: 0.4, saturation: 0.4 });
     expect(columnEffects(-1, -1, o)).toEqual({ friction: 0, damper: 0, saturation: 0.4 });
     expect(columnEffects(0.3, 0.05, { ...o, gain: 0 }).friction).toBe(0);
+    // The parking twist's friction is physical: the gain scales it, the
+    // column scale does not (ADR-0039).
+    const t = columnEffects(0, 0, { ...o, columnScale: 3 }, 1.1);
+    expect(t.friction).toBeCloseTo(columnEffects(0, 0, o, 1.1).friction, 12);
+    expect(t.friction).toBeCloseTo((o.gain * 1.1) / o.peakTorque, 12);
   });
 
   it("uses the model's measured damperRate unless one is set", async () => {
