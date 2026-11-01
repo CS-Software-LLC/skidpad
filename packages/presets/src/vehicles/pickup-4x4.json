@@ -15,6 +15,7 @@
       "Unsprung mass and tire vertical rates [ILLUSTRATIVE] (ADR-0028): wheel, tire, brake, hub and about half of each link per corner, typical of the class, with the tire about ten times as stiff as the suspension spring so the wheel hops at 10–15 Hz (Gillespie, Fundamentals of Vehicle Dynamics, ch. 5).",
       "The leaf-sprung live rear axle [ILLUSTRATIVE] (ADR-0028): about 155 kg of housing, differential, shafts, drums, wheels and tires, 78 kg per wheel; its roll inertia of 65 kg·m² is about 0.58 of that mass at the wheels, since the differential sits in the middle.",
       "Speed-sensitive column damping [ILLUSTRATIVE] (ADR-0033): four times the parking damping by 20 m/s, as an electric assist's active damping rises with speed; picked with the hands-off harness (docs/validation/ffb-hands-off.md), so a released wheel settles at 100 km/h. [VERIFY] on a wheel.",
+      "Road load (docs/validation/epa-coast-down.md): rollingResistance 0.008 and Cd 0.40 on 3.25 m², fitted so the coast-down road load at 50 and 100 km/h sits inside the range of the 2025 EPA coast-down targets for the F-150, Silverado and Ram 1500 4x4 (EPA Test Car List, MY2025); it was 0.013 and 0.45 on 3.4 m², 37 % above the class at 50 km/h (2026-11-01).",
       "Speed-sensitive assist [ILLUSTRATIVE] (ADR-0034): full assist to 4 m/s, fading to about 60 % of it by 28 m/s (100 km/h), as electric and variable hydraulic systems give less help at speed."
     ],
     "notes": "Not a specific production model. The rear axle is a solid beam (suspension.kind \"solid\", ADR-0016) with a high roll centre, so most of its lateral load transfer goes through the links and the body rolls less than the soft springs alone would allow."
@@ -46,7 +47,7 @@
         "relaxationLengthLat": 0.45,
         "lateralRelaxationFollowsLoad": true,
         "relaxationLengthLong": 0.3,
-        "rollingResistance": 0.013,
+        "rollingResistance": 0.008,
         "verticalStiffness": 320000,
         "verticalDamping": 700
       },
@@ -96,7 +97,7 @@
         "relaxationLengthLat": 0.45,
         "lateralRelaxationFollowsLoad": true,
         "relaxationLengthLong": 0.3,
-        "rollingResistance": 0.013,
+        "rollingResistance": 0.008,
         "verticalStiffness": 320000,
         "verticalDamping": 700
       },
@@ -144,8 +145,8 @@
     "handbrakeTorque": 2800
   },
   "aero": {
-    "dragCoefficient": 0.45,
-    "frontalArea": 3.4,
+    "dragCoefficient": 0.4,
+    "frontalArea": 3.25,
     "airDensity": 1.225,
     "liftCoefficientFront": 0.15,
     "liftCoefficientRear": 0.1,
