@@ -36,7 +36,7 @@ const LOG_EVERY = 10;
 const DEG = 180 / Math.PI;
 const G = 9.81;
 
-class SpeedController {
+export class SpeedController {
   i = 0;
   constructor(
     public target: number,

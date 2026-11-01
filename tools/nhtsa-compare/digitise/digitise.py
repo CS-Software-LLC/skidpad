@@ -26,7 +26,8 @@ from pathlib import Path
 import pdfplumber
 
 NUM = re.compile(r"^-?\d+(\.\d+)?$")
-TICK = 2.5  # longest stroke counted as a tick mark, pt
+TICK = 2.5  # longest stroke counted as a tick mark, pt (other papers: set before axes_on)
+MIN_POINTS = 12  # fewest points a curve may have
 
 
 def style(obj):
@@ -167,7 +168,7 @@ def axes_on(page):
                 legend.setdefault(style(l), name)
         series = {}
         for c in page.curves:
-            if inside(c) and len(c["pts"]) > 12:
+            if inside(c) and len(c["pts"]) > MIN_POINTS:
                 pts = [p for p in polyline(c) if x0 - 0.01 <= p[0] <= x1 + 0.01]
                 series.setdefault(style(c), []).append(pts)
         ax["legend"] = legend
