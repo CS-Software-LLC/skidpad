@@ -36,6 +36,10 @@ pub const KAPPA_STAR_MIN_DENOM: f64 = 1e-3;
 /// clamp the lateral curve is at its asymptote regardless. ADR-0008.
 pub const ALPHA_TAN_LIMIT: f64 = 1.5;
 
+/// Reference speed of `rollingResistanceSpeed`, m/s: the Magic Formula's
+/// default `LONGVL`.
+pub const ROLLING_REFERENCE_SPEED: f64 = 16.7;
+
 /// Range of `longitudinalFrictionRatio`. Measured road tires sit within
 /// a few tens of percent of one either way; the range only rejects values
 /// that are clearly a typo, such as a friction coefficient entered in place
@@ -114,6 +118,13 @@ pub struct FeelTireParams {
     pub fx_moment_arm: f64,
     /// Rolling resistance coefficient.
     pub rolling_resistance: f64,
+    /// Growth of the rolling resistance coefficient with speed, per
+    /// `ROLLING_REFERENCE_SPEED` of `|vx|`: the coefficient is
+    /// `rollingResistance + rollingResistanceSpeed · |vx| / 16.7 m/s`, the
+    /// Magic Formula's `QSY3` term with its `LONGVL`. A tire's hysteresis
+    /// loss grows with speed, which a coast-down shows as its `B` term. Zero
+    /// (the default) keeps the coefficient constant.
+    pub rolling_resistance_speed: f64,
     /// Longitudinal relaxation length, m.
     pub relaxation_length_long: f64,
     /// Lateral relaxation length, m; at the nominal load when
@@ -177,6 +188,7 @@ impl Default for FeelTireParams {
             trail_reversal: 0.1,
             fx_moment_arm: 0.0,
             rolling_resistance: 0.012,
+            rolling_resistance_speed: 0.0,
             relaxation_length_long: 0.25,
             relaxation_length_lat: 0.35,
             lateral_relaxation_follows_load: false,
@@ -416,8 +428,10 @@ impl FeelTireParams {
         // Rolling resistance moment opposes rolling; it goes smoothly through
         // zero below the speed floor so a parked car never sees a
         // sign-switching torque (ADR-0005).
+        let crr = self.rolling_resistance
+            + self.rolling_resistance_speed * m::abs(i.vx) / ROLLING_REFERENCE_SPEED;
         let my = -m::clamp(i.vx / m::max(self.low_speed_floor, 1e-6), -1.0, 1.0)
-            * self.rolling_resistance
+            * crr
             * m::max(i.rolling_resistance, 0.0)
             * fz
             * self.radius;
@@ -515,6 +529,7 @@ impl FeelTireParams {
             ("camberStiffness", self.camber_stiffness),
             ("pneumaticTrail", self.pneumatic_trail),
             ("rollingResistance", self.rolling_resistance),
+            ("rollingResistanceSpeed", self.rolling_resistance_speed),
             ("lowSpeedDamping", self.low_speed_damping),
             ("verticalDamping", self.vertical_damping),
         ] {

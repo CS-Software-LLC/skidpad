@@ -4,6 +4,7 @@
 //! comparison with EPA's test cars is in `docs/validation/epa-coast-down.md`.
 
 use skidpad_core::drivetrain::PowerUnitDef;
+use skidpad_core::tire::feel::ROLLING_REFERENCE_SPEED;
 use skidpad_core::tire::TireModel;
 use skidpad_core::validation::coast_down::{self, CoastDownConfig, LBF, MPH};
 use skidpad_core::{VehicleDefinition, GRAVITY};
@@ -84,4 +85,28 @@ fn rejects_a_backwards_speed_range() {
         ..Default::default()
     };
     assert!(coast_down::run(&no_lift(), &cfg).is_err());
+}
+
+/// `rollingResistanceSpeed` is the coast-down's `B` term: `B` within 2 % of
+/// `rollingResistanceSpeed · m·g / 16.7 m/s`, with `A` and `C` where they
+/// were.
+#[test]
+fn the_speed_term_of_rolling_resistance_is_b() {
+    let base = coast_down::run(&no_lift(), &CoastDownConfig::default()).unwrap();
+    let mut d = no_lift();
+    for axle in d.axles.iter_mut() {
+        if let TireModel::Feel(t) = &mut axle.tire {
+            t.rolling_resistance_speed = 0.005;
+        }
+    }
+    let r = coast_down::run(&d, &CoastDownConfig::default()).unwrap();
+    assert!(r.completed);
+    let b = 0.005 * d.chassis.mass * GRAVITY / ROLLING_REFERENCE_SPEED;
+    assert!(
+        m::abs((r.b - base.b) / b - 1.0) < 0.02,
+        "B {} vs {b}",
+        r.b - base.b
+    );
+    assert!(m::abs(r.a / base.a - 1.0) < 0.01, "{}", r.a / base.a);
+    assert!(m::abs(r.c / base.c - 1.0) < 0.01, "{}", r.c / base.c);
 }

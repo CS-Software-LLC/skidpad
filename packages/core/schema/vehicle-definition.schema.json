@@ -894,6 +894,12 @@
           "minimum": 0,
           "default": 0.012
         },
+        "rollingResistanceSpeed": {
+          "type": "number",
+          "minimum": 0,
+          "default": 0,
+          "description": "Growth of the rolling resistance coefficient per 16.7 m/s of speed (Magic Formula QSY3): rollingResistance + rollingResistanceSpeed·|vx|/16.7. Zero keeps it constant."
+        },
         "relaxationLengthLong": {
           "type": "number",
           "exclusiveMinimum": 0,

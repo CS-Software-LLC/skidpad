@@ -115,8 +115,87 @@ export class TorquePlayout {
   }
 }
 
+/**
+ * The largest |torque| over a rolling window (default the last 60 s), kept
+ * in one-second buckets so it costs a few numbers however fast it is fed.
+ * Time is the sum of the `dt`s it is given, so it follows the simulation,
+ * not the wall clock.
+ */
+export class TorquePeak {
+  readonly window: number;
+  readonly bucket: number;
+  private buckets: number[] = [];
+  private current = 0;
+  private filled = 0;
+  private covered = 0;
+
+  constructor(window = 60, bucket = 1) {
+    this.window = Math.max(window, bucket);
+    this.bucket = bucket;
+  }
+
+  add(torque: number, dt: number): void {
+    if (!(dt > 0) || !Number.isFinite(torque)) return;
+    this.current = Math.max(this.current, Math.abs(torque));
+    this.filled += dt;
+    this.covered = Math.min(this.window, this.covered + dt);
+    while (this.filled >= this.bucket) {
+      this.buckets.push(this.current);
+      this.current = 0;
+      this.filled -= this.bucket;
+      const keep = Math.round(this.window / this.bucket);
+      if (this.buckets.length > keep) this.buckets.splice(0, this.buckets.length - keep);
+    }
+  }
+
+  /** Largest |torque| in the window, N·m. */
+  get peak(): number {
+    return this.buckets.reduce((a, b) => Math.max(a, b), this.current);
+  }
+
+  /** Seconds of torque the window holds, up to `window`. */
+  get seconds(): number {
+    return this.covered;
+  }
+
+  reset(): void {
+    this.buckets = [];
+    this.current = 0;
+    this.filled = 0;
+    this.covered = 0;
+  }
+}
+
+/** Least driving the Auto gain needs before it trusts the peak, s. */
+export const AUTO_GAIN_MIN_SECONDS = 10;
+/** Range the Auto gain is held to. */
+export const AUTO_GAIN_MIN = 0.05;
+export const AUTO_GAIN_MAX = 2;
+
+/**
+ * The gain that puts the car's recent peak torque at `headroom` of the
+ * rim's limit (iRacing's "auto" strength): `headroom × rimLimit / carPeak`,
+ * held to `AUTO_GAIN_MIN … AUTO_GAIN_MAX`. Undefined until the window has
+ * `AUTO_GAIN_MIN_SECONDS` of driving with some torque in it.
+ */
+export function autoGain(
+  carPeak: number,
+  seconds: number,
+  rimLimit: number,
+  headroom = 0.9,
+): number | undefined {
+  if (!(seconds >= AUTO_GAIN_MIN_SECONDS) || !(carPeak > 0.05) || !(rimLimit > 0)) {
+    return undefined;
+  }
+  const g = (headroom * rimLimit) / carPeak;
+  return Math.max(AUTO_GAIN_MIN, Math.min(AUTO_GAIN_MAX, g));
+}
+
 export interface FfbScalerOptions {
-  /** Overall gain on the torque (default 0.5). */
+  /**
+   * Overall gain on the torque, rim N·m per car N·m (default 0.5); 1 is
+   * the car's torque at true scale.
+   */
   gain?: number;
   /** Torque that maps to full device output, N·m. */
   maxTorque?: number;
@@ -178,6 +257,8 @@ export class FfbScaler {
   lastClipped = false;
   /** Largest |requested| since the last `resetStats()`, N·m. */
   peak = 0;
+  /** The car's torque (before the gain) over the last minute, for `autoGain`. */
+  readonly carPeak = new TorquePeak();
   private clipped = 0;
   private frames = 0;
   private lastAngle: number | undefined;
@@ -243,6 +324,7 @@ export class FfbScaler {
     } else {
       this.slow = torque;
     }
+    this.carPeak.add(t, dt);
     this.requested = this.gain * t;
     this.peak = Math.max(this.peak, Math.abs(this.requested));
     const raw = this.requested / Math.max(this.maxTorque, 1e-6);
@@ -291,6 +373,20 @@ export class FfbScaler {
     }
   }
 
+  /** The rim's torque limit, N·m: `maxTorque × limit`. */
+  get rimLimit(): number {
+    return Math.max(this.maxTorque, 0) * Math.max(0, Math.min(1, this.limit));
+  }
+
+  /**
+   * The gain that puts the last minute's peak car torque just under the
+   * rim's limit (see `autoGain`), or undefined before there is enough
+   * driving to go on. It does not set the gain.
+   */
+  autoGain(headroom = 0.9): number | undefined {
+    return autoGain(this.carPeak.peak, this.carPeak.seconds, this.rimLimit, headroom);
+  }
+
   /**
    * Torque the output asks of the device, N·m in the sign of the request
    * (the output with `invert` undone, times `maxTorque`).
@@ -309,6 +405,7 @@ export class FfbScaler {
     this.clipped = 0;
     this.frames = 0;
     this.peak = 0;
+    this.carPeak.reset();
   }
 }
 

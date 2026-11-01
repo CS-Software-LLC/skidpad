@@ -522,6 +522,41 @@ describe("force feedback", () => {
     expect(s.clipFraction).toBe(0);
   });
 
+  it("keeps the peak car torque of the last minute", async () => {
+    const { TorquePeak } = await import("../src/index.js");
+    const p = new TorquePeak();
+    for (let k = 0; k < 600; k++) p.add(k === 30 ? -9 : 2, 0.1); // 60 s, a 9 N·m spike at 3 s
+    expect(p.peak).toBe(9);
+    expect(p.seconds).toBeCloseTo(60);
+    for (let k = 0; k < 40; k++) p.add(2, 0.1); // 4 s more: the spike has left the window
+    expect(p.peak).toBe(2);
+    p.add(Number.NaN, 0.1);
+    p.add(50, 0);
+    expect(p.peak).toBe(2);
+  });
+
+  it("sets the Auto gain so the recent peak sits just under the rim's limit", async () => {
+    const { FfbScaler, autoGain, AUTO_GAIN_MAX } = await import("../src/index.js");
+    // 11 N·m wheel at 40 %: a 4.4 N·m rim limit.
+    const s = new FfbScaler({ maxTorque: 4.4, smoothing: 0, slewRate: Infinity });
+    for (let k = 0; k < 300; k++) s.scale(k % 60 === 0 ? 8 : 1, 1 / 60); // 5 s
+    expect(s.autoGain()).toBeUndefined(); // not enough driving yet
+    for (let k = 0; k < 600; k++) s.scale(k % 60 === 0 ? 8 : 1, 1 / 60);
+    const g = s.autoGain()!;
+    expect(g).toBeCloseTo((0.9 * 4.4) / 8, 6);
+    // At that gain the car's peak reaches the rim at 90 % of the limit.
+    s.gain = g;
+    s.scale(8, 1 / 60);
+    expect(s.requested).toBeCloseTo(0.9 * 4.4, 6);
+    expect(s.lastClipped).toBe(false);
+    // A car with almost no torque is held to the cap; a lower limit lowers it.
+    expect(autoGain(0.5, 60, 4.4)).toBe(AUTO_GAIN_MAX);
+    s.limit = 0.5;
+    expect(s.autoGain()).toBeCloseTo((0.9 * 2.2) / 8, 6);
+    s.resetStats();
+    expect(s.autoGain()).toBeUndefined();
+  });
+
   it("drives the wheel from the step's mean torque, not the last substep's", async () => {
     const { ffbFrameFromTelemetry } = await import("../src/index.js");
     const channels: Record<string, number> = { SteeringTorque: 3, SteeringTorqueMean: 1.5 };
