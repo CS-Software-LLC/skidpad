@@ -2,6 +2,7 @@
 //! pure function of a definition and a configuration, so the Rust tests, the
 //! Node CLI (through WASM), and the docs all run the same code.
 
+pub mod coast_down;
 pub mod lane_change;
 pub mod parked;
 pub mod step_steer;
@@ -10,6 +11,7 @@ pub mod timestep_sweep;
 pub mod understeer;
 pub mod weave;
 
+pub use coast_down::{CoastDownConfig, CoastDownResult};
 pub use lane_change::{LaneChangeAttempt, LaneChangeConfig, LaneChangeCourse, LaneChangeResult};
 pub use parked::{ParkedConfig, ParkedResult};
 pub use step_steer::{StepSteerConfig, StepSteerResult};

@@ -93,6 +93,7 @@ jobs:
   determinism:
     name: Cross-browser determinism (Chromium, Firefox, WebKit, Node)
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -108,8 +109,25 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm build:wasm:release
       - run: pnpm -r --filter './packages/**' run build
+      # The browser download sometimes stalls on the runner: cache the
+      # browsers by Playwright version and give the install a time limit.
+      - name: Playwright version
+        id: playwright
+        run: echo "version=$(pnpm --filter @skidpad/determinism-tests exec playwright --version | awk '{print $2}')" >> "$GITHUB_OUTPUT"
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
       - name: Install Playwright browsers
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        timeout-minutes: 10
         run: pnpm --filter @skidpad/determinism-tests exec playwright install --with-deps chromium firefox webkit
+      - name: Install Playwright system dependencies
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        timeout-minutes: 10
+        run: pnpm --filter @skidpad/determinism-tests exec playwright install-deps chromium firefox webkit
       - name: Node hashes
         run: pnpm --filter @skidpad/determinism-tests run hash:node
       - name: Node determinism test

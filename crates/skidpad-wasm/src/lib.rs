@@ -14,7 +14,7 @@ use skidpad_core::input::VehicleInput;
 use skidpad_core::telemetry;
 use skidpad_core::tire::{tir, TireInput, TireModel};
 use skidpad_core::validation::{
-    lane_change, parked, step_steer, straight_line, timestep_sweep, understeer, weave,
+    coast_down, lane_change, parked, step_steer, straight_line, timestep_sweep, understeer, weave,
 };
 use skidpad_core::vehicle::{HostMode, WHEEL_COUNT};
 use skidpad_core::world::{Lod, WorldError};
@@ -1013,6 +1013,7 @@ enum ScenarioKind {
     StepSteer,
     DoubleLaneChange,
     Weave,
+    CoastDown,
 }
 
 #[derive(serde::Deserialize)]
@@ -1060,6 +1061,7 @@ pub unsafe extern "C" fn sp_run_scenario(ptr: *const u8, len: usize) -> i32 {
         ScenarioKind::StepSteer => run_scenario(text, step_steer::run),
         ScenarioKind::DoubleLaneChange => run_scenario(text, lane_change::run),
         ScenarioKind::Weave => run_scenario(text, weave::run),
+        ScenarioKind::CoastDown => run_scenario(text, coast_down::run),
     });
     let result = match parsed {
         Ok(r) => r,

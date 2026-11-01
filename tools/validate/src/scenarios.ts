@@ -6,6 +6,7 @@ import {
   type Skidpad,
   type StepSteerResult,
   type WeaveResult,
+  type CoastDownResult,
   type SweepCell,
   type VehicleDefinition,
 } from "@skidpad/core";
@@ -125,6 +126,11 @@ export interface VehicleResults {
    * device's column friction and damping).
    */
   weave: WeaveSummary;
+  /**
+   * Coast-down from 80 mph in neutral, fitted as `F = A + B·v + C·v²` like
+   * EPA's road-load targets (compared with real cars in `epaRoadLoad.ts`).
+   */
+  coastDown: CoastDownResult;
   /**
    * The 100–0 km/h stop on other surfaces of the reference table
    * (ADR-0014), locked wheels and with the ABS.
@@ -352,6 +358,7 @@ export function runAll(sp: Skidpad, ids: PresetId[] = presetIds): ValidationRepo
       stepSteer: runStepSteer(sp, def),
       laneChange: runLaneChange(sp, def),
       weave: runWeave(sp, def),
+      coastDown: sp.runScenario({ scenario: "coastDown", definition: def }),
       surfaces: runSurfaces(sp, noAbs, withAbs),
       scriptedDriveHash: scriptedDriveHash(sp, def),
     };
