@@ -139,6 +139,17 @@ targets of three or four real cars of each class
 | Pickup 4x4             | 339 N (300–353 N)                | 798 N (781–846 N)       |
 | Electric crossover AWD | 263 N (235–258 N)                | 514 N (477–564 N)       |
 
+Stability control, from the same runner: the FMVSS 126 sine with dwell, as
+each preset ships and with stability control turned on as the test requires
+([docs/validation/sine-with-dwell.md](docs/validation/sine-with-dwell.md)):
+
+| Vehicle (preset)       | As shipped             | Stability control on       |
+| ---------------------- | ---------------------- | -------------------------- |
+| Light FWD hatchback    | no ESC: spins from 88° | passes                     |
+| RWD sports car         | ESC: passes            | passes                     |
+| Pickup 4x4             | no ESC: spins from 96° | fails from 96° (gain 1500) |
+| Electric crossover AWD | no ESC: spins from 67° | fails from 75° (gain 1500) |
+
 The presets are generic vehicle classes, not specific cars, and their tire
 parameters were tuned toward typical road-test figures for each class. With
 ABS, the hatchback stops from 100 km/h in 38.3 m against a ~38 m target, the

@@ -132,6 +132,12 @@ export interface VehicleResults {
    */
   coastDown: CoastDownResult;
   /**
+   * Sine with dwell after FMVSS 126, on the road cars only (the kart and
+   * the open-wheeler are outside the regulation): as the preset ships, and
+   * with stability control on as the test requires.
+   */
+  sineWithDwell?: { asShipped: SineWithDwellSummary; escOn: SineWithDwellSummary };
+  /**
    * The 100–0 km/h stop on other surfaces of the reference table
    * (ADR-0014), locked wheels and with the ABS.
    */
@@ -197,6 +203,52 @@ export function runStepSteer(sp: Skidpad, def: VehicleDefinition): StepSteerSumm
 }
 
 export type WeaveSummary = Omit<WeaveResult, "speed">;
+
+/** The presets FMVSS 126 applies to. */
+export const SINE_WITH_DWELL_PRESETS: readonly PresetId[] = [
+  "hatchbackFwd",
+  "sportsRwd",
+  "pickup4x4",
+  "crossoverEv",
+];
+
+/** A sine-with-dwell series without its per-run list; angles in degrees. */
+export interface SineWithDwellSummary {
+  stabilityControl: boolean;
+  amplitudeADeg: number;
+  runs: number;
+  worstYawRatio1: number;
+  worstYawRatio175: number;
+  minLateralDisplacement: number;
+  /** Smallest hand-wheel amplitude that failed, degrees; null when all passed. */
+  firstFailureDeg: number | null;
+  passed: boolean;
+  completed: boolean;
+}
+
+export function runSineWithDwell(
+  sp: Skidpad,
+  def: VehicleDefinition,
+  forceStabilityControl: boolean,
+): SineWithDwellSummary {
+  const r = sp.runScenario({
+    scenario: "sineWithDwell",
+    definition: def,
+    config: { forceStabilityControl },
+  });
+  const deg = (x: number) => (x * 180) / Math.PI;
+  return {
+    stabilityControl: r.stabilityControl,
+    amplitudeADeg: deg(r.amplitudeA),
+    runs: r.runs.length,
+    worstYawRatio1: r.worstYawRatio1,
+    worstYawRatio175: r.worstYawRatio175,
+    minLateralDisplacement: r.minLateralDisplacement,
+    firstFailureDeg: r.firstFailure === null ? null : deg(r.firstFailure),
+    passed: r.passed,
+    completed: r.completed,
+  };
+}
 
 export function runWeave(sp: Skidpad, def: VehicleDefinition): WeaveSummary {
   const { speed: _speed, ...rest } = sp.runScenario({ scenario: "weave", definition: def });
@@ -359,6 +411,12 @@ export function runAll(sp: Skidpad, ids: PresetId[] = presetIds): ValidationRepo
       laneChange: runLaneChange(sp, def),
       weave: runWeave(sp, def),
       coastDown: sp.runScenario({ scenario: "coastDown", definition: def }),
+      ...(SINE_WITH_DWELL_PRESETS.includes(id) && {
+        sineWithDwell: {
+          asShipped: runSineWithDwell(sp, def, false),
+          escOn: runSineWithDwell(sp, def, true),
+        },
+      }),
       surfaces: runSurfaces(sp, noAbs, withAbs),
       scriptedDriveHash: scriptedDriveHash(sp, def),
     };
