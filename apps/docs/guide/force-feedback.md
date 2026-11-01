@@ -148,9 +148,9 @@ car spins. The input package defaults are chosen for that:
 - `maxOutput` (Logitech sink, default 0.4): the largest fraction of the
   device's peak torque ever sent, about 4.4 N·m on a G PRO. It applies
   after every gain.
-- `gain` (default 0.5) on the physical torque, and a rate limit
-  (`slewRate`, default 5 full scales per second) so no frame can snap the
-  wheel.
+- `gain` (default 0.5) on the physical torque, in rim N·m per car N·m (1
+  is the car at true scale), and a rate limit (`slewRate`, default 5 full
+  scales per second) so no frame can snap the wheel.
 - A runaway guard: when the hand wheel moves away from the centre faster
   than `runawayRate` (default 10 rad/s, about 570°/s) for `runawayTime`
   (0.1 s) while a force is applied, the output latches at zero until
@@ -164,6 +164,33 @@ On a new wheel or a new protocol, keep your hands clear, press the
 sandbox's **Test pulse** first (it should turn the wheel gently to the
 right; if it turns left, tick **invert**), and raise gain and max output
 only after that.
+
+## Setting the gain
+
+The car's steering torque at the rim is `gain ×` the car's, clipped at
+`maxOutput ×` the device's peak torque. Too high a gain clips the peaks,
+which you feel as a flat, dead wheel at the limit. Too low a gain leaves
+the wheel light everywhere.
+
+The scaler keeps the car's peak torque over the last minute
+(`scaler.carPeak`, a `TorquePeak`), and `scaler.autoGain()` returns the
+gain that puts that peak at 90 % of the rim's limit, as iRacing's auto
+strength does. It needs 10 s of driving first and stays within 0.05 to 2;
+it never changes the gain on its own. The sandbox's **Auto** button applies
+it, and the Wheel panel shows where the last minute's peak lands on the rim
+against the limit.
+
+On a G PRO at 40 % (a 4.4 N·m limit), a lap of the sandbox track gives
+these Auto gains:
+
+| Preset       | Peak car torque on the lap | Auto gain |
+| ------------ | -------------------------- | --------- |
+| Hatchback    | 7.9 N·m                    | 0.50      |
+| Kart         | 8.2 N·m                    | 0.48      |
+| Pickup       | 10.5 N·m                   | 0.38      |
+| Open-wheeler | 12.1 N·m                   | 0.33      |
+| Sports car   | 12.6 N·m                   | 0.31      |
+| Crossover    | 15.3 N·m                   | 0.26      |
 
 ## Sending torque back
 
