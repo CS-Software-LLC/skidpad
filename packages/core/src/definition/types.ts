@@ -80,6 +80,15 @@ export interface FeelTireParams {
   verticalStiffness?: number;
   /** Vertical damping, N·s/m; used only with unsprung mass (ADR-0028). Default 500. */
   verticalDamping?: number;
+  /**
+   * Radius of a round contact patch with this tire's area, m, for the
+   * parking twist (ADR-0039). With `torsionalStiffness` also positive a
+   * steered wheel resists being turned on the spot, up to `⅔·μ·Fz·a`, and
+   * the effect fades out by walking pace. Default 0 (off). Four-wheel model only.
+   */
+  contactRadius?: number;
+  /** Torsional stiffness of the contact patch per kN of load, N·m/rad, for the parking twist (ADR-0039). Default 0 (off). */
+  torsionalStiffness?: number;
 }
 
 /**
@@ -111,6 +120,10 @@ export interface MagicFormulaParams {
   verticalStiffness?: number;
   /** `VERTICAL_DAMPING`, N·s/m; used only with unsprung mass (ADR-0028). Default 500. */
   verticalDamping?: number;
+  /** `SKIDPAD_CONTACT_RADIUS`, m, for the parking twist (ADR-0039). Default 0 (off). */
+  contactRadius?: number;
+  /** `SKIDPAD_TORSIONAL_STIFFNESS`, N·m/rad per kN, for the parking twist (ADR-0039). Default 0 (off). */
+  torsionalStiffness?: number;
   [coefficient: string]: number | string | undefined;
 }
 

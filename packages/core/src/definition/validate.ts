@@ -26,6 +26,35 @@ function nonNegative(errors: string[], path: string, v: unknown): void {
   if (!isNum(v) || v < 0) errors.push(`${path} must be zero or positive (got ${String(v)})`);
 }
 
+/** Largest contact-patch radius the parking twist accepts, m (ADR-0039). */
+const CONTACT_RADIUS_MAX = 0.5;
+
+/** The parking twist's two settings (ADR-0039): both must be positive to switch it on. */
+function patchTwist(
+  errors: string[],
+  warnings: string[],
+  path: string,
+  t: Record<string, unknown>,
+): void {
+  const a = t.contactRadius;
+  if (a !== undefined && (!isNum(a) || a < 0 || a > CONTACT_RADIUS_MAX)) {
+    errors.push(
+      `${path}.contactRadius must be in [0, ${CONTACT_RADIUS_MAX}] m (got ${String(a)}); zero leaves the parking twist off`,
+    );
+  }
+  const k = t.torsionalStiffness;
+  if (k !== undefined && (!isNum(k) || k < 0)) {
+    errors.push(
+      `${path}.torsionalStiffness must be zero or positive (got ${String(k)}); zero leaves the parking twist off`,
+    );
+  }
+  if (isNum(a) && isNum(k) && a > 0 !== k > 0) {
+    warnings.push(
+      `${path}: the parking twist needs both contactRadius and torsionalStiffness positive; it is off`,
+    );
+  }
+}
+
 const MIN_CURVE_POINTS = 2;
 const MAX_CURVE_POINTS = 16;
 
@@ -180,6 +209,7 @@ function validateTire(errors: string[], warnings: string[], path: string, tire: 
     }
     positive(errors, `${path}.verticalStiffness`, t.verticalStiffness);
     nonNegative(errors, `${path}.verticalDamping`, t.verticalDamping);
+    patchTwist(errors, warnings, path, t);
     const lfr = t.longitudinalFrictionRatio;
     if (lfr !== undefined && (!isNum(lfr) || lfr < 0.5 || lfr > 2)) {
       errors.push(`${path}.longitudinalFrictionRatio must be in [0.5, 2] (got ${String(lfr)})`);
@@ -240,6 +270,7 @@ function validateTire(errors: string[], warnings: string[], path: string, tire: 
     }
     nonNegative(errors, `${path}.lowSpeedDamping`, t.lowSpeedDamping);
     nonNegative(errors, `${path}.verticalDamping`, t.verticalDamping);
+    patchTwist(errors, warnings, path, t);
     nonNegative(errors, `${path}.pty1`, t.pty1);
     nonNegative(errors, `${path}.pty2`, t.pty2);
     const pky1 = t.pky1;

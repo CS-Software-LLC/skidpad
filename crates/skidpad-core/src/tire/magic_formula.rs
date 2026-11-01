@@ -251,6 +251,13 @@ mf_params! {
         /// Rolling speed at which the low-speed damping has faded to zero,
         /// m/s (ADR-0010).
         low_speed_damping_fade: "SKIDPAD_LOW_SPEED_DAMPING_FADE" = 2.0,
+        /// Radius of a round contact patch with this tire's area, m, for the
+        /// parking twist (ADR-0039). Zero (the default) leaves it off.
+        contact_radius: "SKIDPAD_CONTACT_RADIUS" = 0.0,
+        /// Torsional stiffness of the contact patch per kN of load,
+        /// N·m/rad, for the parking twist (ADR-0039). Zero (the default)
+        /// leaves it off.
+        torsional_stiffness: "SKIDPAD_TORSIONAL_STIFFNESS" = 0.0,
     }
 }
 
@@ -627,6 +634,12 @@ impl MagicFormulaParams {
                 self.low_speed_damping
             ));
         }
+        super::validate_patch_twist(
+            prefix,
+            self.contact_radius,
+            self.torsional_stiffness,
+            errors,
+        );
         for (name, v) in [("pty1", self.pty1), ("pty2", self.pty2)] {
             if !(v >= 0.0) || !v.is_finite() {
                 errors.push(format!(

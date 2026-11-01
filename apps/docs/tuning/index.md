@@ -275,6 +275,18 @@ helps. Parameters are per tire unless noted.
   steadies a car that feels loose in fast corners without dulling its
   turn-in at low speed ([compliance steer](/concepts/steering#compliance-steer)).
 
+## Steering is too light when parked
+
+- Without help the only parked torque is the kingpin lift, about 1 N·m at
+  the hand wheel. Set `contactRadius` and `torsionalStiffness` on the
+  steered tires for the parking twist (ADR-0039): the contact patch twists
+  like a spring, then slides at `⅔·μ·Fz·a`, and the effect fades out by
+  `lowSpeedDampingFade`. A larger `contactRadius` makes the slide heavier;
+  a stiffer patch reaches it after less wheel turn. The sandbox's Tuning
+  panel has a "Parking twist" switch that sets both from the car's static
+  load as a starting point. Power assist lightens it like any other
+  steering torque.
+
 ## The car jitters or creeps when parked
 
 - It should not. Raise `lowSpeedDamping` (the damping ratio of the

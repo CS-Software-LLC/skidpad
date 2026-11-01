@@ -223,3 +223,52 @@ export function withValue(
   (cursor as Record<string | number, unknown>)[path[path.length - 1]!] = value;
   return next as unknown as VehicleDefinition;
 }
+
+/**
+ * Settings the Tuning panel's "Parking twist" switch writes (ADR-0039).
+ * The patch radius comes from the static wheel load over a typical road
+ * tire's inflation pressure, `a = √(Fz / (π·p))`; the stiffness puts the
+ * slide a few degrees of road-wheel turn in. Both are rough starting
+ * points to tune by feel, not measured values.
+ */
+export const PARKING_TWIST = {
+  /** Inflation pressure for the patch radius, Pa. */
+  inflationPressure: 200_000,
+  /** Torsional stiffness of the patch per kN of load, N·m/rad. */
+  torsionalStiffness: 1000,
+} as const;
+
+const GRAVITY = 9.80665;
+
+/** Whether any steered axle's tire has the parking twist on. */
+export function hasParkingTwist(def: VehicleDefinition): boolean {
+  return def.axles.some((a) => {
+    const t = a.tire as { contactRadius?: number; torsionalStiffness?: number };
+    return a.steered === true && (t.contactRadius ?? 0) > 0 && (t.torsionalStiffness ?? 0) > 0;
+  });
+}
+
+/**
+ * A copy of `def` with the parking twist switched on for every steered
+ * axle, with {@link PARKING_TWIST}'s settings, or off with both settings
+ * back at zero.
+ */
+export function withParkingTwist(def: VehicleDefinition, on: boolean): VehicleDefinition {
+  const next = structuredClone(def);
+  const { mass, wheelbase, cgToFrontAxle } = next.chassis;
+  next.axles.forEach((axle, i) => {
+    if (axle.steered !== true) return;
+    const tire = axle.tire as { contactRadius?: number; torsionalStiffness?: number };
+    if (!on) {
+      if (tire.contactRadius !== undefined) tire.contactRadius = 0;
+      if (tire.torsionalStiffness !== undefined) tire.torsionalStiffness = 0;
+      return;
+    }
+    const share = i === 0 ? (wheelbase - cgToFrontAxle) / wheelbase : cgToFrontAxle / wheelbase;
+    const load = 0.5 * mass * GRAVITY * share;
+    const radius = Math.sqrt(load / (Math.PI * PARKING_TWIST.inflationPressure));
+    tire.contactRadius = Math.round(radius * 1000) / 1000;
+    tire.torsionalStiffness = PARKING_TWIST.torsionalStiffness;
+  });
+  return next;
+}

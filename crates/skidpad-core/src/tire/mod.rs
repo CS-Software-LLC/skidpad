@@ -248,6 +248,18 @@ impl TireModel {
         }
     }
 
+    /// The parking twist's contact-patch radius, m, and torsional
+    /// stiffness per kN of load, N·m/rad (ADR-0039), when both are
+    /// positive; `None` leaves it off.
+    #[inline]
+    pub fn patch_twist(&self) -> Option<(f64, f64)> {
+        let (a, k) = match self {
+            TireModel::Feel(p) => (p.contact_radius, p.torsional_stiffness),
+            TireModel::MagicFormula(p) => (p.contact_radius, p.torsional_stiffness),
+        };
+        (a > 0.0 && k > 0.0).then_some((a, k))
+    }
+
     /// Vertical stiffness and damping of the tire, `(N/m, N·s/m)`. Used only
     /// on an axle with unsprung mass (ADR-0028).
     #[inline]
@@ -488,4 +500,27 @@ pub fn kinematic_slip(vx: f64, vy: f64, omega: f64, re: f64, floor: f64) -> (f64
     let kappa = (omega * re - vx) / denom;
     let alpha = m::atan2(vy, denom);
     (kappa, alpha)
+}
+
+/// Largest contact-patch radius the parking twist accepts, m.
+pub const CONTACT_RADIUS_MAX: f64 = 0.5;
+
+/// Check the parking twist's two settings (ADR-0039): zero or positive,
+/// and a patch no wider than a metre.
+pub(crate) fn validate_patch_twist(
+    prefix: &str,
+    radius: f64,
+    stiffness: f64,
+    errors: &mut Vec<String>,
+) {
+    if !(0.0..=CONTACT_RADIUS_MAX).contains(&radius) {
+        errors.push(format!(
+            "{prefix}.contactRadius must be in [0, {CONTACT_RADIUS_MAX}] m (got {radius}); zero leaves the parking twist off"
+        ));
+    }
+    if !(stiffness >= 0.0) || !stiffness.is_finite() {
+        errors.push(format!(
+            "{prefix}.torsionalStiffness must be zero or positive (got {stiffness}); zero leaves the parking twist off"
+        ));
+    }
 }
