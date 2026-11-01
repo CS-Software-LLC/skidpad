@@ -11,8 +11,14 @@ pnpm fit                 # fit three unknowns on the slowly increasing steer, th
 pnpm fit --compliance    # the same with a compliance per m/s² at the published ratio: out/fitted-compliance/
 pnpm compare --body-fixed-ay  # compare Skidpad's body-fixed LatAccel as it is (the first run's comparison)
 pnpm compare --measured  # the measured metrics only
+pnpm taurus              # the 1994 Ford Taurus: estimated and fitted builds, out/taurus/
 pnpm test                # regression guards (CI runs them)
 ```
+
+The Taurus (SAE 970563) is in `src/taurus.ts` (the car), `src/taurusRun.ts` (the J-turn, the
+frequency response, the metrics and the ratio fit) and `reference/ford_taurus/`, read by
+`digitise/taurus.py`. Results and findings:
+[docs/validation/nhtsa-ford-taurus.md](../../docs/validation/nhtsa-ford-taurus.md).
 
 ## Layout
 

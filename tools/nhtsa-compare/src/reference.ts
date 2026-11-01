@@ -19,11 +19,13 @@ import { fileURLToPath } from "node:url";
 
 export const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 export const REFERENCE_DIR = join(ROOT, "reference", "jeep_cherokee");
+/** NHTSA VRTC's 1994 Ford Taurus GL, SAE 970563: see `taurus.ts`. */
+export const TAURUS_DIR = join(ROOT, "reference", "ford_taurus");
 
 export type Trace = Array<[number, number]>;
 
-export function loadTrace(name: string): Trace {
-  const text = readFileSync(join(REFERENCE_DIR, `${name}.csv`), "utf8").trim();
+export function loadTrace(name: string, dir = REFERENCE_DIR): Trace {
+  const text = readFileSync(join(dir, `${name}.csv`), "utf8").trim();
   const [, ...lines] = text.split(/\r?\n/);
   return lines.map((l) => {
     const [x, y] = l.split(",").map(Number);
