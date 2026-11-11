@@ -63,6 +63,16 @@ export interface ReleaseOptions {
    * now ship): rim angles inside it read as straight ahead.
    */
   deadzone?: number;
+  /**
+   * Age of the rim angle when the host reads it, s (default 0): the
+   * browser's gamepad polling and the device's report interval.
+   */
+  inputDelay?: number;
+  /**
+   * Time from the host's output to the motor's torque, s (default 0): the
+   * report's way to the device and its firmware.
+   */
+  outputDelay?: number;
 }
 
 export interface ReleaseTrace {
@@ -134,18 +144,27 @@ export function releaseWheel(
     world.step(hostDt);
   }
   let motor = 0;
+  // The rim's angle and the scaler's output at each 1 kHz rim step, so
+  // either can be read a delay late.
+  const inLag = Math.max(0, Math.round((o.inputDelay ?? 0) / RIM_DT));
+  const outLag = Math.max(0, Math.round((o.outputDelay ?? 0) / RIM_DT));
+  const angles: number[] = [];
+  const outputs: number[] = [];
+  const lagged = (xs: number[], lag: number, now: number): number =>
+    lag === 0 ? now : (xs[xs.length - lag] ?? xs[0] ?? now);
   const playout = new TorquePlayout();
   const trace: ReleaseTrace = { time: [], angle: [], rate: [], yawRate: [] };
   const read = (c: string) => world.read(car, c as "Speed");
   const substeps = Math.max(1, Math.round(hostDt / RIM_DT));
   for (let k = 0; k < (o.seconds ?? 4) / hostDt; k++) {
     // The host reads the wheel, steps the car and updates the motor.
+    const seen = lagged(angles, inLag, angle);
     world.setInput(car, {
-      steer: applyDeadzone(Math.max(-1, Math.min(1, angle / lockRad)), o.deadzone ?? 0),
+      steer: applyDeadzone(Math.max(-1, Math.min(1, seen / lockRad)), o.deadzone ?? 0),
       throttle: holdThrottle(),
     });
     world.step(hostDt);
-    const frame = ffbFrameFromTelemetry(read, def.steering, (angle * 180) / Math.PI);
+    const frame = ffbFrameFromTelemetry(read, def.steering, (seen * 180) / Math.PI);
     // The firmware damper follows the car's (speed-sensitive) column damping.
     damping = scaler.gain * col * frame.damping;
     // The parking twist as wheel friction (ADR-0039), a physical torque.
@@ -159,15 +178,16 @@ export function releaseWheel(
       playout.push(frame.samples!, hostDt, k * hostDt);
     } else {
       scaler.scale(frame.torque, hostDt, frame.wheelAngle);
-      motor = scaler.sent;
     }
     // The rim between host steps, the motor held or played out.
     const h = hostDt / substeps;
     for (let s = 0; s < substeps; s++) {
-      if (o.playout) {
-        scaler.shape(playout.at(k * hostDt + s * h), h);
-        motor = scaler.sent;
-      }
+      if (o.playout) scaler.shape(playout.at(k * hostDt + s * h), h);
+      motor = lagged(outputs, outLag, scaler.sent);
+      outputs.push(scaler.sent);
+      angles.push(angle);
+      if (outputs.length > outLag + 1) outputs.shift();
+      if (angles.length > inLag + 1) angles.shift();
       // Past the end stop, a stiff damped spring.
       const over = Math.abs(angle) - endStop;
       const stop =
@@ -212,11 +232,13 @@ export function halfCyclePeaks(angle: readonly number[]): number[] {
 export type ReleaseVerdict = "settled" | "moving" | "growing";
 
 /**
- * A release grows when any half-cycle peak exceeds the one before by more
- * than 2 %, and has settled when the rim is at rest at the end.
+ * A release grows when any half-cycle peak above `floor` (rad, default
+ * half a degree) exceeds the one before by more than 2 %, and has settled
+ * when the rim is at rest at the end. Below the floor a swing is the rim
+ * finding its rest against the friction, not an oscillation.
  */
-export function releaseVerdict(trace: ReleaseTrace): ReleaseVerdict {
+export function releaseVerdict(trace: ReleaseTrace, floor = (0.5 * Math.PI) / 180): ReleaseVerdict {
   const p = halfCyclePeaks(trace.angle);
-  if (p.some((x, i) => i > 0 && x > 1.02 * p[i - 1]!)) return "growing";
+  if (p.some((x, i) => i > 0 && x > floor && x > 1.02 * p[i - 1]!)) return "growing";
   return Math.abs(trace.rate.at(-1) ?? 0) < 0.05 ? "settled" : "moving";
 }

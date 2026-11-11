@@ -49,7 +49,12 @@ interface Status {
   rimLimit: number;
   /** What Auto would set the gain to, or undefined before enough driving. */
   auto: number | undefined;
+  /** Constant-force reports the wheel took in the last second. */
+  reportRate: number;
 }
+
+/** Lifetime of each force report with Stop on stall on, s. */
+const STALL_TIMEOUT = 0.25;
 
 export function WheelPanel({
   sim,
@@ -95,6 +100,10 @@ export function WheelPanel({
   // PRO's is measured).
   const [damperRate, setDamperRate] = useState(loadDamperRate);
   const [measuring, setMeasuring] = useState(false);
+  // Stop on stall: each force report carries a lifetime, so the wheel ends
+  // the force by itself when the page stops sending. Off until Measure
+  // loop has shown this wheel's firmware honours it.
+  const [stopOnStall, setStopOnStall] = useState(false);
   const [log, setLog] = useState<string[]>([]);
   const [assists, setAssists] = useState(() => currentAssists(sim));
   const sink = useRef<LogitechWebHidSink | null>(null);
@@ -125,6 +134,7 @@ export function WheelPanel({
         carPeak: sink.current?.scaler.carPeak.peak ?? 0,
         rimLimit: sink.current?.scaler.rimLimit ?? 0,
         auto: sink.current?.scaler.autoGain(),
+        reportRate: sink.current?.reportRate ?? 0,
       });
       if (sink.current) setLog(sink.current.diagnostics.slice(-12));
     }, 100);
@@ -234,6 +244,7 @@ export function WheelPanel({
         slewRate,
         smoothing: smoothingMs / 1000,
         playoutRate: playout ? playoutRate : 0,
+        forceTimeout: stopOnStall ? STALL_TIMEOUT : 0,
         ...(damperRate !== undefined && { damperRate }),
       });
       // Keep the sink even when the force path fails, so its diagnostics
@@ -257,9 +268,11 @@ export function WheelPanel({
       sink.current.scaler.slewRate = slewRate;
       sink.current.scaler.smoothing = smoothingMs / 1000;
       sink.current.playoutRate = playout ? playoutRate : 0;
+      sink.current.forceTimeout = stopOnStall ? STALL_TIMEOUT : 0;
       sink.current.damperRate = damperRate;
     }
   }, [
+    stopOnStall,
     gain,
     invert,
     maxOutput,
@@ -291,6 +304,40 @@ export function WheelPanel({
           "Damping: no usable runs (see the log). Try the other update mode, or a wider rotation.",
         );
       }
+    } finally {
+      setMeasuring(false);
+    }
+  };
+
+  const measureLoop = async () => {
+    const s = sink.current;
+    if (!s?.ready) return;
+    setMeasuring(true);
+    setMessage(
+      "Measuring the loop: hands off the wheel; it will twitch each way for a few seconds.",
+    );
+    try {
+      const r = await s.measureLoop(() => sim.wheel.readAngleDeg());
+      if (!r || r.pulses === 0) {
+        setMessage(
+          "Loop: the rim was not seen moving (see the log). Try a car with a wider lock, or turn Match rotation off.",
+        );
+        return;
+      }
+      const stall =
+        r.timeoutExpires === undefined || r.timeoutRenews === undefined
+          ? "Stop on stall could not be checked."
+          : r.timeoutExpires && r.timeoutRenews
+            ? "The wheel ends a force by itself and renews it on every report: Stop on stall can be turned on."
+            : r.timeoutExpires
+              ? "The wheel ends a force by itself but re-sending did not keep it going: leave Stop on stall off."
+              : "The wheel ignores the force's lifetime: Stop on stall would do nothing here.";
+      setMessage(
+        `Loop: the wheel takes ${r.reportRate.toFixed(0)} reports/s (${r.roundTripMs.toFixed(1)} ms each); ` +
+          `the page's angle updates at ${r.angleRate?.toFixed(0) ?? "?"} Hz; ` +
+          `torque to seen movement ${r.latencyMs?.toFixed(0) ?? "?"} ms; ` +
+          `rim inertia about ${r.inertia?.toFixed(3) ?? "?"} kg·m². ${stall}`,
+      );
     } finally {
       setMeasuring(false);
     }
@@ -378,6 +425,13 @@ export function WheelPanel({
               title="Hands off: spins the wheel slowly with the damper on to find its units"
             >
               {measuring ? "Measuring…" : "Measure damping"}
+            </button>
+            <button
+              onClick={() => void measureLoop()}
+              disabled={!sink.current || measuring}
+              title="Hands off: short pulses to find the report rate, the delay from torque to seen movement, and whether the wheel ends a force by itself"
+            >
+              {measuring ? "Measuring…" : "Measure loop"}
             </button>
             <button onClick={disconnect}>Off</button>
           </div>
@@ -494,6 +548,22 @@ export function WheelPanel({
                   </option>
                 ))}
               </select>
+            </label>
+            {sink.current && (
+              <span
+                className="small"
+                title="Reports the wheel took in the last second. A browser holds a repeating timer to 4 ms, so this tops out near 250 whatever the playout asks for"
+              >
+                sending {status.reportRate} /s
+              </span>
+            )}
+            <label title="Give each force a 250 ms lifetime that every report renews, so the wheel lets go by itself if the page hangs or is paused. Run Measure loop first to check this wheel supports it">
+              <input
+                type="checkbox"
+                checked={stopOnStall}
+                onChange={(e) => setStopOnStall(e.target.checked)}
+              />
+              Stop on stall
             </label>
             <label title="Fastest change of the output, full scale per second">
               Slew
