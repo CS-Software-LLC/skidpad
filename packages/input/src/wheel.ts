@@ -183,6 +183,26 @@ export class WheelInput {
     return frame;
   }
 
+  /**
+   * The hand-wheel angle read from the browser now, degrees, positive
+   * right, for a measurement that samples faster than `poll()` is called.
+   * It touches no button state. The last polled angle when the matched
+   * wheel cannot be read.
+   */
+  readAngleDeg(): number {
+    const nav = globalThis.navigator as Navigator | undefined;
+    const profile = this.status.profile;
+    const wheel = this.status.wheel;
+    if (!nav || typeof nav.getGamepads !== "function" || !profile || !wheel) {
+      return this.status.wheelAngleDeg;
+    }
+    const pad = (nav.getGamepads() as ArrayLike<GamepadLike | null>)[wheel.index];
+    const raw = pad?.axes[profile.steer.axis];
+    if (raw === undefined) return this.status.wheelAngleDeg;
+    const rotation = this.rotationDeg ?? profile.rotationDeg;
+    return calibrateCentred(raw, profile.steer.calibration) * 0.5 * rotation;
+  }
+
   /** Match and map the browser's gamepads; undefined without a wheel. */
   poll(): InputFrame | undefined {
     const nav = globalThis.navigator as Navigator | undefined;

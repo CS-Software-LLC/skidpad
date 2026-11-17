@@ -201,6 +201,16 @@ export interface LogitechSinkOptions extends FfbScalerOptions {
    */
   watchdog?: number;
   /**
+   * Stop on stall: give every constant force this lifetime, s, so each
+   * report renews it and the firmware ends the force by itself when the
+   * reports stop (a page paused in the debugger, hung or crashed, where the
+   * sink's own watchdog cannot run either). 0 (the default) plays until
+   * stopped, as before [VERIFY that the firmware ends an effect at its
+   * duration and that a re-download restarts it; `measureLoop()` checks
+   * both]. HID++ only. Keep it a few times the interval between reports.
+   */
+  forceTimeout?: number;
+  /**
    * Multiplier on the definition's column friction and damping before they
    * go to the wheel's friction and damper effects (default 1). They are
    * scaled by `gain` too, so the column keeps its share of the torque.
@@ -335,14 +345,19 @@ function hex(bytes: ArrayLike<number>): string {
 
 /**
  * Parameters of a constant-force download: slot (0 for a new effect), type,
- * duration and delay (0 and 0: play until stopped), then the signed level.
- * The attack and fade envelope bytes stay zero.
+ * duration in ms and delay (0 and 0: play until stopped), then the signed
+ * level. The attack and fade envelope bytes stay zero.
  */
-function constantParams(slot: number, level: number): number[] {
+function constantParams(slot: number, level: number, durationMs = 0): number[] {
   const l = Math.round(Math.max(-1, Math.min(1, level)) * 0x7fff) & 0xffff;
+  const d = Math.max(0, Math.min(0xffff, Math.round(durationMs)));
   const p = new Array<number>(FF_CONSTANT_PARAMS).fill(0);
   p[0] = slot;
-  p[1] = FF_EFFECT_CONSTANT;
+  // With a duration the effect ends by itself, so every download starts it
+  // again: after a gap in the reports the next one brings the force back.
+  p[1] = d > 0 ? FF_EFFECT_CONSTANT | FF_EFFECT_AUTOSTART : FF_EFFECT_CONSTANT;
+  p[2] = d >> 8;
+  p[3] = d & 0xff;
   p[6] = l >> 8;
   p[7] = l & 0xff;
   return p;
@@ -462,6 +477,95 @@ export function fitDamper(
   return { damping, friction, damperRate: (coefficient * peakTorque) / damping, spread };
 }
 
+/** What `measureLoop()` found about the wheel's loop. */
+export interface LoopMeasurement {
+  /** Constant-force reports per second the device answers, back to back, Hz. */
+  reportRate: number;
+  /** Mean time from sending a report to its reply, ms. */
+  roundTripMs: number;
+  /**
+   * How often the hand-wheel angle the page reads changes while the rim
+   * turns, Hz (the median gap between changes), or undefined when it was
+   * not seen moving.
+   */
+  angleRate: number | undefined;
+  /**
+   * Time from asking for a torque to the page seeing its effect, ms (the
+   * median over the pulses): the report out, the motor, and the angle's
+   * way back through the browser, with the rim's inertia fitted out (see
+   * `fitPulse`). Undefined when no pulse gave a fit.
+   */
+  latencyMs: number | undefined;
+  /** Time from asking for a torque to the first change of the angle, ms. */
+  firstSeenMs: number | undefined;
+  /**
+   * The rim's inertia, kg·m², from the pulses' acceleration under the
+   * torque asked for. The firmware's own friction is not taken off, so it
+   * reads somewhat high.
+   */
+  inertia: number | undefined;
+  /** Pulses that gave a fit. */
+  pulses: number;
+  /**
+   * Whether a force sent with a lifetime ended by itself (the rim slowed
+   * to a stop without a zero being sent), and whether re-sending it kept
+   * it going past that lifetime: both true means `forceTimeout` works on
+   * this wheel. Undefined when not checked (classic protocol) or when the
+   * rim did not move.
+   */
+  timeoutExpires: boolean | undefined;
+  timeoutRenews: boolean | undefined;
+}
+
+/**
+ * Fit the start of a free rim under a constant torque: the angle turned
+ * grows as `½·α·(t − t_d)²`, so `√angle` is a line in time whose zero is
+ * the delay `t_d`, s, and whose slope gives the acceleration `α`, rad/s².
+ * `samples` are seconds after the torque was asked for and degrees turned
+ * since. Undefined with fewer than three moving samples or no growth.
+ */
+export function fitPulse(
+  samples: ReadonlyArray<readonly [number, number]>,
+): { delay: number; acceleration: number } | undefined {
+  const pts = samples.filter(([, a]) => a > 0);
+  if (pts.length < 3) return undefined;
+  const xs = pts.map(([t]) => t);
+  const ys = pts.map(([, a]) => Math.sqrt((a * Math.PI) / 180));
+  const n = pts.length;
+  const mx = xs.reduce((p, q) => p + q, 0) / n;
+  const my = ys.reduce((p, q) => p + q, 0) / n;
+  let sxy = 0;
+  let sxx = 0;
+  for (let i = 0; i < n; i++) {
+    sxy += (xs[i]! - mx) * (ys[i]! - my);
+    sxx += (xs[i]! - mx) ** 2;
+  }
+  if (!(sxx > 0)) return undefined;
+  const slope = sxy / sxx;
+  if (!(slope > 0)) return undefined;
+  return { delay: mx - my / slope, acceleration: 2 * slope * slope };
+}
+
+/** Yield to the browser's task queue without a timer's 1 to 4 ms floor. */
+function yieldTask(): Promise<void> {
+  if (typeof MessageChannel === "undefined") return new Promise((r) => setTimeout(r, 0));
+  return new Promise((resolve) => {
+    const c = new MessageChannel();
+    c.port1.onmessage = () => {
+      c.port1.close();
+      resolve();
+    };
+    c.port2.postMessage(0);
+  });
+}
+
+function median(xs: readonly number[]): number | undefined {
+  if (xs.length === 0) return undefined;
+  const s = [...xs].sort((a, b) => a - b);
+  const m = s.length >> 1;
+  return s.length % 2 === 1 ? s[m]! : 0.5 * (s[m - 1]! + s[m]!);
+}
+
 function conditionParams(
   slot: number,
   type: number,
@@ -516,6 +620,10 @@ export class LogitechWebHidSink implements FfbSink {
   private maxOutputValue: number;
   private watchdogTimer: ReturnType<typeof setInterval> | undefined;
   private readonly watchdogSeconds: number;
+  /** Lifetime of each constant force, s (0 plays until stopped); see the option. */
+  forceTimeout: number;
+  /** When the last second's constant-force reports were answered, s. */
+  private sentAt: number[] = [];
   private readonly minInterval: number;
   /** Playout rate, Hz (0 off); see the option. */
   playoutRate: number;
@@ -570,6 +678,7 @@ export class LogitechWebHidSink implements FfbSink {
     this.maxOutputValue = clamp01(options.maxOutput ?? 0.4);
     this.scaler = new FfbScaler({ ...options, maxTorque: this.maxTorque });
     this.watchdogSeconds = options.watchdog ?? 0.25;
+    this.forceTimeout = Math.max(0, options.forceTimeout ?? 0);
     this.rotationDeg = options.rotationDeg ?? 900;
     this.updateMode = options.updateMode ?? "modify";
     this.minInterval = options.minInterval ?? 1 / 120;
@@ -1099,8 +1208,12 @@ export class LogitechWebHidSink implements FfbSink {
     return this.download(conditionParams(0, type, coefficient, saturation));
   }
 
-  /** Send a level in −1 … 1 of the allowed output (positive turns right). */
-  private async sendLevel(level: number): Promise<void> {
+  /**
+   * Send a level in −1 … 1 of the allowed output (positive turns right).
+   * `lifetime` is how long the firmware plays it without another report, s
+   * (HID++ only): the sink's `forceTimeout` unless given, 0 until stopped.
+   */
+  private async sendLevel(level: number, lifetime = this.forceTimeout): Promise<void> {
     const out = Math.max(-1, Math.min(1, level)) * this.maxOutputValue;
     if (this.protocol === "classic") {
       // 0x80 is zero force; the sign convention is [VERIFY].
@@ -1109,21 +1222,47 @@ export class LogitechWebHidSink implements FfbSink {
         CLASSIC_REPORT_ID,
         new Uint8Array([CLASSIC_SLOT1_PLAY, CLASSIC_FORCE_CONSTANT, x, 0x80, 0, 0, 0]),
       );
+      this.noteSent();
       return;
     }
     if (this.featureIndex === 0) return;
     // A positive HID++ constant force turns a G PRO left, so the sign is
     // flipped here (found on hardware; the G923 and G920 are [VERIFY]).
     const device = -out;
+    const ms = Math.max(0, lifetime) * 1000;
     if (this.updateMode === "modify" && this.slot !== undefined) {
       // Re-downloading into the effect's own slot changes it in place.
-      await this.hidpp(this.featureIndex, FF_DOWNLOAD_EFFECT, constantParams(this.slot, device));
+      await this.hidpp(
+        this.featureIndex,
+        FF_DOWNLOAD_EFFECT,
+        constantParams(this.slot, device, ms),
+      );
     } else {
       if (this.slot !== undefined) {
         await this.hidpp(this.featureIndex, FF_DESTROY_EFFECT, [this.slot]);
       }
-      this.slot = await this.download(constantParams(0, device));
+      this.slot = await this.download(constantParams(0, device, ms));
     }
+    this.noteSent();
+  }
+
+  private noteSent(): void {
+    const now = performance.now() / 1000;
+    this.sentAt.push(now);
+    while (this.sentAt.length > 0 && now - this.sentAt[0]! > 1) this.sentAt.shift();
+  }
+
+  /**
+   * Constant-force reports the device took in the last second, Hz: what
+   * the wheel really gets, whatever `playoutRate` asks for (a browser
+   * holds a repeating timer to 4 ms, and each report waits for the last
+   * one's reply).
+   */
+  get reportRate(): number {
+    const now = performance.now() / 1000;
+    let n = 0;
+    for (const t of this.sentAt) if (now - t <= 1) n++;
+    return n;
   }
 
   /**
@@ -1179,7 +1318,7 @@ export class LogitechWebHidSink implements FfbSink {
         const level = (sign * torque) / Math.max(this.peakTorque * this.maxOutputValue, 1e-6);
         this.lastUpdate = now();
         this.lastLevel = level;
-        await this.sendLevel(Math.max(-1, Math.min(1, level)));
+        await this.sendLevel(Math.max(-1, Math.min(1, level)), 0);
         const t0 = now();
         const samples: Array<[number, number]> = [];
         let stopped = false;
@@ -1234,6 +1373,217 @@ export class LogitechWebHidSink implements FfbSink {
   }
 
   /**
+   * Measure the loop around the wheel, hands off (review 2026-11-10):
+   *
+   * 1. `burst` zero-force reports back to back give the rate the device
+   *    answers at and the round trip of one report.
+   * 2. Short constant-torque pulses with the damper and friction off,
+   *    each toward the centre, read through `readAngleDeg` (degrees,
+   *    positive right; it must read the device afresh on every call). A
+   *    free rim under a constant torque turns as `½·α·(t − t_d)²`, so a
+   *    line through `√angle` against time gives the delay `t_d` from
+   *    asking for the torque to the page seeing its effect, whatever the
+   *    rim's inertia, and the inertia from `α`. The gaps between changes
+   *    of the angle give how often the page's reading is refreshed.
+   * 3. On HID++, with the damper on, a pulse sent once with a lifetime
+   *    shows whether the firmware ends a force by itself, and the same
+   *    pulse re-sent every 100 ms whether a re-download renews it: what
+   *    `forceTimeout` needs.
+   *
+   * Every pulse stops early near the end stop. The force is zeroed
+   * after; the next `update()` restores the column effects. Undefined
+   * when the sink is not ready.
+   */
+  async measureLoop(
+    readAngleDeg: () => number,
+    o: {
+      torque?: number;
+      pulse?: number;
+      pulses?: number;
+      burst?: number;
+      coefficient?: number;
+      lifetime?: number;
+      maxAngleDeg?: number;
+      /** Wait between angle reads; a task-queue yield by default. */
+      wait?: () => Promise<void>;
+    } = {},
+  ): Promise<LoopMeasurement | undefined> {
+    if (!this.ready || this.measuring) return undefined;
+    const torque = o.torque ?? 0.6;
+    const pulse = o.pulse ?? 0.15;
+    const pulses = o.pulses ?? 4;
+    const burst = o.burst ?? 200;
+    const coefficient = o.coefficient ?? 0.4;
+    const lifetime = o.lifetime ?? 0.25;
+    const maxAngle = o.maxAngleDeg ?? 0.5 * this.rotationDeg - 60;
+    const wait = o.wait ?? yieldTask;
+    const now = () => performance.now() / 1000;
+    const sleep = (s: number) => new Promise((r) => setTimeout(r, s * 1000));
+    const hidpp = this.protocol === "hidpp" && this.featureIndex !== 0;
+    const full = Math.max(this.peakTorque * this.maxOutputValue, 1e-6);
+    const level = Math.max(-1, Math.min(1, torque / full));
+    const applied = level * full;
+    const wired = this.scaler.invert ? -1 : 1;
+    this.stopPlayout();
+    this.measuring = true;
+    const wasLogging = this.reportLines;
+    this.reportLines = false;
+    this.record("   measuring the loop: hands off the wheel");
+    const delays: number[] = [];
+    const firsts: number[] = [];
+    const inertias: number[] = [];
+    const gaps: number[] = [];
+    let reportRate = 0;
+    let roundTripMs = 0;
+    let timeoutExpires: boolean | undefined;
+    let timeoutRenews: boolean | undefined;
+    /** The damper (to stop the rim and bound its speed) on or off; friction off. */
+    const damper = async (on: boolean): Promise<void> => {
+      if (!hidpp) return;
+      this.frictionSlot = await this.setCondition(this.frictionSlot, FF_EFFECT_FRICTION, 0, 0);
+      this.damperSlot = await this.setCondition(
+        this.damperSlot,
+        FF_EFFECT_DAMPER,
+        on ? coefficient : 0,
+        on ? this.maxOutputValue : 0,
+      );
+      this.lastColumn = undefined;
+    };
+    /**
+     * Hold a torque toward the centre for `seconds`, reading the angle as
+     * fast as `wait` allows; `resend` re-sends it at that interval. The
+     * samples are seconds after the request and degrees turned since.
+     */
+    const run = async (
+      seconds: number,
+      life: number,
+      resend?: number,
+    ): Promise<Array<[number, number]>> => {
+      const a0 = readAngleDeg();
+      const signed = (a0 > 0 ? -1 : 1) * wired * level;
+      const t0 = now();
+      this.lastUpdate = t0;
+      this.lastLevel = signed;
+      await this.sendLevel(signed, life);
+      let sentLast = now();
+      let last = a0;
+      let lastChange: number | undefined;
+      const samples: Array<[number, number]> = [[0, 0]];
+      while (now() - t0 < seconds) {
+        await wait();
+        const t = now();
+        this.lastUpdate = t;
+        const a = readAngleDeg();
+        if (a !== last) {
+          if (lastChange !== undefined) gaps.push(t - lastChange);
+          lastChange = t;
+          last = a;
+          samples.push([t - t0, Math.abs(a - a0)]);
+          if (Math.abs(a) > maxAngle) break;
+        }
+        if (resend !== undefined && t - sentLast >= resend) {
+          sentLast = t;
+          await this.sendLevel(signed, life);
+        }
+      }
+      await this.sendLevel(0, 0);
+      this.lastLevel = 0;
+      return samples;
+    };
+    /** Mean speed, degrees/s, between two times of a run's samples. */
+    const speed = (samples: ReadonlyArray<[number, number]>, from: number, to: number): number => {
+      const at = (time: number): number => {
+        let a = 0;
+        for (const [t, x] of samples) {
+          if (t > time) break;
+          a = x;
+        }
+        return a;
+      };
+      return Math.abs(at(to) - at(from)) / Math.max(to - from, 1e-3);
+    };
+    /** Wait for the rim to stand still (the same angle for 0.15 s, 1.5 s at most). */
+    const settle = async (): Promise<void> => {
+      const t0 = now();
+      let last = readAngleDeg();
+      let since = t0;
+      while (now() - t0 < 1.5 && now() - since < 0.15) {
+        await sleep(0.02);
+        this.lastUpdate = now();
+        const a = readAngleDeg();
+        if (a !== last) {
+          last = a;
+          since = now();
+        }
+      }
+    };
+    try {
+      // 1. The report rate, with nothing playing.
+      const b0 = now();
+      for (let i = 0; i < burst; i++) await this.sendLevel(0, 0);
+      const elapsed = Math.max(now() - b0, 1e-6);
+      reportRate = burst / elapsed;
+      roundTripMs = (1000 * elapsed) / Math.max(burst, 1);
+      // 2. Pulses on the free rim.
+      for (let i = 0; i < pulses; i++) {
+        await damper(true);
+        await settle();
+        await damper(false);
+        const samples = await run(pulse, 0);
+        const fit = fitPulse(samples);
+        if (samples.length > 1) firsts.push(samples[1]![0]);
+        if (fit) {
+          delays.push(fit.delay);
+          inertias.push(applied / fit.acceleration);
+        }
+      }
+      await damper(true);
+      // 3. Does a force with a lifetime end by itself, and does re-sending renew it?
+      if (hidpp && firsts.length > 0 && lifetime > 0) {
+        const early = [0.5 * lifetime, lifetime] as const;
+        const late = [lifetime + 0.35, lifetime + 0.6] as const;
+        await settle();
+        const once = await run(late[1], lifetime);
+        const e1 = speed(once, ...early);
+        if (e1 > 1) timeoutExpires = speed(once, ...late) < 0.2 * e1;
+        await settle();
+        const kept = await run(late[1], lifetime, 0.1);
+        const e2 = speed(kept, ...early);
+        if (e2 > 1) timeoutRenews = speed(kept, ...late) > 0.5 * e2;
+      }
+    } finally {
+      this.measuring = false;
+      this.reportLines = wasLogging;
+      await this.zero();
+    }
+    const gap = median(gaps);
+    const delay = median(delays);
+    const first = median(firsts);
+    const result: LoopMeasurement = {
+      reportRate,
+      roundTripMs,
+      angleRate: gap !== undefined && gap > 0 ? 1 / gap : undefined,
+      latencyMs: delay === undefined ? undefined : 1000 * delay,
+      firstSeenMs: first === undefined ? undefined : 1000 * first,
+      inertia: median(inertias),
+      pulses: delays.length,
+      timeoutExpires,
+      timeoutRenews,
+    };
+    const yn = (x: boolean | undefined): string =>
+      x === undefined ? "not checked" : x ? "yes" : "no";
+    this.record(
+      `   loop: ${reportRate.toFixed(0)} reports/s (${roundTripMs.toFixed(1)} ms each), ` +
+        `angle updates ${result.angleRate?.toFixed(0) ?? "?"} Hz, ` +
+        `torque to seen movement ${result.latencyMs?.toFixed(0) ?? "?"} ms ` +
+        `(first change at ${result.firstSeenMs?.toFixed(0) ?? "?"} ms, ${delays.length}/${pulses} pulses), ` +
+        `rim inertia about ${result.inertia?.toFixed(3) ?? "?"} kg·m²; ` +
+        `force ends by itself: ${yn(timeoutExpires)}, renewed by re-sending: ${yn(timeoutRenews)}`,
+    );
+    return result;
+  }
+
+  /**
    * Send a short, gentle pulse for the setup panel's "test" button. A
    * positive level should turn the wheel right; if it turns left, set the
    * scaler's `invert`.
@@ -1243,7 +1593,7 @@ export class LogitechWebHidSink implements FfbSink {
     const sign = this.scaler.invert ? -1 : 1;
     this.lastUpdate = performance.now() / 1000;
     this.lastLevel = level;
-    await this.sendLevel(sign * level);
+    await this.sendLevel(sign * level, 0);
     await new Promise((r) => setTimeout(r, ms));
     this.lastSent = -Infinity;
     await this.zero();

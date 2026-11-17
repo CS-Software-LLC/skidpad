@@ -82,6 +82,36 @@ describe("hands-off force feedback", () => {
     expect(Math.abs(old.yawRate.at(-1)!)).toBeLessThan(0.01);
   });
 
+  it("settles a released wheel faster in a faster loop, and slower with delay", () => {
+    // The fourth half-cycle peak over the second: how fast the swing dies.
+    const decay = (o: Parameters<typeof releaseWheel>[2]): number => {
+      const p = halfCyclePeaks(releaseWheel(sp, preset("openWheeler"), o).angle);
+      return p[3]! / p[1]!;
+    };
+    const o = { speed: 100 / 3.6, releaseAngle: deg(30), scaler: DIRECT_DRIVE_SCALER };
+    const held = decay(o);
+    const played = decay({ ...o, playout: true });
+    const fast = decay({ ...o, hostDt: 1 / 250 });
+    // The playout's extra host step of delay costs damping; a 250 Hz loop
+    // (the car stepped and the wheel read every 4 ms) buys it back.
+    expect(played).toBeGreaterThan(1.2 * held);
+    expect(fast).toBeLessThan(0.7 * held);
+    // A stale angle and a late motor do the same as a slow loop.
+    const late = decay({ ...o, hostDt: 1 / 250, inputDelay: 0.016, outputDelay: 0.004 });
+    expect(late).toBeGreaterThan(1.2 * fast);
+    // No delay is the loop as it was.
+    expect(decay({ ...o, inputDelay: 0, outputDelay: 0 })).toBe(held);
+  });
+
+  it("does not call a swing under half a degree growing", () => {
+    const trace = (peaks: number[]) => {
+      const angle = peaks.flatMap((p, i) => [0.5 * p, p, 0.5 * p].map((a) => (i % 2 ? -a : a)));
+      return { time: angle.map((_, i) => i / 60), angle, rate: angle.map(() => 0), yawRate: [] };
+    };
+    expect(releaseVerdict(trace([deg(30), deg(0.2), deg(0.3)]))).toBe("settled");
+    expect(releaseVerdict(trace([deg(30), deg(2), deg(3)]))).toBe("growing");
+  });
+
   it("catches the oscillation when the column damping and friction are taken away", () => {
     // The harness's own check: without the firmware's damper the parked
     // wheel's swing grows through the 60 Hz loop.

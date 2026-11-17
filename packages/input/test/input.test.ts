@@ -835,6 +835,122 @@ describe("force feedback", () => {
   };
   const constantLevel = (d: number[]) => -((((d[9]! << 8) | d[10]!) << 16) >> 16) / 0x7fff;
 
+  /**
+   * A rim behind a fake HID++ wheel: inertia, the firmware damper when it
+   * is on, the motor `delay` seconds behind its reports, and the constant
+   * force ending at its duration when `expires`.
+   */
+  const fakeRim = (o: { delay: number; inertia: number; expires: boolean }) => {
+    const { device, sent } = fakeWheel(0xc272);
+    const forces: Array<{ at: number; torque: number; until: number }> = [];
+    let damping = 0;
+    const send = device.sendReport.bind(device);
+    device.sendReport = async (id: number, data: Uint8Array) => {
+      const d = Array.from(data);
+      if (d[1] === 3 && d[2]! >> 4 === 2) {
+        const type = d[4]! & 0x7f;
+        const at = performance.now() / 1000 + o.delay;
+        if (type === 0) {
+          const ms = (d[5]! << 8) | d[6]!;
+          forces.push({
+            at,
+            torque: constantLevel(d) * 11,
+            until: o.expires && ms > 0 ? at + ms / 1000 : Infinity,
+          });
+        } else if (type === 7) {
+          damping = ((((d[11]! << 8) | d[12]!) << 16) >> 16) / 0x7fff > 0 ? 0.52 : 0;
+        }
+      }
+      await send(id, data);
+    };
+    let t = performance.now() / 1000;
+    let angle = 0;
+    let rate = 0;
+    const read = (): number => {
+      const now = performance.now() / 1000;
+      while (t < now) {
+        const h = Math.min(0.0005, now - t);
+        let torque = 0;
+        for (const f of forces) if (f.at <= t) torque = t < f.until ? f.torque : 0;
+        rate += (h * (torque - damping * rate)) / o.inertia;
+        angle += h * rate;
+        t += h;
+      }
+      // The axis in 16-bit steps over 1080°.
+      const step = 1080 / 65536;
+      return Math.round((angle * 180) / Math.PI / step) * step;
+    };
+    return { device, sent, read };
+  };
+
+  it("measures the loop: report rate, delay, rim inertia and the force's lifetime", async () => {
+    const { LogitechWebHidSink, fitPulse } = await import("../src/index.js");
+    // The fit alone: 30 ms of delay and 20 rad/s² come back from the samples.
+    const exact = Array.from({ length: 8 }, (_, k) => {
+      const time = 0.04 + 0.012 * k;
+      return [time, (0.5 * 20 * (time - 0.03) ** 2 * 180) / Math.PI] as const;
+    });
+    const fit = fitPulse([[0, 0], ...exact])!;
+    expect(fit.delay).toBeCloseTo(0.03, 4);
+    expect(fit.acceleration).toBeCloseTo(20, 3);
+    expect(fitPulse([[0, 0]])).toBeUndefined();
+
+    const measure = async (expires: boolean) => {
+      const rim = fakeRim({ delay: 0.02, inertia: 0.03, expires });
+      const sink = new LogitechWebHidSink({ rotationDeg: 900 });
+      await sink.attach(rim.device);
+      const result = await sink.measureLoop(rim.read, { pulses: 2, burst: 50 });
+      await sink.disconnect();
+      return { result: result!, sent: rim.sent, lines: sink.diagnostics };
+    };
+    const [good, held] = await Promise.all([measure(true), measure(false)]);
+    const r = good.result;
+    expect(r.reportRate).toBeGreaterThan(100);
+    expect(r.pulses).toBe(2);
+    // 20 ms of motor delay, found through the rim's inertia.
+    expect(r.latencyMs!).toBeGreaterThan(14);
+    expect(r.latencyMs!).toBeLessThan(30);
+    expect(r.firstSeenMs!).toBeGreaterThan(r.latencyMs!);
+    expect(r.inertia!).toBeGreaterThan(0.024);
+    expect(r.inertia!).toBeLessThan(0.036);
+    expect(r.angleRate!).toBeGreaterThan(100);
+    expect(r.timeoutExpires).toBe(true);
+    expect(r.timeoutRenews).toBe(true);
+    expect(good.lines.some((l) => l.includes("force ends by itself: yes"))).toBe(true);
+    // A firmware that ignores the duration keeps pushing: reported as such.
+    expect(held.result.timeoutExpires).toBe(false);
+    // The force is left at zero.
+    const last = good.sent
+      .filter((x) => x.data[1] === 3 && x.data[2]! >> 4 === 2 && (x.data[4]! & 0x7f) === 0)
+      .at(-1)!;
+    expect(constantLevel(last.data)).toBeCloseTo(0);
+  }, 20000);
+
+  it("gives the constant force a lifetime when asked, renewed by every report", async () => {
+    const { LogitechWebHidSink } = await import("../src/index.js");
+    const { device, sent } = fakeWheel(0xc272);
+    const sink = new LogitechWebHidSink({ minInterval: 0, gain: 1, maxOutput: 1 });
+    await sink.attach(device);
+    const constant = () =>
+      sent
+        .filter((x) => x.data[1] === 3 && x.data[2]! >> 4 === 2 && (x.data[4]! & 0x7f) === 0)
+        .at(-1)!;
+    await sink.update({ torque: 2, damping: 0, friction: 0 }, 1);
+    // Off by default: plays until stopped, the plain constant type.
+    expect(constant().data.slice(4, 7)).toEqual([0x00, 0, 0]);
+    sink.forceTimeout = 0.25;
+    await sink.update({ torque: 2, damping: 0, friction: 0 }, 1);
+    // 250 ms, autostarted so a report after a gap brings the force back.
+    expect(constant().data.slice(4, 7)).toEqual([0x80, 0, 250]);
+    expect(sink.reportRate).toBeGreaterThanOrEqual(2);
+    // The test pulse is sent once and held, so it has no lifetime.
+    const p = sink.pulse(0.1, 10);
+    await new Promise((r) => setTimeout(r, 2));
+    expect(constant().data.slice(4, 7)).toEqual([0x00, 0, 0]);
+    await p;
+    await sink.disconnect();
+  });
+
   it("plays the torque slices out on its own timer and matches the rotation", async () => {
     const { LogitechWebHidSink } = await import("../src/index.js");
     const { device, sent } = fakeWheel(0xc272);

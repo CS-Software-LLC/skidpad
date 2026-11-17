@@ -159,6 +159,15 @@ car spins. The input package defaults are chosen for that:
 - A watchdog: the force goes to zero when the page is hidden or closed, or
   when no update has arrived for `watchdog` seconds (default 0.25), so a
   paused host cannot leave a force playing.
+- Stop on stall (`forceTimeout`, seconds; 0, the default, is off): the
+  watchdog is a timer on the page's own thread, so it stops with the page.
+  A page paused at a breakpoint, hung or crashed would leave the last
+  force on the wheel. With `forceTimeout` set (the sandbox uses 0.25),
+  every HID++ constant-force report carries that lifetime and renews it,
+  and the wheel's firmware ends the force by itself when the reports stop.
+  Whether a firmware honours the lifetime has to be checked on the wheel:
+  `measureLoop()` does, and reports it as `timeoutExpires` and
+  `timeoutRenews`. Turn it on only when both are true.
 
 On a new wheel or a new protocol, keep your hands clear, press the
 sandbox's **Test pulse** first (it should turn the wheel gently to the
@@ -328,11 +337,41 @@ removes it; 1 leaves the torque exactly as the model gave it.
 `sent`, `output`, `lastClipped`, `peak` and `clipFraction`, so a setup
 panel can show how much of the signal the wheel cannot reproduce.
 
+## Measuring the loop
+
+`sink.reportRate` is the number of constant-force reports the wheel took
+in the last second. It is what the wheel really gets: a browser holds a
+repeating timer to 4 ms, so a `playoutRate` of 500 delivers about 250, and
+a busy frame delivers fewer.
+
+`sink.measureLoop(readAngleDeg)` measures the rest with the hands off the
+wheel, in a few seconds:
+
+- `reportRate` and `roundTripMs`: zero-force reports sent back to back,
+  each waiting for its reply.
+- `latencyMs`: the time from asking for a torque to the page seeing its
+  effect. Short pulses turn the free rim, which moves as `½·α·(t − t_d)²`;
+  a line through `√angle` against time gives the delay `t_d` whatever the
+  rim's inertia (`fitPulse`). It covers the report out, the motor, and the
+  angle's way back through the browser, which is the loop a stiff force
+  has to be stable through.
+- `angleRate`: how often the angle the page reads changes while the rim
+  turns. Pass a function that reads the device afresh on every call;
+  `WheelInput.readAngleDeg()` does.
+- `inertia`: the rim's, from the same pulses (a little high, as the
+  firmware's own friction is not taken off).
+- `timeoutExpires` and `timeoutRenews`: whether stop on stall works on this
+  wheel (see [Safety first](#safety-first)).
+
+The wheel's rotation has to leave room to turn: with it matched to a
+car with a short lock (the kart), the pulses stop at once and give no fit.
+
 ## The sandbox's wheel panel
 
 **Wheel setup & assists** in the sandbox is a working example of all of
 the above: assign and calibrate controls, connect the wheel (protocol from
 the model, or forced; update mode), **Test pulse**, **Measure damping**,
+**Measure loop**, **Stop on stall**, the live count of reports sent per second,
 **Gain**, **Max output**, **Column feel** (`columnScale`, 0 to 4×),
 **Road detail** (`detail`, 0 to 4×), **invert**, a live graph of the torque requested and sent, **Sub-frame
 playout** at 250, 360 or 500 Hz, **Slew** and **Smoothing** with

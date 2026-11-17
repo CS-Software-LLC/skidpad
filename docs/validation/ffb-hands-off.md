@@ -156,3 +156,35 @@ in the motor torque, one host step late.
 Sent as wheel friction instead (ADR-0039 amendment A), every preset's rim
 wound to 10°, 45° or 90° stays within a degree of where it was let go.
 With the twist off the results are as before.
+
+## Loop rate and delay
+
+2026-11-10. `releaseWheel` takes `inputDelay` (the age of the rim angle
+when the host reads it) and `outputDelay` (the host's output to the
+motor's torque), both zero by default, so the delays the harness left out
+can be put in once they are measured on a wheel
+(`LogitechWebHidSink.measureLoop`). `releaseVerdict` no longer calls a
+swing under half a degree growing: with the old rule a rim finding its
+rest against the friction read as a failure. The crossover at 100 km/h
+with the direct-drive scaler and column ×1 now reads settled; the other
+verdicts in the tables above are as they were.
+
+How fast the open-wheeler's swing dies at 100 km/h (direct-drive scaler,
+column ×1), as the fourth half-cycle peak over the second:
+
+| Loop                                   | Peak 4 / peak 2 |
+| -------------------------------------- | --------------- |
+| 60 Hz, one value held per step         | 0.95            |
+| 60 Hz, slices played out one step late | 1.33            |
+| 250 Hz (car stepped every 4 ms)        | 0.53            |
+| 1 kHz                                  | 0.55            |
+
+- The playout is smoother but one host step later, and that delay costs
+  damping on every preset.
+- A 250 Hz loop settles the rim about twice as fast as the 60 Hz ones,
+  and a faster loop than that changes nothing.
+- The kart grows at every rate (1.4 to 1.7): that is the car's own
+  steering damping, not the loop.
+
+The test suite asserts the order of the first three and that added delay
+slows the settling.
