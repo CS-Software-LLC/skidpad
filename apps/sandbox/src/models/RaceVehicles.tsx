@@ -272,11 +272,6 @@ export function OpenWheeler({ d, snapshot }: { d: ModelDimensions; snapshot: Sna
             color="#c2cbd0"
           />
           <Rod
-            start={[cockpitRear, 0.69, side * cockpitW]}
-            end={[cockpitFront - 0.05, 0.65, 0]}
-            radius={0.024}
-          />
-          <Rod
             start={[cockpitFront - 0.13, 0.45, side * cockpitW]}
             end={[cockpitFront - 0.1, 0.58, side * (cockpitW + 0.13)]}
             radius={0.013}
@@ -293,11 +288,6 @@ export function OpenWheeler({ d, snapshot }: { d: ModelDimensions; snapshot: Sna
         end={[cockpitRear - 0.04, 0.86, cockpitW * 0.4]}
         radius={0.024}
         color="#c2cbd0"
-      />
-      <Rod
-        start={[cockpitFront - 0.05, 0.49, 0]}
-        end={[cockpitFront - 0.05, 0.65, 0]}
-        radius={0.023}
       />
       <SteeringWheel position={[cockpitFront - 0.16, 0.43, 0]} radius={0.105} snapshot={snapshot} />
       {/* Two-element wings, endplates, rear supports and diffuser strakes. */}
