@@ -1,7 +1,8 @@
 /** Original road-vehicle models, MIT OR Apache-2.0. */
-import { useMemo } from "react";
+import { useContext, useMemo } from "react";
 import { Shape } from "three";
-import { Panel, Part, TRIM, type Point } from "./parts.js";
+import { cabinFrame, cabinPoint, notchProfile, type CabinFrame } from "./cabin.js";
+import { InteriorView, Panel, Part, TRIM } from "./parts.js";
 import type { ModelDimensions } from "./types.js";
 
 type Profile = Array<[number, number]>;
@@ -9,18 +10,23 @@ type Profile = Array<[number, number]>;
 /** A side silhouette with true open arches. Pickup sides leave the bed hollow. */
 function Body({
   d,
-  top,
+  top: profile,
   bottom,
   color,
   sidesOnly = false,
+  tub = null,
 }: {
   d: ModelDimensions;
   top: Profile;
   bottom: number;
   color: string;
   sidesOnly?: boolean;
+  /** Cut away in the cockpit view so the cabin has a floor instead of a solid deck. */
+  tub?: CabinFrame["tub"];
 }) {
+  const interior = useContext(InteriorView);
   const shape = useMemo(() => {
+    const top = interior && tub ? notchProfile(profile, tub) : profile;
     const s = new Shape();
     s.moveTo(top[0]![0], bottom);
     for (const [x, y] of top) s.lineTo(x, y);
@@ -36,7 +42,7 @@ function Body({
     }
     s.closePath();
     return s;
-  }, [top, bottom, d.frontAxle, d.frontRadius, d.rearAxle, d.rearRadius]);
+  }, [profile, interior, tub, bottom, d.frontAxle, d.frontRadius, d.rearAxle, d.rearRadius]);
   const depth = sidesOnly ? 0.105 : d.halfWidth * 2 - 0.05;
   const offsets = sidesOnly
     ? [-d.halfWidth + 0.025, d.halfWidth - depth - 0.025]
@@ -68,34 +74,17 @@ function Body({
 
 /** Glass panels are inset on the cabin's trapezoidal faces, leaving real pillars. */
 function Cabin({
-  frontBase,
-  frontTop,
-  rearTop,
-  rearBase,
-  belt,
-  roof,
-  width,
+  frame: f,
   color,
-  split = 0.45,
   darkRoof = false,
 }: {
-  frontBase: number;
-  frontTop: number;
-  rearTop: number;
-  rearBase: number;
-  belt: number;
-  roof: number;
-  width: number;
+  frame: CabinFrame;
   color: string;
-  split?: number;
   darkRoof?: boolean;
 }) {
-  const roofW = width * 0.79;
-  const point = (u: number, v: number, side: number, offset = 0): Point => [
-    (rearBase + (frontBase - rearBase) * u) * (1 - v) + (rearTop + (frontTop - rearTop) * u) * v,
-    belt + (roof - belt) * v,
-    side * (width + (roofW - width) * v + offset),
-  ];
+  const { frontBase, frontTop, rearTop, rearBase, belt, roof, width, roofW, split } = f;
+  const point = (u: number, v: number, side: number, offset = 0) =>
+    cabinPoint(f, u, v, side, offset);
   return (
     <group name="cabin">
       <Panel
@@ -129,6 +118,7 @@ function Cabin({
         <group key={side}>
           <Panel
             color={color}
+            exterior
             points={[point(0, 0, side), point(1, 0, side), point(1, 1, side), point(0, 1, side)]}
           />
           {[
@@ -183,10 +173,8 @@ export function SportsCoupe({ d }: { d: ModelDimensions }) {
     w = d.halfWidth;
   const front = a + wb * 0.29,
     rear = b - wb * 0.29;
-  const belt = Math.max(d.frontRadius, d.rearRadius) * 2 + 0.19;
-  const roof = belt + 0.36;
-  const cowl = a - wb * 0.23;
-  const rearGlass = b - wb * 0.035;
+  const f = cabinFrame("sportsRwd", d)!;
+  const { belt, frontBase: cowl } = f;
   const color = "#2f78b6";
   return (
     <group name="sports-coupe-body">
@@ -194,6 +182,7 @@ export function SportsCoupe({ d }: { d: ModelDimensions }) {
         d={d}
         bottom={0.16}
         color={color}
+        tub={f.tub}
         top={[
           [rear, belt - 0.2],
           [rear + 0.16, belt],
@@ -203,17 +192,7 @@ export function SportsCoupe({ d }: { d: ModelDimensions }) {
           [front, belt - 0.26],
         ]}
       />
-      <Cabin
-        frontBase={cowl}
-        frontTop={cowl - wb * 0.2}
-        rearTop={b + wb * 0.2}
-        rearBase={rearGlass}
-        belt={belt}
-        roof={roof}
-        width={w * 0.87}
-        color={color}
-        split={0.18}
-      />
+      <Cabin frame={f} color={color} />
       <Part position={[front - 0.08, 0.16, 0]} size={[0.35, 0.055, w * 2.06]} color={TRIM} />
       <Part position={[front + 0.013, 0.37, 0]} size={[0.04, 0.14, w * 0.95]} color={TRIM} />
       <Part position={[rear - 0.015, 0.26, 0]} size={[0.07, 0.17, w * 1.78]} color={TRIM} />
@@ -273,11 +252,8 @@ export function Crossover({ d }: { d: ModelDimensions }) {
     w = d.halfWidth;
   const front = a + wb * 0.27,
     rear = b - wb * 0.28;
-  const belt = Math.max(d.frontRadius, d.rearRadius) + 0.62;
-  const roof = belt + 0.64;
-  const cowl = a - wb * 0.1,
-    topFront = a - wb * 0.36,
-    topRear = b + wb * 0.12;
+  const f = cabinFrame("crossoverEv", d)!;
+  const { belt, roof, frontBase: cowl, frontTop: topFront, rearTop: topRear } = f;
   const color = "#b9d5d5";
   return (
     <group name="crossover-body">
@@ -285,6 +261,7 @@ export function Crossover({ d }: { d: ModelDimensions }) {
         d={d}
         bottom={0.23}
         color={color}
+        tub={f.tub}
         top={[
           [rear, belt - 0.18],
           [rear + 0.14, belt],
@@ -293,17 +270,7 @@ export function Crossover({ d }: { d: ModelDimensions }) {
           [front, belt - 0.31],
         ]}
       />
-      <Cabin
-        frontBase={cowl}
-        frontTop={topFront}
-        rearTop={topRear}
-        rearBase={rear + 0.12}
-        belt={belt}
-        roof={roof}
-        width={w * 0.96}
-        color={color}
-        darkRoof
-      />
+      <Cabin frame={f} color={color} darkRoof />
       <Part
         position={[front + 0.01, belt - 0.28, 0]}
         size={[0.045, 0.045, w * 1.79]}
@@ -368,12 +335,8 @@ export function Pickup({ d }: { d: ModelDimensions }) {
     w = d.halfWidth;
   const front = a + wb * 0.25,
     rear = b - wb * 0.26;
-  const belt = Math.max(d.frontRadius, d.rearRadius) + 0.74;
-  const roof = belt + 0.73;
-  const cowl = a - wb * 0.12,
-    cabRear = b + wb * 0.39;
-  const topFront = cowl - wb * 0.13,
-    topRear = cabRear + 0.08;
+  const f = cabinFrame("pickup4x4", d)!;
+  const { belt, frontBase: cowl, rearBase: cabRear } = f;
   const color = "#bfa375";
   const bedLength = cabRear - rear - 0.15;
   return (
@@ -392,17 +355,7 @@ export function Pickup({ d }: { d: ModelDimensions }) {
           [front, belt - 0.19],
         ]}
       />
-      <Cabin
-        frontBase={cowl}
-        frontTop={topFront}
-        rearTop={topRear}
-        rearBase={cabRear}
-        belt={belt}
-        roof={roof}
-        width={w * 0.97}
-        color={color}
-        split={0.4}
-      />
+      <Cabin frame={f} color={color} />
       {/* Hood and cab are closed; the separate bed has a recessed floor and wheel tubs. */}
       <Panel
         color={color}

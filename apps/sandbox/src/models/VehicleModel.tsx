@@ -17,7 +17,7 @@ export function VehicleModel({
 }) {
   switch (preset) {
     case "hatchbackFwd":
-      return <Hatchback {...dimensions} />;
+      return <Hatchback d={dimensions} />;
     case "sportsRwd":
       return <SportsCoupe d={dimensions} />;
     case "pickup4x4":

@@ -3,46 +3,38 @@
  * ground projection at static ride height; Scene places it relative to the CG.
  * Geometry is authored parametrically so wheel arches follow live tuning.
  */
-import { useMemo } from "react";
+import { useContext, useMemo } from "react";
 import { Shape } from "three";
 
-import { Panel, Part, TRIM } from "./models/parts.js";
+import { cabinFrame, notchProfile } from "./models/cabin.js";
+import { InteriorView, Panel, Part, TRIM } from "./models/parts.js";
+import type { ModelDimensions } from "./models/types.js";
 
 const PAINT = "#e05b32";
 
-export function Hatchback({
-  frontAxle,
-  rearAxle,
-  halfWidth,
-  frontRadius,
-  rearRadius,
-}: {
-  frontAxle: number;
-  rearAxle: number;
-  halfWidth: number;
-  frontRadius: number;
-  rearRadius: number;
-}) {
+export function Hatchback({ d }: { d: ModelDimensions }) {
+  const { frontAxle, rearAxle, halfWidth, frontRadius, rearRadius } = d;
+  const interior = useContext(InteriorView);
+  const f = cabinFrame("hatchbackFwd", d)!;
   const wheelbase = frontAxle - rearAxle;
   const front = frontAxle + wheelbase * 0.29;
   const rear = rearAxle - wheelbase * 0.25;
-  const belt = Math.max(frontRadius, rearRadius) + 0.52;
-  const roof = belt + 0.57;
+  const { belt, roof, roofW, frontBase: cowl, frontTop: roofFront, rearTop: roofRear } = f;
   const w = halfWidth;
-  const roofW = w * 0.79;
-  const cowl = frontAxle - wheelbase * 0.12;
-  const roofFront = cowl - wheelbase * 0.24;
-  const roofRear = rearAxle + wheelbase * 0.06;
-  const hatch = rear + 0.13;
+  const hatch = f.rearBase;
   const pillar = roofRear + (roofFront - roofRear) * 0.45;
+  const tub = interior ? f.tub : null;
   const body = useMemo(() => {
+    const top: Array<[number, number]> = [
+      [rear, belt - 0.18],
+      [rear + 0.12, belt],
+      [cowl, belt],
+      [front - 0.18, belt - 0.12],
+      [front, belt - 0.27],
+    ];
     const s = new Shape();
     s.moveTo(rear, 0.19);
-    s.lineTo(rear, belt - 0.18);
-    s.lineTo(rear + 0.12, belt);
-    s.lineTo(cowl, belt);
-    s.lineTo(front - 0.18, belt - 0.12);
-    s.lineTo(front, belt - 0.27);
+    for (const [x, y] of tub ? notchProfile(top, tub) : top) s.lineTo(x, y);
     s.lineTo(front, 0.19);
     // Open arches, including clearance for suspension travel and steering.
     for (const [x, r] of [
@@ -57,7 +49,7 @@ export function Hatchback({
     s.lineTo(rear, 0.19);
     s.closePath();
     return s;
-  }, [rear, belt, cowl, front, frontAxle, frontRadius, rearAxle, rearRadius]);
+  }, [rear, belt, cowl, front, tub, frontAxle, frontRadius, rearAxle, rearRadius]);
 
   return (
     <group name="hatchback-body">
@@ -110,6 +102,7 @@ export function Hatchback({
         <group key={side}>
           <Panel
             color={PAINT}
+            exterior
             points={[
               [hatch, belt, side * w],
               [cowl, belt, side * w],

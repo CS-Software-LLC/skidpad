@@ -75,6 +75,8 @@ export interface SimSnapshot {
   quat: [number, number, number, number];
   yaw: number;
   steer: number;
+  /** Steering wheel angle, rad, positive to the left (the core's `SteeringWheelAngle`). */
+  wheelAngle: number;
   speed: number;
   /** Per wheel, FL FR RL RR: road-wheel steer, suspension travel, spin angle, contact flag. */
   wheelSteer: [number, number, number, number];
@@ -97,6 +99,7 @@ export function emptySnapshot(): SimSnapshot {
     quat: [0, 0, 0, 1],
     yaw: 0,
     steer: 0,
+    wheelAngle: 0,
     speed: 0,
     wheelSteer: [0, 0, 0, 0],
     wheelTravel: [0, 0, 0, 0],
@@ -691,6 +694,7 @@ export class Sim {
     );
     out.yaw = this.read("Yaw");
     out.steer = this.read("SteerAngle");
+    out.wheelAngle = this.read("SteeringWheelAngle");
     out.speed = this.read("Speed");
     WHEELS.forEach((w, i) => {
       out.wheelSteer[i] = this.read(`WheelSteer_${w}`);
@@ -928,6 +932,7 @@ export class Sim {
     for (let i = 0; i < 4; i++) out.quat[i] = out.quat[i]! / n;
     out.yaw = p.yaw + wrapAngle(c.yaw - p.yaw) * a;
     out.steer = p.steer + (c.steer - p.steer) * a;
+    out.wheelAngle = p.wheelAngle + (c.wheelAngle - p.wheelAngle) * a;
     out.speed = c.speed;
     for (let i = 0; i < 4; i++) {
       out.wheelSteer[i] = p.wheelSteer[i]! + (c.wheelSteer[i]! - p.wheelSteer[i]!) * a;
@@ -954,6 +959,7 @@ function copySnapshot(dst: SimSnapshot, src: SimSnapshot): void {
   dst.z = src.z;
   dst.yaw = src.yaw;
   dst.steer = src.steer;
+  dst.wheelAngle = src.wheelAngle;
   dst.speed = src.speed;
   for (let i = 0; i < 4; i++) {
     dst.quat[i] = src.quat[i]!;

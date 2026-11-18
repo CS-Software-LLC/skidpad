@@ -1,9 +1,9 @@
 /** Original kart and single-seater artwork, MIT OR Apache-2.0. */
 import { useMemo, useRef, type MutableRefObject } from "react";
 import { useFrame } from "@react-three/fiber";
-import { Quaternion, Vector3, type Group, type Mesh } from "three";
+import { Quaternion, Vector3, type Mesh } from "three";
 import type { SimSnapshot } from "../sim.js";
-import { Hull, Part, TRIM, type Point } from "./parts.js";
+import { Hull, Part, SteeringWheel, TRIM, type Point } from "./parts.js";
 import { WHEEL_STYLES, type ModelDimensions } from "./types.js";
 
 type SnapshotRef = MutableRefObject<SimSnapshot>;
@@ -63,42 +63,6 @@ function SuspensionLink({
       <cylinderGeometry args={[0.015, 0.015, 1, 8]} />
       <meshStandardMaterial color="#555f68" metalness={0.6} roughness={0.38} />
     </mesh>
-  );
-}
-
-function SteeringWheel({
-  position,
-  radius,
-  ratio,
-  snapshot,
-}: {
-  position: Point;
-  radius: number;
-  ratio: number;
-  snapshot: SnapshotRef;
-}) {
-  const spin = useRef<Group>(null);
-  useFrame(() => {
-    if (spin.current) spin.current.rotation.z = -snapshot.current.wheelSteer[0] * ratio;
-  });
-  return (
-    <group position={position} rotation={[0, Math.PI / 2, -0.25]}>
-      <group ref={spin}>
-        <mesh castShadow>
-          <torusGeometry args={[radius, radius * 0.12, 8, 24]} />
-          <meshStandardMaterial color="#262c31" roughness={0.8} />
-        </mesh>
-        {[0, 1, 2].map((i) => (
-          <group key={i} rotation={[0, 0, (i * Math.PI * 2) / 3]}>
-            <Part
-              position={[radius * 0.46, 0, 0]}
-              size={[radius, radius * 0.14, 0.025]}
-              color="#b8c0c4"
-            />
-          </group>
-        ))}
-      </group>
-    </group>
   );
 }
 
@@ -199,12 +163,7 @@ export function Kart({ d, snapshot }: { d: ModelDimensions; snapshot: SnapshotRe
         radius={0.016}
         color="#929da4"
       />
-      <SteeringWheel
-        position={[a - wb * 0.42, 0.44, 0]}
-        radius={0.105}
-        ratio={2.5}
-        snapshot={snapshot}
-      />
+      <SteeringWheel position={[a - wb * 0.42, 0.44, 0]} radius={0.105} snapshot={snapshot} />
       {/* Visible engine, cooling fins, intake and exhaust alongside the seat. */}
       <Part position={[b + 0.1, 0.23, frameW * 1.05]} size={[0.24, 0.22, 0.2]} color="#6c777e" />
       {[0, 1, 2, 3, 4].map((i) => (
@@ -313,11 +272,6 @@ export function OpenWheeler({ d, snapshot }: { d: ModelDimensions; snapshot: Sna
             color="#c2cbd0"
           />
           <Rod
-            start={[cockpitRear, 0.69, side * cockpitW]}
-            end={[cockpitFront - 0.05, 0.65, 0]}
-            radius={0.024}
-          />
-          <Rod
             start={[cockpitFront - 0.13, 0.45, side * cockpitW]}
             end={[cockpitFront - 0.1, 0.58, side * (cockpitW + 0.13)]}
             radius={0.013}
@@ -335,17 +289,7 @@ export function OpenWheeler({ d, snapshot }: { d: ModelDimensions; snapshot: Sna
         radius={0.024}
         color="#c2cbd0"
       />
-      <Rod
-        start={[cockpitFront - 0.05, 0.49, 0]}
-        end={[cockpitFront - 0.05, 0.65, 0]}
-        radius={0.023}
-      />
-      <SteeringWheel
-        position={[cockpitFront - 0.16, 0.43, 0]}
-        radius={0.105}
-        ratio={10}
-        snapshot={snapshot}
-      />
+      <SteeringWheel position={[cockpitFront - 0.16, 0.43, 0]} radius={0.105} snapshot={snapshot} />
       {/* Two-element wings, endplates, rear supports and diffuser strakes. */}
       <Part
         position={[front - 0.04, 0.125, 0]}

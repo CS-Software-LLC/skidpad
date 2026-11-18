@@ -56,6 +56,7 @@ const SOUND_KEY = "skidpad.sandbox.sound";
 const VOLUME_KEY = "skidpad.sandbox.volume";
 const PAD_STEER_TIME_KEY = "skidpad.sandbox.padSteerTime";
 const PAD_SPEED_HALF_KEY = "skidpad.sandbox.padSpeedHalf";
+const COCKPIT_FOV_KEY = "skidpad.sandbox.cockpitFov";
 
 function readStoredVolume(): number {
   const v = Number(localStorage.getItem(VOLUME_KEY));
@@ -75,6 +76,14 @@ function readStoredPadSpeedHalf(): number {
   return Number.isFinite(v) && v > 0 && localStorage.getItem(PAD_SPEED_HALF_KEY) !== null ? v : 72;
 }
 
+/** Vertical field of view in the cockpit view, degrees. */
+function readStoredCockpitFov(): number {
+  const v = Number(localStorage.getItem(COCKPIT_FOV_KEY));
+  return Number.isFinite(v) && v >= 30 && v <= 90 && localStorage.getItem(COCKPIT_FOV_KEY) !== null
+    ? v
+    : 55;
+}
+
 export function App() {
   const [sim, setSim] = useState<Sim | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -84,6 +93,7 @@ export function App() {
   const [ghost, setGhost] = useState(true);
   const [primitives, setPrimitives] = useState(false);
   const [cameraView, setCameraView] = useState<CameraView>("chase");
+  const [cockpitFov, setCockpitFov] = useState(() => readStoredCockpitFov());
   const [recording, setRecording] = useState(false);
   const [sound, setSound] = useState(false);
   const [volume, setVolume] = useState(() => readStoredVolume());
@@ -168,6 +178,10 @@ export function App() {
   }, [sim, padSpeedHalf]);
 
   useEffect(() => {
+    localStorage.setItem(COCKPIT_FOV_KEY, String(cockpitFov));
+  }, [cockpitFov]);
+
+  useEffect(() => {
     const canvas = canvasRef.current;
     if (!sim || !canvas) return;
     return sim.attachTouch(canvas);
@@ -191,6 +205,7 @@ export function App() {
         revision={revision}
         primitives={primitives}
         cameraView={cameraView}
+        cockpitFov={cockpitFov}
         canvasRef={canvasRef}
       />
       <Hud sim={sim} />
@@ -300,7 +315,25 @@ export function App() {
             <option value="chase">Camera: straight behind</option>
             <option value="offsetChase">Camera: offset chase</option>
             <option value="frontQuarter">Camera: front quarter</option>
+            <option value="cockpit">Camera: cockpit</option>
           </select>
+          {cameraView === "cockpit" && (
+            <label
+              className="volume"
+              title="Vertical field of view. Match it to your screen: smaller for a screen farther away"
+            >
+              Cockpit FOV
+              <input
+                type="range"
+                min={30}
+                max={90}
+                step={1}
+                value={cockpitFov}
+                onChange={(e) => setCockpitFov(Number(e.target.value))}
+              />
+              {cockpitFov}°
+            </label>
+          )}
           <button onClick={() => sim.reset()}>Reset (R)</button>
           {mapKind === "circuit" && (
             <>
