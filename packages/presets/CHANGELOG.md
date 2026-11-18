@@ -1,5 +1,36 @@
 # @skidpad/presets
 
+## 0.13.0
+
+### Minor Changes
+
+- 66f418f: - core: the feel tire has a `longitudinalFrictionRatio` (default 1), the peak braking and traction friction as a multiple of `peakFriction`, which then sets the cornering peak only (ADR-0037). Definitions without it run as before.
+  - physics: presets: the hatchback, crossover, pickup and sports car set `longitudinalFrictionRatio` (1.12, 1.08, 1.07, 1.05) and the hatchback's front brakes go from 3000 to 3400 N·m, so their 100–0 km/h ABS stops land on their `dataSheet` targets (38.3, 37.2, 44.1 and 33.9 m, were 42.6, 40.1, 47.1 and 35.5 m) while their skidpad figures stay put. Stops on wet, gravel, snow and ice shorten in proportion, and traction-limited launches are slightly quicker.
+- fe4fcda: - core: the lateral relaxation length can follow the tire's load (ADR-0038): the feel tire's `lateralRelaxationFollowsLoad` scales `relaxationLengthLat` with the cornering stiffness, and a Magic Formula tire with `PTY1` and `PTY2` (now read from `.tir` files) uses the MF 5.2 form. Both are off by default; definitions without them run as before.
+  - physics: presets: the hatchback, crossover, pickup and sports car turn `lateralRelaxationFollowsLoad` on. Step-steer yaw overshoot falls a little (hatchback 4.1 → 3.5 %, pickup 2.4 → 1.9 %); response times, gradients and lane-change pass speeds are unchanged.
+- eb0c72c: - core: `steering.powerAssistOnCentre` (0 … 1, default 0): the share of the power assist that already works on centre. With the boost curve the hand torque's slope on centre is `1 − powerAssist × powerAssistOnCentre` of the manual one instead of all of it; with `powerAssistFadeStart` set it comes in from rest to that speed, so a parked wheel is unchanged. ADR-0040.
+  - presets: the hatchback, sports car, crossover and pickup get an on-centre share (0.75 to 0.9) and more assist at speed (0.6 to 0.7), for 0.22 to 0.30 N·m per degree of hand wheel on centre at 100 km/h, from 0.4 to 0.7. This is what made a released direct-drive wheel swing at speed. Peak steering torque on a ramp steer at 80 km/h falls from 9 to 15 N·m to 6 to 9 N·m. The hatchback's `columnDampingAtSpeed` goes from 0.16 to 0.24.
+  - physics: no simulated behaviour changes; `SteeringTorque` and the weave scenario's torque metrics change on the four assisted presets (goldens updated).
+- 5060e0d: - physics: the pickup's road load now sits inside the EPA coast-down range of real full-size 4x4 pickups at 50 and 100 km/h. Rolling resistance 0.013 -> 0.008, drag coefficient 0.45 -> 0.40 and frontal area 3.4 -> 3.25 m². Its understeer gradient moves from 0.93 to 0.91 deg/g and 0–100 km/h from 7.4 s to 7.3 s; braking is unchanged.
+- db0774a: - core: the feel tire's rolling resistance can grow with speed. `rollingResistanceSpeed` (default 0) adds `rollingResistanceSpeed · |vx| / 16.7 m/s` to the coefficient, as the Magic Formula's QSY3 does; a coast-down shows it as the `B` term.
+  - physics: the sports car's tires have `rollingResistanceSpeed` 0.004, which puts its road load inside the EPA coast-down range of its class at 50 and 100 km/h (it was 13 % low at 100 km/h). Its understeer gradient moves from 0.71 to 0.72 deg/g. The other presets are unchanged.
+- 600f3a7: - presets: more column damping at speed, so a released wheel settles on a direct-drive base: `columnDampingAtSpeed` 0.3 on the sports car and crossover (from 0.2) and the open-wheeler (from 0.12), and the kart gets 0.6 by 10 m/s (it had none). Tuned in the hands-off harness with the rim inertia and delay measured on a G PRO.
+  - physics: no simulated behaviour changes; the weave test's driver torque includes the column damping, so its torque at 0 g rises by 0.01 to 0.02 N·m on those presets.
+  - input: `columnEffects` no longer clamps the damper's coefficient at `maxOutput` (its force is still capped there by the saturation), which had flattened any damping above `maxOutput / damperRate`.
+
+### Patch Changes
+
+- Updated dependencies [66f418f]
+- Updated dependencies [bfe0e3b]
+- Updated dependencies [fe4fcda]
+- Updated dependencies [eb0c72c]
+- Updated dependencies [7e20b64]
+- Updated dependencies [240be23]
+- Updated dependencies [db0774a]
+- Updated dependencies [8062a9a]
+- Updated dependencies [f3b6ebb]
+  - @skidpad/core@0.13.0
+
 ## 0.12.0
 
 ### Minor Changes
