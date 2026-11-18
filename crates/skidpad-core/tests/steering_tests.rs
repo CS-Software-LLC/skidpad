@@ -81,6 +81,65 @@ fn the_boost_curve_leaves_the_centre_manual_and_tends_to_the_assist_fraction() {
 }
 
 #[test]
+fn on_centre_assist_lowers_the_slope_on_centre_only() {
+    // ADR-0040: T_h = (1 − a)·Tm + a·(1 − c)·Tm / √(1 + (Tm/T₀)²).
+    let mut d = VehicleDefinition::default();
+    d.steering.ratio = 14.0;
+    d.steering.power_assist = 0.7;
+    d.steering.power_assist_onset = 1.0;
+    let manual_centre = d.clone();
+    d.steering.power_assist_on_centre = 0.8;
+    // On centre the slope is 1 − a·c of the manual one.
+    let small = 1e-6;
+    let slope0 = d.hand_wheel_torque(-14.0 * small) / small;
+    assert!((slope0 - (1.0 - 0.7 * 0.8)).abs() < 1e-9, "slope {slope0}");
+    // At the onset: 0.3 + 0.7·0.2 / √2 of the manual torque.
+    let at_onset = d.hand_wheel_torque(-14.0);
+    let expect = 0.3 + 0.7 * 0.2 / 2f64.sqrt();
+    assert!((at_onset - expect).abs() < 1e-12, "{at_onset} vs {expect}");
+    // Far above the onset the slope is still 1 − a.
+    let far = d.hand_wheel_torque(-14.0 * 1001.0) - d.hand_wheel_torque(-14.0 * 1000.0);
+    assert!((far - 0.3).abs() < 1e-6, "{far}");
+    // Lighter than the manual centre everywhere, odd, and rising.
+    let mut last = 0.0;
+    for i in 1..=2000 {
+        let tm = 0.01 * i as f64;
+        let th = d.hand_wheel_torque(-14.0 * tm);
+        assert!(th > last, "falls at {tm}");
+        assert!(th < manual_centre.hand_wheel_torque(-14.0 * tm));
+        assert_eq!(d.hand_wheel_torque(14.0 * tm), -th);
+        last = th;
+    }
+    // Zero is the boost curve of ADR-0029 bit for bit; without an onset it
+    // does nothing.
+    d.steering.power_assist_on_centre = 0.0;
+    assert_eq!(
+        d.hand_wheel_torque(-9.1),
+        manual_centre.hand_wheel_torque(-9.1)
+    );
+    d.steering.power_assist_on_centre = 0.8;
+    d.steering.power_assist_onset = 0.0;
+    assert_eq!(d.hand_wheel_torque(14.0), -(1.0 - 0.7));
+    // With a fade start it comes in from rest: none parked, all by the start.
+    d.steering.power_assist_onset = 1.0;
+    assert_eq!(d.power_assist_on_centre_at(30.0), 0.8);
+    d.steering.power_assist_fade_start = 4.0;
+    d.steering.power_assist_fade_end = 20.0;
+    d.steering.power_assist_at_speed = 0.7;
+    assert_eq!(d.power_assist_on_centre_at(0.0), 0.0);
+    assert!((d.power_assist_on_centre_at(-1.0) - 0.2).abs() < 1e-15);
+    assert_eq!(d.power_assist_on_centre_at(4.0), 0.8);
+    assert_eq!(d.power_assist_on_centre_at(50.0), 0.8);
+    assert_eq!(
+        d.hand_wheel_torque_at(-9.1, 0.0),
+        manual_centre.hand_wheel_torque(-9.1)
+    );
+    // Out of range is rejected.
+    d.steering.power_assist_on_centre = 1.2;
+    assert!(d.validate().is_err());
+}
+
+#[test]
 fn mechanical_trail_adds_to_the_steering_torque_in_a_turn() {
     let mut w = World::new(1);
     w.add_vehicle(VehicleDefinition::default()).unwrap();

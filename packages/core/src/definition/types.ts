@@ -305,6 +305,13 @@ export interface SteeringDefinition {
    */
   powerAssistOnset: number;
   /**
+   * On-centre assist (ADR-0040): the share of the assist that already works
+   * on centre, 0 … 1. With `powerAssistOnset` set, the hand torque's slope
+   * on centre is `1 − powerAssist × powerAssistOnCentre` of the manual one.
+   * 0 (the default) leaves the centre manual.
+   */
+  powerAssistOnCentre: number;
+  /**
    * Speed-sensitive assist (ADR-0034): the assist fraction at and above
    * `powerAssistFadeEnd`, in place of `powerAssist`. 0 … 1.
    */

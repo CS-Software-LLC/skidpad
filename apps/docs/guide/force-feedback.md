@@ -189,8 +189,12 @@ it never changes the gain on its own. The sandbox's **Auto** button applies
 it, and the Wheel panel shows where the last minute's peak lands on the rim
 against the limit.
 
-On a G PRO at 40 % (a 4.4 N·m limit), a lap of the sandbox track gives
-these Auto gains:
+On a G PRO at 40 % (a 4.4 N·m limit), a lap of the sandbox track gave
+these Auto gains before the assisted cars got their on-centre assist and
+more assist at speed (ADR-0040). Their peaks are lower now (on a ramp
+steer at 80 km/h: hatchback 5.9 N·m, pickup 7.4, crossover 8.1, sports
+car 8.6), so the default gain of 0.5 no longer clips them; the lap has not
+been driven again:
 
 | Preset       | Peak car torque on the lap | Auto gain |
 | ------------ | -------------------------- | --------- |

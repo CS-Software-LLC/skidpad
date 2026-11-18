@@ -271,4 +271,50 @@ suite asserts that every preset settles in the fast loop, and that the
 sports car and crossover with their old damping settle in it where the
 60 Hz loop does not.
 
-None of this has been driven on a wheel yet.
+On the wheel (2026-11-18) neither the retune nor the fast loop stopped
+the swing.
+
+## The cause: a centre two to three times too stiff
+
+2026-11-18. The harness had been asked the wrong question. What decides
+whether a released rim settles is the stiffness of the spring it sits on
+against the damping, since a spring felt through a delay feeds the swing
+by about its stiffness times the delay. Measured with a ±2° sine at 5 Hz
+and 100 km/h, the assisted presets gave the hand wheel 0.40 to 0.70 N·m
+per degree, against roughly 0.2 to 0.35 on road cars [VERIFY], because
+the assist did nothing on centre and little at speed, and the cars are
+about twice as sharp per degree as road cars (ADR-0040).
+
+The sports car with a constant assist of 0.65 (0.27 N·m per degree) stays
+still on the G PRO when let go at 100 km/h, with nothing else changed.
+
+With the on-centre assist of ADR-0040 in the presets (0.22 to 0.30 N·m
+per degree), seconds until the rim stays within 2° of rest after a release
+from 30°, or the swing left after 6 s:
+
+| Preset       | Column | 60 km/h | 100 km/h | 140 km/h |
+| ------------ | ------ | ------- | -------- | -------- |
+| hatchbackFwd | 1×     | 0.35    | 0.93     | 11°      |
+| hatchbackFwd | 2×     | 0.18    | 0.70     | 2.03     |
+| sportsRwd    | 1×     | 0.48    | 0.68     | 1.35     |
+| sportsRwd    | 2×     | 0.18    | 0.54     | 0.89     |
+| crossoverEv  | 1×     | 0.35    | 0.31     | 2.43     |
+| crossoverEv  | 2×     | 0.15    | 0.71     | 2.18     |
+| pickup4x4    | 1×     | 0.30    | 0.55     | 2.42     |
+| pickup4x4    | 2×     | 0.16    | 0.17     | 0.79     |
+
+That is the fast loop; the 60 Hz loop with playout is within a second of
+it everywhere but the crossover at 1× and 140 km/h, which keeps a 6°
+swing. What is left at 140 km/h is a different, slower swing (about
+1.3 Hz against 4 to 5 Hz before): the car's own yaw answering a free
+wheel, which a softer centre brings the rim's swing closer to. It is why
+the damping of the retune above stays, and why the hatchback's went from
+0.16 to 0.24.
+
+The kart and open-wheeler have no assist. They are unchanged (0.9 at
+60 km/h and 0.49 N·m per degree), settle at column 2× and swing at 1×.
+
+The harness predicted the retune and the fast loop would be enough, and
+on the wheel they were not, so it flatters the real loop somewhere (the
+delay, or what the firmware damper really delivers). Its numbers here are
+for comparing changes, and the wheel has the last word.

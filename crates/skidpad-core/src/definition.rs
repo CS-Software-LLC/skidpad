@@ -468,6 +468,14 @@ pub struct SteeringDef {
     /// torque plus `powerAssist × powerAssistOnset`. Zero (the default) is
     /// the constant fraction. 0 … 20.
     pub power_assist_onset: f64,
+    /// On-centre assist (ADR-0040): the share of the assist that already
+    /// works on centre, 0 … 1. With the boost curve, the hand torque's
+    /// slope on centre is `1 − powerAssist × powerAssistOnCentre` of the
+    /// manual one instead of all of it. It comes in linearly from rest to
+    /// `power_assist_fade_start` when that is set, so a parked wheel keeps
+    /// its manual centre. Zero (the default) leaves the centre manual; it
+    /// does nothing without `power_assist_onset`.
+    pub power_assist_on_centre: f64,
     /// Speed-sensitive assist (ADR-0034): the assist fraction at and above
     /// `power_assist_fade_end`, in place of `power_assist`, as electric and
     /// variable hydraulic systems give less help at speed. 0 … 1.
@@ -526,6 +534,7 @@ impl Default for SteeringDef {
             steering_arm: 0.12,
             power_assist: 0.0,
             power_assist_onset: 0.0,
+            power_assist_on_centre: 0.0,
             power_assist_at_speed: 0.0,
             power_assist_fade_start: 0.0,
             power_assist_fade_end: 0.0,
@@ -871,6 +880,12 @@ impl VehicleDefinition {
                 "steering.powerAssistOnset must be in [0, {MAX_POWER_ASSIST_ONSET}] N·m (got {onset})"
             ));
         }
+        let poc = self.steering.power_assist_on_centre;
+        if !(0.0..=1.0).contains(&poc) {
+            e.push(format!(
+                "steering.powerAssistOnCentre must be in [0, 1] (got {poc})"
+            ));
+        }
         let cds = self.steering.column_damping_speed;
         if !(0.0..=MAX_COLUMN_DAMPING_SPEED).contains(&cds) {
             e.push(format!(
@@ -1009,13 +1024,19 @@ impl VehicleDefinition {
     /// right) from a total kingpin torque, after the power assist.
     ///
     /// With a boost onset `T₀` (ADR-0029) the manual torque `Tm = −T_kp / ratio`
-    /// becomes `(1 − a)·Tm + a·Tm / √(1 + (Tm/T₀)²)`: slope 1 on centre (no
-    /// assist), slope `1 − a` at large torque, and rising everywhere, so the
-    /// wheel never gets lighter as the load grows. Without an onset it is
-    /// the constant fraction `(1 − a)·Tm`, bit for bit as before.
+    /// becomes `(1 − a)·Tm + a·(1 − c)·Tm / √(1 + (Tm/T₀)²)`, with `c` the
+    /// on-centre share of the assist (ADR-0040, default 0): slope `1 − a·c`
+    /// on centre (1, no assist, by default), slope `1 − a` at large torque,
+    /// and rising everywhere, so the wheel never gets lighter as the load
+    /// grows. Without an onset it is the constant fraction `(1 − a)·Tm`,
+    /// bit for bit as before.
     #[inline]
     pub fn hand_wheel_torque(&self, kingpin_torque: f64) -> f64 {
-        self.hand_wheel_torque_with(kingpin_torque, self.steering.power_assist)
+        self.hand_wheel_torque_with(
+            kingpin_torque,
+            self.steering.power_assist,
+            self.steering.power_assist_on_centre,
+        )
     }
 
     /// The assist fraction at road speed `speed`, m/s (ADR-0034):
@@ -1044,18 +1065,38 @@ impl VehicleDefinition {
     /// off.
     #[inline]
     pub fn hand_wheel_torque_at(&self, kingpin_torque: f64, speed: f64) -> f64 {
-        self.hand_wheel_torque_with(kingpin_torque, self.power_assist_at(speed))
+        self.hand_wheel_torque_with(
+            kingpin_torque,
+            self.power_assist_at(speed),
+            self.power_assist_on_centre_at(speed),
+        )
+    }
+
+    /// The on-centre share of the assist at road speed `speed`, m/s
+    /// (ADR-0040): `power_assist_on_centre`, coming in linearly from zero at
+    /// rest to all of it at `power_assist_fade_start`, so a parked wheel
+    /// keeps its manual centre and the self-centring that goes with it.
+    /// The same at every speed when the fade has no start.
+    pub fn power_assist_on_centre_at(&self, speed: f64) -> f64 {
+        let st = &self.steering;
+        if !(st.power_assist_fade_start > 0.0) {
+            return st.power_assist_on_centre;
+        }
+        st.power_assist_on_centre * m::min(m::abs(speed) / st.power_assist_fade_start, 1.0)
     }
 
     #[inline]
-    fn hand_wheel_torque_with(&self, kingpin_torque: f64, a: f64) -> f64 {
+    fn hand_wheel_torque_with(&self, kingpin_torque: f64, a: f64, c: f64) -> f64 {
         let manual = -kingpin_torque / self.steering.ratio;
         let onset = self.steering.power_assist_onset;
         if !(onset > 0.0) {
             return (1.0 - a) * manual;
         }
         let x = manual / onset;
-        (1.0 - a) * manual + a * manual / m::sqrt(1.0 + x * x)
+        // The share of the assist that is off on centre (ADR-0040); all of
+        // it when `power_assist_on_centre` is zero, bit for bit as before.
+        let b = a * (1.0 - c);
+        (1.0 - a) * manual + b * manual / m::sqrt(1.0 + x * x)
     }
 
     /// The hand-wheel torque split by source (ADR-0031), N·m in the sign of

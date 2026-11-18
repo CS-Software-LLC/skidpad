@@ -134,6 +134,13 @@
           "default": 0,
           "description": "Boost curve (ADR-0029): manual hand-wheel torque, N·m, around which the assist comes in. Well below it the wheel carries the full manual torque (no assist on centre); well above it, (1 − powerAssist) of it plus powerAssist × powerAssistOnset. 0 is the constant fraction."
         },
+        "powerAssistOnCentre": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "default": 0,
+          "description": "On-centre assist (ADR-0040): the share of the assist that already works on centre. With powerAssistOnset set, the hand torque's slope on centre is 1 − powerAssist × powerAssistOnCentre of the manual one. 0 leaves the centre manual."
+        },
         "powerAssistAtSpeed": {
           "type": "number",
           "minimum": 0,
