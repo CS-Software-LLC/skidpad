@@ -633,6 +633,8 @@ export class LogitechWebHidSink implements FfbSink {
   private readonly minInterval: number;
   /** Playout rate, Hz (0 off); see the option. */
   playoutRate: number;
+  /** The newest level that arrived while a report was in flight. */
+  private queued: { level: number; frame: FfbFrame } | undefined;
   private readonly playout = new TorquePlayout();
   private playoutTimer: ReturnType<typeof setInterval> | undefined;
   private playoutHz = 0;
@@ -1024,17 +1026,37 @@ export class LogitechWebHidSink implements FfbSink {
     }
     const now = performance.now() / 1000;
     this.lastUpdate = now;
-    if (now - this.lastSent < this.minInterval) return;
-    this.lastSent = now;
-    this.lastLevel = level;
-    // The host calls this without awaiting it, so a failed report would
-    // otherwise vanish; log it instead.
-    try {
-      await this.sendLevel(level);
-    } catch (e) {
-      this.record(`   send failed: ${String(e)}`);
+    // One report at a time, the newest level next: each report waits for
+    // the wheel's reply (5 ms on a G PRO), and a host that steps faster
+    // than that must not stack reports up behind one another.
+    if (this.sending) {
+      this.queued = { level, frame };
+      return;
     }
-    await this.sendColumn(frame);
+    if (now - this.lastSent < this.minInterval) return;
+    this.sending = true;
+    try {
+      for (
+        let q: typeof this.queued = { level, frame };
+        q && this.ready && !this.measuring;
+        q = this.queued
+      ) {
+        this.queued = undefined;
+        this.lastSent = performance.now() / 1000;
+        this.lastLevel = q.level;
+        // The host calls this without awaiting it, so a failed report would
+        // otherwise vanish; log it instead.
+        try {
+          await this.sendLevel(q.level);
+        } catch (e) {
+          this.record(`   send failed: ${String(e)}`);
+        }
+        await this.sendColumn(q.frame);
+      }
+    } finally {
+      this.queued = undefined;
+      this.sending = false;
+    }
   }
 
   /**
@@ -1607,6 +1629,7 @@ export class LogitechWebHidSink implements FfbSink {
 
   async stop(): Promise<void> {
     this.stopPlayout();
+    this.queued = undefined;
     if (!this.device?.opened) return;
     this.lastSent = -Infinity;
     this.lastLevel = 0;

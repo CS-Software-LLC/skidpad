@@ -313,8 +313,19 @@ carries the step's torque in eight equal slices of time
 (`SteeringTorqueSlice0` … `7`, ADR-0032), and with `playoutRate` set (Hz,
 for example 250 to 500; default 0, off) the sink plays them out between
 host steps through `TorquePlayout`, one host step behind, with linear
-interpolation. 500 Hz has been driven on a G PRO and is the sandbox's
-default.
+interpolation. 500 Hz has been driven on a G PRO.
+
+Playout smooths the staircase but leaves the loop slow: the torque still
+answers a rim angle read once per 60 Hz frame, and goes out a frame late.
+A host that can step faster does better without it. The sandbox's **Fast
+wheel loop** steps at 240 Hz from a 4 ms timer while a wheel is connected,
+polls the wheel on every step and passes each step's frame to
+`sink.update()` with no `samples`. The sink sends one report at a time and
+the newest level next, so a host faster than the wheel (a G PRO takes 200
+reports a second) never stacks reports up. That about halves the delay
+around the rim, from 40 ms to 20 ms on a G PRO, which is what a released
+wheel needs to settle at speed
+([hands-off report](https://github.com/CS-Software-LLC/skidpad/blob/main/docs/validation/ffb-hands-off.md)).
 
 Belt and gear wheels smooth the output themselves; a direct-drive base
 does not, and shows the scaler's own rate limit and smoothing as lag.
@@ -374,7 +385,8 @@ car with a short lock (the kart), the pulses stop at once and give no fit.
 **Wheel setup & assists** in the sandbox is a working example of all of
 the above: assign and calibrate controls, connect the wheel (protocol from
 the model, or forced; update mode), **Test pulse**, **Measure damping**,
-**Measure loop**, **Stop on stall**, the live count of reports sent per second,
+**Measure loop**, **Stop on stall**, **Fast wheel loop** with the live count of
+loop passes per second, the live count of reports sent per second,
 **Gain**, **Max output**, **Column feel** (`columnScale`, 0 to 4×),
 **Road detail** (`detail`, 0 to 4×), **invert**, a live graph of the torque requested and sent, **Sub-frame
 playout** at 250, 360 or 500 Hz, **Slew** and **Smoothing** with
@@ -383,9 +395,10 @@ playout** at 250, 360 or 500 Hz, **Slew** and **Smoothing** with
 assists.
 
 The panel starts with the settings that were driven on a G PRO: gain 0.5,
-max output 40 %, **Column feel** 2×, **Road detail** 1×, **Sub-frame
-playout** on at 500 Hz,
+max output 40 %, **Column feel** 2×, **Road detail** 1×,
 the **Direct drive** slew and smoothing, and **Match rotation to car** on.
+**Fast wheel loop** is on as well (not yet driven on a wheel); turning it
+off goes back to 60 Hz steps with **Sub-frame playout** at 500 Hz.
 On a belt or gear wheel, press **Gear / belt**.
 
 ## Other makers

@@ -220,5 +220,55 @@ sports car and crossover, 2.5 times on the open-wheeler, 0.6 N·m per
 rad/s on the kart), or a 200 Hz loop for the road cars. The presets now
 carry the damping (ADR-0033, amendment A), and the test suite asserts
 that every preset is within 2° of rest at three speeds in this loop, and
-that the sports car's old value is not. The faster loop is a separate
-change.
+that the sports car's old value is not.
+
+## The fast wheel loop
+
+The sandbox now steps at 240 Hz from a 4 ms timer while a force-feedback
+wheel is connected, reads the wheel on every step and sends that step's
+mean torque as it is (no playout). The 60 Hz loop with playout puts about
+40 ms around the rim: up to a frame of angle age, a frame of playout, and
+the wheel's own 15 ms. The fast loop leaves about 20 ms: a 4 ms step, a
+few milliseconds waiting for the wheel's reply to the report before, and
+the same 15 ms. `FAST_WHEEL_LOOP` is that loop for the harness (240 Hz,
+no playout, 2.5 ms more on the way out for the wait).
+
+With the damping the presets had before the retune (column ×2, 5 s from
+30°), the swing left over the last second:
+
+| Preset      | Speed    | 60 Hz + playout | Fast loop |
+| ----------- | -------- | --------------- | --------- |
+| sportsRwd   | 60 km/h  | 23°             | 0°        |
+| sportsRwd   | 100 km/h | 23°             | 18°       |
+| sportsRwd   | 140 km/h | 25°             | 18°       |
+| crossoverEv | 100 km/h | 23°             | 0°        |
+| crossoverEv | 140 km/h | 24°             | 0°        |
+| openWheeler | 60 km/h  | 26°             | 0°        |
+| openWheeler | 100 km/h | 35°             | 21°       |
+| openWheeler | 140 km/h | 83°             | 28°       |
+
+So the loop alone does not replace the retune: it is close to the edge,
+and with the motor 2.5 ms quicker than assumed every row but the last
+settles. With the retuned presets both loops settle everywhere, and the
+fast one mostly sooner. Seconds until the rim stays within 2° of rest:
+
+| Preset       | Speed    | 60 Hz + playout | Fast loop |
+| ------------ | -------- | --------------- | --------- |
+| hatchbackFwd | 100 km/h | 0.80            | 0.35      |
+| sportsRwd    | 100 km/h | 1.05            | 0.58      |
+| sportsRwd    | 140 km/h | 1.27            | 0.66      |
+| crossoverEv  | 100 km/h | 0.75            | 0.43      |
+| pickup4x4    | 100 km/h | 0.52            | 0.56      |
+| openWheeler  | 100 km/h | 0.53            | 0.31      |
+| openWheeler  | 140 km/h | 0.75            | 0.35      |
+| kart         | 30 km/h  | 2.65            | 0.65      |
+
+The hatchback at 140 km/h is the one case that takes longer (0.67 s
+against 1.62 s). At **Column feel** 1× the hatchback, which swung 49° at
+100 km/h in the 60 Hz loop, settles in the fast one; the sports car,
+crossover, open-wheeler and kart still swing there in both. The test
+suite asserts that every preset settles in the fast loop, and that the
+sports car and crossover with their old damping settle in it where the
+60 Hz loop does not.
+
+None of this has been driven on a wheel yet.

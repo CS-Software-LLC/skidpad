@@ -1,6 +1,8 @@
 /**
  * The simulation loop, independent of React and of the renderer. Fixed
  * 60 Hz host steps with an accumulator; the core substeps at 1 kHz inside.
+ * With a force-feedback wheel connected the steps are 240 Hz from a timer
+ * (the fast wheel loop).
  *
  * Two hosts: the built-in minimal host (flat ground, the core integrates the
  * pose) and a Rapier scene with obstacles, driven through
@@ -48,6 +50,14 @@ import { FfbTrace } from "./ffbTrace.js";
 import { clearBest, loadBest, saveBest } from "./circuit/store.js";
 
 export const HOST_DT = 1 / 60;
+/**
+ * Host steps per 60 Hz step while the fast wheel loop runs: 240 Hz, a
+ * little above the 200 reports a second a G PRO takes, so every report
+ * carries a torque computed from a rim angle read within the last 5 ms.
+ */
+export const FAST_LOOP_DIVISOR = 4;
+/** What the fast loop's timer asks for, ms: the shortest a browser gives a repeating timer. */
+const FAST_LOOP_TICK_MS = 4;
 
 export type HostKind = "builtin" | "rapier";
 export const hostKinds: HostKind[] = ["builtin", "rapier"];
@@ -177,6 +187,33 @@ export class Sim {
   /** Lateral acceleration the steering limit aims for, m/s². */
   steeringLimitAccel = 9.0;
   definition!: VehicleDefinition;
+  /**
+   * Fast wheel loop: while a force-feedback wheel is connected, step the
+   * simulation from a 4 ms timer in 1/240 s host steps instead of once per
+   * animation frame in 1/60 s steps, reading the wheel and sending its
+   * torque every step. The delay around the rim then falls from about 40 ms
+   * to about 20 ms, which is what lets a released wheel settle
+   * (docs/validation/ffb-hands-off.md). Lap timing, the ghost and the
+   * telemetry recorder stay at 60 Hz.
+   */
+  fastLoop = true;
+  /** The host step in use, s: `HOST_DT`, or a quarter of it in the fast loop. */
+  hostDt = HOST_DT;
+  /**
+   * How many times in the last second the loop stepped and sent the wheel
+   * its torque, for the wheel panel: 60 per second from animation frames,
+   * about 240 in the fast loop when the page keeps up with its timer.
+   */
+  loopRate = 0;
+  private loopCount = 0;
+  private loopCountSince = 0;
+  private fastTimer: ReturnType<typeof setInterval> | undefined;
+  /** Host steps since the last 60 Hz one (lap timing and recording run on those). */
+  private sub = 0;
+  /** The car's plan position at the last 60 Hz step, for the lap timer's line crossings. */
+  private timedX = 0;
+  private timedY = 0;
+  private lastFrame = 0;
   private accumulator = 0;
   private last = 0;
   // Poses at the last two sim steps; the renderer interpolates between them
@@ -444,7 +481,7 @@ export class Sim {
     const t = this.timer;
     if (!this.showGhost || !t || !this.ghostPlayer || !t.isRunning) return null;
     // The lap clock between steps: the renderer interpolates the car the same way.
-    const lapTime = t.state.lapTime + this.alpha * HOST_DT;
+    const lapTime = t.state.lapTime + (this.sub + this.alpha) * this.hostDt;
     return this.ghostPlayer.poseAt(lapTime, out);
   }
 
@@ -504,10 +541,9 @@ export class Sim {
   /** After each host step on the circuit: the lap clock and the ghost. */
   private stepCircuit(): void {
     const timer = this.timer!;
-    const p = this.prevPose;
     const c = this.currPose;
     const s = this.projector!.project(c.x, -c.y).s;
-    const r = timer.step(p.x, -p.y, c.x, -c.y, s, this.allWheelsOff());
+    const r = timer.step(this.timedX, -this.timedY, c.x, -c.y, s, this.allWheelsOff());
     const rec = this.ghostRecorder!;
     if (timer.isRunning || r.completed) rec.sample(HOST_DT);
     const scaler = this.ffbSink?.scaler;
@@ -529,7 +565,7 @@ export class Sim {
     const R = this.rapier!;
     this.scene?.free();
     const scene = new R.World({ x: 0, y: -9.80665, z: 0 });
-    scene.timestep = HOST_DT;
+    scene.timestep = this.hostDt;
     const ground = scene.createRigidBody(R.RigidBodyDesc.fixed());
     this.kerbHandles.clear();
     this.circuitKinds.clear();
@@ -667,11 +703,54 @@ export class Sim {
   private syncPoses(): void {
     this.readPose(this.currPose);
     copySnapshot(this.prevPose, this.currPose);
+    this.timedX = this.currPose.x;
+    this.timedY = this.currPose.y;
+    this.sub = 0;
     this.alpha = 0;
   }
 
   /** Call once per animation frame. */
   frame(nowMs: number): void {
+    this.syncLoop();
+    // The fast loop's timer runs on the page clock, so its frames do too.
+    const now = this.fastTimer !== undefined ? performance.now() : nowMs;
+    this.advance(now);
+    if (this.lastFrame === 0) this.lastFrame = now;
+    const dt = Math.max(0, Math.min((now - this.lastFrame) / 1000, 0.25));
+    this.lastFrame = now;
+    this.alpha = Math.min(1, Math.max(0, this.accumulator / this.hostDt));
+    this.audio.update(dt, this.readChannel, this.definition);
+  }
+
+  /** Start or stop the fast loop's timer to match `fastLoop` and the wheel. */
+  private syncLoop(): void {
+    const want = this.fastLoop && this.ffbSink?.connected === true;
+    if (want === (this.fastTimer !== undefined)) return;
+    if (want) {
+      this.fastTimer = setInterval(() => {
+        // A hidden tab's timers run about once a second: stop there, as the
+        // animation frames do, and let the sink's watchdog zero the force.
+        if (globalThis.document?.hidden) this.last = 0;
+        else this.advance(performance.now());
+      }, FAST_LOOP_TICK_MS);
+    } else {
+      clearInterval(this.fastTimer);
+      this.fastTimer = undefined;
+    }
+    this.hostDt = want ? HOST_DT / FAST_LOOP_DIVISOR : HOST_DT;
+    if (this.scene) this.scene.timestep = this.hostDt;
+    // The two clocks differ, and a 60 Hz step may be part done.
+    this.last = 0;
+    this.lastFrame = 0;
+    this.accumulator = 0;
+    this.loopCountSince = 0;
+    this.sub = 0;
+    this.timedX = this.currPose.x;
+    this.timedY = this.currPose.y;
+  }
+
+  /** Take the host steps due at `nowMs`, and send the wheel its torque. */
+  private advance(nowMs: number): void {
     if (this.last === 0) this.last = nowMs;
     // Clamp: never step backwards, and never try to catch up more than a
     // quarter second after a stall (tab switch, GC pause).
@@ -679,43 +758,58 @@ export class Sim {
     this.last = nowMs;
     this.accumulator += dt;
     this.stepsThisFrame = 0;
-    while (this.accumulator >= HOST_DT) {
+    const hostDt = this.hostDt;
+    const every = Math.round(HOST_DT / hostDt);
+    let timed = false;
+    while (this.accumulator >= hostDt) {
       const frame = this.pollInputs();
       this.world.setInput(this.vehicle, frame);
       copySnapshot(this.prevPose, this.currPose);
       const t0 = performance.now();
       if (this.host && this.scene) {
         this.host.beforeStep();
-        this.world.step(HOST_DT);
-        this.host.afterStep(HOST_DT);
+        this.world.step(hostDt);
+        this.host.afterStep(hostDt);
         this.scene.step();
       } else {
-        this.world.step(HOST_DT);
+        this.world.step(hostDt);
       }
       const cost = performance.now() - t0;
       if (this.read("Diverged") > this.divergedSeen) this.onDiverged();
       this.readPose(this.currPose);
-      if (this.timer) this.stepCircuit();
       this.stepCostMs = this.stepCostMs === 0 ? cost : this.stepCostMs * 0.98 + cost * 0.02;
-      this.recorder.record(this.world.telemetryView(this.vehicle));
-      this.accumulator -= HOST_DT;
+      // Lap timing, the ghost and the recorder keep their 60 Hz.
+      if (++this.sub >= every) {
+        this.sub = 0;
+        timed = true;
+        if (this.timer) this.stepCircuit();
+        this.timedX = this.currPose.x;
+        this.timedY = this.currPose.y;
+        this.recorder.record(this.world.telemetryView(this.vehicle));
+      }
+      this.accumulator -= hostDt;
       this.stepsThisFrame++;
     }
-    if (this.stepsThisFrame > 0 && this.ffbSink?.connected) {
-      void this.ffbSink.update(
-        ffbFrameFromTelemetry(
-          this.readChannel,
-          this.definition.steering,
-          // The runaway guard watches the hand wheel; only a wheel has one.
-          this.wheel.status.wheel ? this.wheel.status.wheelAngleDeg : undefined,
-        ),
-        this.stepsThisFrame * HOST_DT,
-      );
-      // The scaler runs before the sink's first await, so it is current.
-      if (this.ffbSink.scaler) this.ffbTrace.push(this.ffbSink.scaler, this.readChannel);
+    if (this.stepsThisFrame > 0) this.loopCount++;
+    if (nowMs - this.loopCountSince >= 1000) {
+      this.loopRate = Math.round((this.loopCount * 1000) / (nowMs - this.loopCountSince));
+      this.loopCount = 0;
+      this.loopCountSince = nowMs;
     }
-    this.alpha = Math.min(1, Math.max(0, this.accumulator / HOST_DT));
-    this.audio.update(dt, this.readChannel, this.definition);
+    if (this.stepsThisFrame > 0 && this.ffbSink?.connected) {
+      const frame = ffbFrameFromTelemetry(
+        this.readChannel,
+        this.definition.steering,
+        // The runaway guard watches the hand wheel; only a wheel has one.
+        this.wheel.status.wheel ? this.wheel.status.wheelAngleDeg : undefined,
+      );
+      // A 4 ms step's mean torque is already finer than the wheel's report
+      // rate, so the fast loop sends it as it is, not played out a step late.
+      if (this.fastTimer !== undefined) delete frame.samples;
+      void this.ffbSink.update(frame, this.stepsThisFrame * hostDt);
+      // The scaler runs before the sink's first await, so it is current.
+      if (timed && this.ffbSink.scaler) this.ffbTrace.push(this.ffbSink.scaler, this.readChannel);
+    }
   }
 
   private readonly readChannel = (name: string): number => this.read(name);
@@ -744,12 +838,12 @@ export class Sim {
    * doing something, else the keyboard.
    */
   private pollInputs(): InputFrame {
-    const keys = this.keyboard.update(HOST_DT);
+    const keys = this.keyboard.update(this.hostDt);
     if (this.touch.active) {
       this.inputSource = "touch";
-      return this.touch.update(HOST_DT);
+      return this.touch.update(this.hostDt);
     }
-    this.touch.update(HOST_DT);
+    this.touch.update(this.hostDt);
     const wheel = this.wheel.poll();
     if (wheel) {
       this.inputSource = "wheel";
@@ -758,7 +852,7 @@ export class Sim {
       return wheel;
     }
     this.gamepad.speed = this.read("Speed");
-    const pad = this.gamepad.poll(HOST_DT);
+    const pad = this.gamepad.poll(this.hostDt);
     const padActive =
       pad !== undefined &&
       (pad.steer !== 0 || pad.throttle !== 0 || pad.brake !== 0 || pad.handbrake !== 0);
@@ -846,6 +940,7 @@ export class Sim {
 
   dispose(): void {
     this.audio.dispose();
+    clearInterval(this.fastTimer);
     this.detach?.();
     this.host?.detach();
     this.scene?.free();

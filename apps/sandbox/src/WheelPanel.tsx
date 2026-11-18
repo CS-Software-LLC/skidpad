@@ -51,6 +51,7 @@ interface Status {
   auto: number | undefined;
   /** Constant-force reports the wheel took in the last second. */
   reportRate: number;
+  loopRate: number;
 }
 
 /** Lifetime of each force report with Stop on stall on, s. */
@@ -91,6 +92,7 @@ export function WheelPanel({
   // A gear or belt wheel can take the "Gear / belt" button.
   const [playout, setPlayout] = useState(true);
   const [playoutRate, setPlayoutRate] = useState(500);
+  const [fastLoop, setFastLoop] = useState(sim.fastLoop);
   const [slewRate, setSlewRate] = useState<number>(DIRECT_DRIVE_SCALER.slewRate);
   const [smoothingMs, setSmoothingMs] = useState(DIRECT_DRIVE_SCALER.smoothing * 1000);
   const [matchRotation, setMatchRotation] = useState(true);
@@ -135,6 +137,7 @@ export function WheelPanel({
         rimLimit: sink.current?.scaler.rimLimit ?? 0,
         auto: sink.current?.scaler.autoGain(),
         reportRate: sink.current?.reportRate ?? 0,
+        loopRate: sim.loopRate,
       });
       if (sink.current) setLog(sink.current.diagnostics.slice(-12));
     }, 100);
@@ -530,17 +533,45 @@ export function WheelPanel({
             </div>
           )}
           <div className="row">
-            <label title="Play the core's 1 kHz torque out between frames, one frame behind, instead of one value per 60 Hz frame">
+            <label title="Run the simulation at 240 Hz from a timer while the wheel is connected, reading the wheel and sending its torque every step, instead of once per 60 Hz frame. About halves the delay around the rim, which is what lets a released wheel settle at speed">
+              <input
+                type="checkbox"
+                checked={fastLoop}
+                onChange={(e) => {
+                  sim.fastLoop = e.target.checked;
+                  setFastLoop(e.target.checked);
+                }}
+              />
+              Fast wheel loop
+            </label>
+            {sink.current && (
+              <span
+                className="small"
+                title="How many times a second the simulation stepped and sent the wheel its torque. About 240 when the fast loop keeps up; lower when drawing a frame holds the page up"
+              >
+                loop {status.loopRate} /s
+              </span>
+            )}
+          </div>
+          <div className="row">
+            <label
+              title={
+                fastLoop
+                  ? "Not used with the fast wheel loop, which sends each 4 ms step's torque as it is"
+                  : "Play the core's 1 kHz torque out between frames, one frame behind, instead of one value per 60 Hz frame"
+              }
+            >
               <input
                 type="checkbox"
                 checked={playout}
+                disabled={fastLoop}
                 onChange={(e) => setPlayout(e.target.checked)}
               />
               Sub-frame playout
               <select
                 value={playoutRate}
                 onChange={(e) => setPlayoutRate(Number(e.target.value))}
-                disabled={!playout}
+                disabled={!playout || fastLoop}
               >
                 {[250, 360, 500].map((hz) => (
                   <option key={hz} value={hz}>

@@ -951,6 +951,48 @@ describe("force feedback", () => {
     await sink.disconnect();
   });
 
+  it("sends one report at a time and the newest level next when the host outruns the wheel", async () => {
+    const { LogitechWebHidSink } = await import("../src/index.js");
+    const { device, sent } = fakeWheel(0xc272);
+    const sink = new LogitechWebHidSink({
+      minInterval: 0,
+      gain: 1,
+      maxOutput: 1,
+      smoothing: 0,
+      slewRate: Infinity,
+    });
+    await sink.attach(device);
+    // A wheel that takes 5 ms over each report, as a G PRO does.
+    const send = device.sendReport.bind(device);
+    let inFlight = 0;
+    let most = 0;
+    device.sendReport = async (id: number, data: Uint8Array) => {
+      most = Math.max(most, ++inFlight);
+      await new Promise((r) => setTimeout(r, 5));
+      inFlight--;
+      await send(id, data);
+    };
+    const before = sent.length;
+    // A host stepping every millisecond with a rising torque, not awaited.
+    const updates: Array<Promise<void>> = [];
+    for (let k = 1; k <= 20; k++) {
+      updates.push(sink.update({ torque: k * 0.5, damping: 0, friction: 0 }, 0.001));
+      await new Promise((r) => setTimeout(r, 1));
+    }
+    await Promise.all(updates);
+    const levels = sent
+      .slice(before)
+      .filter((s) => s.id === 0x11 && s.data[2]! >> 4 === 2 && s.data[4] === 0)
+      .map((s) => constantLevel(s.data));
+    expect(most).toBe(1);
+    // Far fewer reports than steps, in order, and the last step's level last.
+    expect(levels.length).toBeGreaterThanOrEqual(3);
+    expect(levels.length).toBeLessThan(12);
+    for (let i = 1; i < levels.length; i++) expect(levels[i]!).toBeGreaterThan(levels[i - 1]!);
+    expect(levels.at(-1)!).toBeCloseTo(10 / 11, 3);
+    await sink.disconnect();
+  });
+
   it("plays the torque slices out on its own timer and matches the rotation", async () => {
     const { LogitechWebHidSink } = await import("../src/index.js");
     const { device, sent } = fakeWheel(0xc272);

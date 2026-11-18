@@ -105,6 +105,18 @@ export const G_PRO_LOOP = {
   outputDelay: 0.01,
 } as const;
 
+/**
+ * The sandbox's fast wheel loop for the harness: 240 Hz host steps, each
+ * step's mean torque sent as it is (no playout), and 2.5 ms more on the way
+ * out, the mean wait for the wheel's reply to the report before (5 ms on a
+ * G PRO). Spread after `G_PRO_LOOP`.
+ */
+export const FAST_WHEEL_LOOP = {
+  hostDt: 1 / 240,
+  playout: false,
+  outputDelay: G_PRO_LOOP.outputDelay + 0.0025,
+} as const;
+
 const RIM_DT = 1 / 1000;
 /** Bump stop stiffness, N·m/rad, and damping, N·m·s/rad, past the end stop. */
 const END_STOP_RATE = 50;
