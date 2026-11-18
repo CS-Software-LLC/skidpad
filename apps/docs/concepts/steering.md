@@ -49,11 +49,30 @@ Well below the onset the hand feels the whole manual torque; well above
 it, `1 − a` of it plus a constant `a × powerAssistOnset`. The torque rises
 with load everywhere, so the wheel never goes lighter as you turn in.
 
+A centre left fully manual is much stiffer than a road car's: 0.4 to
+0.7 N·m per degree of hand wheel at 100 km/h on the presets, where road
+cars carry roughly 0.2 to 0.35 [VERIFY against a published on-centre
+test]. `steering.powerAssistOnCentre` (`c`, 0 … 1) is the share of the
+assist that already works on centre
+([ADR-0040](https://github.com/CS-Software-LLC/skidpad/blob/main/docs/adr/0040-on-centre-power-assist.md)):
+
+```text
+SteeringTorque = (1 − a)·Tm + a·(1 − c)·Tm / √(1 + (Tm / powerAssistOnset)²)
+```
+
+The slope on centre is then `1 − a·c` of the manual one and still `1 − a`
+far from it, so the wheel keeps a centre that is firmer than the rest.
+With `powerAssistFadeStart` set, `c` comes in linearly from rest to that
+speed, so a parked wheel keeps its manual centre and its self-centring.
+This matters most on a force-feedback wheel: the rim is a small mass on
+this spring, driven through the delay of the loop, and the stiffer the
+spring the more damping it takes to keep a released rim from swinging.
+
 `steering.powerAssistAtSpeed`, `powerAssistFadeStart` and
 `powerAssistFadeEnd` make the assist speed-sensitive: the assist fraction
 goes linearly from `powerAssist` at the fade's start to
-`powerAssistAtSpeed` at its end (m/s). The wheel is then light when parking
-and heavier at speed, as with most electric systems
+`powerAssistAtSpeed` at its end (m/s). Set below `powerAssist`, the wheel
+is light when parking and heavier at speed, as with most electric systems
 ([ADR-0034](https://github.com/CS-Software-LLC/skidpad/blob/main/docs/adr/0034-speed-sensitive-power-assist.md)).
 
 ## Self-centring from the axis angles

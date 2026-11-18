@@ -43,21 +43,30 @@ times the scaler's gain (0.5 by default).
 
 | Preset       | Torque at 0 g (N·m) | Gradient at 0 g (N·m/g) | At 0.1 g (N·m/g) | Sensitivity (g/100°) | Angle hysteresis (deg) | Peak (g, N·m) |
 | ------------ | ------------------- | ----------------------- | ---------------- | -------------------- | ---------------------- | ------------- |
-| hatchbackFwd | 0.50                | 21.4                    | 15.2             | 2.43                 | 3.0                    | 0.20, 3.6     |
-| sportsRwd    | 0.65                | 28.6                    | 22.8             | 2.84                 | 1.7                    | 0.18, 4.5     |
+| hatchbackFwd | 0.42                | 11.9                    | 9.2              | 2.43                 | 3.0                    | 0.20, 2.2     |
+| sportsRwd    | 0.47                | 12.2                    | 10.7             | 2.83                 | 1.7                    | 0.18, 2.2     |
 | kart         | 0.45                | 13.3                    | 12.5             | 17.04                | 0.2                    | 0.10, 1.6     |
-| pickup4x4    | 0.81                | 31.1                    | 18.7             | 1.77                 | 4.4                    | 0.20, 4.5     |
-| crossoverEv  | 0.75                | 33.1                    | 22.9             | 3.09                 | 3.3                    | 0.20, 5.2     |
+| pickup4x4    | 0.65                | 16.6                    | 12.9             | 1.78                 | 4.4                    | 0.20, 3.1     |
+| crossoverEv  | 0.51                | 13.2                    | 11.4             | 3.09                 | 3.3                    | 0.20, 2.6     |
 | openWheeler  | 0.35                | 16.9                    | 16.9             | 3.37                 | 0.8                    | 0.18, 3.3     |
 
 ## What it shows
 
-- **The boost curve works as ADR-0029 intends.** On the four assisted road
-  cars the gradient at 0.1 g is 20 to 40 % below the on-centre one, because
-  the assist comes in around 1 N·m of manual torque. With the assist
-  removed, the hatchback's on-centre gradient barely moves (21.4 to
-  22.6 N·m/g), while its 0.1 g gradient rises from 15.2 to 22.5 N·m/g. The
-  open-wheeler has no assist, and its two gradients match.
+- **The assisted cars are light on centre by design (ADR-0040).** Before
+  2026-11-18 the boost curve left the centre manual, and the four assisted
+  road cars read 21 to 33 N·m/g on centre. Against the angle that was 0.4
+  to 0.7 N·m per degree of hand wheel, two to three times a road car's,
+  and on a direct-drive wheel a released rim swung without stopping. With
+  the on-centre share of the assist they carry 0.22 to 0.30 N·m per
+  degree. The gradient at 0.1 g is still 12 to 22 % below the on-centre
+  one, so the wheel keeps a centre. The open-wheeler has no assist, and
+  its two gradients match.
+- **Per g the assisted cars are now on the light side** (12 to 17 N·m/g).
+  That is the other face of their sensitivity: 1.8 to 3.1 g per 100° is
+  about twice what road cars measure, because the presets have no
+  steering compliance, so the same torque per degree is half the torque
+  per g. Steering compliance (ADR-0027) is the fix for that, and it
+  changes the handling, so it is its own piece of work.
 - **The column is most of the on-centre torque.** Column friction and
   damping make up 0.24 to 0.46 N·m of the torque at 0 g. Without them the
   core's own loop is 0.05 to 0.41 N·m wide, from the lag of the car's
@@ -83,5 +92,7 @@ does to the feel before it reaches a wheel.
   the sensitivity, and within 0.03 N·m on the torque at 0 g;
 - the column terms widen the loop by their own share within 10 %, and move
   the gradient by under 2 %;
-- the manual twin of the hatchback matches it on centre within 10 % and
-  is at least 20 % steeper at 0.1 g, with the same sensitivity.
+- the manual twin of the hatchback matches it on centre within 12 % with
+  the on-centre assist off, the hatchback carries `1 − a·c` of the manual
+  gradient on centre with it on (within 10 %), and the manual twin is at
+  least 20 % steeper at 0.1 g, with the same sensitivity.

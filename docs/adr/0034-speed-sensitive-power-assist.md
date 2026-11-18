@@ -51,3 +51,11 @@ The hatchback, crossover, pickup and sports car fade from full assist at
 - `the_assist_fades_with_speed_when_asked` checks the map exactly, and
   `a_fading_assist_weighs_the_wheel_up_at_speed_only` checks the whole car
   (heavier at speed, same parked, same state hash).
+
+## Amendment A (2026-11-18)
+
+The presets' fade to about 60 % of the assist at speed is gone: with the
+centre left manual it made the hand wheel two to three times as stiff per
+degree as a road car's, and a released direct-drive rim swung on it.
+ADR-0040 sets `powerAssistAtSpeed` to 0.6 to 0.7 and adds an on-centre
+share. The mechanism here is unchanged.

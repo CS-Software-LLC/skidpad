@@ -110,13 +110,28 @@ fn a_manual_car_weights_up_more_steeply_off_centre_than_its_assisted_twin() {
     manual.steering.power_assist_fade_end = 0.0;
     let a = weave::run(&assisted, &WeaveConfig::default()).unwrap();
     let m = weave::run(&manual, &WeaveConfig::default()).unwrap();
-    // The boost curve (ADR-0029) gives almost no help on centre, so the two
-    // cars feel alike there and part ways as the torque builds.
+    // The boost curve alone (ADR-0029) gives almost no help on centre, so
+    // the two cars feel alike there and part ways as the torque builds.
+    let mut boost_only = assisted.clone();
+    boost_only.steering.power_assist_on_centre = 0.0;
+    let b = weave::run(&boost_only, &WeaveConfig::default()).unwrap();
     assert!(
-        (m.torque_gradient_zero_g / a.torque_gradient_zero_g - 1.0).abs() < 0.1,
-        "on centre: manual {} N·m/g, assisted {} N·m/g",
+        (m.torque_gradient_zero_g / b.torque_gradient_zero_g - 1.0).abs() < 0.12,
+        "on centre: manual {} N·m/g, boost curve only {} N·m/g",
         m.torque_gradient_zero_g,
-        a.torque_gradient_zero_g
+        b.torque_gradient_zero_g
+    );
+    // With the on-centre share (ADR-0040) the centre carries 1 − a·c of the
+    // manual gradient, at the assist the car has at 100 km/h.
+    let st = &assisted.steering;
+    assert!(st.power_assist_on_centre > 0.0);
+    let share =
+        1.0 - assisted.power_assist_at(WeaveConfig::default().speed) * st.power_assist_on_centre;
+    assert!(
+        (a.torque_gradient_zero_g / (share * m.torque_gradient_zero_g) - 1.0).abs() < 0.1,
+        "on centre: assisted {} N·m/g, {share} of manual {} N·m/g",
+        a.torque_gradient_zero_g,
+        m.torque_gradient_zero_g
     );
     assert!(
         m.torque_gradient_reference > 1.2 * a.torque_gradient_reference,

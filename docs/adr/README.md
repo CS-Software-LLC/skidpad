@@ -46,3 +46,4 @@ Rejected.
 | [0037](0037-longitudinal-friction-ratio.md)            | Separate longitudinal friction for the feel tire                        | Proposed                  |
 | [0038](0038-load-dependent-lateral-relaxation.md)      | Load-dependent lateral relaxation length                                | Proposed                  |
 | [0039](0039-parking-twist.md)                          | Parking twist: the contact patch resists turning on the spot            | Proposed                  |
+| [0040](0040-on-centre-power-assist.md)                 | On-centre power assist                                                  | Proposed                  |

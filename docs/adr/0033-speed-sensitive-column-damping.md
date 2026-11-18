@@ -55,6 +55,16 @@ The sink also stopped clamping the damper's coefficient at `maxOutput`:
 it is a slope, and the clamp flattened any damping above 0.52 N·m·s/rad at
 the rim (a G PRO at 40 %) although the saturation already caps its force.
 
+**Amendment B (2026-11-18): the cause was the stiff centre.** The retune
+of amendment A did not stop the swing on the wheel. The cause was the
+stiffness of the assisted cars on centre, two to three times a road
+car's per degree of hand wheel, and ADR-0040 fixes that. With it the
+values of before amendment A settle in the harness too. Amendment A's
+values stay all the same: with the softer centre the rim swings more
+slowly, nearer the car's own yaw response, and at 140 km/h that slow
+swing leans on the damping. The hatchback goes from 0.16 to 0.24 for the
+same reason.
+
 ## Alternatives considered
 
 - Raise `columnDamping` fourfold. It settles the cars at speed, but

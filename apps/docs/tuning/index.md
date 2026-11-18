@@ -133,7 +133,13 @@ helps. Parameters are per tire unless noted.
 - Light enough to park but too light on the motorway: set
   `steering.powerAssistAtSpeed` below `powerAssist`, with
   `powerAssistFadeStart` and `powerAssistFadeEnd` (m/s) where it fades.
-- The wheel swings back and forth when let go at speed: set
+- The wheel swings back and forth quickly when let go at speed, or the
+  steering is heavy for every degree off centre: the centre is too stiff.
+  Set `steering.powerAssistOnCentre` (0.75 to 0.9 on the road presets) and
+  enough assist at speed for 0.2 to 0.35 N·m per degree of hand wheel at
+  100 km/h. The slope on centre is `1 − powerAssist × powerAssistOnCentre`
+  of the manual one.
+- It still swings, slowly, at motorway speeds: set
   `steering.columnDampingAtSpeed` (a few times `columnDamping`) and
   `steering.columnDampingSpeed` (m/s, about 20). The damping then rises
   with speed and stays light when parking.

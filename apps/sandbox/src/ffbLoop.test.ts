@@ -24,6 +24,24 @@ beforeAll(async () => {
 
 const deg = (d: number) => (d * Math.PI) / 180;
 
+/**
+ * The sports car or crossover as it was before the on-centre assist of
+ * ADR-0040: the boost curve alone, a quarter (0.4 on the crossover) of the
+ * rack torque taken at speed, and the column damping of before PR #91.
+ */
+const stiffCentre = (id: "sportsRwd" | "crossoverEv") => {
+  const now = preset(id);
+  return {
+    ...now,
+    steering: {
+      ...now.steering,
+      powerAssistOnCentre: 0,
+      powerAssistAtSpeed: id === "sportsRwd" ? 0.25 : 0.4,
+      columnDampingAtSpeed: 0.2,
+    },
+  };
+};
+
 describe("hands-off force feedback", () => {
   it("lets every preset's wheel settle when parked", () => {
     for (const id of presetIds) {
@@ -44,7 +62,12 @@ describe("hands-off force feedback", () => {
   it("settles from 90° at 30 km/h on the hatchback, crossover and open-wheeler", () => {
     for (const id of ["hatchbackFwd", "crossoverEv", "openWheeler"] as const) {
       const tr = releaseWheel(sp, preset(id), { speed: 30 / 3.6 });
-      expect(releaseVerdict(tr), id).toBe("settled");
+      // At rest near centre, and no swing after the release anywhere near
+      // the 90° it started from. (Not the verdict: with the light centre
+      // of ADR-0040 the hatchback's second swing, 8°, is a little wider
+      // than its first, 5°, before it stops.)
+      expect(Math.abs(tr.rate.at(-1)!), id).toBeLessThan(0.05);
+      expect(Math.max(...halfCyclePeaks(tr.angle).slice(1)), id).toBeLessThan(deg(35));
       expect(Math.abs(tr.angle.at(-1)!), id).toBeLessThan(deg(5));
     }
   });
@@ -81,7 +104,9 @@ describe("hands-off force feedback", () => {
     };
     for (const id of ["hatchbackFwd", "sportsRwd", "crossoverEv", "openWheeler"] as const) {
       const tr = releaseWheel(sp, preset(id), o);
-      expect(Math.abs(tr.angle.at(-1)!), id).toBeLessThan(deg(1));
+      // Within a degree and a half: the lighter the centre (ADR-0040),
+      // the further off it the column friction can hold the rim.
+      expect(Math.abs(tr.angle.at(-1)!), id).toBeLessThan(deg(1.5));
     }
     const old = releaseWheel(sp, preset("hatchbackFwd"), { ...o, deadzone: 0.02 });
     expect(Math.abs(old.angle.at(-1)!)).toBeGreaterThan(deg(8));
@@ -136,10 +161,24 @@ describe("hands-off force feedback", () => {
         ).toBeLessThan(deg(2));
       }
     }
-    // The sports car with the damping it shipped with before.
+    // The sports car as it first shipped: no assist on centre, so 0.70 N·m
+    // per degree at the hand wheel where it now has 0.30, and less damping.
+    expect(swing(stiffCentre("sportsRwd"), 100)).toBeGreaterThan(deg(10));
+    // The stiff centre was the cause (ADR-0040): with today's assist the
+    // old damping is enough, at half the column feel too.
     const before = preset("sportsRwd");
-    const old = { ...before, steering: { ...before.steering, columnDampingAtSpeed: 0.2 } };
-    expect(swing(old, 100)).toBeGreaterThan(deg(10));
+    const oldDamping = { ...before, steering: { ...before.steering, columnDampingAtSpeed: 0.2 } };
+    for (const columnScale of [1, 2]) {
+      const tr = releaseWheel(sp, oldDamping, {
+        ...o,
+        ...G_PRO_LOOP,
+        columnScale,
+        speed: 100 / 3.6,
+        scaler: DIRECT_DRIVE_SCALER,
+      });
+      const tail = tr.angle.slice(-60);
+      expect(Math.max(...tail) - Math.min(...tail), `×${columnScale}`).toBeLessThan(deg(2));
+    }
   });
 
   it("settles them in the fast wheel loop too, where less of it rests on the damping", () => {
@@ -168,8 +207,7 @@ describe("hands-off force feedback", () => {
       ["sportsRwd", 60],
       ["crossoverEv", 100],
     ] as const) {
-      const now = preset(id);
-      const old = { ...now, steering: { ...now.steering, columnDampingAtSpeed: 0.2 } };
+      const old = stiffCentre(id);
       expect(swing(old, kmh, deg(30), { playout: true }), id).toBeGreaterThan(deg(10));
       expect(swing(old, kmh, deg(30), FAST_WHEEL_LOOP), id).toBeLessThan(deg(2));
     }

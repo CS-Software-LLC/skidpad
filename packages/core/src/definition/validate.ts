@@ -747,6 +747,10 @@ export function validateDefinition(def: unknown): ValidationResult {
   if (onset !== undefined && (!isNum(onset) || onset < 0 || onset > 20)) {
     errors.push(`steering.powerAssistOnset must be in [0, 20] N·m (got ${String(onset)})`);
   }
+  const poc = s.powerAssistOnCentre;
+  if (poc !== undefined && (!isNum(poc) || poc < 0 || poc > 1)) {
+    errors.push(`steering.powerAssistOnCentre must be in [0, 1] (got ${String(poc)})`);
+  }
   const atc = s.alignTorqueComplianceDeg;
   if (atc !== undefined && (!isNum(atc) || atc < 0 || atc > 30)) {
     errors.push(
