@@ -121,11 +121,11 @@ column friction and damping a force-feedback wheel adds
 | Vehicle (preset)       | Torque at 0 g | Torque gradient at 0 g | At 0.1 g | Sensitivity    |
 | ---------------------- | ------------- | ---------------------- | -------- | -------------- |
 | Light FWD hatchback    | 0.50 N·m      | 21 N·m/g               | 15 N·m/g | 2.4 g per 100° |
-| RWD sports car         | 0.63 N·m      | 29 N·m/g               | 23 N·m/g | 2.8 g per 100° |
+| RWD sports car         | 0.65 N·m      | 29 N·m/g               | 23 N·m/g | 2.8 g per 100° |
 | Kart                   | 0.45 N·m      | 13 N·m/g               | 13 N·m/g | 17 g per 100°  |
 | Pickup 4x4             | 0.81 N·m      | 31 N·m/g               | 19 N·m/g | 1.8 g per 100° |
-| Electric crossover AWD | 0.73 N·m      | 33 N·m/g               | 23 N·m/g | 3.1 g per 100° |
-| Open-wheeler           | 0.33 N·m      | 17 N·m/g               | 17 N·m/g | 3.4 g per 100° |
+| Electric crossover AWD | 0.75 N·m      | 33 N·m/g               | 23 N·m/g | 3.1 g per 100° |
+| Open-wheeler           | 0.35 N·m      | 17 N·m/g               | 17 N·m/g | 3.4 g per 100° |
 
 Road load, from the same runner: a coast-down from 80 mph in neutral, fitted
 as `F = A + B·v + C·v²` like EPA's coast-down targets, against the 2025

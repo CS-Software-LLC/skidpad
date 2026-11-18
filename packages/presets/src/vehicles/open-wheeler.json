@@ -124,7 +124,7 @@
     "powerAssist": 0,
     "columnFriction": 0.2,
     "columnDamping": 0.03,
-    "columnDampingAtSpeed": 0.12,
+    "columnDampingAtSpeed": 0.3,
     "columnDampingSpeed": 20,
     "jackingRate": 0
   },

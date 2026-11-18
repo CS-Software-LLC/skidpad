@@ -188,3 +188,37 @@ column ×1), as the fourth half-cycle peak over the second:
 
 The test suite asserts the order of the first three and that added delay
 slows the settling.
+
+## Measured on a G PRO
+
+2026-11-18. `measureLoop()` on a G PRO: 201 reports a second (5.0 ms
+each), the page's angle updating at 208 Hz, 15 ms from asking for a torque
+to the page seeing its effect, a rim of about 0.016 kg·m², and a firmware
+that ignores a constant force's duration (so `forceTimeout` does nothing
+on it). On the wheel, the sports car let go at 100 km/h swung back and
+forth violently.
+
+`G_PRO_LOOP` holds those numbers for the harness (the 15 ms as 5 ms of
+angle age and 10 ms to the motor, plus the base's 0.13 N·m of friction
+from the damper measurement). With them and the sandbox's defaults
+(playout, direct-drive scaler, column ×2), the swing left over the last
+second of a 5 s release from 30°, before the retune:
+
+| Preset       | 60 km/h | 100 km/h | 140 km/h |
+| ------------ | ------- | -------- | -------- |
+| hatchbackFwd | 0°      | 0°       | 0°       |
+| sportsRwd    | 23°     | 23°      | 25°      |
+| crossoverEv  | 0°      | 23°      | 24°      |
+| pickup4x4    | 0°      | 0°       | 0°       |
+| openWheeler  | 30°     | 76°      | 115°     |
+
+The kart swung about 90° at 30 and 60 km/h. A rim half as heavy as
+assumed swings faster, and the same delay is then more of its cycle.
+
+What settles it in the harness: more damping at speed (1.5 times on the
+sports car and crossover, 2.5 times on the open-wheeler, 0.6 N·m per
+rad/s on the kart), or a 200 Hz loop for the road cars. The presets now
+carry the damping (ADR-0033, amendment A), and the test suite asserts
+that every preset is within 2° of rest at three speeds in this loop, and
+that the sports car's old value is not. The faster loop is a separate
+change.

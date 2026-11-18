@@ -44,11 +44,11 @@ times the scaler's gain (0.5 by default).
 | Preset       | Torque at 0 g (N·m) | Gradient at 0 g (N·m/g) | At 0.1 g (N·m/g) | Sensitivity (g/100°) | Angle hysteresis (deg) | Peak (g, N·m) |
 | ------------ | ------------------- | ----------------------- | ---------------- | -------------------- | ---------------------- | ------------- |
 | hatchbackFwd | 0.50                | 21.4                    | 15.2             | 2.43                 | 3.0                    | 0.20, 3.6     |
-| sportsRwd    | 0.63                | 28.6                    | 22.8             | 2.84                 | 1.7                    | 0.18, 4.5     |
+| sportsRwd    | 0.65                | 28.6                    | 22.8             | 2.84                 | 1.7                    | 0.18, 4.5     |
 | kart         | 0.45                | 13.3                    | 12.5             | 17.04                | 0.2                    | 0.10, 1.6     |
 | pickup4x4    | 0.81                | 31.1                    | 18.7             | 1.77                 | 4.4                    | 0.20, 4.5     |
-| crossoverEv  | 0.73                | 33.1                    | 22.9             | 3.09                 | 3.3                    | 0.20, 5.2     |
-| openWheeler  | 0.33                | 16.9                    | 16.9             | 3.37                 | 0.8                    | 0.18, 3.3     |
+| crossoverEv  | 0.75                | 33.1                    | 22.9             | 3.09                 | 3.3                    | 0.20, 5.2     |
+| openWheeler  | 0.35                | 16.9                    | 16.9             | 3.37                 | 0.8                    | 0.18, 3.3     |
 
 ## What it shows
 
@@ -59,7 +59,7 @@ times the scaler's gain (0.5 by default).
   22.6 N·m/g), while its 0.1 g gradient rises from 15.2 to 22.5 N·m/g. The
   open-wheeler has no assist, and its two gradients match.
 - **The column is most of the on-centre torque.** Column friction and
-  damping make up 0.21 to 0.46 N·m of the torque at 0 g. Without them the
+  damping make up 0.24 to 0.46 N·m of the torque at 0 g. Without them the
   core's own loop is 0.05 to 0.41 N·m wide, from the lag of the car's
   response (tire relaxation, yaw and roll) behind the hand wheel.
 - **The kart is the outlier.** It has a 2.5:1 ratio (17 g per 100°) and a

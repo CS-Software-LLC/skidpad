@@ -386,9 +386,12 @@ export interface ColumnEffects {
  * The column's friction (N·m) and damping (N·m per rad/s) at the hand wheel
  * as condition-effect coefficients: each scaled by `gain × columnScale`,
  * over the device's peak torque, the damping through `damperRate` (the
- * hand-wheel rate of full damper output per unit coefficient). Both are
- * clamped to `0 … maxOutput`, and the saturation is `maxOutput`, so the
- * firmware never pushes harder than the sink's own limit. Negative inputs
+ * hand-wheel rate of full damper output per unit coefficient). The
+ * friction is clamped to `0 … maxOutput` and the saturation is
+ * `maxOutput`, so the firmware never pushes harder than the sink's own
+ * limit; the damper's coefficient is a slope and goes to 1, so a heavy
+ * damping is not flattened at `maxOutput / damperRate` (0.52 N·m·s/rad on
+ * a G PRO at 40 %) before its force reaches that limit. Negative inputs
  * give zero: a negative damper would push the wheel along, not resist it.
  * The parking twist's friction (ADR-0039), a physical torque, adds to the
  * friction scaled by `gain` alone.
@@ -409,10 +412,13 @@ export function columnEffects(
   const kTorque = Math.max(0, o.gain) / Math.max(o.peakTorque, 1e-6);
   const k = kTorque * Math.max(0, o.columnScale);
   const fit = (x: number): number => (Number.isFinite(x) ? Math.max(0, Math.min(limit, x)) : 0);
+  const slope = (x: number): number => (Number.isFinite(x) ? Math.max(0, Math.min(1, x)) : 0);
   const twist = Number.isFinite(twistFriction) ? Math.max(0, twistFriction) : 0;
   return {
     friction: fit(k * friction + kTorque * twist),
-    damper: fit(k * damping * Math.max(0, o.damperRate)),
+    // A slope, not a force: only the saturation caps what it can push, so
+    // it may go to 1 (the full output at `damperRate`).
+    damper: slope(k * damping * Math.max(0, o.damperRate)),
     saturation: limit,
   };
 }
