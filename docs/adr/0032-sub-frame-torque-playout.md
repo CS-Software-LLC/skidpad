@@ -74,3 +74,15 @@ With two runs the line fits exactly, so the reported 0 % spread says
 nothing; a repeat with all three runs settled would. 8.5 is the G PRO
 models' `damperRate` (`G_PRO_DAMPER_RATE`); other wheels keep 10
 [VERIFY].
+
+## Amendment A: the sandbox's fast wheel loop (2026-11-18)
+
+`measureLoop()` on the G PRO put the loop around the rim at about 40 ms
+with playout, of which playout's own frame is 17 ms, and a released wheel
+swung at speed (docs/validation/ffb-hands-off.md). The sandbox now steps
+at 240 Hz from a timer while a force-feedback wheel is connected and
+sends each step's mean torque directly, with no playout: a 4 ms mean is
+already finer than the 200 reports a second the wheel takes. Playout
+stays in the library, and in the sandbox when **Fast wheel loop** is off,
+for hosts that cannot step faster than their display. The sink's direct
+path now sends one report at a time, the newest level next.

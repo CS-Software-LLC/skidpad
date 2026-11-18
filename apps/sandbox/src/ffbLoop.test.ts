@@ -9,7 +9,13 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { init, type Skidpad } from "@skidpad/core";
 import { DIRECT_DRIVE_SCALER } from "@skidpad/input";
 import { preset, presetIds } from "@skidpad/presets";
-import { G_PRO_LOOP, halfCyclePeaks, releaseVerdict, releaseWheel } from "./ffbLoop.js";
+import {
+  FAST_WHEEL_LOOP,
+  G_PRO_LOOP,
+  halfCyclePeaks,
+  releaseVerdict,
+  releaseWheel,
+} from "./ffbLoop.js";
 
 let sp: Skidpad;
 beforeAll(async () => {
@@ -134,6 +140,39 @@ describe("hands-off force feedback", () => {
     const before = preset("sportsRwd");
     const old = { ...before, steering: { ...before.steering, columnDampingAtSpeed: 0.2 } };
     expect(swing(old, 100)).toBeGreaterThan(deg(10));
+  });
+
+  it("settles them in the fast wheel loop too, where less of it rests on the damping", () => {
+    // 240 Hz host steps, the step's torque sent as it is: about half the
+    // delay around the rim of the 60 Hz loop with playout.
+    const o = { seconds: 5, columnScale: 2, scaler: DIRECT_DRIVE_SCALER, ...G_PRO_LOOP };
+    const swing = (
+      def: Parameters<typeof releaseWheel>[1],
+      kmh: number,
+      rel: number,
+      loop: object,
+    ): number => {
+      const tr = releaseWheel(sp, def, { ...o, releaseAngle: rel, speed: kmh / 3.6, ...loop });
+      const tail = tr.angle.slice(-Math.round(tr.angle.length / 5));
+      return 0.5 * (Math.max(...tail) - Math.min(...tail));
+    };
+    for (const id of presetIds) {
+      for (const kmh of id === "kart" ? [30, 60, 90] : [60, 100, 140]) {
+        const rel = id === "kart" ? deg(20) : deg(30);
+        expect(swing(preset(id), kmh, rel, FAST_WHEEL_LOOP), `${id} ${kmh}`).toBeLessThan(deg(2));
+      }
+    }
+    // The sports car and crossover with the damping they had before: where
+    // the 60 Hz loop keeps swinging, the fast one comes to rest.
+    for (const [id, kmh] of [
+      ["sportsRwd", 60],
+      ["crossoverEv", 100],
+    ] as const) {
+      const now = preset(id);
+      const old = { ...now, steering: { ...now.steering, columnDampingAtSpeed: 0.2 } };
+      expect(swing(old, kmh, deg(30), { playout: true }), id).toBeGreaterThan(deg(10));
+      expect(swing(old, kmh, deg(30), FAST_WHEEL_LOOP), id).toBeLessThan(deg(2));
+    }
   });
 
   it("does not call a swing under half a degree growing", () => {
