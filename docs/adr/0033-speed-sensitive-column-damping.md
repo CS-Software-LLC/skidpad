@@ -38,6 +38,23 @@ The hatchback, sports car, crossover, pickup and open-wheeler presets go
 to four times their parking damping by 20 m/s [ILLUSTRATIVE], picked with
 the harness. The kart is unchanged.
 
+**Amendment A (2026-11-18): retuned to a measured G PRO.** `measureLoop()`
+on a G PRO found a rim of about 0.016 kg·m² (the harness had assumed 0.03)
+and 15 ms from asking for a torque to the page seeing its effect, and on
+the wheel the sports car let go at 100 km/h swung back and forth without
+stopping. The harness reproduces it with those numbers and the base's
+0.13 N·m of friction (`G_PRO_LOOP`): at the sandbox's defaults the sports
+car, crossover and open-wheeler kept swinging 23° to 115° between 60 and
+140 km/h. The damping at speed is now 0.3 N·m per rad/s on the sports car
+and crossover (from 0.2) and on the open-wheeler (from 0.12), and the kart
+gets 0.6 by 10 m/s (it had none). The hatchback and pickup settled as they
+were. With these every preset's rim is within 2° of rest a few seconds
+after it is let go, and the test suite asserts it.
+
+The sink also stopped clamping the damper's coefficient at `maxOutput`:
+it is a slope, and the clamp flattened any damping above 0.52 N·m·s/rad at
+the rim (a G PRO at 40 %) although the saturation already caps its force.
+
 ## Alternatives considered
 
 - Raise `columnDamping` fourfold. It settles the cars at speed, but

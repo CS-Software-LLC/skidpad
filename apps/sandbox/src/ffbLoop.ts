@@ -64,6 +64,11 @@ export interface ReleaseOptions {
    */
   deadzone?: number;
   /**
+   * The base's own friction at the rim, N·m (default 0): it is there
+   * whatever the gain and the column scale.
+   */
+  baseFriction?: number;
+  /**
    * Age of the rim angle when the host reads it, s (default 0): the
    * browser's gamepad polling and the device's report interval.
    */
@@ -85,6 +90,20 @@ export interface ReleaseTrace {
   /** The car's yaw rate at each host step, rad/s. */
   yawRate: number[];
 }
+
+/**
+ * The loop around a Logitech G PRO as `measureLoop()` found it
+ * (2026-11-18): the rim's inertia, the base's friction (from the damper
+ * measurement, ADR-0032), and the 15 ms from asking for a torque to the
+ * page seeing its effect, split as 5 ms of angle age (the page's reading
+ * updates at 208 Hz) and 10 ms to the motor.
+ */
+export const G_PRO_LOOP = {
+  inertia: 0.016,
+  baseFriction: 0.13,
+  inputDelay: 0.005,
+  outputDelay: 0.01,
+} as const;
 
 const RIM_DT = 1 / 1000;
 /** Bump stop stiffness, N·m/rad, and damping, N·m·s/rad, past the end stop. */
@@ -128,7 +147,8 @@ export function releaseWheel(
   const inertia = o.inertia ?? 0.03;
   const col = o.columnScale ?? 1;
   let damping = scaler.gain * col * def.steering.columnDamping;
-  let friction = scaler.gain * col * def.steering.columnFriction;
+  const base = Math.max(0, o.baseFriction ?? 0);
+  let friction = base + scaler.gain * col * def.steering.columnFriction;
   const endStop = o.endStop ?? (540 * Math.PI) / 180;
   const release = o.releaseAngle ?? Math.PI / 2;
   let angle = release;
@@ -171,7 +191,7 @@ export function releaseWheel(
     // The firmware caps it at full output, like the motor.
     friction = Math.min(
       o.fullScale ?? 11 * 0.4,
-      scaler.gain * (col * frame.friction + (frame.twistFriction ?? 0)),
+      base + scaler.gain * (col * frame.friction + (frame.twistFriction ?? 0)),
     );
     if (o.playout) {
       scaler.watch(hostDt, frame.wheelAngle);

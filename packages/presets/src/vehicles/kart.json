@@ -108,6 +108,8 @@
     "powerAssist": 0,
     "columnFriction": 0.4,
     "columnDamping": 0.02,
+    "columnDampingAtSpeed": 0.6,
+    "columnDampingSpeed": 10,
     "jackingRate": 0.01
   },
   "brakes": {

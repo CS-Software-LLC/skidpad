@@ -1066,7 +1066,9 @@ describe("force feedback", () => {
     expect(c.damper).toBeCloseTo((0.05 * 10) / 11);
     expect(c.saturation).toBe(0.4);
     // Never above maxOutput, never negative (a negative damper drives the wheel).
-    expect(columnEffects(100, 100, o)).toEqual({ friction: 0.4, damper: 0.4, saturation: 0.4 });
+    // The friction is a force and stops at the limit; the damper is a slope
+    // and goes to 1, its force capped by the saturation.
+    expect(columnEffects(100, 100, o)).toEqual({ friction: 0.4, damper: 1, saturation: 0.4 });
     expect(columnEffects(-1, -1, o)).toEqual({ friction: 0, damper: 0, saturation: 0.4 });
     expect(columnEffects(0.3, 0.05, { ...o, gain: 0 }).friction).toBe(0);
     // The parking twist's friction is physical: the gain scales it, the

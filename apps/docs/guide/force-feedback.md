@@ -285,8 +285,11 @@ A definition can raise the damping with speed
 ADR-0033), so the wheel stays light when parking and does not swing when
 let go at speed. The core reports the current value on the `ColumnDamping`
 channel, `ffbFrameFromTelemetry` sends it, and the sink re-sends the damper
-only when it moves by more than about 5 %. The presets other than the kart
-reach four times their parking damping by 20 m/s.
+only when it moves by more than about 5 %. The road cars reach four to six
+times their parking damping by 20 m/s, the open-wheeler ten times, and the
+kart, with its 2.5:1 ratio, 0.6 N·m per rad/s by 10 m/s; the values were
+set so that a released wheel settles on a measured G PRO (ADR-0033,
+amendment A).
 
 `sink.measureDamper(readAngleDeg)` finds the firmware damper's units on
 the wheel at hand. With the hands off, it spins the rim at three
