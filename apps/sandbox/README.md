@@ -19,6 +19,15 @@ unbranded model with dimensions driven by its vehicle definition:
   default and retains the original framing: 8 m back, 2.6 m above the CG, looking
   3 m ahead, with no lateral offset. Front-quarter distance scales with wheelbase
   to frame the small kart and large pickup.
+- **Camera: cockpit** puts the camera at the driver's eyes, locked to the body so
+  it rolls, pitches and heaves with it. The road cars are left-hand drive; in this
+  view their glass and painted greenhouse sides are left out, the body gets a
+  cabin floor, and `src/models/Cockpit.tsx` adds a dash, pillars, door cards,
+  seats and a steering wheel. The kart and single-seater keep their own open
+  cockpits. Every rim turns by the core's `SteeringWheelAngle`, so it matches a
+  physical wheel one to one. Eye points come from `src/models/cabin.ts`, which
+  the road-car models also use for their greenhouse. **Cockpit FOV** sets the
+  vertical field of view (30° to 90°, default 55°) and is remembered.
 - Cones, distance boards, and concrete barriers are decorative. The distance
   boards measure to the first bump at x = 36 m. The existing bumps, ramp, and
   kerb have collisions only under the Rapier host; their paint follows the same

@@ -3,13 +3,16 @@ import { Canvas, useFrame } from "@react-three/fiber";
 import {
   BufferAttribute,
   BufferGeometry,
+  Euler,
+  Quaternion,
+  Vector3,
   type DirectionalLight,
   type Group,
   type Material,
   type Mesh,
+  type PerspectiveCamera,
 } from "three";
 import type { GhostPose } from "@skidpad/replay";
-import type { TireDefinition } from "@skidpad/core";
 import type { SurfaceId } from "@skidpad/presets";
 import {
   circuitGeometryOnce,
@@ -22,21 +25,28 @@ import { CircuitScene } from "./circuit/CircuitScene.js";
 import { OBSTACLES, obstacleQuaternion, trackRibbon } from "./track.js";
 import { VehicleModel } from "./models/VehicleModel.js";
 import { VehicleWheel } from "./models/Wheel.js";
+import { Cockpit } from "./models/Cockpit.js";
+import { cockpitLayout, modelDimensions, tireRadius } from "./models/cabin.js";
+import { InteriorView } from "./models/parts.js";
 import { WHEEL_STYLES } from "./models/types.js";
 import { ProvingGround } from "./ProvingGround.js";
 
-export type CameraView = "chase" | "offsetChase" | "frontQuarter";
+export type CameraView = "chase" | "offsetChase" | "frontQuarter" | "cockpit";
 
-const CAMERA_OFFSETS: Record<CameraView, { back: number; side: number; ahead: number }> = {
+/** Vertical field of view of the outside cameras, degrees. */
+const CHASE_FOV = 60;
+/** Near clip planes: the cockpit view needs the rim and pillars a few centimetres away. */
+const CHASE_NEAR = 0.5;
+const COCKPIT_NEAR = 0.04;
+
+const CAMERA_OFFSETS: Record<
+  Exclude<CameraView, "cockpit">,
+  { back: number; side: number; ahead: number }
+> = {
   chase: { back: 8, side: 0, ahead: 3 },
   offsetChase: { back: 6.8, side: 1.5, ahead: 2 },
   frontQuarter: { back: -5.5, side: 3.8, ahead: 0 },
 };
-
-function tireRadius(tire: TireDefinition): number {
-  const r = tire.model === "feel" ? tire.radius : tire.unloadedRadius;
-  return typeof r === "number" ? r : 0.31;
-}
 
 /**
  * Coordinate mapping: the core is ISO (x forward, y left, z up). Three.js is
@@ -48,10 +58,12 @@ function Car({
   sim,
   primitives,
   cameraView,
+  cockpitFov,
 }: {
   sim: Sim;
   primitives: boolean;
   cameraView: CameraView;
+  cockpitFov: number;
 }) {
   const group = useRef<Group>(null);
   const snap = useRef<SimSnapshot>(emptySnapshot());
@@ -80,6 +92,19 @@ function Car({
     [-b, halfR, rR - h, rR],
     [-b, -halfR, rR - h, rR],
   ];
+  const dimensions = modelDimensions(def, sim.presetId);
+  const cockpit = cameraView === "cockpit";
+  // Eye point in the vehicle group's frame (the model sits h below the CG),
+  // and the camera's rotation in that frame: look along +X, a little down.
+  const layout = cockpitLayout(sim.presetId, dimensions);
+  const eye = useMemo(
+    () => new Vector3(layout.eye[0], layout.eye[1] - h, layout.eye[2]),
+    [layout.eye[0], layout.eye[1], layout.eye[2], h],
+  );
+  const eyeTurn = useMemo(
+    () => new Quaternion().setFromEuler(new Euler(-layout.pitch, -Math.PI / 2, 0, "YXZ")),
+    [layout.pitch],
+  );
 
   useFrame((state, delta) => {
     sim.frame(state.clock.elapsedTime * 1000);
@@ -101,11 +126,26 @@ function Car({
       // Rotate the tire, rim and spokes together about the world-mapped axle.
       if (wheel) wheel.rotation.z = -s.wheelSpin[i]!;
     }
+    const cam = state.camera as PerspectiveCamera;
+    const fov = cockpit ? cockpitFov : CHASE_FOV;
+    const near = cockpit ? COCKPIT_NEAR : CHASE_NEAR;
+    if (cam.fov !== fov || cam.near !== near) {
+      cam.fov = fov;
+      cam.near = near;
+      cam.updateProjectionMatrix();
+    }
+    if (cockpit && g) {
+      // Cockpit camera: rigidly at the driver's eyes, so it rolls, pitches
+      // and heaves with the body exactly as the sim moves it.
+      g.updateMatrixWorld();
+      cam.position.copy(eye).applyMatrix4(g.matrixWorld);
+      cam.quaternion.copy(g.quaternion).multiply(eyeTurn);
+      previousView.current = cameraView;
+    }
     // Chase camera: frame-rate independent follow with a gain high enough
     // that the car stays framed at speed, looking a little ahead of it.
-    const cam = state.camera;
     const dt = delta || 1 / 60;
-    const { back, side, ahead } = CAMERA_OFFSETS[cameraView];
+    const { back, side, ahead } = CAMERA_OFFSETS[cockpit ? "chase" : cameraView];
     // Inspection framing fits the kart and pickup; driving views keep their offsets.
     const framing =
       cameraView === "frontQuarter"
@@ -117,8 +157,10 @@ function Car({
     // Switching sides snaps the camera so it does not fly through the cabin.
     const blend = previousView.current === cameraView ? k : 1;
     previousView.current = cameraView;
-    cam.position.lerp({ x: tx, y: s.z + 2.6 * framing, z: tz } as never, blend);
-    cam.lookAt(s.x + Math.cos(s.yaw) * ahead, s.z, -s.y - Math.sin(s.yaw) * ahead);
+    if (!cockpit) {
+      cam.position.lerp({ x: tx, y: s.z + 2.6 * framing, z: tz } as never, blend);
+      cam.lookAt(s.x + Math.cos(s.yaw) * ahead, s.z, -s.y - Math.sin(s.yaw) * ahead);
+    }
     // The shadow-casting light follows the car so its shadow frustum never
     // runs out; a fixed light would pop shadows a few metres from the origin.
     const l = light.current;
@@ -151,20 +193,10 @@ function Car({
       <group ref={group} name="vehicle">
         {detailed ? (
           <group position={[0, -h, 0]}>
-            <VehicleModel
-              preset={sim.presetId}
-              dimensions={{
-                frontAxle: a,
-                rearAxle: -b,
-                frontHalfTrack: halfF,
-                rearHalfTrack: halfR,
-                halfWidth:
-                  Math.max(halfF + wheels.widths[0] / 2, halfR + wheels.widths[1] / 2) - 0.01,
-                frontRadius: rF,
-                rearRadius: rR,
-              }}
-              snapshot={snap}
-            />
+            <InteriorView.Provider value={cockpit}>
+              <VehicleModel preset={sim.presetId} dimensions={dimensions} snapshot={snap} />
+              {cockpit && <Cockpit preset={sim.presetId} d={dimensions} snapshot={snap} />}
+            </InteriorView.Provider>
           </group>
         ) : (
           <>
@@ -321,7 +353,12 @@ const debug: number[] | null =
     ? ((window as unknown as { __skidpadFrames: number[] }).__skidpadFrames = [])
     : null;
 
-const CAMERA = { position: [-8, 3, 0] as [number, number, number], fov: 60, near: 0.5, far: 3000 };
+const CAMERA = {
+  position: [-8, 3, 0] as [number, number, number],
+  fov: CHASE_FOV,
+  near: CHASE_NEAR,
+  far: 3000,
+};
 const GL = { preserveDrawingBuffer: true };
 
 function Track() {
@@ -424,6 +461,7 @@ export function Scene({
   revision,
   primitives,
   cameraView,
+  cockpitFov,
   canvasRef,
 }: {
   sim: Sim;
@@ -435,6 +473,8 @@ export function Scene({
   revision: number;
   primitives: boolean;
   cameraView: CameraView;
+  /** Vertical field of view in the cockpit view, degrees. */
+  cockpitFov: number;
   canvasRef: React.MutableRefObject<HTMLCanvasElement | null>;
 }) {
   return (
@@ -470,6 +510,7 @@ export function Scene({
         sim={sim}
         primitives={primitives}
         cameraView={cameraView}
+        cockpitFov={cockpitFov}
       />
     </Canvas>
   );
