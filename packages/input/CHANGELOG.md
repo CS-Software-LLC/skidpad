@@ -1,5 +1,25 @@
 # @skidpad/input
 
+## 0.13.0
+
+### Minor Changes
+
+- fcda1c0: - input: `FfbScaler` keeps the car's peak steering torque over the last minute (`carPeak`, a new `TorquePeak` window) and `autoGain()` returns the gain that puts it at 90 % of the rim's limit (`rimLimit`), within 0.05 to 2, after 10 s of driving. It never sets the gain itself; the defaults are unchanged.
+- cd2ccee: - input: `LogitechWebHidSink` gains `forceTimeout` (seconds, default 0: off). With it set, every HID++ constant-force report carries that lifetime and renews it, so the wheel ends the force by itself when the page stops sending (paused at a breakpoint, hung or crashed), which the sink's own watchdog cannot catch.
+  - input: `sink.reportRate` is the constant-force reports the wheel took in the last second, and `sink.measureLoop(readAngleDeg)` measures, hands off, the report rate and round trip, the delay from asking for a torque to the page seeing its effect (`fitPulse`), how often the angle updates, the rim's inertia, and whether the firmware honours a force's lifetime (`timeoutExpires`, `timeoutRenews`).
+  - input: `WheelInput.readAngleDeg()` reads the hand-wheel angle from the browser afresh, without touching button state.
+- 7e20b64: - core: two telemetry channels for the parking twist (ADR-0039 amendment A): `SteerTwist`, its share of `SteeringTorque`, and `SteerTwistFriction`, the hand-wheel torque that slides the parked contact patches. Both are zero without the twist.
+  - input: `ffbFrameFromTelemetry` takes the parking twist out of the motor torque and sends it as wheel friction (`FfbFrame.twistFriction`), which the Logitech sink adds to the friction effect. As motor torque the twist was a stiff spring one host step late and set a parked wheel swinging.
+
+### Patch Changes
+
+- bf9e402: - input: `LogitechWebHidSink.update()` without playout now sends one report at a time and the newest level next, so a host that steps faster than the wheel answers (a G PRO takes 200 reports a second) no longer stacks reports up behind one another.
+  - sandbox: **Fast wheel loop** (on by default): while a force-feedback wheel is connected the simulation steps at 240 Hz from a timer, reads the wheel and sends its torque every step, with no playout. About halves the delay around the rim (40 ms to 20 ms on a G PRO). Lap timing, the ghost and the telemetry recorder stay at 60 Hz.
+  - physics: no simulated behaviour changes.
+- 600f3a7: - presets: more column damping at speed, so a released wheel settles on a direct-drive base: `columnDampingAtSpeed` 0.3 on the sports car and crossover (from 0.2) and the open-wheeler (from 0.12), and the kart gets 0.6 by 10 m/s (it had none). Tuned in the hands-off harness with the rim inertia and delay measured on a G PRO.
+  - physics: no simulated behaviour changes; the weave test's driver torque includes the column damping, so its torque at 0 g rises by 0.01 to 0.02 N·m on those presets.
+  - input: `columnEffects` no longer clamps the damper's coefficient at `maxOutput` (its force is still capped there by the saturation), which had flattened any damping above `maxOutput / damperRate`.
+
 ## 0.12.0
 
 ### Minor Changes
